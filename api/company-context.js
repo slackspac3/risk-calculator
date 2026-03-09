@@ -62,21 +62,81 @@ function deriveCandidateUrls(rootUrl, html) {
   return Array.from(new Set([...defaults, ...discovered])).slice(0, 8);
 }
 
-function buildFallbackProfile(canonicalUrl, pages) {
+function extractCompanySearchTerm(canonicalUrl) {
+  const hostname = new URL(canonicalUrl).hostname.replace(/^www\./, '');
+  const root = hostname.split('.')[0] || hostname;
+  return root.replace(/[-_]+/g, ' ').trim();
+}
+
+function decodeXml(text) {
+  return String(text || '')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+}
+
+function parseRssItems(xml) {
+  const items = [];
+  const matches = String(xml || '').match(/<item[\s\S]*?<\/item>/gi) || [];
+  matches.forEach(block => {
+    const title = decodeXml((block.match(/<title>([\s\S]*?)<\/title>/i) || [])[1] || '').trim();
+    const link = decodeXml((block.match(/<link>([\s\S]*?)<\/link>/i) || [])[1] || '').trim();
+    const description = stripHtml(decodeXml((block.match(/<description>([\s\S]*?)<\/description>/i) || [])[1] || '')).trim();
+    const pubDate = decodeXml((block.match(/<pubDate>([\s\S]*?)<\/pubDate>/i) || [])[1] || '').trim();
+    if (title && link) {
+      items.push({ title, link, description, pubDate });
+    }
+  });
+  return items;
+}
+
+async function fetchNewsContext(canonicalUrl) {
+  const term = encodeURIComponent(`"${extractCompanySearchTerm(canonicalUrl)}"`);
+  const feeds = [
+    {
+      label: 'Local UAE/GCC news',
+      url: `https://news.google.com/rss/search?q=${term}%20(site%3Athenationalnews.com%20OR%20site%3Agulfnews.com%20OR%20site%3Akhaleejtimes.com)&hl=en-AE&gl=AE&ceid=AE:en`
+    },
+    {
+      label: 'Global business news',
+      url: `https://news.google.com/rss/search?q=${term}%20(site%3Areuters.com%20OR%20site%3Abloomberg.com%20OR%20site%3Acnbc.com%20OR%20site%3Aft.com)&hl=en-US&gl=US&ceid=US:en`
+    }
+  ];
+  const results = [];
+  for (const feed of feeds) {
+    try {
+      const xml = await fetchText(feed.url);
+      const items = parseRssItems(xml).slice(0, 4).map(item => ({
+        ...item,
+        feed: feed.label
+      }));
+      results.push(...items);
+    } catch {}
+  }
+  return results.slice(0, 6);
+}
+
+function buildFallbackProfile(canonicalUrl, pages, newsItems = []) {
   const combined = pages.map(page => page.content).join(' ').toLowerCase();
   const signals = [];
   if (/cloud|platform|software|digital|data/.test(combined)) signals.push('Material dependence on digital platforms, data flows, or cloud services.');
   if (/customer|consumer|client|member|patient|user/.test(combined)) signals.push('Potential exposure to personal, customer, or regulated data handling obligations.');
   if (/partner|supplier|vendor|ecosystem/.test(combined)) signals.push('Third-party and supplier dependence may be relevant to the operating model.');
   if (/global|regional|international|middle east|uae|gcc/.test(combined)) signals.push('Cross-border operations or regional footprint may change regulatory and resilience expectations.');
+  if (newsItems.length) signals.push('Recent public news coverage was also reviewed to widen the context beyond the corporate website.');
   return {
-    companySummary: `Public website context was gathered for ${canonicalUrl}, but the AI response could not be parsed cleanly. This fallback summary is based only on the website text that was fetched.`,
-    businessProfile: 'Review the fetched website context manually and refine the profile before saving. The site appears to describe a business with some combination of technology dependence, partner reliance, and customer-facing operations.',
+    companySummary: `Public context was gathered for ${canonicalUrl}, but the AI response could not be parsed cleanly. This fallback summary is based on the website content${newsItems.length ? ' and public news coverage' : ''} that was fetched.`,
+    businessProfile: `Review the fetched public context manually and refine the profile before saving. The company appears to have a business model with some combination of technology dependence, partner reliance, and customer-facing operations.${newsItems.length ? ' Public news coverage may provide additional signals on growth, partnerships, incidents, regulation, or strategic direction.' : ''}`,
     riskSignals: signals.length ? signals : ['Public website content suggests a need to assess technology reliance, data handling, third-party dependencies, and resilience requirements.'],
     regulatorySignals: [],
     aiGuidance: 'Use the public website material as a starting point, then refine the business profile, likely regulations, and technology exposure manually before relying on it in assessments.',
     suggestedGeography: '',
-    sources: pages.map(page => ({ url: page.url, note: 'Public website page fetched for context building.' }))
+    sources: [
+      ...pages.map(page => ({ url: page.url, note: 'Public website page fetched for context building.' })),
+      ...newsItems.map(item => ({ url: item.link, note: `${item.feed}: ${item.title}` }))
+    ]
   };
 }
 
@@ -126,6 +186,7 @@ module.exports = async function handler(req, res) {
   }
 
   let pages = [];
+  let newsItems = [];
   try {
     const rootHtml = await fetchText(canonicalUrl);
     const candidateUrls = deriveCandidateUrls(canonicalUrl, rootHtml);
@@ -145,7 +206,9 @@ module.exports = async function handler(req, res) {
       throw new Error('No usable public website content could be extracted from the supplied URL.');
     }
 
-    const systemPrompt = `You are a senior enterprise risk advisor. Given public company website material, produce a concise business-risk context profile.
+    newsItems = await fetchNewsContext(canonicalUrl);
+
+    const systemPrompt = `You are a senior enterprise risk advisor. Given public company website material and public news context, produce a concise business-risk context profile.
 Respond ONLY with valid JSON matching this schema:
 {
   "companySummary": "string",
@@ -162,11 +225,14 @@ Respond ONLY with valid JSON matching this schema:
 Public website extracts:
 ${pages.map((page, idx) => `Source ${idx + 1}: ${page.url}\n${page.content}`).join('\n\n')}
 
+Public news context:
+${newsItems.length ? newsItems.map((item, idx) => `News ${idx + 1}: ${item.feed} | ${item.title} | ${item.pubDate}\n${item.description}\n${item.link}`).join('\n\n') : '(no public news items were retrieved)'}
+
 Instructions:
 - infer the company's business model, operating profile, technology reliance, data exposure, and likely regulatory posture
 - focus on technology, cyber, operational resilience, third-party, compliance, and data risks
 - keep the output useful for setting admin context for a risk quantification platform
-- mention that this is based on public web context only
+- mention that this is based on public website and public news context only
 - use British English`;
 
     const upstream = await fetch(compassApiUrl, {
@@ -195,11 +261,11 @@ Instructions:
     const payload = await upstream.json();
     const raw = payload.choices?.[0]?.message?.content || '';
     const cleaned = String(raw).replace(/```json\n?|```/g, '').trim();
-    const parsed = cleaned ? JSON.parse(cleaned) : buildFallbackProfile(canonicalUrl, pages);
+    const parsed = cleaned ? JSON.parse(cleaned) : buildFallbackProfile(canonicalUrl, pages, newsItems);
     res.status(200).json(parsed);
   } catch (error) {
     if (error instanceof SyntaxError) {
-      res.status(200).json(buildFallbackProfile(canonicalUrl, pages));
+      res.status(200).json(buildFallbackProfile(canonicalUrl, pages, newsItems));
       return;
     }
     res.status(502).json({
