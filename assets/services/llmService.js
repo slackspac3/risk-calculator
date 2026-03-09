@@ -37,6 +37,20 @@ const LLMService = (() => {
     setCompassAPIKey(key);
   }
 
+  function _normaliseLLMError(error) {
+    const msg = String(error?.message || error || '');
+    if (msg === 'Failed to fetch' || /NetworkError/i.test(msg)) {
+      return new Error('Compass preflight/CORS blocked. The browser could not complete the cross-origin request to api.core42.ai.');
+    }
+    if (/LLM API error 400/i.test(msg)) {
+      return new Error('Compass request rejected with HTTP 400. This may be a request-shape issue, model issue, or provider-side preflight rejection.');
+    }
+    if (/LLM API error 401|LLM API error 403/i.test(msg)) {
+      return new Error('Compass rejected the request. Check the API key, permissions, and model access.');
+    }
+    return error instanceof Error ? error : new Error(msg);
+  }
+
   function _extractRiskCandidates(text) {
     const source = String(text || '').toLowerCase();
     const catalog = [
@@ -65,25 +79,29 @@ const LLMService = (() => {
   async function _callLLM(systemPrompt, userPrompt) {
     if (!_compassApiKey) return null; // fall through to stub
 
-    const res = await fetch(_compassApiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${_compassApiKey}`
-      },
-      body: JSON.stringify({
-        model: _compassModel,
-        max_tokens: 1200,
-        temperature: 0.3,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user',   content: userPrompt }
-        ]
-      })
-    });
-    if (!res.ok) throw new Error(`LLM API error ${res.status}`);
-    const data = await res.json();
-    return data.choices?.[0]?.message?.content || null;
+    try {
+      const res = await fetch(_compassApiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${_compassApiKey}`
+        },
+        body: JSON.stringify({
+          model: _compassModel,
+          max_tokens: 1200,
+          temperature: 0.3,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user',   content: userPrompt }
+          ]
+        })
+      });
+      if (!res.ok) throw new Error(`LLM API error ${res.status}`);
+      const data = await res.json();
+      return data.choices?.[0]?.message?.content || null;
+    } catch (error) {
+      throw _normaliseLLMError(error);
+    }
   }
 
   // ─── Stub generator ──────────────────────────────────────
