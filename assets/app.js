@@ -1424,8 +1424,8 @@ function renderWizard3() {
           ${UI.renderStepper(3)}
           <div class="flex items-center justify-between">
             <div>
-              <h2 class="wizard-step-title">FAIR Inputs</h2>
-              <p class="wizard-step-desc">Review and adjust risk parameters. ${draft.llmAssisted?'<span style="color:var(--color-success-400)">✓ Pre-loaded from AI assist</span>':''}</p>
+              <h2 class="wizard-step-title">Estimate the Scenario in Plain Language</h2>
+              <p class="wizard-step-desc">Answer a few practical questions about how often this could happen, how exposed you are, and what the impact could cost. ${draft.llmAssisted?'<span style="color:var(--color-success-400)">✓ Pre-loaded from AI assist</span>':''}</p>
             </div>
             <div class="mode-toggle">
               <button class="${!isAdv?'active':''}" id="mode-basic">Basic</button>
@@ -1437,58 +1437,77 @@ function renderWizard3() {
           ${draft.workflowGuidance?.length ? renderWorkflowGuidanceBlock(draft.workflowGuidance) : ''}
           ${renderBenchmarkRationaleBlock(draft.benchmarkBasis, draft.inputRationale)}
 
+          <div class="card card--elevated anim-fade-in">
+            <div class="context-panel-title">How to complete this step</div>
+            <div class="context-grid">
+              <div class="context-chip-panel">
+                <div class="context-panel-title">1. Start with the AI values</div>
+                <p class="context-panel-copy">If the AI suggestions look broadly right, adjust only the values you have evidence for.</p>
+              </div>
+              <div class="context-chip-panel">
+                <div class="context-panel-title">2. Think in ranges, not exact numbers</div>
+                <p class="context-panel-copy">Use a low, expected, and severe case. You do not need one perfect number.</p>
+              </div>
+              <div class="context-chip-panel">
+                <div class="context-panel-title">3. Stay in Basic unless needed</div>
+                <p class="context-panel-copy">Advanced mode is for direct probability inputs, correlations, and simulation tuning.</p>
+              </div>
+            </div>
+          </div>
+
           <div class="card anim-fade-in">
-            <h3 style="margin-bottom:var(--sp-3);font-size:var(--text-base)">Threat Event Frequency (TEF) <span data-tooltip="How many times per year a threat actor attempts to act against this asset." style="cursor:help;color:var(--color-accent-300);font-size:.8rem">ⓘ</span></h3>
-            <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:12px">Events per year</p>
-            ${tripleInput('tef','TEF', v('tefMin',da.TEF?.min||0.5), v('tefLikely',da.TEF?.likely||2), v('tefMax',da.TEF?.max||8))}
+            <h3 style="margin-bottom:var(--sp-2);font-size:var(--text-base)">How often could this happen? <span data-tooltip="How many times per year this type of event could realistically occur." style="cursor:help;color:var(--color-accent-300);font-size:.8rem">ⓘ</span></h3>
+            <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:12px">Enter the number of events you think could happen in a year. Use a cautious low case, your expected case, and a severe but plausible high case.</p>
+            ${tripleInput('tef','Threat Event Frequency', v('tefMin',da.TEF?.min||0.5), v('tefLikely',da.TEF?.likely||2), v('tefMax',da.TEF?.max||8), { minLabel: 'Low case', likelyLabel: 'Expected case', maxLabel: 'High case' })}
           </div>
 
           <div class="card anim-fade-in anim-delay-1">
-            <h3 style="margin-bottom:var(--sp-3);font-size:var(--text-base)">Vulnerability <span data-tooltip="Derived via sigmoid(ThreatCapability - ControlStrength). Use Advanced for direct input." style="cursor:help;color:var(--color-accent-300);font-size:.8rem">ⓘ</span></h3>
-            ${isAdv?`<div class="flex items-center gap-3 mb-4"><label class="toggle"><input type="checkbox" id="vuln-direct-toggle" ${p.vulnDirect?'checked':''}><div class="toggle-track"></div></label><span class="toggle-label">Direct vulnerability input</span></div>
+            <h3 style="margin-bottom:var(--sp-2);font-size:var(--text-base)">How exposed are you if it happens? <span data-tooltip="This estimates how likely the event is to succeed given attacker capability and current controls." style="cursor:help;color:var(--color-accent-300);font-size:.8rem">ⓘ</span></h3>
+            <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:12px">In Basic mode, answer this through attacker strength and control strength. In Advanced mode, you can enter vulnerability directly.</p>
+            ${isAdv?`<div class="flex items-center gap-3 mb-4"><label class="toggle"><input type="checkbox" id="vuln-direct-toggle" ${p.vulnDirect?'checked':''}><div class="toggle-track"></div></label><span class="toggle-label">Enter exposure directly</span></div>
             <div id="vuln-direct-section" ${!p.vulnDirect?'class="hidden"':''}>
-              <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:12px">Probability 0–1</p>
-              ${tripleInput('vuln','Vulnerability', v('vulnMin',0.1), v('vulnLikely',0.35), v('vulnMax',0.7))}
+              <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:12px">Use a value between 0 and 1, where 0 means very unlikely to succeed and 1 means almost certain to succeed.</p>
+              ${tripleInput('vuln','Vulnerability', v('vulnMin',0.1), v('vulnLikely',0.35), v('vulnMax',0.7), { minLabel: 'Low success chance', likelyLabel: 'Expected success chance', maxLabel: 'High success chance' })}
             </div>`:''}
             <div id="vuln-derived-section" ${isAdv&&p.vulnDirect?'class="hidden"':''}>
               <div class="grid-2">
                 <div>
-                  <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:12px">Threat Capability (0–1)</p>
-                  ${tripleInput('threatCap','TC', v('threatCapMin',da.threatCapability?.min||0.45), v('threatCapLikely',da.threatCapability?.likely||0.62), v('threatCapMax',da.threatCapability?.max||0.82))}
+                  <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:12px">How capable is the attacker or threat source? 0 means weak or opportunistic, 1 means very capable and well resourced.</p>
+                  ${tripleInput('threatCap','Threat capability', v('threatCapMin',da.threatCapability?.min||0.45), v('threatCapLikely',da.threatCapability?.likely||0.62), v('threatCapMax',da.threatCapability?.max||0.82), { minLabel: 'Low capability', likelyLabel: 'Expected capability', maxLabel: 'High capability' })}
                 </div>
                 <div>
-                  <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:12px">Control Strength (0–1)</p>
-                  ${tripleInput('controlStr','CS', v('controlStrMin',da.controlStrength?.min||0.5), v('controlStrLikely',da.controlStrength?.likely||0.68), v('controlStrMax',da.controlStrength?.max||0.85))}
+                  <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:12px">How strong are your current preventive and detective controls? 0 means weak, 1 means strong and consistently effective.</p>
+                  ${tripleInput('controlStr','Control strength', v('controlStrMin',da.controlStrength?.min||0.5), v('controlStrLikely',da.controlStrength?.likely||0.68), v('controlStrMax',da.controlStrength?.max||0.85), { minLabel: 'Weak controls', likelyLabel: 'Expected control strength', maxLabel: 'Strong controls' })}
                 </div>
               </div>
             </div>
           </div>
 
           <div class="card anim-fade-in anim-delay-2">
-            <h3 style="margin-bottom:var(--sp-2);font-size:var(--text-base)">Primary Loss Components</h3>
-            <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:var(--sp-5)">Per-event estimates in ${sym}. All components summed each iteration.</p>
+            <h3 style="margin-bottom:var(--sp-2);font-size:var(--text-base)">What could this cost if it happens?</h3>
+            <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:var(--sp-5)">For each cost area, enter a low, expected, and severe per-event estimate in ${sym}. These values are added together in the simulation.</p>
             <div style="display:flex;flex-direction:column;gap:var(--sp-5)">
-              ${lossRow('ir','Incident Response & Recovery', v('irMin',da.incidentResponse?.min||50000), v('irLikely',da.incidentResponse?.likely||180000), v('irMax',da.incidentResponse?.max||600000), 'Containment, forensics, external IR firm costs.')}
-              ${lossRow('bi','Business Interruption', v('biMin',da.businessInterruption?.min||100000), v('biLikely',da.businessInterruption?.likely||450000), v('biMax',da.businessInterruption?.max||2500000), 'Revenue loss during incident.')}
-              ${lossRow('db','Data Breach & Remediation', v('dbMin',da.dataBreachRemediation?.min||30000), v('dbLikely',da.dataBreachRemediation?.likely||120000), v('dbMax',da.dataBreachRemediation?.max||500000), 'Notification, credit monitoring, remediation.')}
-              ${lossRow('rl','Regulatory & Legal', v('rlMin',da.regulatoryLegal?.min||0), v('rlLikely',da.regulatoryLegal?.likely||80000), v('rlMax',da.regulatoryLegal?.max||800000), 'Fines, legal fees, notification costs.')}
-              ${lossRow('tp','Third-Party Liability', v('tpMin',da.thirdPartyLiability?.min||0), v('tpLikely',da.thirdPartyLiability?.likely||50000), v('tpMax',da.thirdPartyLiability?.max||400000), 'Claims from affected partners/customers.')}
-              ${lossRow('rc','Reputation & Contract Loss', v('rcMin',da.reputationContract?.min||50000), v('rcLikely',da.reputationContract?.likely||200000), v('rcMax',da.reputationContract?.max||1200000), 'Customer churn, contract penalties.')}
+              ${lossRow('ir','Response and recovery cost', v('irMin',da.incidentResponse?.min||50000), v('irLikely',da.incidentResponse?.likely||180000), v('irMax',da.incidentResponse?.max||600000), 'Containment, forensics, internal recovery effort, and external incident response support.')}
+              ${lossRow('bi','Business disruption cost', v('biMin',da.businessInterruption?.min||100000), v('biLikely',da.businessInterruption?.likely||450000), v('biMax',da.businessInterruption?.max||2500000), 'Lost revenue, delayed operations, and productivity impact while the issue is active.')}
+              ${lossRow('db','Data remediation cost', v('dbMin',da.dataBreachRemediation?.min||30000), v('dbLikely',da.dataBreachRemediation?.likely||120000), v('dbMax',da.dataBreachRemediation?.max||500000), 'Notification, monitoring, remediation, and cleanup when data is affected.')}
+              ${lossRow('rl','Regulatory and legal cost', v('rlMin',da.regulatoryLegal?.min||0), v('rlLikely',da.regulatoryLegal?.likely||80000), v('rlMax',da.regulatoryLegal?.max||800000), 'Fines, legal support, regulatory response, and formal notices.')}
+              ${lossRow('tp','Third-party impact cost', v('tpMin',da.thirdPartyLiability?.min||0), v('tpLikely',da.thirdPartyLiability?.likely||50000), v('tpMax',da.thirdPartyLiability?.max||400000), 'Claims, service credits, or compensation for partners and customers.')}
+              ${lossRow('rc','Reputation and contract cost', v('rcMin',da.reputationContract?.min||50000), v('rcLikely',da.reputationContract?.likely||200000), v('rcMax',da.reputationContract?.max||1200000), 'Customer churn, commercial loss, and contract penalties after the event.')}
             </div>
           </div>
 
           <div class="card anim-fade-in anim-delay-3">
             <div class="flex items-center justify-between mb-4">
               <div>
-                <h3 style="font-size:var(--text-base)">Secondary Loss <span class="badge badge--neutral" style="margin-left:6px">Optional</span></h3>
-                <p style="font-size:.78rem;color:var(--text-muted)">Downstream losses triggered by the primary event.</p>
+                <h3 style="font-size:var(--text-base)">Extra downstream impact <span class="badge badge--neutral" style="margin-left:6px">Optional</span></h3>
+                <p style="font-size:.78rem;color:var(--text-muted)">Use this only if the main event could trigger another follow-on loss, such as a lawsuit, major partner claim, or wider business consequence.</p>
               </div>
               <label class="toggle"><input type="checkbox" id="secondary-toggle" ${p.secondaryEnabled?'checked':''}><div class="toggle-track"></div></label>
             </div>
             <div id="secondary-inputs" ${!p.secondaryEnabled?'class="hidden"':''}>
               <div class="grid-2">
-                <div><p style="font-size:.78rem;color:var(--text-muted);margin-bottom:12px">Event Probability (0–1)</p>${tripleInput('secProb','Prob', v('secProbMin',0.1), v('secProbLikely',0.3), v('secProbMax',0.7))}</div>
-                <div><p style="font-size:.78rem;color:var(--text-muted);margin-bottom:12px">Magnitude (${sym})</p>${tripleInput('secMag','Mag', v('secMagMin',100000), v('secMagLikely',500000), v('secMagMax',2000000))}</div>
+                <div><p style="font-size:.78rem;color:var(--text-muted);margin-bottom:12px">How likely is the follow-on impact? Use 0 to 1.</p>${tripleInput('secProb','Secondary probability', v('secProbMin',0.1), v('secProbLikely',0.3), v('secProbMax',0.7), { minLabel: 'Low chance', likelyLabel: 'Expected chance', maxLabel: 'High chance' })}</div>
+                <div><p style="font-size:.78rem;color:var(--text-muted);margin-bottom:12px">If it happens, how large could that extra impact be in ${sym}?</p>${tripleInput('secMag','Secondary magnitude', v('secMagMin',100000), v('secMagLikely',500000), v('secMagMax',2000000), { minLabel: 'Low cost', likelyLabel: 'Expected cost', maxLabel: 'High cost' })}</div>
               </div>
             </div>
           </div>
@@ -1551,18 +1570,21 @@ function renderWizard3() {
   });
 }
 
-function tripleInput(prefix, label, min, likely, max) {
+function tripleInput(prefix, label, min, likely, max, labels = {}) {
+  const minLabel = labels.minLabel || 'Min';
+  const likelyLabel = labels.likelyLabel || 'Most Likely';
+  const maxLabel = labels.maxLabel || 'Max';
   return `<div class="range-group">
-    <div class="form-group"><div class="range-col-label">Min</div><input class="form-input fair-input" id="${prefix}-min" data-key="${prefix}Min" type="number" step="any" value="${min}" aria-label="${label} min"></div>
-    <div class="form-group"><div class="range-col-label" style="color:var(--color-primary-300)">Most Likely</div><input class="form-input fair-input" id="${prefix}-likely" data-key="${prefix}Likely" type="number" step="any" value="${likely}" aria-label="${label} likely"></div>
-    <div class="form-group"><div class="range-col-label">Max</div><input class="form-input fair-input" id="${prefix}-max" data-key="${prefix}Max" type="number" step="any" value="${max}" aria-label="${label} max"></div>
+    <div class="form-group"><div class="range-col-label">${minLabel}</div><input class="form-input fair-input" id="${prefix}-min" data-key="${prefix}Min" type="number" step="any" value="${min}" aria-label="${label} min"></div>
+    <div class="form-group"><div class="range-col-label" style="color:var(--color-primary-300)">${likelyLabel}</div><input class="form-input fair-input" id="${prefix}-likely" data-key="${prefix}Likely" type="number" step="any" value="${likely}" aria-label="${label} likely"></div>
+    <div class="form-group"><div class="range-col-label">${maxLabel}</div><input class="form-input fair-input" id="${prefix}-max" data-key="${prefix}Max" type="number" step="any" value="${max}" aria-label="${label} max"></div>
   </div>`;
 }
 
 function lossRow(prefix, label, min, likely, max, tooltip) {
   return `<div>
     <div style="font-size:.78rem;font-weight:600;color:var(--text-secondary);margin-bottom:8px;display:flex;align-items:center;gap:6px">${label}<span data-tooltip="${tooltip}" style="cursor:help;color:var(--color-accent-300);font-size:.72rem">ⓘ</span></div>
-    ${tripleInput(prefix, label, min, likely, max)}
+    ${tripleInput(prefix, label, min, likely, max, { minLabel: 'Low cost', likelyLabel: 'Expected cost', maxLabel: 'Severe cost' })}
   </div>`;
 }
 
