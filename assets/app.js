@@ -137,6 +137,18 @@ function saveAdminSettings(settings) {
   localStorage.setItem('rq_admin_settings', JSON.stringify(merged));
 }
 
+function getSessionLLMConfig() {
+  try {
+    return JSON.parse(sessionStorage.getItem('rq_llm_session') || 'null') || {};
+  } catch {
+    return {};
+  }
+}
+
+function saveSessionLLMConfig(config) {
+  sessionStorage.setItem('rq_llm_session', JSON.stringify(config));
+}
+
 function fmtCurrency(usdValue) {
   if (AppState.currency === 'AED') {
     const v = usdValue * AppState.fxRate;
@@ -1389,6 +1401,7 @@ function adminLayout(active, content) {
 function renderAdminSettings() {
   if (!requireAdmin()) return;
   const settings = getAdminSettings();
+  const sessionLLM = getSessionLLMConfig();
   setPage(adminLayout('settings', `
     <div class="flex items-center justify-between mb-6">
       <div>
@@ -1423,6 +1436,29 @@ function renderAdminSettings() {
         <label class="form-label" for="admin-ai-instructions">AI Guidance</label>
         <textarea class="form-textarea" id="admin-ai-instructions" rows="3">${settings.aiInstructions}</textarea>
       </div>
+      <div class="card mt-5" style="padding:var(--sp-5);background:var(--bg-elevated)">
+        <div class="context-panel-title">Compass Session Access</div>
+        <p class="context-panel-copy">For testing only. This key is stored in <code>sessionStorage</code> for the current browser session and is still visible to anyone with browser access.</p>
+        <div class="grid-2 mt-4">
+          <div class="form-group">
+            <label class="form-label" for="admin-compass-url">Compass URL</label>
+            <input class="form-input" id="admin-compass-url" value="${sessionLLM.apiUrl || 'https://api.core42.ai/v1/chat/completions'}">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="admin-compass-model">Model</label>
+            <input class="form-input" id="admin-compass-model" value="${sessionLLM.model || 'gpt-5.1'}">
+          </div>
+        </div>
+        <div class="form-group mt-4">
+          <label class="form-label" for="admin-compass-key">Compass API Key</label>
+          <input class="form-input" id="admin-compass-key" type="password" value="${sessionLLM.apiKey || ''}" placeholder="Paste key for this browser session">
+        </div>
+        <div class="flex items-center gap-3 mt-4" style="flex-wrap:wrap">
+          <button class="btn btn--secondary" id="btn-save-session-llm">Save Session Key</button>
+          <button class="btn btn--ghost" id="btn-clear-session-llm">Clear Session Key</button>
+          <span class="form-help">This does not persist across browser sessions.</span>
+        </div>
+      </div>
       <div class="flex items-center gap-3 mt-5">
         <button class="btn btn--primary" id="btn-save-settings">Save Settings</button>
         <span class="form-help">Applies to new and in-progress assessments immediately.</span>
@@ -1442,6 +1478,26 @@ function renderAdminSettings() {
     if (!AppState.draft.geography) AppState.draft.geography = getAdminSettings().geography;
     saveDraft();
     UI.toast('Settings saved.', 'success');
+  });
+  document.getElementById('btn-save-session-llm').addEventListener('click', () => {
+    const config = {
+      apiUrl: document.getElementById('admin-compass-url').value.trim() || 'https://api.core42.ai/v1/chat/completions',
+      model: document.getElementById('admin-compass-model').value.trim() || 'gpt-5.1',
+      apiKey: document.getElementById('admin-compass-key').value.trim()
+    };
+    if (!config.apiKey) {
+      UI.toast('Paste a Compass API key first.', 'warning');
+      return;
+    }
+    saveSessionLLMConfig(config);
+    LLMService.setCompassConfig(config);
+    UI.toast('Compass session key loaded for this session.', 'success');
+  });
+  document.getElementById('btn-clear-session-llm').addEventListener('click', () => {
+    sessionStorage.removeItem('rq_llm_session');
+    LLMService.clearCompassConfig();
+    renderAdminSettings();
+    UI.toast('Compass session key cleared.', 'success');
   });
   document.getElementById('btn-reset-settings').addEventListener('click', async () => {
     if (await UI.confirm('Reset platform settings to defaults?')) {
@@ -1624,6 +1680,10 @@ async function init() {
   ensureDraftShape();
   if (!AppState.draft.applicableRegulations?.length) {
     AppState.draft.applicableRegulations = [...getAdminSettings().applicableRegulations];
+  }
+  const sessionLLM = getSessionLLMConfig();
+  if (sessionLLM.apiKey) {
+    LLMService.setCompassConfig(sessionLLM);
   }
 
   renderAppBar();
