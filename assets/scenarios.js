@@ -8,7 +8,7 @@ const ScenarioTemplates = [
   {
     id: 'ransomware-ops',
     label: 'Ransomware — Operational Systems',
-    icon: '??',
+    icon: 'RW',
     description: 'Ransomware deployment via phishing or exposed RDP, targeting operational or production systems. Double-extortion model (encrypt + exfiltrate).',
     tags: ['Ransomware', 'High Impact', 'Common'],
     suggestedBUTypes: ['bu-fintech', 'bu-health', 'bu-iot', 'bu-enterprise-it'],
@@ -43,7 +43,7 @@ const ScenarioTemplates = [
   {
     id: 'bec-financial',
     label: 'Business Email Compromise (BEC)',
-    icon: '??',
+    icon: 'BEC',
     description: 'CEO/CFO impersonation or email account takeover leading to fraudulent wire transfer authorisation. Among the highest-frequency financial threats in the GCC.',
     tags: ['BEC', 'Financial Loss', 'High Frequency'],
     suggestedBUTypes: ['bu-enterprise-it', 'bu-fintech'],
@@ -78,7 +78,7 @@ const ScenarioTemplates = [
   {
     id: 'supply-chain-compromise',
     label: 'Supply Chain / Third-Party Compromise',
-    icon: '??',
+    icon: '3P',
     description: 'A trusted vendor or software supplier is compromised, providing attackers with a trusted pathway into the organisation. SolarWinds and MOVEit-style attack patterns.',
     tags: ['Supply Chain', 'Third Party', 'Stealthy'],
     suggestedBUTypes: ['bu-cloud', 'bu-enterprise-it', 'bu-cyber'],
@@ -113,7 +113,7 @@ const ScenarioTemplates = [
   {
     id: 'cloud-misconfiguration',
     label: 'Cloud Misconfiguration / Data Exposure',
-    icon: '☁️',
+    icon: 'CLD',
     description: 'Misconfigured cloud storage, API, or access controls expose sensitive data publicly or to unauthorised parties. High frequency; often detected externally.',
     tags: ['Cloud', 'Data Exposure', 'High Frequency'],
     suggestedBUTypes: ['bu-cloud', 'bu-ai', 'bu-enterprise-it'],
@@ -146,7 +146,7 @@ const ScenarioTemplates = [
   {
     id: 'insider-data-theft',
     label: 'Insider Threat — Data Theft',
-    icon: '??️',
+    icon: 'INS',
     description: 'A current or departing employee, contractor, or privileged user deliberately exfiltrates sensitive data. Often detected late; impact includes IP loss and regulatory consequences.',
     tags: ['Insider', 'Data Theft', 'Hard to Detect'],
     suggestedBUTypes: ['bu-ai', 'bu-cyber', 'bu-health', 'bu-fintech'],

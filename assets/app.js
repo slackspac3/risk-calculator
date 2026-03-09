@@ -30,6 +30,18 @@ const AppState = {
   docList: []
 };
 
+const LEARNING_PARAM_KEYS = [
+  'tefLikely',
+  'threatCapLikely',
+  'controlStrLikely',
+  'irLikely',
+  'biLikely',
+  'dbLikely',
+  'rlLikely',
+  'tpLikely',
+  'rcLikely'
+];
+
 function getAssessments() {
   try { return JSON.parse(localStorage.getItem('rq_assessments') || '[]'); } catch { return []; }
 }
@@ -42,6 +54,71 @@ function saveAssessment(a) {
 function getAssessmentById(id) {
   return getAssessments().find(a => a.id === id) || null;
 }
+
+function getLearningStore() {
+  try {
+    return JSON.parse(localStorage.getItem('rq_learning_store') || '{"templates":{}}');
+  } catch {
+    return { templates: {} };
+  }
+}
+
+function saveLearningStore(store) {
+  localStorage.setItem('rq_learning_store', JSON.stringify(store));
+}
+
+function getTemplateLearningProfile(templateId) {
+  if (!templateId) return null;
+  return getLearningStore().templates?.[templateId] || null;
+}
+
+function recordTemplateLoad(templateId) {
+  if (!templateId) return;
+  const store = getLearningStore();
+  const profile = store.templates[templateId] || { loads: 0, completed: 0, avgParams: {}, lastUsed: null };
+  profile.loads += 1;
+  profile.lastUsed = Date.now();
+  store.templates[templateId] = profile;
+  saveLearningStore(store);
+}
+
+function recordLearningFromAssessment(draft) {
+  if (!draft?.templateId || !draft?.fairParams) return;
+  const store = getLearningStore();
+  const profile = store.templates[draft.templateId] || { loads: 0, completed: 0, avgParams: {}, lastUsed: null };
+  profile.completed += 1;
+  profile.lastUsed = Date.now();
+  LEARNING_PARAM_KEYS.forEach(key => {
+    const value = Number(draft.fairParams[key]);
+    if (!Number.isFinite(value)) return;
+    const previous = Number(profile.avgParams[key]);
+    profile.avgParams[key] = Number.isFinite(previous)
+      ? ((previous * (profile.completed - 1)) + value) / profile.completed
+      : value;
+  });
+  store.templates[draft.templateId] = profile;
+  saveLearningStore(store);
+}
+
+function applyLearnedTemplateDraft(tmpl) {
+  const profile = getTemplateLearningProfile(tmpl?.id);
+  const draft = JSON.parse(JSON.stringify(tmpl?.draft || {}));
+  if (!profile || profile.completed < 2 || !draft.fairParams) {
+    return { draft, note: '' };
+  }
+  const learnedWeight = profile.completed >= 5 ? 0.45 : 0.30;
+  LEARNING_PARAM_KEYS.forEach(key => {
+    const learnedValue = Number(profile.avgParams?.[key]);
+    const currentValue = Number(draft.fairParams[key]);
+    if (!Number.isFinite(learnedValue) || !Number.isFinite(currentValue)) return;
+    draft.fairParams[key] = Number((currentValue * (1 - learnedWeight)) + (learnedValue * learnedWeight)).toFixed(2);
+  });
+  return {
+    draft,
+    note: `This template has been adjusted using ${profile.completed} completed assessment${profile.completed === 1 ? '' : 's'} from this browser to provide better starting values.`
+  };
+}
+
 function saveDraft() {
   try { sessionStorage.setItem('rq_draft', JSON.stringify(AppState.draft)); } catch {}
 }
@@ -54,6 +131,7 @@ function loadDraft() {
 function resetDraft() {
   AppState.draft = {
     id: 'a_' + Date.now(),
+    templateId: null,
     buId: null, buName: null, contextNotes: '',
     narrative: '', structuredScenario: null,
     scenarioTitle: '', llmAssisted: false,
@@ -72,6 +150,7 @@ function resetDraft() {
     workflowGuidance: [],
     benchmarkBasis: '',
     inputRationale: null,
+    learningNote: '',
     guidedInput: {
       event: '',
       asset: '',
@@ -86,6 +165,7 @@ function resetDraft() {
 function ensureDraftShape() {
   AppState.draft = {
     id: AppState.draft.id || 'a_' + Date.now(),
+    templateId: AppState.draft.templateId || null,
     buId: AppState.draft.buId || null,
     buName: AppState.draft.buName || null,
     contextNotes: AppState.draft.contextNotes || '',
@@ -110,6 +190,7 @@ function ensureDraftShape() {
     workflowGuidance: Array.isArray(AppState.draft.workflowGuidance) ? AppState.draft.workflowGuidance : [],
     benchmarkBasis: AppState.draft.benchmarkBasis || '',
     inputRationale: AppState.draft.inputRationale || null,
+    learningNote: AppState.draft.learningNote || '',
     guidedInput: {
       event: AppState.draft.guidedInput?.event || '',
       asset: AppState.draft.guidedInput?.asset || '',
@@ -614,6 +695,7 @@ function renderAppBar() {
 // ─── LANDING ──────────────────────────────────────────────────
 function renderLanding() {
   const assessments = getAssessments().slice(0, 5);
+  const learningStore = getLearningStore();
   setPage(`
     <main class="page">
       <div class="container">
@@ -686,17 +768,23 @@ function renderLanding() {
           </div>
           <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:var(--sp-4)">
             ${ScenarioTemplates.map(t => `
+              ${(() => {
+                const profile = learningStore.templates?.[t.id];
+                const learnedLabel = profile?.completed ? `<span class="badge badge--gold" style="font-size:.6rem">Learnt from ${profile.completed}</span>` : '';
+                return `
               <button class="template-card" data-template-id="${t.id}" aria-label="Use template: ${t.label}">
                 <div style="display:flex;align-items:flex-start;gap:var(--sp-3);margin-bottom:var(--sp-3)">
-                  <span style="font-size:28px;line-height:1">${t.icon}</span>
+                  <span style="font-size:14px;line-height:1;font-weight:700;letter-spacing:.08em;min-width:42px;height:42px;display:flex;align-items:center;justify-content:center;border-radius:999px;background:rgba(26,86,219,.16);border:1px solid rgba(26,86,219,.28);color:var(--color-primary-300)">${t.icon}</span>
                   <div style="flex:1;text-align:left">
                     <div style="font-family:var(--font-display);font-size:.95rem;font-weight:600;color:var(--text-primary);margin-bottom:4px">${t.label}</div>
-                    <div style="display:flex;flex-wrap:wrap;gap:4px">${t.tags.map(tag=>`<span class="badge badge--neutral" style="font-size:.6rem">${tag}</span>`).join('')}</div>
+                    <div style="display:flex;flex-wrap:wrap;gap:4px">${t.tags.map(tag=>`<span class="badge badge--neutral" style="font-size:.6rem">${tag}</span>`).join('')}${learnedLabel}</div>
                   </div>
                 </div>
                 <p style="font-size:.8rem;color:var(--text-secondary);line-height:1.6;text-align:left">${t.description}</p>
                 <div style="margin-top:var(--sp-3);text-align:right;font-size:.8rem;color:var(--color-primary-400);font-weight:600">Use this template →</div>
-              </button>`).join('')}
+              </button>`;
+              })()}
+            `).join('')}
           </div>
         </div>
 
@@ -807,6 +895,8 @@ function renderLanding() {
 
 function loadTemplate(tmpl) {
   resetDraft();
+  const learned = applyLearnedTemplateDraft(tmpl);
+  recordTemplateLoad(tmpl.id);
   // Pick a sensible default BU if suggested ones are available
   const buList = getBUList();
   const preferredBU = tmpl.suggestedBUTypes
@@ -814,14 +904,16 @@ function loadTemplate(tmpl) {
     .find(Boolean);
 
   Object.assign(AppState.draft, {
-    ...tmpl.draft,
+    ...learned.draft,
+    templateId: tmpl.id,
     buId: preferredBU?.id || null,
     buName: preferredBU?.name || null,
-    llmAssisted: false
+    llmAssisted: false,
+    learningNote: learned.note
   });
   saveDraft();
   Router.navigate('/wizard/1');
-  UI.toast(`Template loaded: "${tmpl.label}". Review inputs and run the simulation.`, 'info', 4000);
+  UI.toast(learned.note ? `Template loaded with learned defaults: "${tmpl.label}".` : `Template loaded: "${tmpl.label}". Review inputs and run the simulation.`, 'info', 4500);
 }
 
 // ─── WIZARD 1 ─────────────────────────────────────────────────
@@ -842,6 +934,7 @@ function renderWizard1() {
           <p class="wizard-step-desc">Start with a risk statement or upload a register. AI will enhance the context, extract candidate risks, and prepare a linked scenario for quantification.</p>
         </div>
         <div class="wizard-body">
+          ${draft.learningNote ? `<div class="card card--elevated anim-fade-in"><div class="context-panel-title">Learnt from prior use</div><p class="context-panel-copy">${draft.learningNote}</p></div>` : ''}
           <div class="card card--elevated anim-fade-in">
             <div class="grid-2">
               <div class="form-group">
@@ -1434,6 +1527,7 @@ function renderWizard3() {
           </div>
         </div>
         <div class="wizard-body">
+          ${draft.learningNote ? `<div class="card card--elevated anim-fade-in"><div class="context-panel-title">Template learning</div><p class="context-panel-copy">${draft.learningNote}</p></div>` : ''}
           ${draft.workflowGuidance?.length ? renderWorkflowGuidanceBlock(draft.workflowGuidance) : ''}
           ${renderBenchmarkRationaleBlock(draft.benchmarkBasis, draft.inputRationale)}
 
@@ -1726,6 +1820,7 @@ async function runSimulation() {
     if (!AppState.draft.id) AppState.draft.id = 'a_' + Date.now();
     const assessment = { ...AppState.draft, results, completedAt: Date.now() };
     saveAssessment(assessment);
+    recordLearningFromAssessment(assessment);
     saveDraft();
     Router.navigate('/results/' + AppState.draft.id);
   } catch(e) {
