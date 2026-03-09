@@ -1,0 +1,8 @@
+name = "risk-intelligence-compass-proxy"
+main = "worker.js"
+compatibility_date = "2026-03-09"
+
+[vars]
+ALLOWED_ORIGIN = "https://slackspac3.github.io"
+COMPASS_API_URL = "https://api.core42.ai/v1/chat/completions"
+COMPASS_MODEL = "gpt-5.1"

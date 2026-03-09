@@ -95,19 +95,71 @@ Applied to **per-event P90 (LM)** vs **$5,000,000 USD threshold** (configurable 
 
 ### 1. Enable Real LLM (OpenAI / Compass)
 
-**Option A — OpenAI API:**
+**Browser-only testing (not secure):**
 ```javascript
-// In browser console or in index.html:
-LLMService.setOpenAIKey('sk-your-openai-key-here');
+LLMService.setCompassConfig({
+  apiKey: 'your-compass-key',
+  apiUrl: 'https://api.core42.ai/v1/chat/completions',
+  model: 'gpt-5.1'
+});
 ```
 
-**Option B — Compass (Core42) API:**
-Edit `assets/services/llmService.js`:
-```javascript
-const COMPASS_API_URL = 'https://api.core42.ai/v1/chat/completions';
-const COMPASS_API_KEY = 'your-compass-api-key';
+**Recommended — Cloudflare Worker proxy:**
+
+This repo now includes a minimal Worker in [`cloudflare-worker/`](./cloudflare-worker) that:
+- accepts browser requests from your GitHub Pages origin
+- handles CORS/preflight correctly
+- keeps the Compass API key server-side
+- forwards the request to `https://api.core42.ai/v1/chat/completions`
+
+#### Deploy the Worker
+
+1. Install Wrangler if needed:
+```bash
+npm install -g wrangler
 ```
-The Compass API uses OpenAI-compatible format — no other changes needed.
+
+2. Authenticate:
+```bash
+wrangler login
+```
+
+3. Move into the worker directory:
+```bash
+cd cloudflare-worker
+```
+
+4. Set your Compass API key as a Worker secret:
+```bash
+wrangler secret put COMPASS_API_KEY
+```
+
+5. Deploy:
+```bash
+wrangler deploy
+```
+
+6. Wrangler will return a Worker URL such as:
+```text
+https://risk-intelligence-compass-proxy.<your-subdomain>.workers.dev
+```
+
+7. In the app, go to `Admin -> Settings -> Compass Session Access` and set:
+- `Compass URL`: your Worker URL
+- `Model`: `gpt-5.1`
+- `Compass API Key`: leave blank when using the Worker
+
+#### How the Worker flow works
+
+1. The browser sends a request to your Cloudflare Worker URL.
+2. The Worker responds to `OPTIONS` preflight with correct CORS headers.
+3. The Worker forwards the `POST` body to Compass.
+4. The Worker adds `Authorization: Bearer <COMPASS_API_KEY>` using the Worker secret.
+5. The Worker returns Compass’s response to the browser.
+
+This solves both:
+- browser CORS failure
+- public exposure of the Compass API key
 
 ### 2. Entra ID Authentication [ENTRA-INTEGRATION]
 

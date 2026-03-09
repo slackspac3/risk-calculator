@@ -51,6 +51,14 @@ const LLMService = (() => {
     return error instanceof Error ? error : new Error(msg);
   }
 
+  function _isDirectCompassUrl(url) {
+    try {
+      return new URL(url).hostname === 'api.core42.ai';
+    } catch {
+      return false;
+    }
+  }
+
   function _extractRiskCandidates(text) {
     const source = String(text || '').toLowerCase();
     const catalog = [
@@ -77,15 +85,19 @@ const LLMService = (() => {
 
   // ─── Real API call (when keys are available) ─────────────
   async function _callLLM(systemPrompt, userPrompt) {
-    if (!_compassApiKey) return null; // fall through to stub
+    const directCompass = _isDirectCompassUrl(_compassApiUrl);
+    if (directCompass && !_compassApiKey) return null; // fall through to stub
 
     try {
+      const headers = {
+        'Content-Type': 'application/json'
+      };
+      if (_compassApiKey) {
+        headers.Authorization = `Bearer ${_compassApiKey}`;
+      }
       const res = await fetch(_compassApiUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${_compassApiKey}`
-        },
+        headers,
         body: JSON.stringify({
           model: _compassModel,
           max_tokens: 1200,
@@ -259,7 +271,7 @@ const LLMService = (() => {
     await new Promise(r => setTimeout(r, 2200 + Math.random() * 800));
 
     // Try real API first
-    if (_compassApiKey) {
+    if (_compassApiKey || !_isDirectCompassUrl(_compassApiUrl)) {
       try {
         const systemPrompt = `You are a senior cyber risk analyst specialising in FAIR methodology. 
 Given a risk scenario narrative and business context, provide structured FAIR inputs and recommendations.
@@ -309,7 +321,7 @@ ${retrievedDocs.map(d => `- ${d.title}: ${d.excerpt}`).join('\
 
   async function enhanceRiskContext(input) {
     await new Promise(r => setTimeout(r, 1400 + Math.random() * 600));
-    if (_compassApiKey) {
+    if (_compassApiKey || !_isDirectCompassUrl(_compassApiUrl)) {
       try {
         const systemPrompt = `You are a senior enterprise risk analyst. Given a risk statement, optional risk register text, business context, and regulations, return JSON only with this schema:
 {
@@ -369,7 +381,7 @@ ${(input.citations || []).map(c => `- ${c.title}: ${c.excerpt}`).join('\n')}`;
   }
 
   async function testCompassConnection() {
-    if (!_compassApiKey) {
+    if (_isDirectCompassUrl(_compassApiUrl) && !_compassApiKey) {
       throw new Error('No Compass API key configured for this session.');
     }
     const raw = await _callLLM(
