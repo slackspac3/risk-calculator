@@ -214,6 +214,17 @@ const LLMService = (() => {
           isDataBreach ? 'Unauthorised access to and exfiltration of sensitive/regulated data' :
           'Loss of confidentiality, integrity, or availability of critical assets'
       },
+      workflowGuidance: [
+        'Confirm that the selected risks and narrative describe one coherent assessment scope.',
+        'Review the suggested FAIR ranges against any internal incident history, loss data, or control evidence you already have.',
+        'Prefer GCC and UAE assumptions where available, and document any global fallback used for the scenario.'
+      ],
+      benchmarkBasis: 'The suggested values prioritise GCC and UAE cyber and operational resilience benchmarks where they are likely to exist. Where a local reference is thin, the ranges fall back to mature global cyber loss patterns and should be validated by the user.',
+      inputRationale: {
+        tef: 'Threat event frequency is anchored to the scenario type and then aligned to the business unit default assumptions where available.',
+        vulnerability: 'Threat capability and control strength are balanced to reflect the expected attacker sophistication against the current control environment.',
+        lossComponents: 'Loss components reflect the most material direct, operational, regulatory, third-party, and reputational consequences for the selected scenario.'
+      },
       suggestedInputs: {
         TEF: tef,
         controlStrength: cs,
@@ -251,6 +262,17 @@ const LLMService = (() => {
       source: registerText ? 'ai+register' : 'ai',
       regulations: Array.from(new Set([...(risk.regulations || []), ...(input.applicableRegulations || [])])).slice(0, 4)
     }));
+    const workflowGuidance = registerText
+      ? [
+          'Review the extracted risks and keep every material risk that could change exposure, regulation, or business impact.',
+          'Use linked mode only when one event could reasonably trigger several of the selected risks in the same chain.',
+          'On the next step, use AI assist to turn the selected scope into FAIR ranges with benchmark-backed reasoning.'
+        ]
+      : [
+          'Confirm the scenario wording in plain English before moving on.',
+          'Use AI assist on the next step to convert the narrative into FAIR ranges and benchmark-backed reasoning.',
+          'Challenge any number that does not fit the business context or known incident history.'
+        ];
     return {
       enhancedStatement: riskStatement
         ? `In ${input.geography || 'the selected geography'}, ${input.businessUnit?.name || 'the business unit'} faces a material risk scenario in which ${riskStatement.charAt(0).toLowerCase() + riskStatement.slice(1)}. This scenario should be assessed for operational disruption, regulatory exposure, and downstream commercial impact across the selected risk set.`
@@ -261,6 +283,8 @@ const LLMService = (() => {
         : 'A single primary risk driver was identified from the intake.',
       risks,
       regulations: Array.from(new Set([...(input.applicableRegulations || []), ...risks.flatMap(r => r.regulations || [])])),
+      workflowGuidance,
+      benchmarkBasis: 'Prefer GCC and UAE benchmark references for regulatory exposure, downtime, and cyber response assumptions. Where those are unavailable, use the best available global benchmark and explain the fallback clearly.',
       citations: input.citations || []
     };
   }
@@ -278,10 +302,18 @@ const LLMService = (() => {
       try {
         const systemPrompt = `You are a senior cyber risk analyst specialising in FAIR methodology. 
 Given a risk scenario narrative and business context, provide structured FAIR inputs and recommendations.
+Prefer GCC and UAE benchmark references where relevant. If those are unavailable for a specific assumption, use the best available global benchmark and explain the fallback logic.
 Respond ONLY with valid JSON matching this exact schema:
 {
   "scenarioTitle": "string",
   "structuredScenario": { "assetService": "string", "threatCommunity": "string", "attackType": "string", "effect": "string" },
+  "workflowGuidance": ["string"],
+  "benchmarkBasis": "string",
+  "inputRationale": {
+    "tef": "string",
+    "vulnerability": "string",
+    "lossComponents": "string"
+  },
   "suggestedInputs": {
     "TEF": { "min": number, "likely": number, "max": number },
     "controlStrength": { "min": number, "likely": number, "max": number },
@@ -301,6 +333,8 @@ Respond ONLY with valid JSON matching this exact schema:
 Data types: ${(buContext?.dataTypes || []).join(', ')}
 Regulatory tags: ${(buContext?.regulatoryTags || []).join(', ')}
 Critical services: ${(buContext?.criticalServices || []).join(', ')}
+Geography: ${buContext?.geography || 'Unknown'}
+Benchmark strategy: ${buContext?.benchmarkStrategy || 'Prefer GCC and UAE references, then fall back to best global data with clear explanation.'}
 
 Risk narrative: ${narrative}
 
@@ -331,6 +365,8 @@ ${retrievedDocs.map(d => `- ${d.title}: ${d.excerpt}`).join('\
   "enhancedStatement": "string",
   "summary": "string",
   "linkAnalysis": "string",
+  "workflowGuidance": ["string"],
+  "benchmarkBasis": "string",
   "risks": [
     { "title": "string", "category": "string", "description": "string", "regulations": ["string"] }
   ],
@@ -340,6 +376,7 @@ ${retrievedDocs.map(d => `- ${d.title}: ${d.excerpt}`).join('\
 Geography: ${input.geography || 'Unknown'}
 Applicable regulations: ${(input.applicableRegulations || []).join(', ')}
 AI guidance: ${input.adminSettings?.aiInstructions || ''}
+Benchmark strategy: ${input.adminSettings?.benchmarkStrategy || ''}
 Register metadata: ${input.registerMeta ? JSON.stringify(input.registerMeta) : '(none)'}
 
 Risk statement:
@@ -375,6 +412,8 @@ ${(input.citations || []).map(c => `- ${c.title}: ${c.excerpt}`).join('\n')}`;
 {
   "summary": "string",
   "linkAnalysis": "string",
+  "workflowGuidance": ["string"],
+  "benchmarkBasis": "string",
   "risks": [
     { "title": "string", "category": "string", "description": "string", "regulations": ["string"] }
   ]
@@ -383,6 +422,7 @@ ${(input.citations || []).map(c => `- ${c.title}: ${c.excerpt}`).join('\n')}`;
 Geography: ${input.geography || 'Unknown'}
 Applicable regulations: ${(input.applicableRegulations || []).join(', ')}
 Register metadata: ${input.registerMeta ? JSON.stringify(input.registerMeta) : '(none)'}
+Benchmark strategy: ${input.adminSettings?.benchmarkStrategy || 'Prefer GCC and UAE references where possible, then use best global data with clear explanation.'}
 
 Risk register content:
 ${input.registerText || '(none)'}
@@ -391,7 +431,9 @@ Instructions:
 - use the whole workbook context, including sheet names and column headers
 - deduplicate overlapping risks
 - produce concise risk titles suitable for selection cards
-- preserve important contextual detail in the descriptions`;
+- preserve important contextual detail in the descriptions
+- extract up to 15 material risks if the register supports them
+- include workflow guidance that tells a non-risk practitioner what to do after extraction`;
         const raw = await _callLLM(systemPrompt, userPrompt);
         if (raw) {
           return JSON.parse(raw.replace(/```json\n?|```/g, '').trim());
@@ -402,7 +444,7 @@ Instructions:
     }
     const stub = _generateRiskBuilderStub({ ...input, riskStatement: lines.slice(0, 4).join('. ') });
     if (lines.length) {
-      stub.risks = lines.slice(0, 8).map((line, idx) => ({
+      stub.risks = lines.slice(0, 15).map((line, idx) => ({
         id: `register-risk-${idx + 1}`,
         title: line.replace(/^[-*]\s*/, ''),
         category: 'Register',
@@ -411,6 +453,11 @@ Instructions:
         regulations: stub.regulations.slice(0, 3)
       }));
       stub.summary = `Analysed ${lines.length} register entr${lines.length === 1 ? 'y' : 'ies'} and extracted ${stub.risks.length} candidate risks.`;
+      stub.workflowGuidance = [
+        'Keep the risks that materially change loss, disruption, regulation, or third-party exposure.',
+        'Use linked mode when the selected risks could arise from the same underlying event or control failure.',
+        'Ask AI assist to translate the selected scope into FAIR inputs with GCC-first benchmark logic.'
+      ];
     }
     return stub;
   }

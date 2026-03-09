@@ -12,6 +12,7 @@ const DEFAULT_ADMIN_SETTINGS = {
   riskAppetiteStatement: 'Moderate. Escalate risks that threaten regulated operations, cross-border data movement, or strategic platforms.',
   applicableRegulations: ['UAE PDPL', 'BIS Export Controls', 'OFAC Sanctions', 'UAE Cybersecurity Council Guidance'],
   aiInstructions: 'Prioritise operational, regulatory, and strategic impact. Use British English.',
+  benchmarkStrategy: 'Prefer GCC and UAE benchmark references where relevant. Where GCC data is thin, use the best available global benchmark and explain the fallback clearly.',
   defaultLinkMode: true,
   toleranceThresholdUsd: TOLERANCE_THRESHOLD,
   warningThresholdUsd: 3_000_000,
@@ -68,6 +69,9 @@ function resetDraft() {
     applicableRegulations: [...DEFAULT_ADMIN_SETTINGS.applicableRegulations],
     intakeSummary: '',
     linkAnalysis: '',
+    workflowGuidance: [],
+    benchmarkBasis: '',
+    inputRationale: null,
     guidedInput: {
       event: '',
       asset: '',
@@ -103,6 +107,9 @@ function ensureDraftShape() {
     applicableRegulations: Array.isArray(AppState.draft.applicableRegulations) ? AppState.draft.applicableRegulations : [...DEFAULT_ADMIN_SETTINGS.applicableRegulations],
     intakeSummary: AppState.draft.intakeSummary || '',
     linkAnalysis: AppState.draft.linkAnalysis || '',
+    workflowGuidance: Array.isArray(AppState.draft.workflowGuidance) ? AppState.draft.workflowGuidance : [],
+    benchmarkBasis: AppState.draft.benchmarkBasis || '',
+    inputRationale: AppState.draft.inputRationale || null,
     guidedInput: {
       event: AppState.draft.guidedInput?.event || '',
       asset: AppState.draft.guidedInput?.asset || '',
@@ -1004,6 +1011,8 @@ async function runIntakeAssist() {
     AppState.draft.narrative = AppState.draft.narrative || narrative;
     AppState.draft.intakeSummary = result.summary || '';
     AppState.draft.linkAnalysis = result.linkAnalysis || '';
+    AppState.draft.workflowGuidance = Array.isArray(result.workflowGuidance) ? result.workflowGuidance : AppState.draft.workflowGuidance;
+    AppState.draft.benchmarkBasis = result.benchmarkBasis || AppState.draft.benchmarkBasis;
     AppState.draft.selectedRisks = mergeRisks(getSelectedRisks(), result.risks || guessRisksFromText(narrative + '\n' + AppState.draft.registerFindings));
     AppState.draft.applicableRegulations = Array.from(new Set([...(AppState.draft.applicableRegulations || []), ...(result.regulations || [])]));
     AppState.draft.citations = result.citations || citations;
@@ -1032,7 +1041,8 @@ async function analyseUploadedRegister() {
       registerMeta: AppState.draft.registerMeta,
       businessUnit: bu,
       geography: AppState.draft.geography,
-      applicableRegulations: AppState.draft.applicableRegulations || []
+      applicableRegulations: AppState.draft.applicableRegulations || [],
+      adminSettings: getAdminSettings()
     });
     const parsedFallback = parseRegisterText(AppState.draft.registerFindings).map(title => ({ title, source: 'register' }));
     const extractedRisks = result.risks || parsedFallback;
@@ -1044,6 +1054,8 @@ async function analyseUploadedRegister() {
     const workbookSummary = AppState.draft.registerMeta?.sheetCount > 1 ? ` across ${AppState.draft.registerMeta.sheetCount} sheets` : '';
     AppState.draft.intakeSummary = result.summary || `Extracted ${getSelectedRisks().length} risks from ${AppState.draft.uploadedRegisterName}${workbookSummary}.`;
     AppState.draft.linkAnalysis = result.linkAnalysis || AppState.draft.linkAnalysis;
+    AppState.draft.workflowGuidance = Array.isArray(result.workflowGuidance) ? result.workflowGuidance : AppState.draft.workflowGuidance;
+    AppState.draft.benchmarkBasis = result.benchmarkBasis || AppState.draft.benchmarkBasis;
     saveDraft();
     renderWizard1();
     UI.toast('Risk register analysed.', 'success');
@@ -1082,7 +1094,9 @@ function renderWizard2() {
               </div>
             </div>
           </div>
+          ${draft.workflowGuidance?.length ? renderWorkflowGuidanceBlock(draft.workflowGuidance, 'What AI recommends you do next') : ''}
           ${selectedRisks.length ? `<div class="card card--elevated anim-fade-in"><div class="context-panel-title">Selected Risks</div><div class="citation-chips">${selectedRisks.map(r => `<span class="badge badge--neutral">${r.title}</span>`).join('')}</div><div class="context-panel-foot">${draft.linkedRisks && selectedRisks.length > 1 ? 'Linked scenario uplift will be applied in the simulation.' : 'Risks will be assessed as a combined scenario without linked uplift.'}</div></div>` : ''}
+          ${draft.benchmarkBasis ? `<div class="card anim-fade-in"><div class="context-panel-title">Benchmark Approach</div><p class="context-panel-copy">${draft.benchmarkBasis}</p></div>` : ''}
           <div class="card anim-fade-in">
             <div class="form-group">
               <label class="form-label" for="narrative">Risk Scenario Narrative <span class="required">*</span></label>
@@ -1153,7 +1167,8 @@ async function runLLMAssist() {
     const result = await LLMService.generateScenarioAndInputs(scenarioText, {
       ...bu,
       regulatoryTags: deriveApplicableRegulations(bu, getSelectedRisks()),
-      geography: AppState.draft.geography
+      geography: AppState.draft.geography,
+      benchmarkStrategy: getAdminSettings().benchmarkStrategy
     }, citations);
     AppState.draft.scenarioTitle = result.scenarioTitle;
     AppState.draft.structuredScenario = result.structuredScenario;
@@ -1161,6 +1176,9 @@ async function runLLMAssist() {
     AppState.draft.enhancedNarrative = narrative;
     AppState.draft.citations = result.citations || citations;
     AppState.draft.recommendations = result.recommendations || [];
+    AppState.draft.workflowGuidance = Array.isArray(result.workflowGuidance) ? result.workflowGuidance : AppState.draft.workflowGuidance;
+    AppState.draft.benchmarkBasis = result.benchmarkBasis || AppState.draft.benchmarkBasis;
+    AppState.draft.inputRationale = result.inputRationale || AppState.draft.inputRationale;
     const s = result.suggestedInputs;
     if (s) {
       const lc = s.lossComponents;
@@ -1187,7 +1205,7 @@ async function runLLMAssist() {
         </div>
       </div>
       ${result.structuredScenario?`<div class="grid-2"><div><div class="form-label" style="font-size:.7rem">Threat Community</div><p style="font-size:.85rem;margin-top:4px">${result.structuredScenario.threatCommunity}</p></div><div><div class="form-label" style="font-size:.7rem">Attack Vector</div><p style="font-size:.85rem;margin-top:4px">${result.structuredScenario.attackType}</p></div></div>`:''}
-    </div>${renderCitationBlock(AppState.draft.citations)}`;
+    </div>${renderWorkflowGuidanceBlock(AppState.draft.workflowGuidance, 'What AI thinks you should do next')}${renderBenchmarkRationaleBlock(AppState.draft.benchmarkBasis, AppState.draft.inputRationale)}${renderCitationBlock(AppState.draft.citations)}`;
     attachCitationHandlers();
   } catch(e) {
     output.innerHTML = `<div class="banner banner--danger mt-4"><span class="banner-icon">⚠</span><span class="banner-text">LLM Assist error: ${e.message}</span></div>`;
@@ -1202,6 +1220,32 @@ function renderCitationBlock(citations) {
     <div class="context-panel-title">📚 Citations — Internal Documents</div>
     <div class="citation-chips">
       ${citations.map(c=>`<button class="citation-chip" data-doc-id="${c.docId}"><span class="citation-chip-icon">📄</span>${c.title}</button>`).join('')}
+    </div>
+  </div>`;
+}
+
+function renderWorkflowGuidanceBlock(items, title = 'AI Guidance Through the Workflow') {
+  if (!items?.length) return '';
+  return `<div class="card card--elevated anim-fade-in">
+    <div class="context-panel-title">${title}</div>
+    <div style="display:flex;flex-direction:column;gap:var(--sp-3);margin-top:var(--sp-4)">
+      ${items.map((item, idx) => `<div style="display:flex;gap:var(--sp-3);align-items:flex-start"><span class="badge badge--gold" style="min-width:28px;justify-content:center">${idx + 1}</span><div class="context-panel-copy" style="margin:0">${item}</div></div>`).join('')}
+    </div>
+  </div>`;
+}
+
+function renderBenchmarkRationaleBlock(benchmarkBasis, inputRationale) {
+  if (!benchmarkBasis && !inputRationale) return '';
+  const rows = [
+    ['Benchmark basis', benchmarkBasis],
+    ['Why TEF looks like this', inputRationale?.tef],
+    ['Why vulnerability looks like this', inputRationale?.vulnerability],
+    ['Why the loss ranges look like this', inputRationale?.lossComponents]
+  ].filter(([, value]) => value);
+  return `<div class="card card--elevated anim-fade-in">
+    <div class="context-panel-title">Benchmark Logic and Number Rationale</div>
+    <div style="display:flex;flex-direction:column;gap:var(--sp-4);margin-top:var(--sp-4)">
+      ${rows.map(([label, value]) => `<div style="background:var(--bg-elevated);padding:var(--sp-4);border-radius:var(--radius-lg)"><div style="font-size:.68rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted)">${label}</div><div style="font-size:.85rem;color:var(--text-secondary);margin-top:6px;line-height:1.7">${value}</div></div>`).join('')}
     </div>
   </div>`;
 }
@@ -1245,6 +1289,8 @@ function renderWizard3() {
           </div>
         </div>
         <div class="wizard-body">
+          ${draft.workflowGuidance?.length ? renderWorkflowGuidanceBlock(draft.workflowGuidance) : ''}
+          ${renderBenchmarkRationaleBlock(draft.benchmarkBasis, draft.inputRationale)}
 
           <div class="card anim-fade-in">
             <h3 style="margin-bottom:var(--sp-3);font-size:var(--text-base)">Threat Event Frequency (TEF) <span data-tooltip="How many times per year a threat actor attempts to act against this asset." style="cursor:help;color:var(--color-accent-300);font-size:.8rem">ⓘ</span></h3>
@@ -1597,6 +1643,12 @@ function renderResults(id, isShared) {
           ${assessment.applicableRegulations?.length ? `<div class="citation-chips mt-4">${assessment.applicableRegulations.map(tag => `<span class="badge badge--neutral">${tag}</span>`).join('')}</div>` : ''}
         </div>` : ''}
 
+        ${(assessment.workflowGuidance?.length || assessment.benchmarkBasis || assessment.inputRationale) ? `
+        <div class="grid-2 mb-6 anim-fade-in">
+          ${renderWorkflowGuidanceBlock(assessment.workflowGuidance || [], 'How AI guided this assessment')}
+          ${renderBenchmarkRationaleBlock(assessment.benchmarkBasis, assessment.inputRationale)}
+        </div>` : ''}
+
         <div class="mb-6">
           <div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:var(--sp-3)">Per-Event Loss (LM)</div>
           <div class="grid-3 anim-fade-in">
@@ -1837,6 +1889,11 @@ function renderAdminSettings() {
         <label class="form-label" for="admin-ai-instructions">AI Guidance</label>
         <textarea class="form-textarea" id="admin-ai-instructions" rows="3">${settings.aiInstructions}</textarea>
       </div>
+      <div class="form-group mt-4">
+        <label class="form-label" for="admin-benchmark-strategy">Benchmark Strategy</label>
+        <textarea class="form-textarea" id="admin-benchmark-strategy" rows="3">${settings.benchmarkStrategy}</textarea>
+        <span class="form-help">Explain whether the AI should prefer GCC or UAE references first, and how it should justify any global fallback.</span>
+      </div>
       <div class="admin-inline-actions mt-4">
         <a class="btn btn--secondary" href="#/admin/bu">Manage Business Units</a>
         <a class="btn btn--secondary" href="#/admin/docs">Manage Documents</a>
@@ -1896,6 +1953,7 @@ function renderAdminSettings() {
       riskAppetiteStatement: document.getElementById('admin-appetite').value.trim() || DEFAULT_ADMIN_SETTINGS.riskAppetiteStatement,
       applicableRegulations: regsInput.getTags(),
       aiInstructions: document.getElementById('admin-ai-instructions').value.trim(),
+      benchmarkStrategy: document.getElementById('admin-benchmark-strategy').value.trim() || DEFAULT_ADMIN_SETTINGS.benchmarkStrategy,
       adminContextSummary: document.getElementById('admin-context-summary').value.trim() || DEFAULT_ADMIN_SETTINGS.adminContextSummary,
       escalationGuidance: document.getElementById('admin-escalation-guidance').value.trim() || DEFAULT_ADMIN_SETTINGS.escalationGuidance
     });
