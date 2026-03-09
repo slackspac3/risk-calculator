@@ -1,0 +1,1109 @@
+/**
+ * app.js — Main application entry point
+ * G42 Tech & Cyber Risk Quantifier PoC
+ */
+
+'use strict';
+
+const TOLERANCE_THRESHOLD = 5_000_000;
+const DEFAULT_FX_RATE = 3.6725;
+
+const AppState = {
+  currency: 'USD',
+  fxRate: DEFAULT_FX_RATE,
+  mode: 'basic',
+  draft: {},
+  buList: [],
+  docList: []
+};
+
+function getAssessments() {
+  try { return JSON.parse(localStorage.getItem('rq_assessments') || '[]'); } catch { return []; }
+}
+function saveAssessment(a) {
+  const list = getAssessments();
+  const idx = list.findIndex(x => x.id === a.id);
+  if (idx > -1) list[idx] = a; else list.unshift(a);
+  localStorage.setItem('rq_assessments', JSON.stringify(list));
+}
+function getAssessmentById(id) {
+  return getAssessments().find(a => a.id === id) || null;
+}
+function saveDraft() {
+  try { sessionStorage.setItem('rq_draft', JSON.stringify(AppState.draft)); } catch {}
+}
+function loadDraft() {
+  try {
+    const d = JSON.parse(sessionStorage.getItem('rq_draft') || 'null');
+    if (d) Object.assign(AppState.draft, d);
+  } catch {}
+}
+function resetDraft() {
+  AppState.draft = {
+    id: 'a_' + Date.now(),
+    buId: null, buName: null, contextNotes: '',
+    narrative: '', structuredScenario: null,
+    scenarioTitle: '', llmAssisted: false,
+    citations: [], recommendations: [],
+    fairParams: {}, results: null
+  };
+  saveDraft();
+}
+
+function getBUList() {
+  try {
+    const ov = JSON.parse(localStorage.getItem('rq_bu_override') || 'null');
+    return ov || AppState.buList;
+  } catch { return AppState.buList; }
+}
+function saveBUList(list) {
+  localStorage.setItem('rq_bu_override', JSON.stringify(list));
+  AppState.buList = list;
+  RAGService.init(getDocList(), list);
+}
+function getDocList() {
+  try {
+    const ov = JSON.parse(localStorage.getItem('rq_doc_override') || 'null');
+    return ov || AppState.docList;
+  } catch { return AppState.docList; }
+}
+function saveDocList(list) {
+  localStorage.setItem('rq_doc_override', JSON.stringify(list));
+  AppState.docList = list;
+  RAGService.init(list, getBUList());
+}
+
+function fmtCurrency(usdValue) {
+  if (AppState.currency === 'AED') {
+    const v = usdValue * AppState.fxRate;
+    if (v >= 1_000_000) return 'AED ' + (v / 1_000_000).toFixed(2) + 'M';
+    if (v >= 1_000) return 'AED ' + (v / 1_000).toFixed(0) + 'K';
+    return 'AED ' + v.toFixed(0);
+  }
+  const v = usdValue;
+  if (v >= 1_000_000) return '$' + (v / 1_000_000).toFixed(2) + 'M';
+  if (v >= 1_000) return '$' + (v / 1_000).toFixed(0) + 'K';
+  return '$' + v.toFixed(0);
+}
+
+function setPage(html) {
+  document.getElementById('main-content').innerHTML = html;
+}
+
+async function loadJSON(path) {
+  const res = await fetch(path);
+  return res.json();
+}
+
+// ─── APP BAR ──────────────────────────────────────────────────
+function renderAppBar() {
+  const bar = document.getElementById('app-bar');
+  bar.innerHTML = `
+    <div class="bar-inner">
+      <a href="#/" class="bar-logo">G42 <span>Risk</span>Q</a>
+      <nav class="flex items-center gap-3">
+        <a href="#/" class="bar-nav-link">Home</a>
+        <a href="#/admin" class="bar-nav-link">Admin</a>
+      </nav>
+      <div class="bar-spacer"></div>
+      <div class="currency-toggle" role="group" aria-label="Currency">
+        <button id="cur-usd" class="${AppState.currency==='USD'?'active':''}">USD</button>
+        <button id="cur-aed" class="${AppState.currency==='AED'?'active':''}">AED</button>
+      </div>
+      <span class="bar-poc-tag">PoC</span>
+    </div>`;
+  document.getElementById('cur-usd').addEventListener('click', () => { AppState.currency='USD'; renderAppBar(); Router.resolve(); });
+  document.getElementById('cur-aed').addEventListener('click', () => { AppState.currency='AED'; renderAppBar(); Router.resolve(); });
+}
+
+// ─── LANDING ──────────────────────────────────────────────────
+function renderLanding() {
+  const assessments = getAssessments().slice(0, 5);
+  setPage(`
+    <main class="page">
+      <div class="container">
+
+        <!-- Hero -->
+        <section class="landing-hero">
+          <div class="landing-badge">🔐 Internal Tool — Technology &amp; Cyber Risk</div>
+          <h1>G42 Risk Quantifier</h1>
+          <p class="landing-subtitle">A FAIR-based Monte Carlo simulation tool for structured cyber and technology risk assessment. Describe a scenario in plain language, run the simulation, and get leadership-ready outputs in minutes.</p>
+          <div class="flex items-center gap-4" style="flex-wrap:wrap">
+            <button class="btn btn--primary btn--lg" id="btn-start-new">Start New Assessment</button>
+            <button class="btn btn--secondary" id="btn-show-templates">⚡ Use a Scenario Template</button>
+          </div>
+          <div class="flex items-center gap-4 mt-4" style="flex-wrap:wrap">
+            <span style="font-size:.78rem;color:var(--text-muted)">New here?</span>
+            <button class="btn btn--ghost btn--sm" id="btn-how-it-works">How it works →</button>
+          </div>
+        </section>
+
+        <!-- How it works (collapsible) -->
+        <div id="how-it-works-panel" class="hidden" style="margin-bottom:var(--sp-8)">
+          <div class="card card--elevated anim-fade-in">
+            <h3 style="font-size:var(--text-lg);margin-bottom:var(--sp-5)">How it works</h3>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:var(--sp-5)">
+              ${[
+                ['1','Select your BU','Choose the business unit. The tool pre-loads inherited context: systems, data types, regulatory tags, and baseline FAIR assumptions.'],
+                ['2','Describe the risk','Write the scenario in plain English. Use LLM Assist to have AI structure it and suggest FAIR input ranges, with citations from internal policy documents.'],
+                ['3','Review FAIR inputs','Adjust the Threat Event Frequency, Vulnerability, and loss component ranges. Toggle between Basic and Advanced mode.'],
+                ['4','Run the simulation','10,000 Monte Carlo iterations produce a per-event loss distribution, annual loss exposure curve, and a red/green tolerance flag against the $5M threshold.']
+              ].map(([n,title,desc]) => `
+                <div style="display:flex;gap:var(--sp-4)">
+                  <div style="width:32px;height:32px;background:rgba(26,86,219,.2);border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:700;color:var(--color-primary-300);flex-shrink:0">${n}</div>
+                  <div><div style="font-weight:600;font-size:.9rem;margin-bottom:4px">${title}</div><p style="font-size:.8rem;line-height:1.6">${desc}</p></div>
+                </div>`).join('')}
+            </div>
+            <div class="banner banner--info mt-6" style="font-size:.82rem">
+              <span class="banner-icon">ℹ</span>
+              <span class="banner-text">This is a <strong>Proof of Concept</strong> tool. FAIR input ranges are illustrative — for production risk decisions, validate inputs through expert elicitation. Results are saved locally in your browser only. Use the share link to send results to colleagues.</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Scenario Templates -->
+        <div id="templates-panel" class="hidden" style="margin-bottom:var(--sp-8)">
+          <div class="flex items-center justify-between mb-4">
+            <h3 style="font-size:var(--text-xl)">Scenario Templates</h3>
+            <button class="btn btn--ghost btn--sm" id="btn-hide-templates">✕ Close</button>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:var(--sp-4)">
+            ${ScenarioTemplates.map(t => `
+              <button class="template-card" data-template-id="${t.id}" aria-label="Use template: ${t.label}">
+                <div style="display:flex;align-items:flex-start;gap:var(--sp-3);margin-bottom:var(--sp-3)">
+                  <span style="font-size:28px;line-height:1">${t.icon}</span>
+                  <div style="flex:1;text-align:left">
+                    <div style="font-family:var(--font-display);font-size:.95rem;font-weight:600;color:var(--text-primary);margin-bottom:4px">${t.label}</div>
+                    <div style="display:flex;flex-wrap:wrap;gap:4px">${t.tags.map(tag=>`<span class="badge badge--neutral" style="font-size:.6rem">${tag}</span>`).join('')}</div>
+                  </div>
+                </div>
+                <p style="font-size:.8rem;color:var(--text-secondary);line-height:1.6;text-align:left">${t.description}</p>
+                <div style="margin-top:var(--sp-3);text-align:right;font-size:.8rem;color:var(--color-primary-400);font-weight:600">Use this template →</div>
+              </button>`).join('')}
+          </div>
+        </div>
+
+        <!-- Feature grid -->
+        <div class="landing-grid">
+          <div class="feature-card anim-fade-in anim-delay-1">
+            <div class="feature-icon">🤖</div>
+            <div class="feature-title">AI-Assisted Inputs</div>
+            <p class="feature-desc">Describe a risk in plain language. AI structures it and suggests FAIR input ranges, with citations from internal policies.</p>
+          </div>
+          <div class="feature-card anim-fade-in anim-delay-2">
+            <div class="feature-icon">📊</div>
+            <div class="feature-title">Monte Carlo Simulation</div>
+            <p class="feature-desc">10,000+ iterations produce per-event loss distributions, annual exposure, and a loss exceedance curve.</p>
+          </div>
+          <div class="feature-card anim-fade-in anim-delay-3">
+            <div class="feature-icon">🎯</div>
+            <div class="feature-title">Tolerance Flagging</div>
+            <p class="feature-desc">Automatic red/green flag against the $5M per-event threshold. Clear, unambiguous signal for leadership.</p>
+          </div>
+          <div class="feature-card anim-fade-in anim-delay-4">
+            <div class="feature-icon">🔗</div>
+            <div class="feature-title">Share Results</div>
+            <p class="feature-desc">Generate a link that encodes results in the URL. Colleagues can open it directly — no login or account needed.</p>
+          </div>
+        </div>
+
+        <!-- Recent assessments -->
+        ${assessments.length ? `
+        <section style="margin-top:var(--sp-12)">
+          <div class="flex items-center justify-between mb-4">
+            <h3 style="font-size:var(--text-xl)">Recent Assessments <span class="badge badge--neutral" style="margin-left:8px;font-size:.65rem">Browser only</span></h3>
+            <button class="btn btn--ghost btn--sm" id="btn-clear-all">Clear All</button>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:var(--sp-3)">
+            ${assessments.map(a => `
+              <div class="assessment-item" data-id="${a.id}" role="button" tabindex="0">
+                <div class="assessment-meta">
+                  <div class="assessment-title">${a.scenarioTitle || 'Untitled'}</div>
+                  <div class="assessment-detail">${a.buName || '—'} · ${new Date(parseInt((a.id||'0').replace('a_',''))).toLocaleDateString('en-AE')}</div>
+                </div>
+                ${a.results ? `<span class="badge ${a.results.toleranceBreached?'badge--danger':'badge--success'}">${a.results.toleranceBreached?'Above Tolerance':'Within Tolerance'}</span>` : '<span class="badge badge--neutral">Draft</span>'}
+                <span style="color:var(--text-muted);font-size:20px">→</span>
+              </div>`).join('')}
+          </div>
+        </section>` : ''}
+
+      </div>
+    </main>
+
+    <style>
+      .template-card {
+        background: var(--bg-surface);
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-xl);
+        padding: var(--sp-5);
+        cursor: pointer;
+        transition: all var(--transition-base);
+        text-align: left;
+        width: 100%;
+      }
+      .template-card:hover {
+        border-color: var(--color-primary-600);
+        background: var(--bg-overlay-hover);
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-md);
+      }
+    </style>`);
+
+  // Wiring
+  document.getElementById('btn-start-new').addEventListener('click', () => { resetDraft(); Router.navigate('/wizard/1'); });
+
+  document.getElementById('btn-how-it-works').addEventListener('click', () => {
+    const panel = document.getElementById('how-it-works-panel');
+    const isHidden = panel.classList.contains('hidden');
+    panel.classList.toggle('hidden', !isHidden);
+    document.getElementById('btn-how-it-works').textContent = isHidden ? 'Hide ↑' : 'How it works →';
+  });
+
+  document.getElementById('btn-show-templates').addEventListener('click', () => {
+    document.getElementById('templates-panel').classList.remove('hidden');
+    document.getElementById('templates-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  document.getElementById('btn-hide-templates')?.addEventListener('click', () => {
+    document.getElementById('templates-panel').classList.add('hidden');
+  });
+
+  document.querySelectorAll('.template-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const tmpl = ScenarioTemplates.find(t => t.id === card.dataset.templateId);
+      if (tmpl) loadTemplate(tmpl);
+    });
+  });
+
+  document.getElementById('btn-clear-all')?.addEventListener('click', async () => {
+    if (await UI.confirm('Clear all saved assessments from this browser?')) {
+      localStorage.removeItem('rq_assessments');
+      Router.resolve();
+    }
+  });
+
+  document.querySelectorAll('.assessment-item').forEach(el => {
+    const open = () => Router.navigate('/results/' + el.dataset.id);
+    el.addEventListener('click', open);
+    el.addEventListener('keydown', e => { if (e.key === 'Enter') open(); });
+  });
+}
+
+function loadTemplate(tmpl) {
+  resetDraft();
+  // Pick a sensible default BU if suggested ones are available
+  const buList = getBUList();
+  const preferredBU = tmpl.suggestedBUTypes
+    .map(id => buList.find(b => b.id === id))
+    .find(Boolean);
+
+  Object.assign(AppState.draft, {
+    ...tmpl.draft,
+    buId: preferredBU?.id || null,
+    buName: preferredBU?.name || null,
+    llmAssisted: false
+  });
+  saveDraft();
+  Router.navigate('/wizard/1');
+  UI.toast(`Template loaded: "${tmpl.label}". Review inputs and run the simulation.`, 'info', 4000);
+}
+
+// ─── WIZARD 2 ─────────────────────────────────────────────────
+function renderWizard2() {
+  const draft = AppState.draft;
+  setPage(`
+    <main class="page">
+      <div class="wizard-layout container container--narrow">
+        <div class="wizard-header">
+          ${UI.renderStepper(2)}
+          <h2 class="wizard-step-title">Describe the Risk Scenario</h2>
+          <p class="wizard-step-desc">Describe the risk in your own words, then use LLM Assist to structure it and suggest FAIR inputs.</p>
+        </div>
+        <div class="wizard-body">
+          <div class="card anim-fade-in">
+            <div class="form-group">
+              <label class="form-label" for="narrative">Risk Scenario Narrative <span class="required">*</span></label>
+              <textarea class="form-textarea" id="narrative" rows="5" placeholder="Describe the risk: What could happen? Who might cause it? What assets are at risk? What are the potential impacts?" style="min-height:140px">${draft.narrative||''}</textarea>
+            </div>
+          </div>
+          <div class="card anim-fade-in anim-delay-1">
+            <div style="font-size:.78rem;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);margin-bottom:var(--sp-4)">Optional Structured Fields</div>
+            <div class="grid-2">
+              <div class="form-group">
+                <label class="form-label" for="asset-service">Asset / Service</label>
+                <input class="form-input" id="asset-service" type="text" placeholder="e.g. Payment gateway" value="${draft.structuredScenario?.assetService||''}">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="threat-type">Threat Type</label>
+                <select class="form-select" id="threat-type">
+                  <option value="">— Select —</option>
+                  ${['Ransomware','Data Breach / Exfiltration','Phishing / BEC','Cloud Misconfiguration','Insider Threat','Supply Chain','DDoS','Zero-day Exploit'].map(t=>`<option value="${t}">${t}</option>`).join('')}
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="anim-fade-in anim-delay-2">
+            <button class="btn btn--primary" id="btn-llm-assist" style="width:100%;justify-content:center;padding:14px">
+              <span id="llm-btn-text">🤖 LLM Assist — Draft Scenario &amp; Suggest FAIR Inputs</span>
+            </button>
+            <p style="text-align:center;font-size:.75rem;color:var(--text-muted);margin-top:8px">Retrieves relevant internal docs and uses AI to suggest FAIR inputs with citations.</p>
+          </div>
+          <div id="llm-output-area"></div>
+          ${draft.llmAssisted && draft.citations?.length ? renderCitationBlock(draft.citations) : ''}
+        </div>
+        <div class="wizard-footer">
+          <button class="btn btn--ghost" id="btn-back-2">← Back</button>
+          <button class="btn btn--primary" id="btn-next-2">Next: FAIR Inputs →</button>
+        </div>
+      </div>
+    </main>`);
+
+  document.getElementById('btn-back-2').addEventListener('click', () => Router.navigate('/wizard/1'));
+  document.getElementById('narrative').addEventListener('input', function() { AppState.draft.narrative = this.value; });
+  document.getElementById('btn-llm-assist').addEventListener('click', runLLMAssist);
+  document.getElementById('btn-next-2').addEventListener('click', () => {
+    const n = document.getElementById('narrative').value.trim();
+    if (!n) { UI.toast('Please enter a risk narrative.', 'warning'); return; }
+    AppState.draft.narrative = n;
+    saveDraft(); Router.navigate('/wizard/3');
+  });
+  attachCitationHandlers();
+}
+
+async function runLLMAssist() {
+  const narrative = document.getElementById('narrative').value.trim();
+  if (!narrative) { UI.toast('Please enter a narrative first.', 'warning'); return; }
+  const btn = document.getElementById('btn-llm-assist');
+  const btnText = document.getElementById('llm-btn-text');
+  const output = document.getElementById('llm-output-area');
+  btn.disabled = true; btn.classList.add('loading');
+  btnText.textContent = '⏳ Retrieving docs and generating inputs…';
+  output.innerHTML = `<div class="card mt-4">${UI.skeletonBlock(20)}<div style="margin-top:12px">${UI.skeletonBlock(14,4)}</div><div style="margin-top:8px">${UI.skeletonBlock(14,4)}</div></div>`;
+  try {
+    const bu = getBUList().find(b => b.id === AppState.draft.buId);
+    const citations = await RAGService.retrieveRelevantDocs(AppState.draft.buId, narrative);
+    const result = await LLMService.generateScenarioAndInputs(narrative, bu, citations);
+    AppState.draft.scenarioTitle = result.scenarioTitle;
+    AppState.draft.structuredScenario = result.structuredScenario;
+    AppState.draft.llmAssisted = true;
+    AppState.draft.citations = result.citations || citations;
+    AppState.draft.recommendations = result.recommendations || [];
+    const s = result.suggestedInputs;
+    if (s) {
+      const lc = s.lossComponents;
+      AppState.draft.fairParams = {
+        ...AppState.draft.fairParams,
+        tefMin: s.TEF.min, tefLikely: s.TEF.likely, tefMax: s.TEF.max,
+        controlStrMin: s.controlStrength.min, controlStrLikely: s.controlStrength.likely, controlStrMax: s.controlStrength.max,
+        threatCapMin: s.threatCapability.min, threatCapLikely: s.threatCapability.likely, threatCapMax: s.threatCapability.max,
+        irMin: lc?.incidentResponse?.min, irLikely: lc?.incidentResponse?.likely, irMax: lc?.incidentResponse?.max,
+        biMin: lc?.businessInterruption?.min, biLikely: lc?.businessInterruption?.likely, biMax: lc?.businessInterruption?.max,
+        dbMin: lc?.dataBreachRemediation?.min, dbLikely: lc?.dataBreachRemediation?.likely, dbMax: lc?.dataBreachRemediation?.max,
+        rlMin: lc?.regulatoryLegal?.min, rlLikely: lc?.regulatoryLegal?.likely, rlMax: lc?.regulatoryLegal?.max,
+        tpMin: lc?.thirdPartyLiability?.min, tpLikely: lc?.thirdPartyLiability?.likely, tpMax: lc?.thirdPartyLiability?.max,
+        rcMin: lc?.reputationContract?.min, rcLikely: lc?.reputationContract?.likely, rcMax: lc?.reputationContract?.max,
+      };
+    }
+    saveDraft();
+    output.innerHTML = `<div class="card card--glow mt-4 anim-fade-in">
+      <div style="display:flex;align-items:center;gap:var(--sp-3);margin-bottom:var(--sp-4)">
+        <span style="font-size:24px">✅</span>
+        <div>
+          <div style="font-family:var(--font-display);font-size:var(--text-lg);font-weight:700;color:var(--text-primary)">${result.scenarioTitle}</div>
+          <div style="font-size:.75rem;color:var(--text-muted)">AI-structured · FAIR inputs pre-loaded to Step 3</div>
+        </div>
+      </div>
+      ${result.structuredScenario?`<div class="grid-2"><div><div class="form-label" style="font-size:.7rem">Threat Community</div><p style="font-size:.85rem;margin-top:4px">${result.structuredScenario.threatCommunity}</p></div><div><div class="form-label" style="font-size:.7rem">Attack Vector</div><p style="font-size:.85rem;margin-top:4px">${result.structuredScenario.attackType}</p></div></div>`:''}
+    </div>${renderCitationBlock(AppState.draft.citations)}`;
+    attachCitationHandlers();
+  } catch(e) {
+    output.innerHTML = `<div class="banner banner--danger mt-4"><span class="banner-icon">⚠</span><span class="banner-text">LLM Assist error: ${e.message}</span></div>`;
+  }
+  btn.disabled = false; btn.classList.remove('loading');
+  btnText.innerHTML = '🤖 LLM Assist — Draft Scenario &amp; Suggest FAIR Inputs';
+}
+
+function renderCitationBlock(citations) {
+  if (!citations?.length) return '';
+  return `<div class="card mt-4 anim-fade-in">
+    <div class="context-panel-title">📚 Citations — Internal Documents</div>
+    <div class="citation-chips">
+      ${citations.map(c=>`<button class="citation-chip" data-doc-id="${c.docId}"><span class="citation-chip-icon">📄</span>${c.title}</button>`).join('')}
+    </div>
+  </div>`;
+}
+
+function attachCitationHandlers() {
+  document.querySelectorAll('.citation-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const docId = btn.dataset.docId;
+      const doc = getDocList().find(d => d.id === docId) || AppState.draft.citations?.find(c => c.docId === docId);
+      if (doc) UI.citationModal({ title: doc.title, excerpt: doc.contentExcerpt || doc.excerpt, tags: doc.tags||[], lastUpdated: doc.lastUpdated, url: doc.url });
+    });
+  });
+}
+
+// ─── WIZARD 3 ─────────────────────────────────────────────────
+function renderWizard3() {
+  const draft = AppState.draft;
+  const p = draft.fairParams || {};
+  const bu = getBUList().find(b => b.id === draft.buId);
+  const da = bu?.defaultAssumptions || {};
+  const isAdv = AppState.mode === 'advanced';
+  const cur = AppState.currency;
+  const sym = cur === 'AED' ? 'AED' : 'USD $';
+
+  const v = (key, def) => p[key] != null ? p[key] : def;
+
+  setPage(`
+    <main class="page">
+      <div class="wizard-layout container container--narrow">
+        <div class="wizard-header">
+          ${UI.renderStepper(3)}
+          <div class="flex items-center justify-between">
+            <div>
+              <h2 class="wizard-step-title">FAIR Inputs</h2>
+              <p class="wizard-step-desc">Review and adjust risk parameters. ${draft.llmAssisted?'<span style="color:var(--color-success-400)">✓ Pre-loaded from AI assist</span>':''}</p>
+            </div>
+            <div class="mode-toggle">
+              <button class="${!isAdv?'active':''}" id="mode-basic">Basic</button>
+              <button class="${isAdv?'active':''}" id="mode-advanced">Advanced</button>
+            </div>
+          </div>
+        </div>
+        <div class="wizard-body">
+
+          <div class="card anim-fade-in">
+            <h3 style="margin-bottom:var(--sp-3);font-size:var(--text-base)">Threat Event Frequency (TEF) <span data-tooltip="How many times per year a threat actor attempts to act against this asset." style="cursor:help;color:var(--color-accent-300);font-size:.8rem">ⓘ</span></h3>
+            <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:12px">Events per year</p>
+            ${tripleInput('tef','TEF', v('tefMin',da.TEF?.min||0.5), v('tefLikely',da.TEF?.likely||2), v('tefMax',da.TEF?.max||8))}
+          </div>
+
+          <div class="card anim-fade-in anim-delay-1">
+            <h3 style="margin-bottom:var(--sp-3);font-size:var(--text-base)">Vulnerability <span data-tooltip="Derived via sigmoid(ThreatCapability - ControlStrength). Use Advanced for direct input." style="cursor:help;color:var(--color-accent-300);font-size:.8rem">ⓘ</span></h3>
+            ${isAdv?`<div class="flex items-center gap-3 mb-4"><label class="toggle"><input type="checkbox" id="vuln-direct-toggle" ${p.vulnDirect?'checked':''}><div class="toggle-track"></div></label><span class="toggle-label">Direct vulnerability input</span></div>
+            <div id="vuln-direct-section" ${!p.vulnDirect?'class="hidden"':''}>
+              <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:12px">Probability 0–1</p>
+              ${tripleInput('vuln','Vulnerability', v('vulnMin',0.1), v('vulnLikely',0.35), v('vulnMax',0.7))}
+            </div>`:''}
+            <div id="vuln-derived-section" ${isAdv&&p.vulnDirect?'class="hidden"':''}>
+              <div class="grid-2">
+                <div>
+                  <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:12px">Threat Capability (0–1)</p>
+                  ${tripleInput('threatCap','TC', v('threatCapMin',da.threatCapability?.min||0.45), v('threatCapLikely',da.threatCapability?.likely||0.62), v('threatCapMax',da.threatCapability?.max||0.82))}
+                </div>
+                <div>
+                  <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:12px">Control Strength (0–1)</p>
+                  ${tripleInput('controlStr','CS', v('controlStrMin',da.controlStrength?.min||0.5), v('controlStrLikely',da.controlStrength?.likely||0.68), v('controlStrMax',da.controlStrength?.max||0.85))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card anim-fade-in anim-delay-2">
+            <h3 style="margin-bottom:var(--sp-2);font-size:var(--text-base)">Primary Loss Components</h3>
+            <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:var(--sp-5)">Per-event estimates in ${sym}. All components summed each iteration.</p>
+            <div style="display:flex;flex-direction:column;gap:var(--sp-5)">
+              ${lossRow('ir','Incident Response & Recovery', v('irMin',da.incidentResponse?.min||50000), v('irLikely',da.incidentResponse?.likely||180000), v('irMax',da.incidentResponse?.max||600000), 'Containment, forensics, external IR firm costs.')}
+              ${lossRow('bi','Business Interruption', v('biMin',da.businessInterruption?.min||100000), v('biLikely',da.businessInterruption?.likely||450000), v('biMax',da.businessInterruption?.max||2500000), 'Revenue loss during incident.')}
+              ${lossRow('db','Data Breach & Remediation', v('dbMin',da.dataBreachRemediation?.min||30000), v('dbLikely',da.dataBreachRemediation?.likely||120000), v('dbMax',da.dataBreachRemediation?.max||500000), 'Notification, credit monitoring, remediation.')}
+              ${lossRow('rl','Regulatory & Legal', v('rlMin',da.regulatoryLegal?.min||0), v('rlLikely',da.regulatoryLegal?.likely||80000), v('rlMax',da.regulatoryLegal?.max||800000), 'Fines, legal fees, notification costs.')}
+              ${lossRow('tp','Third-Party Liability', v('tpMin',da.thirdPartyLiability?.min||0), v('tpLikely',da.thirdPartyLiability?.likely||50000), v('tpMax',da.thirdPartyLiability?.max||400000), 'Claims from affected partners/customers.')}
+              ${lossRow('rc','Reputation & Contract Loss', v('rcMin',da.reputationContract?.min||50000), v('rcLikely',da.reputationContract?.likely||200000), v('rcMax',da.reputationContract?.max||1200000), 'Customer churn, contract penalties.')}
+            </div>
+          </div>
+
+          <div class="card anim-fade-in anim-delay-3">
+            <div class="flex items-center justify-between mb-4">
+              <div>
+                <h3 style="font-size:var(--text-base)">Secondary Loss <span class="badge badge--neutral" style="margin-left:6px">Optional</span></h3>
+                <p style="font-size:.78rem;color:var(--text-muted)">Downstream losses triggered by the primary event.</p>
+              </div>
+              <label class="toggle"><input type="checkbox" id="secondary-toggle" ${p.secondaryEnabled?'checked':''}><div class="toggle-track"></div></label>
+            </div>
+            <div id="secondary-inputs" ${!p.secondaryEnabled?'class="hidden"':''}>
+              <div class="grid-2">
+                <div><p style="font-size:.78rem;color:var(--text-muted);margin-bottom:12px">Event Probability (0–1)</p>${tripleInput('secProb','Prob', v('secProbMin',0.1), v('secProbLikely',0.3), v('secProbMax',0.7))}</div>
+                <div><p style="font-size:.78rem;color:var(--text-muted);margin-bottom:12px">Magnitude (${sym})</p>${tripleInput('secMag','Mag', v('secMagMin',100000), v('secMagLikely',500000), v('secMagMax',2000000))}</div>
+              </div>
+            </div>
+          </div>
+
+          ${isAdv?`
+          <div class="card anim-fade-in">
+            <h3 style="margin-bottom:var(--sp-4);font-size:var(--text-base)">Advanced Simulation Settings</h3>
+            <div class="grid-2">
+              <div class="form-group">
+                <label class="form-label">Distribution Type <span data-tooltip="Triangular: intuitive. Lognormal: heavier right tail (better for cyber)." style="cursor:help;color:var(--color-accent-300)">ⓘ</span></label>
+                <select class="form-select" id="adv-dist">
+                  <option value="triangular" ${(p.distType||'triangular')==='triangular'?'selected':''}>Triangular</option>
+                  <option value="lognormal" ${p.distType==='lognormal'?'selected':''}>Lognormal</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Iterations</label>
+                <input class="form-input" id="adv-iter" type="number" min="1000" max="100000" step="1000" value="${p.iterations||10000}">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Random Seed <span class="text-muted text-xs">(reproducibility)</span></label>
+                <input class="form-input" id="adv-seed" type="number" placeholder="Leave empty for random" value="${p.seed||''}">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Correlations <span data-tooltip="BI-IR: Business Interruption & IR correlation. RL-RC: Regulatory & Reputation." style="cursor:help;color:var(--color-accent-300)">ⓘ</span></label>
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px">
+                  <label style="font-size:.72rem;color:var(--text-muted)">BI↔IR</label>
+                  <input class="form-input" id="corr-bi-ir" type="number" min="-1" max="1" step="0.05" value="${p.corrBiIr||0.3}" style="width:72px">
+                  <label style="font-size:.72rem;color:var(--text-muted)">Reg↔Rep</label>
+                  <input class="form-input" id="corr-rl-rc" type="number" min="-1" max="1" step="0.05" value="${p.corrRlRc||0.2}" style="width:72px">
+                </div>
+              </div>
+            </div>
+          </div>`:''}
+
+        </div>
+        <div class="wizard-footer">
+          <button class="btn btn--ghost" id="btn-back-3">← Back</button>
+          <button class="btn btn--primary" id="btn-next-3">Next: Review →</button>
+        </div>
+      </div>
+    </main>`);
+
+  document.getElementById('mode-basic')?.addEventListener('click', () => { AppState.mode='basic'; renderWizard3(); });
+  document.getElementById('mode-advanced')?.addEventListener('click', () => { AppState.mode='advanced'; renderWizard3(); });
+  document.getElementById('secondary-toggle').addEventListener('change', function() {
+    document.getElementById('secondary-inputs').classList.toggle('hidden', !this.checked);
+    AppState.draft.fairParams.secondaryEnabled = this.checked;
+  });
+  document.getElementById('vuln-direct-toggle')?.addEventListener('change', function() {
+    document.getElementById('vuln-direct-section')?.classList.toggle('hidden', !this.checked);
+    document.getElementById('vuln-derived-section')?.classList.toggle('hidden', this.checked);
+    AppState.draft.fairParams.vulnDirect = this.checked;
+  });
+  document.getElementById('btn-back-3').addEventListener('click', () => Router.navigate('/wizard/2'));
+  document.getElementById('btn-next-3').addEventListener('click', () => {
+    collectFairParams();
+    if (!validateFairParams()) return;
+    saveDraft(); Router.navigate('/wizard/4');
+  });
+}
+
+function tripleInput(prefix, label, min, likely, max) {
+  return `<div class="range-group">
+    <div class="form-group"><div class="range-col-label">Min</div><input class="form-input fair-input" id="${prefix}-min" data-key="${prefix}Min" type="number" step="any" value="${min}" aria-label="${label} min"></div>
+    <div class="form-group"><div class="range-col-label" style="color:var(--color-primary-300)">Most Likely</div><input class="form-input fair-input" id="${prefix}-likely" data-key="${prefix}Likely" type="number" step="any" value="${likely}" aria-label="${label} likely"></div>
+    <div class="form-group"><div class="range-col-label">Max</div><input class="form-input fair-input" id="${prefix}-max" data-key="${prefix}Max" type="number" step="any" value="${max}" aria-label="${label} max"></div>
+  </div>`;
+}
+
+function lossRow(prefix, label, min, likely, max, tooltip) {
+  return `<div>
+    <div style="font-size:.78rem;font-weight:600;color:var(--text-secondary);margin-bottom:8px;display:flex;align-items:center;gap:6px">${label}<span data-tooltip="${tooltip}" style="cursor:help;color:var(--color-accent-300);font-size:.72rem">ⓘ</span></div>
+    ${tripleInput(prefix, label, min, likely, max)}
+  </div>`;
+}
+
+function collectFairParams() {
+  const p = AppState.draft.fairParams;
+  document.querySelectorAll('.fair-input').forEach(input => {
+    const val = parseFloat(input.value);
+    if (!isNaN(val)) p[input.dataset.key] = val;
+  });
+  const dist = document.getElementById('adv-dist');
+  const iter = document.getElementById('adv-iter');
+  const seed = document.getElementById('adv-seed');
+  const cbir = document.getElementById('corr-bi-ir');
+  const crlr = document.getElementById('corr-rl-rc');
+  if (dist) p.distType = dist.value;
+  if (iter) p.iterations = parseInt(iter.value) || 10000;
+  if (seed) p.seed = seed.value ? parseInt(seed.value) : null;
+  if (cbir) p.corrBiIr = parseFloat(cbir.value) || 0.3;
+  if (crlr) p.corrRlRc = parseFloat(crlr.value) || 0.2;
+  p.secondaryEnabled = document.getElementById('secondary-toggle')?.checked || false;
+  p.distType = p.distType || 'triangular';
+}
+
+function validateFairParams() {
+  const p = AppState.draft.fairParams;
+  const checks = [['tef','TEF'],['ir','IR'],['bi','BI'],['db','DB'],['rl','RL'],['tp','TP'],['rc','RC']];
+  for (const [k, label] of checks) {
+    const mn=p[k+'Min'], ml=p[k+'Likely'], mx=p[k+'Max'];
+    if (mn==null||ml==null||mx==null) { UI.toast(`${label}: all three values required.`,'danger'); return false; }
+    if (mn>ml||ml>mx) { UI.toast(`${label}: must be min ≤ likely ≤ max.`,'danger'); return false; }
+  }
+  return true;
+}
+
+// ─── WIZARD 4 ─────────────────────────────────────────────────
+function renderWizard4() {
+  const draft = AppState.draft;
+  const p = draft.fairParams;
+  setPage(`
+    <main class="page">
+      <div class="wizard-layout container container--narrow">
+        <div class="wizard-header">
+          ${UI.renderStepper(4)}
+          <h2 class="wizard-step-title">Review &amp; Run Simulation</h2>
+          <p class="wizard-step-desc">Review your inputs, then run the Monte Carlo simulation.</p>
+        </div>
+        <div class="wizard-body">
+          <div class="card card--elevated anim-fade-in">
+            <div style="display:flex;align-items:center;gap:var(--sp-4);margin-bottom:var(--sp-5)">
+              <div style="width:48px;height:48px;background:rgba(26,86,219,.15);border-radius:var(--radius-lg);display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0">🏢</div>
+              <div>
+                <div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted)">Business Unit</div>
+                <div style="font-size:var(--text-lg);font-weight:600;font-family:var(--font-display)">${draft.buName||'—'}</div>
+              </div>
+            </div>
+            <div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);margin-bottom:var(--sp-2)">Scenario</div>
+            <div style="font-size:var(--text-base);font-weight:600;font-family:var(--font-display);margin-bottom:var(--sp-3)">${draft.scenarioTitle||'Untitled'}</div>
+            <p style="font-size:.85rem;color:var(--text-secondary);line-height:1.7">${(draft.narrative||'').substring(0,280)}${(draft.narrative||'').length>280?'…':''}</p>
+            ${draft.llmAssisted?'<span class="badge badge--success" style="margin-top:12px">✓ AI-Assisted</span>':''}
+          </div>
+          <div class="card anim-fade-in anim-delay-1">
+            <h3 style="font-size:var(--text-base);margin-bottom:var(--sp-4)">Key Parameters</h3>
+            <div class="grid-3">
+              <div style="background:var(--bg-elevated);padding:var(--sp-4);border-radius:var(--radius-lg)"><div style="font-size:.7rem;text-transform:uppercase;color:var(--text-muted)">TEF</div><div style="font-size:.9rem;font-weight:600;margin-top:4px">${p.tefMin}–${p.tefLikely}–${p.tefMax}</div><div style="font-size:.7rem;color:var(--text-muted)">events/year</div></div>
+              <div style="background:var(--bg-elevated);padding:var(--sp-4);border-radius:var(--radius-lg)"><div style="font-size:.7rem;text-transform:uppercase;color:var(--text-muted)">Threat Cap</div><div style="font-size:.9rem;font-weight:600;margin-top:4px">${p.threatCapMin}–${p.threatCapLikely}–${p.threatCapMax}</div><div style="font-size:.7rem;color:var(--text-muted)">0–1 scale</div></div>
+              <div style="background:var(--bg-elevated);padding:var(--sp-4);border-radius:var(--radius-lg)"><div style="font-size:.7rem;text-transform:uppercase;color:var(--text-muted)">Control Str</div><div style="font-size:.9rem;font-weight:600;margin-top:4px">${p.controlStrMin}–${p.controlStrLikely}–${p.controlStrMax}</div><div style="font-size:.7rem;color:var(--text-muted)">0–1 scale</div></div>
+              <div style="background:var(--bg-elevated);padding:var(--sp-4);border-radius:var(--radius-lg)"><div style="font-size:.7rem;text-transform:uppercase;color:var(--text-muted)">IR & Recovery</div><div style="font-size:.9rem;font-weight:600;margin-top:4px">${fmtCurrency(p.irMin)}–${fmtCurrency(p.irMax)}</div></div>
+              <div style="background:var(--bg-elevated);padding:var(--sp-4);border-radius:var(--radius-lg)"><div style="font-size:.7rem;text-transform:uppercase;color:var(--text-muted)">Business Int.</div><div style="font-size:.9rem;font-weight:600;margin-top:4px">${fmtCurrency(p.biMin)}–${fmtCurrency(p.biMax)}</div></div>
+              <div style="background:var(--bg-elevated);padding:var(--sp-4);border-radius:var(--radius-lg)"><div style="font-size:.7rem;text-transform:uppercase;color:var(--text-muted)">Reg & Legal</div><div style="font-size:.9rem;font-weight:600;margin-top:4px">${fmtCurrency(p.rlMin)}–${fmtCurrency(p.rlMax)}</div></div>
+            </div>
+            <div class="mt-4" style="font-size:.78rem;color:var(--text-muted)">Iterations: <strong>${p.iterations||10000}</strong> · Distribution: <strong>${p.distType||'triangular'}</strong> · Threshold: <strong>${fmtCurrency(TOLERANCE_THRESHOLD)}</strong></div>
+          </div>
+          <div class="banner banner--poc anim-fade-in anim-delay-2"><span class="banner-icon">⚠</span><span class="banner-text">PoC tool. FAIR input ranges should be validated through expert elicitation for production risk decisions.</span></div>
+          <div id="run-area">
+            <button class="btn btn--primary btn--lg" id="btn-run-sim" style="width:100%;justify-content:center">🚀 Run Monte Carlo Simulation (${p.iterations||10000} iterations)</button>
+          </div>
+          <div id="sim-progress" class="hidden">
+            <div class="card" style="text-align:center;padding:var(--sp-10)">
+              <div style="font-size:48px;margin-bottom:var(--sp-4);animation:spin 1s linear infinite">⚙️</div>
+              <div style="font-family:var(--font-display);font-size:var(--text-xl);margin-bottom:var(--sp-2)">Running Simulation…</div>
+              <div style="font-size:var(--text-sm);color:var(--text-muted)">Computing ${p.iterations||10000} Monte Carlo iterations…</div>
+            </div>
+          </div>
+        </div>
+        <div class="wizard-footer">
+          <button class="btn btn--ghost" id="btn-back-4">← Back</button>
+        </div>
+      </div>
+    </main>
+    <style>@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}</style>`);
+
+  document.getElementById('btn-back-4').addEventListener('click', () => Router.navigate('/wizard/3'));
+  document.getElementById('btn-run-sim').addEventListener('click', runSimulation);
+}
+
+async function runSimulation() {
+  document.getElementById('run-area').classList.add('hidden');
+  document.getElementById('sim-progress').classList.remove('hidden');
+  await new Promise(r => setTimeout(r, 80));
+  try {
+    const p = AppState.draft.fairParams;
+    const fxMul = AppState.currency === 'AED' ? (1 / AppState.fxRate) : 1;
+    const toUSD = v => (v||0) * fxMul;
+    const ep = {
+      distType: p.distType||'triangular', iterations: p.iterations||10000, seed: p.seed||null,
+      tefMin: p.tefMin, tefLikely: p.tefLikely, tefMax: p.tefMax,
+      vulnDirect: p.vulnDirect||false,
+      vulnMin: p.vulnMin, vulnLikely: p.vulnLikely, vulnMax: p.vulnMax,
+      threatCapMin: p.threatCapMin, threatCapLikely: p.threatCapLikely, threatCapMax: p.threatCapMax,
+      controlStrMin: p.controlStrMin, controlStrLikely: p.controlStrLikely, controlStrMax: p.controlStrMax,
+      irMin: toUSD(p.irMin), irLikely: toUSD(p.irLikely), irMax: toUSD(p.irMax),
+      biMin: toUSD(p.biMin), biLikely: toUSD(p.biLikely), biMax: toUSD(p.biMax),
+      dbMin: toUSD(p.dbMin), dbLikely: toUSD(p.dbLikely), dbMax: toUSD(p.dbMax),
+      rlMin: toUSD(p.rlMin), rlLikely: toUSD(p.rlLikely), rlMax: toUSD(p.rlMax),
+      tpMin: toUSD(p.tpMin), tpLikely: toUSD(p.tpLikely), tpMax: toUSD(p.tpMax),
+      rcMin: toUSD(p.rcMin), rcLikely: toUSD(p.rcLikely), rcMax: toUSD(p.rcMax),
+      corrBiIr: p.corrBiIr||0.3, corrRlRc: p.corrRlRc||0.2,
+      secondaryEnabled: p.secondaryEnabled||false,
+      secProbMin: p.secProbMin, secProbLikely: p.secProbLikely, secProbMax: p.secProbMax,
+      secMagMin: toUSD(p.secMagMin), secMagLikely: toUSD(p.secMagLikely), secMagMax: toUSD(p.secMagMax),
+      threshold: TOLERANCE_THRESHOLD
+    };
+    const results = RiskEngine.run(ep);
+    if (!AppState.draft.id) AppState.draft.id = 'a_' + Date.now();
+    const assessment = { ...AppState.draft, results, completedAt: Date.now() };
+    saveAssessment(assessment);
+    saveDraft();
+    Router.navigate('/results/' + AppState.draft.id);
+  } catch(e) {
+    document.getElementById('sim-progress').classList.add('hidden');
+    document.getElementById('run-area').classList.remove('hidden');
+    UI.toast('Simulation error: ' + e.message, 'danger');
+    console.error(e);
+  }
+}
+
+// ─── RESULTS ──────────────────────────────────────────────────
+function renderResults(id, isShared) {
+  // Check for shared payload in URL first
+  if (!isShared) {
+    const shared = ShareService.parseShareFromURL();
+    if (shared && shared.id === id && shared.results) {
+      if (!getAssessmentById(id)) saveAssessment({ ...shared, _shared: true });
+      isShared = true;
+    }
+  }
+  const assessment = getAssessmentById(id);
+  if (!assessment || !assessment.results) {
+    setPage(`<div class="container" style="padding:var(--sp-12)"><h2>Assessment not found</h2><p style="margin-top:var(--sp-4);color:var(--text-muted)">ID "${id}" not found in local storage.</p><a href="#/" class="btn btn--primary" style="margin-top:var(--sp-6)">← Home</a></div>`);
+    return;
+  }
+  const sharedBanner = (isShared || assessment._shared) ? `
+    <div class="banner banner--info mb-6" style="font-size:.82rem">
+      <span class="banner-icon">🔗</span>
+      <span class="banner-text"><strong>Shared view.</strong> This assessment was shared with you. <a href="#/" style="color:var(--color-accent-300)">Start your own →</a></span>
+    </div>` : '';
+  const r = assessment.results;
+  setPage(`
+    <main class="page">
+      <div class="container container--wide" style="padding:var(--sp-8) var(--sp-6)">
+        ${sharedBanner}
+        <div class="flex items-center justify-between mb-6 anim-fade-in">
+          <div>
+            <div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:4px">Assessment Results</div>
+            <h2 style="font-size:var(--text-2xl)">${assessment.scenarioTitle||'Risk Assessment'}</h2>
+            <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:4px">${assessment.buName||'—'} · ${new Date(assessment.completedAt||Date.now()).toLocaleDateString('en-AE',{year:'numeric',month:'long',day:'numeric'})}</div>
+          </div>
+          <div class="flex items-center gap-3">
+            <button class="btn btn--secondary btn--sm" id="btn-export-json">↓ JSON</button>
+            <button class="btn btn--secondary btn--sm" id="btn-export-pptx">↓ PPTX Spec</button>
+            <button class="btn btn--primary btn--sm" id="btn-export-pdf">↓ PDF Report</button>
+          </div>
+        </div>
+
+        <div class="tolerance-banner ${r.toleranceBreached?'above':'within'} mb-6 anim-fade-in">
+          <span class="tolerance-icon">${r.toleranceBreached?'🔴':'🟢'}</span>
+          <div>
+            <div class="tolerance-title">${r.toleranceBreached?'Above Tolerance Threshold':'Within Tolerance Threshold'}</div>
+            <div class="tolerance-detail">Per-event P90: <strong>${fmtCurrency(r.lm.p90)}</strong> ${r.toleranceBreached?'>':'<'} threshold: <strong>${fmtCurrency(r.threshold)}</strong> &nbsp;·&nbsp; Exceedance: <strong>${(r.toleranceDetail.lmExceedProb*100).toFixed(1)}%</strong></div>
+          </div>
+        </div>
+
+        <div class="mb-6">
+          <div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:var(--sp-3)">Per-Event Loss (LM)</div>
+          <div class="grid-3 anim-fade-in">
+            <div class="metric-card"><div class="metric-label">P50 — Median</div><div class="metric-value">${fmtCurrency(r.lm.p50)}</div><div class="metric-sub">50% of events below this</div></div>
+            <div class="metric-card"><div class="metric-label">P90 — Tail Risk</div><div class="metric-value ${r.toleranceBreached?'danger':''}">${fmtCurrency(r.lm.p90)}</div><div class="metric-sub">Tolerance threshold check</div></div>
+            <div class="metric-card"><div class="metric-label">Mean — Expected</div><div class="metric-value">${fmtCurrency(r.lm.mean)}</div><div class="metric-sub">Average loss per event</div></div>
+          </div>
+        </div>
+        <div class="mb-8">
+          <div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:var(--sp-3)">Annual Loss Exposure (ALE) — Compound Poisson</div>
+          <div class="grid-3 anim-fade-in anim-delay-1">
+            <div class="metric-card"><div class="metric-label">P50 — Median</div><div class="metric-value">${fmtCurrency(r.ale.p50)}</div><div class="metric-sub">Annual median exposure</div></div>
+            <div class="metric-card"><div class="metric-label">P90 — Annual Tail</div><div class="metric-value warning">${fmtCurrency(r.ale.p90)}</div><div class="metric-sub">90th percentile annual</div></div>
+            <div class="metric-card"><div class="metric-label">Mean — Expected</div><div class="metric-value">${fmtCurrency(r.ale.mean)}</div><div class="metric-sub">Expected annual loss</div></div>
+          </div>
+        </div>
+
+        <div class="grid-2 mb-8 anim-fade-in anim-delay-2">
+          <div class="chart-wrap">
+            <div class="chart-title">ALE Distribution</div>
+            <div class="chart-subtitle">Annual Loss Exposure · ${r.iterations.toLocaleString()} iterations · ${AppState.currency}</div>
+            <canvas id="chart-hist"></canvas>
+          </div>
+          <div class="chart-wrap">
+            <div class="chart-title">Loss Exceedance Curve</div>
+            <div class="chart-subtitle">P(Annual Loss &gt; x) · orange line = ${fmtCurrency(r.threshold)} threshold</div>
+            <canvas id="chart-lec"></canvas>
+          </div>
+        </div>
+
+        ${assessment.structuredScenario?`
+        <div class="card mb-6 anim-fade-in">
+          <h3 style="font-size:var(--text-base);margin-bottom:var(--sp-4)">Scenario Details</h3>
+          <div class="grid-2">
+            ${Object.entries({
+              'Asset / Service': assessment.structuredScenario.assetService,
+              'Threat Community': assessment.structuredScenario.threatCommunity,
+              'Attack Type': assessment.structuredScenario.attackType,
+              'Effect': assessment.structuredScenario.effect
+            }).map(([k,v])=>`<div style="background:var(--bg-elevated);padding:var(--sp-3) var(--sp-4);border-radius:var(--radius-lg)"><div style="font-size:.68rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted)">${k}</div><div style="font-size:.85rem;color:var(--text-secondary);margin-top:4px">${v||'—'}</div></div>`).join('')}
+          </div>
+        </div>`:''}
+
+        ${assessment.citations?.length?renderCitationBlock(assessment.citations):''}
+
+        ${assessment.recommendations?.length?`
+        <div class="mb-8 anim-fade-in">
+          <h3 style="font-size:var(--text-xl);margin-bottom:var(--sp-5)">Recommended Risk Treatments</h3>
+          <div style="display:flex;flex-direction:column;gap:var(--sp-4)">
+            ${assessment.recommendations.map((rec,i)=>`
+              <div class="rec-card">
+                <div class="flex items-start gap-4">
+                  <div class="rec-number">${i+1}</div>
+                  <div style="flex:1">
+                    <div class="rec-title">${rec.title}</div>
+                    <div class="rec-why">${rec.why}</div>
+                    <div class="rec-impact">↑ ${rec.impact}</div>
+                  </div>
+                </div>
+              </div>`).join('')}
+          </div>
+        </div>`:''}
+
+        <div class="flex items-center gap-4 mt-8 pt-6" style="border-top:1px solid var(--border-subtle)">
+          <a href="#/" class="btn btn--ghost">← Home</a>
+          <button class="btn btn--secondary" id="btn-new-assess">New Assessment</button>
+          <div class="bar-spacer"></div>
+          <span style="font-size:.72rem;color:var(--text-muted)">ID: ${assessment.id} · ${r.iterations.toLocaleString()} iterations</span>
+        </div>
+      </div>
+    </main>`);
+
+  requestAnimationFrame(() => {
+    const hc = document.getElementById('chart-hist');
+    const lc = document.getElementById('chart-lec');
+    if (hc) UI.drawHistogram(hc, r.histogram, r.threshold, AppState.currency, AppState.fxRate);
+    if (lc) UI.drawLEC(lc, r.lec, r.threshold, AppState.currency, AppState.fxRate);
+    attachCitationHandlers();
+  });
+  document.getElementById('btn-share-results').addEventListener('click', () => ShareService.copyShareLink(assessment));
+  document.getElementById('btn-export-json').addEventListener('click', () => { ExportService.exportJSON(assessment); UI.toast('JSON exported.','success'); });
+  document.getElementById('btn-export-pdf').addEventListener('click', () => ExportService.exportPDF(assessment, AppState.currency, AppState.fxRate));
+  document.getElementById('btn-export-pptx').addEventListener('click', () => { ExportService.exportPPTXSpec(assessment, AppState.currency, AppState.fxRate); UI.toast('PPTX spec exported as JSON. See README.','info',5000); });
+  document.getElementById('btn-new-assess').addEventListener('click', () => { resetDraft(); Router.navigate('/wizard/1'); });
+}
+
+// ─── ADMIN ────────────────────────────────────────────────────
+function renderAdminLogin() {
+  setPage(`
+    <main class="page">
+      <div class="container container--narrow" style="padding:var(--sp-16) var(--sp-6);max-width:440px">
+        <div class="banner banner--poc mb-6"><span class="banner-icon">⚠</span><span class="banner-text"><strong>PoC Security:</strong> Shared password only. Replace with Microsoft Entra ID before production. [ENTRA-INTEGRATION]</span></div>
+        <div class="card card--elevated">
+          <h2 style="margin-bottom:var(--sp-6)">Admin Login</h2>
+          <div class="form-group mb-4">
+            <label class="form-label" for="admin-pass">Password</label>
+            <input class="form-input" id="admin-pass" type="password" placeholder="Enter admin password" autocomplete="current-password">
+            <span class="form-error hidden" id="admin-err">⚠ Incorrect password</span>
+          </div>
+          <button class="btn btn--primary w-full" id="btn-admin-login" style="justify-content:center">Sign In</button>
+          <div style="margin-top:var(--sp-4);text-align:center"><a href="#/" class="btn btn--ghost btn--sm">← Back</a></div>
+        </div>
+      </div>
+    </main>`);
+
+  const login = () => {
+    const pw = document.getElementById('admin-pass').value;
+    const result = AuthService.adminLogin(pw);
+    if (result.success) { UI.toast('Logged in.','success'); Router.navigate('/admin/bu'); }
+    else {
+      document.getElementById('admin-err').classList.remove('hidden');
+      document.getElementById('admin-pass').classList.add('error');
+    }
+  };
+  document.getElementById('btn-admin-login').addEventListener('click', login);
+  document.getElementById('admin-pass').addEventListener('keydown', e => { if (e.key==='Enter') login(); });
+}
+
+function requireAdmin() {
+  if (!AuthService.isAdminAuthenticated()) { Router.navigate('/admin'); return false; }
+  return true;
+}
+
+function adminLayout(active, content) {
+  return `<div style="display:flex;min-height:calc(100vh - 60px)">
+    <nav class="admin-sidebar">
+      <div style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:var(--sp-3)">Admin</div>
+      <a href="#/admin/bu" class="admin-nav-link ${active==='bu'?'active':''}">🏢 Business Units</a>
+      <a href="#/admin/docs" class="admin-nav-link ${active==='docs'?'active':''}">📚 Internal Docs</a>
+      <div style="flex:1"></div>
+      <div style="border-top:1px solid var(--border-subtle);padding-top:var(--sp-3)">
+        <div class="banner banner--poc" style="font-size:.7rem;padding:8px 10px">⚠ PoC — replace with Entra ID</div>
+        <button class="btn btn--ghost btn--sm" id="btn-admin-logout" style="margin-top:8px;width:100%;justify-content:center">Sign Out</button>
+      </div>
+    </nav>
+    <div style="flex:1;padding:var(--sp-8);overflow-y:auto">${content}</div>
+  </div>`;
+}
+
+function renderAdminBU() {
+  if (!requireAdmin()) return;
+  const buList = getBUList();
+  setPage(adminLayout('bu', `
+    <div class="flex items-center justify-between mb-6">
+      <h2>Business Units</h2>
+      <div class="flex gap-3">
+        <button class="btn btn--ghost btn--sm" id="btn-reset-bu">Reset Defaults</button>
+        <button class="btn btn--primary" id="btn-add-bu">+ Add BU</button>
+      </div>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="data-table">
+        <thead><tr><th>Name</th><th>Critical Services</th><th>Regulatory</th><th>Actions</th></tr></thead>
+        <tbody>${buList.map(bu=>`<tr>
+          <td><strong style="color:var(--text-primary)">${bu.name}</strong><br><span style="font-size:.68rem;color:var(--text-muted)">${bu.id}</span></td>
+          <td style="font-size:.8rem">${bu.criticalServices.slice(0,2).join(', ')}${bu.criticalServices.length>2?'…':''}</td>
+          <td>${bu.regulatoryTags.map(t=>`<span class="badge badge--gold" style="font-size:.6rem;margin:2px">${t}</span>`).join('')}</td>
+          <td><button class="btn btn--ghost btn--sm" data-id="${bu.id}" id="edit-bu-${bu.id}">Edit</button> <button class="btn btn--ghost btn--sm" data-id="${bu.id}" id="del-bu-${bu.id}" style="color:var(--color-danger-400)">Delete</button></td>
+        </tr>`).join('')}</tbody>
+      </table>
+    </div>`));
+
+  document.getElementById('btn-admin-logout').addEventListener('click', () => { AuthService.adminLogout(); Router.navigate('/admin'); });
+  document.getElementById('btn-reset-bu').addEventListener('click', async () => {
+    if (await UI.confirm('Reset BU data to defaults?')) {
+      localStorage.removeItem('rq_bu_override');
+      AppState.buList = await loadJSON('./data/bu.json');
+      RAGService.init(getDocList(), AppState.buList);
+      Router.resolve(); UI.toast('Reset to defaults.','success');
+    }
+  });
+  document.getElementById('btn-add-bu').addEventListener('click', () => openBUEditor(null));
+  buList.forEach(bu => {
+    document.getElementById('edit-bu-'+bu.id)?.addEventListener('click', () => openBUEditor(bu));
+    document.getElementById('del-bu-'+bu.id)?.addEventListener('click', async () => {
+      if (await UI.confirm(`Delete "${bu.name}"?`)) {
+        saveBUList(getBUList().filter(b=>b.id!==bu.id));
+        Router.resolve(); UI.toast('Deleted.','success');
+      }
+    });
+  });
+}
+
+function openBUEditor(bu) {
+  const isNew = !bu;
+  let ti = {};
+  const m = UI.modal({
+    title: isNew ? 'Add Business Unit' : `Edit: ${bu.name}`,
+    body: `<form id="bu-form"><div class="grid-2" style="gap:12px">
+      <div class="form-group"><label class="form-label">ID</label><input class="form-input" id="bu-id" value="${bu?.id||''}" placeholder="bu-example" ${!isNew?'readonly':''}></div>
+      <div class="form-group"><label class="form-label">Name</label><input class="form-input" id="bu-name" value="${bu?.name||''}"></div>
+    </div>
+    <div class="form-group mt-4"><label class="form-label">Critical Services</label><div class="tag-input-wrap" id="ti-services"></div></div>
+    <div class="form-group mt-4"><label class="form-label">Key Systems</label><div class="tag-input-wrap" id="ti-systems"></div></div>
+    <div class="form-group mt-4"><label class="form-label">Data Types</label><div class="tag-input-wrap" id="ti-datatypes"></div></div>
+    <div class="form-group mt-4"><label class="form-label">Regulatory Tags</label><div class="tag-input-wrap" id="ti-regtags"></div></div>
+    <div class="form-group mt-4"><label class="form-label">Notes</label><textarea class="form-textarea" id="bu-notes" rows="2">${bu?.notes||''}</textarea></div>
+    </form>`,
+    footer: `<button class="btn btn--ghost" id="bu-cancel">Cancel</button><button class="btn btn--primary" id="bu-save">Save</button>`
+  });
+  requestAnimationFrame(() => {
+    ti.services  = UI.tagInput('ti-services',  bu?.criticalServices||[]);
+    ti.systems   = UI.tagInput('ti-systems',   bu?.keySystems||[]);
+    ti.datatypes = UI.tagInput('ti-datatypes', bu?.dataTypes||[]);
+    ti.regtags   = UI.tagInput('ti-regtags',   bu?.regulatoryTags||[]);
+  });
+  document.getElementById('bu-cancel').addEventListener('click', () => m.close());
+  document.getElementById('bu-save').addEventListener('click', () => {
+    const id = document.getElementById('bu-id').value.trim();
+    const name = document.getElementById('bu-name').value.trim();
+    if (!id||!name) { UI.toast('ID and Name required.','warning'); return; }
+    const updated = { id, name, criticalServices: ti.services.getTags(), keySystems: ti.systems.getTags(), dataTypes: ti.datatypes.getTags(), regulatoryTags: ti.regtags.getTags(), notes: document.getElementById('bu-notes').value, defaultAssumptions: bu?.defaultAssumptions||{}, docIds: bu?.docIds||[] };
+    const list = getBUList();
+    const idx = list.findIndex(b=>b.id===id);
+    if (idx>-1) list[idx]=updated; else list.push(updated);
+    saveBUList(list); m.close(); Router.resolve();
+    UI.toast(`BU "${name}" ${isNew?'added':'updated'}.`,'success');
+  });
+}
+
+function renderAdminDocs() {
+  if (!requireAdmin()) return;
+  const docList = getDocList();
+  setPage(adminLayout('docs', `
+    <div class="flex items-center justify-between mb-6">
+      <h2>Internal Documents</h2>
+      <div class="flex gap-3">
+        <button class="btn btn--ghost btn--sm" id="btn-reset-docs">Reset Defaults</button>
+        <button class="btn btn--secondary btn--sm" id="btn-reindex">⟳ Re-index</button>
+        <button class="btn btn--primary" id="btn-add-doc">+ Add Doc</button>
+      </div>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="data-table">
+        <thead><tr><th>Title</th><th>Tags</th><th>Updated</th><th>Actions</th></tr></thead>
+        <tbody>${docList.map(doc=>`<tr>
+          <td><strong style="color:var(--text-primary);font-size:.875rem">${doc.title}</strong><br><span style="font-size:.68rem;color:var(--text-muted)">${doc.id}</span></td>
+          <td>${(doc.tags||[]).slice(0,3).map(t=>`<span class="badge badge--primary" style="font-size:.6rem;margin:2px">${t}</span>`).join('')}</td>
+          <td style="font-size:.8rem;white-space:nowrap">${doc.lastUpdated||'—'}</td>
+          <td><button class="btn btn--ghost btn--sm" data-id="${doc.id}" id="edit-doc-${doc.id}">Edit</button> <button class="btn btn--ghost btn--sm" data-id="${doc.id}" id="del-doc-${doc.id}" style="color:var(--color-danger-400)">Delete</button></td>
+        </tr>`).join('')}</tbody>
+      </table>
+    </div>`));
+
+  document.getElementById('btn-admin-logout').addEventListener('click', () => { AuthService.adminLogout(); Router.navigate('/admin'); });
+  document.getElementById('btn-reindex').addEventListener('click', () => { RAGService.init(getDocList(), getBUList()); UI.toast('Index rebuilt.','success'); });
+  document.getElementById('btn-reset-docs').addEventListener('click', async () => {
+    if (await UI.confirm('Reset docs to defaults?')) {
+      localStorage.removeItem('rq_doc_override');
+      AppState.docList = await loadJSON('./data/docs.json');
+      RAGService.init(AppState.docList, getBUList());
+      Router.resolve(); UI.toast('Reset to defaults.','success');
+    }
+  });
+  document.getElementById('btn-add-doc').addEventListener('click', () => openDocEditor(null));
+  docList.forEach(doc => {
+    document.getElementById('edit-doc-'+doc.id)?.addEventListener('click', () => openDocEditor(doc));
+    document.getElementById('del-doc-'+doc.id)?.addEventListener('click', async () => {
+      if (await UI.confirm(`Delete "${doc.title}"?`)) {
+        saveDocList(getDocList().filter(d=>d.id!==doc.id));
+        Router.resolve(); UI.toast('Deleted.','success');
+      }
+    });
+  });
+}
+
+function openDocEditor(doc) {
+  const isNew = !doc;
+  let tiTags;
+  const m = UI.modal({
+    title: isNew ? 'Add Document' : `Edit: ${doc.title}`,
+    body: `<form id="doc-form">
+      <div class="form-group"><label class="form-label">ID</label><input class="form-input" id="doc-id" value="${doc?.id||''}" ${!isNew?'readonly':''}></div>
+      <div class="form-group mt-3"><label class="form-label">Title</label><input class="form-input" id="doc-title" value="${doc?.title||''}"></div>
+      <div class="form-group mt-3"><label class="form-label">URL</label><input class="form-input" id="doc-url" type="url" value="${doc?.url||'#/admin/docs'}" placeholder="https://…"></div>
+      <div class="form-group mt-3"><label class="form-label">Last Updated</label><input class="form-input" id="doc-updated" type="date" value="${doc?.lastUpdated||''}"></div>
+      <div class="form-group mt-3"><label class="form-label">Tags</label><div class="tag-input-wrap" id="ti-doc-tags"></div></div>
+      <div class="form-group mt-3"><label class="form-label">Content Excerpt</label><textarea class="form-textarea" id="doc-excerpt" rows="4">${doc?.contentExcerpt||''}</textarea></div>
+    </form>`,
+    footer: `<button class="btn btn--ghost" id="doc-cancel">Cancel</button><button class="btn btn--primary" id="doc-save">Save</button>`
+  });
+  requestAnimationFrame(() => { tiTags = UI.tagInput('ti-doc-tags', doc?.tags||[]); });
+  document.getElementById('doc-cancel').addEventListener('click', () => m.close());
+  document.getElementById('doc-save').addEventListener('click', () => {
+    const id = document.getElementById('doc-id').value.trim();
+    const title = document.getElementById('doc-title').value.trim();
+    if (!id||!title) { UI.toast('ID and Title required.','warning'); return; }
+    const updated = { id, title, url: document.getElementById('doc-url').value||'#', tags: tiTags.getTags(), lastUpdated: document.getElementById('doc-updated').value, contentExcerpt: document.getElementById('doc-excerpt').value };
+    const list = getDocList();
+    const idx = list.findIndex(d=>d.id===id);
+    if (idx>-1) list[idx]=updated; else list.push(updated);
+    saveDocList(list); m.close(); Router.resolve();
+    UI.toast(`Doc "${title}" ${isNew?'added':'updated'}.`,'success');
+  });
+}
+
+// ─── INIT ─────────────────────────────────────────────────────
+async function init() {
+  try {
+    AppState.buList  = await loadJSON('./data/bu.json');
+    AppState.docList = await loadJSON('./data/docs.json');
+  } catch(e) {
+    console.error('Failed to load JSON data:', e);
+    AppState.buList = []; AppState.docList = [];
+  }
+  RAGService.init(getDocList(), getBUList());
+  loadDraft();
+  if (!AppState.draft.id) resetDraft();
+
+  renderAppBar();
+
+  Router
+    .on('/', renderLanding)
+    .on('/wizard/1', renderWizard1)
+    .on('/wizard/2', renderWizard2)
+    .on('/wizard/3', renderWizard3)
+    .on('/wizard/4', renderWizard4)
+    .on('/results/:id', params => renderResults(params.id))
+    .on('/admin', renderAdminLogin)
+    .on('/admin/bu', renderAdminBU)
+    .on('/admin/docs', renderAdminDocs)
+    .notFound(() => { setPage(`<div class="container" style="padding:var(--sp-12)"><h2>Page Not Found</h2><a href="#/" class="btn btn--primary" style="margin-top:var(--sp-4)">← Home</a></div>`); });
+
+  Router.init();
+}
+
+document.addEventListener('DOMContentLoaded', init);

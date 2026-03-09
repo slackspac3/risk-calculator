@@ -1,0 +1,98 @@
+[
+  {
+    "id": "doc-nesa-01",
+    "title": "UAE NESA IAS v2.0 – Information Assurance Standards",
+    "url": "#/admin/docs",
+    "tags": ["regulatory", "uae", "all-bu", "nesa", "compliance"],
+    "contentExcerpt": "The UAE National Electronic Security Authority (NESA) Information Assurance Standards mandate that all critical information infrastructure operators implement risk management programs proportional to the sensitivity of information assets. Section 4.3 requires documented risk assessments using quantitative or semi-quantitative methods. Tolerance thresholds must be defined by senior management. Incidents affecting critical services must be reported to NESA within 72 hours.",
+    "lastUpdated": "2024-03-15"
+  },
+  {
+    "id": "doc-iso-02",
+    "title": "ISO 27001:2022 Internal Compliance Mapping",
+    "url": "#/admin/docs",
+    "tags": ["iso", "compliance", "all-bu", "controls"],
+    "contentExcerpt": "Our ISO 27001:2022 ISMS scope covers all production systems and corporate IT. Annex A control set has been mapped to internal procedures. Current Statement of Applicability (SoA) version 3.1 reflects 93 applicable controls. Risk treatment decisions are documented in the risk register maintained by the Information Security function. Control effectiveness reviews are conducted annually, with continuous monitoring via SIEM for technical controls.",
+    "lastUpdated": "2024-01-22"
+  },
+  {
+    "id": "doc-ir-03",
+    "title": "Cyber Incident Response Playbook v4.2",
+    "url": "#/admin/docs",
+    "tags": ["incident-response", "all-bu", "operations", "playbook"],
+    "contentExcerpt": "The Incident Response Playbook defines five severity levels. P1 (Critical): full business impact, C-suite notification within 1 hour, war room activated. P2 (High): significant service degradation, VP notification within 2 hours. Average IR containment cost baseline: P1 $180k–$600k; P2 $80k–$250k. Forensic investigations add $40k–$200k. External counsel engaged for regulatory notifications at approximately $450/hour. Typical P1 resolution: 3–14 days.",
+    "lastUpdated": "2024-06-01"
+  },
+  {
+    "id": "doc-cloud-04",
+    "title": "Cloud Security Baseline & Architecture Standards",
+    "url": "#/admin/docs",
+    "tags": ["cloud", "architecture", "security", "bu-cloud"],
+    "contentExcerpt": "All cloud deployments must comply with the Cloud Security Baseline v2.3. Requirements include: network micro-segmentation, encryption at rest (AES-256) and in transit (TLS 1.2+), privileged access workstations for admin operations, immutable audit logs to isolated storage, and MFA enforced on all cloud console access. Container images must be scanned pre-deployment. IaC templates must pass security linting. Multi-region DR is mandatory for Tier-1 services.",
+    "lastUpdated": "2024-04-10"
+  },
+  {
+    "id": "doc-data-05",
+    "title": "Data Classification & Handling Policy v3.0",
+    "url": "#/admin/docs",
+    "tags": ["data", "classification", "privacy", "all-bu"],
+    "contentExcerpt": "Data is classified into four tiers: Public, Internal, Confidential, and Restricted. Restricted data includes PII, PHI, payment card data, and trade secrets. Restricted data must be encrypted at all times, access logged, and subject to DLP controls. Data residency requirements mandate UAE-based storage for certain categories. Breaches involving Restricted data trigger mandatory notification obligations. Data retention periods range from 3–7 years depending on category and regulation.",
+    "lastUpdated": "2024-02-28"
+  },
+  {
+    "id": "doc-gdpr-06",
+    "title": "GDPR Compliance & Data Subject Rights Procedures",
+    "url": "#/admin/docs",
+    "tags": ["gdpr", "privacy", "eu", "regulatory", "bu-ai", "bu-health"],
+    "contentExcerpt": "Where G42 processes personal data of EU data subjects, GDPR obligations apply. Article 33 requires breach notification to the supervisory authority within 72 hours if the breach poses risks to individuals. Article 82 creates civil liability exposure: fines up to €20M or 4% of global annual turnover. Data Protection Impact Assessments (DPIAs) are mandatory for high-risk processing including large-scale biometric and health data processing.",
+    "lastUpdated": "2024-01-10"
+  },
+  {
+    "id": "doc-cls-07",
+    "title": "Data Classification Standard – Handling Matrix",
+    "url": "#/admin/docs",
+    "tags": ["classification", "security", "data", "all-bu"],
+    "contentExcerpt": "The classification handling matrix defines controls per tier: Restricted data requires role-based access with quarterly review, DLP scanning on egress, prohibition on personal device storage, and mandatory encryption with HSM-managed keys. Confidential data requires MFA for remote access and encryption at rest. Internal data requires standard access controls. Violations of Restricted data handling may result in disciplinary action and are reportable to the DPO.",
+    "lastUpdated": "2023-11-15"
+  },
+  {
+    "id": "doc-3p-08",
+    "title": "Third-Party & Supplier Risk Management Standard",
+    "url": "#/admin/docs",
+    "tags": ["third-party", "vendor", "supply-chain", "all-bu"],
+    "contentExcerpt": "All third parties with access to Confidential or Restricted data must complete annual security assessments. Tier-1 suppliers (critical dependencies) require on-site audits every 2 years. Contractual clauses must include: right to audit, breach notification within 24 hours, data deletion requirements, and liability caps. Supply chain compromises historically account for 15–25% of significant incidents. Fourth-party (sub-processor) visibility is required for Tier-1 suppliers.",
+    "lastUpdated": "2024-03-01"
+  },
+  {
+    "id": "doc-pci-09",
+    "title": "PCI-DSS 4.0 Compliance Program & Scope",
+    "url": "#/admin/docs",
+    "tags": ["pci-dss", "payments", "compliance", "bu-fintech"],
+    "contentExcerpt": "PCI-DSS 4.0 applies to all cardholder data environment (CDE) components. Key additions in v4.0 include: targeted risk analysis (TRA) for customised approach controls, enhanced MFA requirements, and e-commerce/phishing protections. Non-compliance may result in card scheme fines of $5k–$100k/month. A confirmed breach in the CDE triggers forensic investigation obligations and potential card scheme liability. Quarterly ASV scans and annual penetration tests are required.",
+    "lastUpdated": "2024-05-20"
+  },
+  {
+    "id": "doc-bcp-10",
+    "title": "Business Continuity & DR Planning Framework",
+    "url": "#/admin/docs",
+    "tags": ["bcp", "dr", "resilience", "all-bu"],
+    "contentExcerpt": "Business Impact Analysis (BIA) results define Recovery Time Objectives (RTOs) and Recovery Point Objectives (RPOs) per service. Tier-1 services: RTO 4 hours, RPO 1 hour. Tier-2 services: RTO 24 hours, RPO 4 hours. Annual BCP tests are mandatory. Unplanned downtime cost benchmarks: $15k–$50k per hour for Tier-1 services. Ransomware recovery average: 18–21 days without offline backups; 3–5 days with verified immutable backups.",
+    "lastUpdated": "2024-02-10"
+  },
+  {
+    "id": "doc-vuln-11",
+    "title": "Vulnerability Management & Patch Policy",
+    "url": "#/admin/docs",
+    "tags": ["vulnerability", "patch", "operations", "all-bu"],
+    "contentExcerpt": "Critical vulnerabilities (CVSS 9.0+) must be patched within 7 days in production. High severity (CVSS 7.0–8.9) within 30 days. Exceptions require documented risk acceptance by the CISO. Exploit-in-the-wild vulnerabilities are treated as Critical regardless of CVSS score. Unpatched critical vulnerabilities are the leading cause of successful breaches in our environment (45% of incidents reviewed 2022–2023). Compensating controls must be documented for any exceptions.",
+    "lastUpdated": "2024-04-05"
+  },
+  {
+    "id": "doc-insider-12",
+    "title": "Insider Threat Program & Indicators of Compromise",
+    "url": "#/admin/docs",
+    "tags": ["insider-threat", "personnel", "dlp", "all-bu"],
+    "contentExcerpt": "The Insider Threat Program monitors for behavioural and technical indicators. High-risk indicators include: bulk data downloads (>500MB/day), after-hours access to sensitive systems, privilege escalation attempts, and access to systems outside job function. DLP tools monitor email, USB, and cloud uploads. Investigations are conducted by HR and Legal in conjunction with Security. Average financial impact of insider incidents: $200k–$2M (direct); reputational impact can be significantly higher.",
+    "lastUpdated": "2024-01-30"
+  }
+]

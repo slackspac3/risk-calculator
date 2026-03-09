@@ -1,0 +1,143 @@
+/* ============================================================
+   G42 RISK QUANTIFIER — DESIGN TOKENS
+   Replace these with official G42 brand tokens when available.
+   ============================================================ */
+
+:root {
+  /* ── Brand Palette ─────────────────────────────────────── */
+  --color-primary-900:   #0a1628;
+  --color-primary-800:   #0d2040;
+  --color-primary-700:   #0e2d5e;
+  --color-primary-600:   #1040a0;
+  --color-primary-500:   #1a56db;
+  --color-primary-400:   #3b82f6;
+  --color-primary-300:   #93c5fd;
+  --color-primary-200:   #bfdbfe;
+  --color-primary-100:   #dbeafe;
+
+  --color-accent-500:    #0ea5e9;
+  --color-accent-400:    #38bdf8;
+  --color-accent-300:    #7dd3fc;
+
+  --color-gold-500:      #d4a017;
+  --color-gold-400:      #f0b429;
+  --color-gold-300:      #fcd34d;
+
+  /* ── Semantic / Status ──────────────────────────────────── */
+  --color-success-600:   #059669;
+  --color-success-500:   #10b981;
+  --color-success-100:   #d1fae5;
+  --color-warning-600:   #d97706;
+  --color-warning-500:   #f59e0b;
+  --color-warning-100:   #fef3c7;
+  --color-danger-700:    #b91c1c;
+  --color-danger-600:    #dc2626;
+  --color-danger-500:    #ef4444;
+  --color-danger-100:    #fee2e2;
+  --color-info-500:      #0ea5e9;
+  --color-info-100:      #e0f2fe;
+
+  /* ── Neutrals ───────────────────────────────────────────── */
+  --color-neutral-950:   #0b0f1a;
+  --color-neutral-900:   #111827;
+  --color-neutral-800:   #1f2937;
+  --color-neutral-700:   #374151;
+  --color-neutral-600:   #4b5563;
+  --color-neutral-500:   #6b7280;
+  --color-neutral-400:   #9ca3af;
+  --color-neutral-300:   #d1d5db;
+  --color-neutral-200:   #e5e7eb;
+  --color-neutral-100:   #f3f4f6;
+  --color-neutral-50:    #f9fafb;
+  --color-white:         #ffffff;
+
+  /* ── Surface / Background ───────────────────────────────── */
+  --bg-base:             var(--color-neutral-950);
+  --bg-surface:          var(--color-neutral-900);
+  --bg-elevated:         var(--color-neutral-800);
+  --bg-overlay:          rgba(255,255,255,0.04);
+  --bg-overlay-hover:    rgba(255,255,255,0.07);
+
+  /* ── Text ───────────────────────────────────────────────── */
+  --text-primary:        #f1f5f9;
+  --text-secondary:      var(--color-neutral-400);
+  --text-muted:          var(--color-neutral-500);
+  --text-inverted:       var(--color-neutral-900);
+  --text-link:           var(--color-primary-400);
+  --text-link-hover:     var(--color-accent-300);
+
+  /* ── Border ─────────────────────────────────────────────── */
+  --border-subtle:       rgba(255,255,255,0.07);
+  --border-default:      rgba(255,255,255,0.12);
+  --border-strong:       rgba(255,255,255,0.25);
+  --border-focus:        var(--color-primary-400);
+
+  /* ── Typography ─────────────────────────────────────────── */
+  --font-display:        'Syne', 'Georgia', serif;
+  --font-body:           'DM Sans', 'Helvetica Neue', sans-serif;
+  --font-mono:           'JetBrains Mono', 'Fira Code', monospace;
+
+  --text-xs:    0.75rem;
+  --text-sm:    0.875rem;
+  --text-base:  1rem;
+  --text-lg:    1.125rem;
+  --text-xl:    1.25rem;
+  --text-2xl:   1.5rem;
+  --text-3xl:   1.875rem;
+  --text-4xl:   2.25rem;
+  --text-5xl:   3rem;
+
+  --font-normal:  400;
+  --font-medium:  500;
+  --font-semibold:600;
+  --font-bold:    700;
+
+  /* ── Spacing ────────────────────────────────────────────── */
+  --sp-1:  0.25rem;
+  --sp-2:  0.5rem;
+  --sp-3:  0.75rem;
+  --sp-4:  1rem;
+  --sp-5:  1.25rem;
+  --sp-6:  1.5rem;
+  --sp-8:  2rem;
+  --sp-10: 2.5rem;
+  --sp-12: 3rem;
+  --sp-16: 4rem;
+  --sp-20: 5rem;
+  --sp-24: 6rem;
+
+  /* ── Radius ─────────────────────────────────────────────── */
+  --radius-sm:   4px;
+  --radius-md:   8px;
+  --radius-lg:   12px;
+  --radius-xl:   16px;
+  --radius-2xl:  24px;
+  --radius-full: 9999px;
+
+  /* ── Shadows ────────────────────────────────────────────── */
+  --shadow-sm:  0 1px 3px rgba(0,0,0,0.4);
+  --shadow-md:  0 4px 12px rgba(0,0,0,0.4);
+  --shadow-lg:  0 8px 32px rgba(0,0,0,0.5);
+  --shadow-xl:  0 16px 64px rgba(0,0,0,0.6);
+  --shadow-glow:0 0 24px rgba(26,86,219,0.35);
+
+  /* ── Transitions ────────────────────────────────────────── */
+  --transition-fast:   150ms ease;
+  --transition-base:   250ms ease;
+  --transition-slow:   400ms ease;
+
+  /* ── Z-index ─────────────────────────────────────────────── */
+  --z-base:    1;
+  --z-dropdown:100;
+  --z-modal:   200;
+  --z-toast:   300;
+  --z-tooltip: 400;
+
+  /* ── Chart Colors ───────────────────────────────────────── */
+  --chart-primary:  #1a56db;
+  --chart-accent:   #0ea5e9;
+  --chart-danger:   #ef4444;
+  --chart-warning:  #f59e0b;
+  --chart-success:  #10b981;
+  --chart-grid:     rgba(255,255,255,0.06);
+}

@@ -1,0 +1,149 @@
+[
+  {
+    "id": "bu-cloud",
+    "name": "Cloud Infrastructure & Platform",
+    "criticalServices": ["Core compute clusters", "Container orchestration (K8s)", "API gateway", "Identity & access platform", "Secrets management"],
+    "keySystems": ["Azure AKS", "Azure Key Vault", "HashiCorp Vault", "Terraform Cloud", "Datadog", "PagerDuty"],
+    "dataTypes": ["Infrastructure configs", "Secrets & credentials", "Audit logs", "Customer workload data", "Telemetry"],
+    "regulatoryTags": ["UAE NESA IAS", "ISO 27001", "CSA CCM", "DORA (indirect)"],
+    "notes": "Hosts multi-tenant workloads. Shared responsibility model applies. Tier-1 availability SLA: 99.99%. Change freeze during peak periods (Q4).",
+    "defaultAssumptions": {
+      "TEF": { "min": 0.5, "likely": 2, "max": 8 },
+      "controlStrength": { "min": 0.55, "likely": 0.72, "max": 0.88 },
+      "threatCapability": { "min": 0.4, "likely": 0.62, "max": 0.85 },
+      "incidentResponse": { "min": 50000, "likely": 180000, "max": 600000 },
+      "businessInterruption": { "min": 100000, "likely": 450000, "max": 2500000 },
+      "dataBreachRemediation": { "min": 30000, "likely": 120000, "max": 500000 },
+      "regulatoryLegal": { "min": 0, "likely": 80000, "max": 800000 },
+      "thirdPartyLiability": { "min": 0, "likely": 50000, "max": 400000 },
+      "reputationContract": { "min": 50000, "likely": 200000, "max": 1200000 }
+    },
+    "docIds": ["doc-nesa-01", "doc-iso-02", "doc-ir-03", "doc-cloud-04", "doc-3p-08"]
+  },
+  {
+    "id": "bu-ai",
+    "name": "AI & Data Science Platform",
+    "criticalServices": ["Model training pipeline", "Inference API", "Data lake & feature store", "MLOps platform", "Annotation tooling"],
+    "keySystems": ["Azure ML", "Databricks", "Snowflake", "Weights & Biases", "Hugging Face Hub (private)"],
+    "dataTypes": ["Training datasets (PII possible)", "Model weights & IP", "Inference logs", "Research data", "Partner data sets"],
+    "regulatoryTags": ["UAE Data Protection Law", "GDPR (data subjects)", "UAE AI Governance Framework", "ISO 42001"],
+    "notes": "High IP sensitivity for model weights. Training data may contain cross-border personal data. Emerging regulatory landscape.",
+    "defaultAssumptions": {
+      "TEF": { "min": 0.3, "likely": 1.5, "max": 6 },
+      "controlStrength": { "min": 0.45, "likely": 0.65, "max": 0.82 },
+      "threatCapability": { "min": 0.5, "likely": 0.7, "max": 0.9 },
+      "incidentResponse": { "min": 40000, "likely": 150000, "max": 500000 },
+      "businessInterruption": { "min": 80000, "likely": 350000, "max": 2000000 },
+      "dataBreachRemediation": { "min": 80000, "likely": 350000, "max": 1500000 },
+      "regulatoryLegal": { "min": 50000, "likely": 300000, "max": 2000000 },
+      "thirdPartyLiability": { "min": 0, "likely": 100000, "max": 800000 },
+      "reputationContract": { "min": 100000, "likely": 500000, "max": 3000000 }
+    },
+    "docIds": ["doc-data-05", "doc-nesa-01", "doc-gdpr-06", "doc-ir-03", "doc-cls-07"]
+  },
+  {
+    "id": "bu-fintech",
+    "name": "Fintech & Payments",
+    "criticalServices": ["Payment processing gateway", "Core banking connector", "KYC/AML engine", "Transaction monitoring", "Settlement ledger"],
+    "keySystems": ["SWIFT connectivity", "Temenos Transact", "Jumio KYC", "Oracle DB", "HSM infrastructure"],
+    "dataTypes": ["Payment card data (PAN, CVV)", "Bank account numbers", "Personal financial data", "AML/SAR records", "Transaction history"],
+    "regulatoryTags": ["PCI-DSS 4.0", "UAE CBUAE Regulations", "FATF AML/CFT", "ADGM/DIFC rules", "ISO 20022"],
+    "notes": "PCI-DSS CDE in scope. AML obligations require strict audit trails. Real-time fraud detection is critical. CBUAE notification required within 4 hours of major incidents.",
+    "defaultAssumptions": {
+      "TEF": { "min": 1, "likely": 4, "max": 18 },
+      "controlStrength": { "min": 0.6, "likely": 0.75, "max": 0.9 },
+      "threatCapability": { "min": 0.55, "likely": 0.73, "max": 0.92 },
+      "incidentResponse": { "min": 80000, "likely": 300000, "max": 1000000 },
+      "businessInterruption": { "min": 200000, "likely": 900000, "max": 5000000 },
+      "dataBreachRemediation": { "min": 120000, "likely": 600000, "max": 2500000 },
+      "regulatoryLegal": { "min": 200000, "likely": 1000000, "max": 5000000 },
+      "thirdPartyLiability": { "min": 50000, "likely": 300000, "max": 2000000 },
+      "reputationContract": { "min": 200000, "likely": 800000, "max": 4000000 }
+    },
+    "docIds": ["doc-pci-09", "doc-ir-03", "doc-3p-08", "doc-nesa-01", "doc-data-05"]
+  },
+  {
+    "id": "bu-cyber",
+    "name": "Cybersecurity Operations (CSOC)",
+    "criticalServices": ["SIEM/SOAR platform", "Threat intelligence feeds", "Vulnerability management", "EDR/XDR deployment", "Red team ops"],
+    "keySystems": ["Microsoft Sentinel", "Defender XDR", "Tenable.io", "Recorded Future", "CrowdStrike Falcon"],
+    "dataTypes": ["Security logs", "Vulnerability data", "Threat indicators (IOCs)", "Incident records", "Penetration test reports"],
+    "regulatoryTags": ["UAE NESA IAS", "NCSC CAF", "ISO 27001", "NCA ECC (KSA partner ops)"],
+    "notes": "CSOC itself is a high-value target. Insider threat risk elevated. Sensitive vuln data requires strict need-to-know. 24/7 ops dependency.",
+    "defaultAssumptions": {
+      "TEF": { "min": 2, "likely": 6, "max": 24 },
+      "controlStrength": { "min": 0.65, "likely": 0.80, "max": 0.93 },
+      "threatCapability": { "min": 0.6, "likely": 0.78, "max": 0.95 },
+      "incidentResponse": { "min": 60000, "likely": 220000, "max": 700000 },
+      "businessInterruption": { "min": 150000, "likely": 600000, "max": 3000000 },
+      "dataBreachRemediation": { "min": 50000, "likely": 200000, "max": 800000 },
+      "regulatoryLegal": { "min": 0, "likely": 150000, "max": 1200000 },
+      "thirdPartyLiability": { "min": 0, "likely": 80000, "max": 600000 },
+      "reputationContract": { "min": 100000, "likely": 500000, "max": 2500000 }
+    },
+    "docIds": ["doc-nesa-01", "doc-ir-03", "doc-iso-02", "doc-cls-07"]
+  },
+  {
+    "id": "bu-enterprise-it",
+    "name": "Enterprise IT & Workplace",
+    "criticalServices": ["Active Directory / Entra ID", "Email & collaboration (M365)", "ERP (SAP)", "Employee device management", "VPN & remote access"],
+    "keySystems": ["Azure Entra ID", "Microsoft 365", "SAP S/4HANA", "Intune MDM", "Zscaler ZPA"],
+    "dataTypes": ["Employee HR data", "Financial ERP data", "Email content", "Payroll data", "Corporate IP"],
+    "regulatoryTags": ["UAE Labour Law (data)", "ISO 27001", "NESA IAS", "GDPR (EU employees)"],
+    "notes": "Primary attack surface for phishing/BEC. SAP landscape is business-critical for finance. Entra ID compromise would be catastrophic.",
+    "defaultAssumptions": {
+      "TEF": { "min": 3, "likely": 10, "max": 40 },
+      "controlStrength": { "min": 0.5, "likely": 0.68, "max": 0.85 },
+      "threatCapability": { "min": 0.35, "likely": 0.55, "max": 0.78 },
+      "incidentResponse": { "min": 40000, "likely": 160000, "max": 550000 },
+      "businessInterruption": { "min": 60000, "likely": 280000, "max": 1500000 },
+      "dataBreachRemediation": { "min": 30000, "likely": 100000, "max": 400000 },
+      "regulatoryLegal": { "min": 0, "likely": 60000, "max": 500000 },
+      "thirdPartyLiability": { "min": 0, "likely": 20000, "max": 150000 },
+      "reputationContract": { "min": 30000, "likely": 150000, "max": 700000 }
+    },
+    "docIds": ["doc-ir-03", "doc-iso-02", "doc-nesa-01", "doc-cls-07", "doc-3p-08"]
+  },
+  {
+    "id": "bu-health",
+    "name": "Health Tech & Clinical Data",
+    "criticalServices": ["EHR integration platform", "Medical imaging pipeline", "Clinical decision support", "Patient portal", "HL7/FHIR gateway"],
+    "keySystems": ["Epic integration", "Azure Health Data Services", "DICOM server", "RabbitMQ", "PostgreSQL (HA)"],
+    "dataTypes": ["Protected Health Information (PHI)", "Medical images (DICOM)", "Clinical notes", "Genomic data", "Insurance records"],
+    "regulatoryTags": ["UAE DOH Data Protection", "HIPAA (US partner data)", "ISO 27799", "UAE Health Data Law"],
+    "notes": "PHI breach has severe regulatory and reputational consequences. Ransomware on clinical systems poses patient safety risk.",
+    "defaultAssumptions": {
+      "TEF": { "min": 0.5, "likely": 2, "max": 8 },
+      "controlStrength": { "min": 0.55, "likely": 0.72, "max": 0.87 },
+      "threatCapability": { "min": 0.45, "likely": 0.65, "max": 0.88 },
+      "incidentResponse": { "min": 60000, "likely": 250000, "max": 900000 },
+      "businessInterruption": { "min": 100000, "likely": 500000, "max": 3000000 },
+      "dataBreachRemediation": { "min": 200000, "likely": 900000, "max": 4000000 },
+      "regulatoryLegal": { "min": 100000, "likely": 600000, "max": 3500000 },
+      "thirdPartyLiability": { "min": 50000, "likely": 300000, "max": 2000000 },
+      "reputationContract": { "min": 200000, "likely": 800000, "max": 4000000 }
+    },
+    "docIds": ["doc-data-05", "doc-gdpr-06", "doc-ir-03", "doc-nesa-01", "doc-cls-07"]
+  },
+  {
+    "id": "bu-iot",
+    "name": "IoT & Smart Infrastructure",
+    "criticalServices": ["Device management platform", "OT/SCADA integration layer", "Edge compute nodes", "Building management systems", "Smart city sensors"],
+    "keySystems": ["Azure IoT Hub", "Siemens MindSphere", "OSIsoft PI", "Claroty OT security", "AWS Greengrass"],
+    "dataTypes": ["Operational telemetry", "SCADA/PLC configs", "Physical access logs", "Environmental sensor data", "Device firmware"],
+    "regulatoryTags": ["UAE Critical Infrastructure Law", "IEC 62443", "NESA IAS (critical infra)", "NERC CIP (energy)"],
+    "notes": "OT/IT convergence risk is high. Ransomware impact extends to physical operations. Device update lag creates persistent vulnerabilities.",
+    "defaultAssumptions": {
+      "TEF": { "min": 0.2, "likely": 1, "max": 5 },
+      "controlStrength": { "min": 0.35, "likely": 0.55, "max": 0.75 },
+      "threatCapability": { "min": 0.45, "likely": 0.65, "max": 0.88 },
+      "incidentResponse": { "min": 80000, "likely": 350000, "max": 1200000 },
+      "businessInterruption": { "min": 200000, "likely": 1200000, "max": 8000000 },
+      "dataBreachRemediation": { "min": 20000, "likely": 100000, "max": 400000 },
+      "regulatoryLegal": { "min": 100000, "likely": 500000, "max": 3000000 },
+      "thirdPartyLiability": { "min": 50000, "likely": 400000, "max": 3000000 },
+      "reputationContract": { "min": 100000, "likely": 600000, "max": 4000000 }
+    },
+    "docIds": ["doc-nesa-01", "doc-ir-03", "doc-3p-08", "doc-iso-02"]
+  }
+]
