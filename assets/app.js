@@ -12,6 +12,7 @@ const DEFAULT_ADMIN_SETTINGS = {
   companyWebsiteUrl: '',
   companyContextProfile: '',
   companyStructure: [],
+  entityContextLayers: [],
   riskAppetiteStatement: 'Moderate. Escalate risks that threaten regulated operations, cross-border data movement, or strategic platforms.',
   applicableRegulations: ['UAE PDPL', 'BIS Export Controls', 'OFAC Sanctions', 'UAE Cybersecurity Council Guidance'],
   aiInstructions: 'Prioritise operational, regulatory, and strategic impact. Use British English.',
@@ -271,7 +272,8 @@ function saveAdminSettings(settings) {
     ...DEFAULT_ADMIN_SETTINGS,
     ...settings,
     applicableRegulations: Array.isArray(settings.applicableRegulations) ? settings.applicableRegulations : [...DEFAULT_ADMIN_SETTINGS.applicableRegulations],
-    companyStructure: Array.isArray(settings.companyStructure) ? settings.companyStructure : []
+    companyStructure: Array.isArray(settings.companyStructure) ? settings.companyStructure : [],
+    entityContextLayers: Array.isArray(settings.entityContextLayers) ? settings.entityContextLayers : []
   };
   localStorage.setItem('rq_admin_settings', JSON.stringify(merged));
 }
@@ -365,6 +367,30 @@ function buildCompanyStructureContext(structure = []) {
     if (node.profile) parts.push(`context: ${truncateText(node.profile, 220)}`);
     return `- ${parts.join(' | ')}`;
   }).join('\n');
+}
+
+function buildEntityLayerContext(layers = [], structure = []) {
+  if (!layers.length) return '';
+  const idToNode = new Map(structure.map(node => [node.id, node]));
+  return layers.map(layer => {
+    const node = idToNode.get(layer.entityId);
+    const parts = [
+      `${node?.name || layer.entityName || 'Unknown entity'} layer`
+    ];
+    if (layer.geography) parts.push(`geography: ${layer.geography}`);
+    if (layer.riskAppetiteStatement) parts.push(`appetite: ${truncateText(layer.riskAppetiteStatement, 160)}`);
+    if (layer.applicableRegulations?.length) parts.push(`regulations: ${layer.applicableRegulations.join(', ')}`);
+    if (layer.aiInstructions) parts.push(`AI guidance: ${truncateText(layer.aiInstructions, 180)}`);
+    if (layer.benchmarkStrategy) parts.push(`benchmark strategy: ${truncateText(layer.benchmarkStrategy, 180)}`);
+    if (layer.contextSummary) parts.push(`context summary: ${truncateText(layer.contextSummary, 180)}`);
+    return `- ${parts.join(' | ')}`;
+  }).join('\n');
+}
+
+function buildOrganisationContextSummary(settings = getAdminSettings()) {
+  const structureText = buildCompanyStructureContext(settings.companyStructure || []);
+  const layerText = buildEntityLayerContext(settings.entityContextLayers || [], settings.companyStructure || []);
+  return [structureText, layerText ? `Entity context layers:\n${layerText}` : ''].filter(Boolean).join('\n');
 }
 
 function getRelationshipOptions(structure = [], type = '', excludeId = '') {
@@ -1497,7 +1523,7 @@ async function runIntakeAssist() {
       citations,
       adminSettings: {
         ...getAdminSettings(),
-        companyStructureContext: buildCompanyStructureContext(getAdminSettings().companyStructure)
+        companyStructureContext: buildOrganisationContextSummary(getAdminSettings())
       }
     });
     AppState.draft.llmAssisted = true;
@@ -1538,7 +1564,7 @@ async function analyseUploadedRegister() {
       applicableRegulations: AppState.draft.applicableRegulations || [],
       adminSettings: {
         ...getAdminSettings(),
-        companyStructureContext: buildCompanyStructureContext(getAdminSettings().companyStructure)
+        companyStructureContext: buildOrganisationContextSummary(getAdminSettings())
       }
     });
     const parsedFallback = parseRegisterText(AppState.draft.registerFindings).map(title => ({ title, source: 'register' }));
@@ -1667,7 +1693,7 @@ async function runLLMAssist() {
       geography: AppState.draft.geography,
       benchmarkStrategy: getAdminSettings().benchmarkStrategy,
       companyContextProfile: getAdminSettings().companyContextProfile,
-      companyStructureContext: buildCompanyStructureContext(getAdminSettings().companyStructure)
+      companyStructureContext: buildOrganisationContextSummary(getAdminSettings())
     }, citations);
     AppState.draft.scenarioTitle = result.scenarioTitle;
     AppState.draft.structuredScenario = result.structuredScenario;
@@ -2357,9 +2383,9 @@ function adminLayout(active, content) {
   return `<div style="display:flex;min-height:calc(100vh - 60px)">
     <nav class="admin-sidebar">
       <div style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:var(--sp-3)">Admin</div>
-      <a href="#/admin/settings" class="admin-nav-link ${active==='settings'?'active':''}">⚙️ Settings</a>
-      <a href="#/admin/bu" class="admin-nav-link ${active==='bu'?'active':''}">🏢 Business Units</a>
-      <a href="#/admin/docs" class="admin-nav-link ${active==='docs'?'active':''}">📚 Internal Docs</a>
+      <a href="#/admin/settings" class="admin-nav-link ${active==='settings'?'active':''}">🌐 Organisation Setup</a>
+      <a href="#/admin/bu" class="admin-nav-link ${active==='bu'?'active':''}">🏢 BU Library</a>
+      <a href="#/admin/docs" class="admin-nav-link ${active==='docs'?'active':''}">📚 Document Library</a>
       <div style="flex:1"></div>
       <div style="border-top:1px solid var(--border-subtle);padding-top:var(--sp-3)">
         <div class="banner banner--poc" style="font-size:.7rem;padding:8px 10px">⚠ PoC — replace with Entra ID</div>
@@ -2374,43 +2400,64 @@ function renderAdminSettings() {
   if (!requireAdmin()) return;
   const settings = getAdminSettings();
   const companyStructure = Array.isArray(settings.companyStructure) ? [...settings.companyStructure] : [];
+  const entityContextLayers = Array.isArray(settings.entityContextLayers) ? [...settings.entityContextLayers] : [];
   const sessionLLM = getSessionLLMConfig();
   const directCompass = !sessionLLM.apiUrl || sessionLLM.apiUrl.includes('api.core42.ai');
   const buCount = getBUList().length;
   const docCount = getDocList().length;
+  const companyEntities = companyStructure.filter(node => isCompanyEntityType(node.type));
+  const departmentEntities = companyStructure.filter(node => isDepartmentEntityType(node.type));
+  const orgContextTargetOptions = companyStructure.map(node => `<option value="${node.id}">${node.name} (${node.type})</option>`).join('');
   setPage(adminLayout('settings', `
     <div class="flex items-center justify-between mb-6">
       <div>
-        <h2>Platform Settings</h2>
-        <p style="margin-top:6px">${settings.adminContextSummary}</p>
+        <h2>Organisation-Led Admin Setup</h2>
+        <p style="margin-top:6px">Build the group structure first, then tune risk context as a layer beneath each business or department. Global defaults sit below that and only fill the gaps.</p>
       </div>
       <button class="btn btn--secondary" id="btn-reset-settings">Reset Defaults</button>
     </div>
+    <div class="card card--elevated mb-6">
+      <div class="context-panel-title">Recommended Setup Flow</div>
+      <div class="context-grid mt-4">
+        <div class="context-chip-panel">
+          <div class="context-panel-title">1. Build the structure</div>
+          <p class="context-panel-copy">Add holdings, subsidiaries, portfolio companies, partners, and departments so the platform understands how the business is organised.</p>
+        </div>
+        <div class="context-chip-panel">
+          <div class="context-panel-title">2. Add entity context layers</div>
+          <p class="context-panel-copy">Pick a business or department and tailor geography, regulations, appetite, and AI guidance underneath that node.</p>
+        </div>
+        <div class="context-chip-panel">
+          <div class="context-panel-title">3. Tune global defaults last</div>
+          <p class="context-panel-copy">Use platform-wide thresholds, benchmark rules, and system access only after the business structure and context layers are in place.</p>
+        </div>
+      </div>
+    </div>
     <div class="admin-overview-grid mb-6">
       <div class="admin-overview-card">
-        <div class="admin-overview-label">Business Units</div>
+        <div class="admin-overview-label">Businesses</div>
+        <div class="admin-overview-value">${companyEntities.length}</div>
+        <div class="admin-overview-foot">Holding, operating, JV, listed, and partner entities in the structure</div>
+      </div>
+      <div class="admin-overview-card">
+        <div class="admin-overview-label">Departments</div>
+        <div class="admin-overview-value">${departmentEntities.length}</div>
+        <div class="admin-overview-foot">Functions attached beneath business entities</div>
+      </div>
+      <div class="admin-overview-card">
+        <div class="admin-overview-label">Context Layers</div>
+        <div class="admin-overview-value">${entityContextLayers.length}</div>
+        <div class="admin-overview-foot">Entity-specific overlays for regulations, appetite, and AI behaviour</div>
+      </div>
+      <div class="admin-overview-card">
+        <div class="admin-overview-label">BU Library</div>
         <div class="admin-overview-value">${buCount}</div>
-        <div class="admin-overview-foot">Editable in the Business Units section</div>
+        <div class="admin-overview-foot">Assessment-specific BU defaults managed in the BU Library</div>
       </div>
       <div class="admin-overview-card">
-        <div class="admin-overview-label">Internal Documents</div>
+        <div class="admin-overview-label">Document Library</div>
         <div class="admin-overview-value">${docCount}</div>
-        <div class="admin-overview-foot">Used for citations and AI context</div>
-      </div>
-      <div class="admin-overview-card">
-        <div class="admin-overview-label">Tolerance Threshold</div>
-        <div class="admin-overview-value">${fmtCurrency(settings.toleranceThresholdUsd)}</div>
-        <div class="admin-overview-foot">Per-event P90 red trigger</div>
-      </div>
-      <div class="admin-overview-card">
-        <div class="admin-overview-label">AI Route</div>
-        <div class="admin-overview-value" style="font-size:var(--text-base)">${directCompass ? 'Direct / Browser Session' : 'Proxy / Hosted'}</div>
-        <div class="admin-overview-foot">${sessionLLM.apiUrl || 'No session endpoint saved yet'}</div>
-      </div>
-      <div class="admin-overview-card">
-        <div class="admin-overview-label">Organisation Entities</div>
-        <div class="admin-overview-value">${companyStructure.length}</div>
-        <div class="admin-overview-foot">Used to shape company context and later risk evaluations</div>
+        <div class="admin-overview-foot">Used for citations and document-grounded AI support</div>
       </div>
     </div>
     <div class="card card--elevated">
@@ -2428,6 +2475,52 @@ function renderAdminSettings() {
           <span class="form-help">Context is stored locally in this browser and reused by the AI-assisted intake, register analysis, and scenario drafting steps.</span>
         </div>
         <div id="admin-company-structure-summary" class="mt-4">${renderCompanyStructureSummary(companyStructure)}</div>
+      </div>
+      <div class="card mt-4" style="padding:var(--sp-5);background:var(--bg-elevated)">
+        <div class="context-panel-title">Business and Department Context Layers</div>
+        <p class="context-panel-copy">Once the structure exists, pick a saved entity and create a context layer beneath it. This is where you tailor geography, appetite, regulations, and AI behaviour for a specific business or department rather than the whole platform.</p>
+        ${companyStructure.length ? `
+        <div class="grid-2 mt-4">
+          <div class="form-group">
+            <label class="form-label" for="admin-layer-target">Target Business or Department</label>
+            <select class="form-select" id="admin-layer-target">
+              <option value="">Choose a saved entity</option>
+              ${orgContextTargetOptions}
+            </select>
+            <span class="form-help">Select a business or department from the structure first. Departments should already sit under a business.</span>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="admin-layer-geo">Layer Geography</label>
+            <input class="form-input" id="admin-layer-geo" placeholder="e.g. UAE, GCC, Global">
+          </div>
+        </div>
+        <div class="form-group mt-4">
+          <label class="form-label" for="admin-layer-summary">Layer Context Summary</label>
+          <textarea class="form-textarea" id="admin-layer-summary" rows="3" placeholder="Describe what is unique about this business or department, including technology footprint, regulatory exposure, or strategic role."></textarea>
+        </div>
+        <div class="form-group mt-4">
+          <label class="form-label" for="admin-layer-appetite">Layer Risk Appetite</label>
+          <textarea class="form-textarea" id="admin-layer-appetite" rows="3" placeholder="Optional appetite or escalation nuance for this business or department."></textarea>
+        </div>
+        <div class="form-group mt-4">
+          <label class="form-label">Layer Regulations</label>
+          <div class="tag-input-wrap" id="ti-admin-layer-regulations"></div>
+        </div>
+        <div class="form-group mt-4">
+          <label class="form-label" for="admin-layer-ai">Layer AI Guidance</label>
+          <textarea class="form-textarea" id="admin-layer-ai" rows="3" placeholder="Optional AI instructions specific to this entity."></textarea>
+        </div>
+        <div class="form-group mt-4">
+          <label class="form-label" for="admin-layer-benchmark">Layer Benchmark Strategy</label>
+          <textarea class="form-textarea" id="admin-layer-benchmark" rows="3" placeholder="Optional benchmark rule for this entity."></textarea>
+        </div>
+        <div class="flex items-center gap-3 mt-4" style="flex-wrap:wrap">
+          <button class="btn btn--secondary" id="btn-save-layer">Save Layer</button>
+          <button class="btn btn--ghost" id="btn-clear-layer">Clear Layer Form</button>
+          <span class="form-help">Saved layers help the platform reason about different parts of the group more precisely.</span>
+        </div>` : `
+        <div class="form-help mt-4">Add at least one business or department to the organisation tree before creating entity-level context layers.</div>`}
+        <div id="admin-layer-summary-list" class="mt-4"></div>
       </div>
       <div class="card mt-4" style="padding:var(--sp-5);background:var(--bg-elevated)">
         <div class="context-panel-title">AI Company Context Builder</div>
@@ -2450,8 +2543,8 @@ function renderAdminSettings() {
       </div>
       <div class="admin-section-head mt-5">
         <div>
-          <h3>Risk Governance</h3>
-          <p>Set the platform-level triggers used to flag scenarios and guide escalation.</p>
+          <h3>Platform Defaults and Governance</h3>
+          <p>These are fallback rules for the whole platform. Use them after you have built the organisation tree and entity context layers above.</p>
         </div>
       </div>
       <div class="grid-3">
@@ -2516,11 +2609,11 @@ function renderAdminSettings() {
         <span class="form-help">Explain whether the AI should prefer GCC or UAE references first, and how it should justify any global fallback.</span>
       </div>
       <div class="admin-inline-actions mt-4">
-        <a class="btn btn--secondary" href="#/admin/bu">Manage Business Units</a>
-        <a class="btn btn--secondary" href="#/admin/docs">Manage Documents</a>
+        <a class="btn btn--secondary" href="#/admin/bu">Open BU Library</a>
+        <a class="btn btn--secondary" href="#/admin/docs">Open Document Library</a>
       </div>
       <div class="card mt-5" style="padding:var(--sp-5);background:var(--bg-elevated)">
-        <div class="context-panel-title">Compass Session Access</div>
+        <div class="context-panel-title">System Access</div>
         <p class="context-panel-copy">${directCompass ? 'Use direct Compass access for temporary testing only. For production, prefer a hosted proxy URL such as the Vercel endpoint.' : 'A hosted proxy URL is configured. Leave the browser key blank and test through the proxy.'}</p>
         <div class="grid-2 mt-4">
           <div class="form-group">
@@ -2553,13 +2646,90 @@ function renderAdminSettings() {
 
   document.getElementById('btn-admin-logout').addEventListener('click', () => { AuthService.adminLogout(); Router.navigate('/admin'); });
   const regsInput = UI.tagInput('ti-admin-regulations', settings.applicableRegulations);
+  const layerRegsInput = companyStructure.length ? UI.tagInput('ti-admin-layer-regulations', []) : null;
   const structureSummaryEl = document.getElementById('admin-company-structure-summary');
+  const layerSummaryEl = document.getElementById('admin-layer-summary-list');
   const profileEl = document.getElementById('admin-company-profile');
   const websiteEl = document.getElementById('admin-company-url');
+  const layerTargetEl = document.getElementById('admin-layer-target');
+  const layerGeoEl = document.getElementById('admin-layer-geo');
+  const layerSummaryInputEl = document.getElementById('admin-layer-summary');
+  const layerAppetiteEl = document.getElementById('admin-layer-appetite');
+  const layerAiEl = document.getElementById('admin-layer-ai');
+  const layerBenchmarkEl = document.getElementById('admin-layer-benchmark');
 
   function refreshStructureSummary() {
     structureSummaryEl.innerHTML = renderCompanyStructureSummary(companyStructure);
     bindStructureActionHandlers();
+  }
+
+  function renderEntityLayerSummary() {
+    if (!layerSummaryEl) return;
+    if (!entityContextLayers.length) {
+      layerSummaryEl.innerHTML = `<div class="form-help">No business or department context layers saved yet.</div>`;
+      return;
+    }
+    const idToNode = new Map(companyStructure.map(node => [node.id, node]));
+    layerSummaryEl.innerHTML = entityContextLayers.map(layer => {
+      const node = idToNode.get(layer.entityId);
+      return `
+        <div class="card" style="padding:var(--sp-4);margin-top:12px">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <span class="badge badge--gold">${node?.type || 'Saved layer'}</span>
+            <strong style="color:var(--text-primary)">${node?.name || layer.entityName}</strong>
+            ${layer.geography ? `<span class="form-help" style="margin-top:0">${layer.geography}</span>` : ''}
+            <button class="btn btn--ghost btn--sm admin-layer-edit" data-layer-id="${layer.entityId}" type="button">Edit</button>
+            <button class="btn btn--ghost btn--sm admin-layer-delete" data-layer-id="${layer.entityId}" type="button">Remove</button>
+          </div>
+          ${layer.contextSummary ? `<div class="form-help" style="margin-top:8px">${layer.contextSummary}</div>` : ''}
+          ${layer.applicableRegulations?.length ? `<div class="citation-chips" style="margin-top:8px">${layer.applicableRegulations.map(tag => `<span class="badge badge--neutral">${tag}</span>`).join('')}</div>` : ''}
+        </div>`;
+    }).join('');
+    bindLayerActionHandlers();
+  }
+
+  function clearLayerForm() {
+    if (layerTargetEl) layerTargetEl.value = '';
+    if (layerGeoEl) layerGeoEl.value = '';
+    if (layerSummaryInputEl) layerSummaryInputEl.value = '';
+    if (layerAppetiteEl) layerAppetiteEl.value = '';
+    if (layerAiEl) layerAiEl.value = '';
+    if (layerBenchmarkEl) layerBenchmarkEl.value = '';
+    layerRegsInput?.setTags([]);
+  }
+
+  function loadEntityLayer(entityId) {
+    if (!entityId || !layerTargetEl) {
+      clearLayerForm();
+      return;
+    }
+    const layer = entityContextLayers.find(item => item.entityId === entityId);
+    const node = companyStructure.find(item => item.id === entityId);
+    layerTargetEl.value = entityId;
+    layerGeoEl.value = layer?.geography || '';
+    layerSummaryInputEl.value = layer?.contextSummary || node?.profile || '';
+    layerAppetiteEl.value = layer?.riskAppetiteStatement || '';
+    layerAiEl.value = layer?.aiInstructions || '';
+    layerBenchmarkEl.value = layer?.benchmarkStrategy || '';
+    layerRegsInput?.setTags(layer?.applicableRegulations || []);
+  }
+
+  function bindLayerActionHandlers() {
+    layerSummaryEl?.querySelectorAll('.admin-layer-edit').forEach(button => {
+      button.addEventListener('click', () => loadEntityLayer(button.dataset.layerId));
+    });
+    layerSummaryEl?.querySelectorAll('.admin-layer-delete').forEach(button => {
+      button.addEventListener('click', async () => {
+        const entityId = button.dataset.layerId;
+        const index = entityContextLayers.findIndex(item => item.entityId === entityId);
+        if (index < 0) return;
+        if (!await UI.confirm('Remove this business or department context layer?')) return;
+        entityContextLayers.splice(index, 1);
+        renderEntityLayerSummary();
+        if (layerTargetEl?.value === entityId) clearLayerForm();
+        UI.toast('Context layer removed.', 'success');
+      });
+    });
   }
 
   function upsertCompanyStructureNode(node) {
@@ -2567,6 +2737,7 @@ function renderAdminSettings() {
     if (index > -1) companyStructure[index] = node;
     else companyStructure.push(node);
     refreshStructureSummary();
+    renderEntityLayerSummary();
   }
 
   function openEntityEditor(existingNode = null, seed = {}) {
@@ -2657,7 +2828,11 @@ function renderAdminSettings() {
         for (let i = companyStructure.length - 1; i >= 0; i -= 1) {
           if (removeIds.has(companyStructure[i].id)) companyStructure.splice(i, 1);
         }
+        for (let i = entityContextLayers.length - 1; i >= 0; i -= 1) {
+          if (removeIds.has(entityContextLayers[i].entityId)) entityContextLayers.splice(i, 1);
+        }
         refreshStructureSummary();
+        renderEntityLayerSummary();
         UI.toast(`${target.name} removed from the organisation tree.`, 'success');
       });
     });
@@ -2665,6 +2840,32 @@ function renderAdminSettings() {
 
   document.getElementById('btn-add-org-entity').addEventListener('click', () => openEntityEditor());
   bindStructureActionHandlers();
+  renderEntityLayerSummary();
+  layerTargetEl?.addEventListener('change', () => loadEntityLayer(layerTargetEl.value));
+  document.getElementById('btn-clear-layer')?.addEventListener('click', () => clearLayerForm());
+  document.getElementById('btn-save-layer')?.addEventListener('click', () => {
+    const entityId = layerTargetEl?.value;
+    if (!entityId) {
+      UI.toast('Choose a business or department first.', 'warning');
+      return;
+    }
+    const node = companyStructure.find(item => item.id === entityId);
+    const nextLayer = {
+      entityId,
+      entityName: node?.name || '',
+      geography: layerGeoEl?.value.trim() || '',
+      contextSummary: layerSummaryInputEl?.value.trim() || '',
+      riskAppetiteStatement: layerAppetiteEl?.value.trim() || '',
+      applicableRegulations: layerRegsInput?.getTags() || [],
+      aiInstructions: layerAiEl?.value.trim() || '',
+      benchmarkStrategy: layerBenchmarkEl?.value.trim() || ''
+    };
+    const existingIndex = entityContextLayers.findIndex(item => item.entityId === entityId);
+    if (existingIndex > -1) entityContextLayers[existingIndex] = nextLayer;
+    else entityContextLayers.push(nextLayer);
+    renderEntityLayerSummary();
+    UI.toast(`Saved context layer for ${node?.name || 'selected entity'}.`, 'success');
+  });
   document.getElementById('btn-save-settings').addEventListener('click', () => {
     const warningThresholdUsd = Math.max(0, parseFloat(document.getElementById('admin-warning-threshold').value) || DEFAULT_ADMIN_SETTINGS.warningThresholdUsd);
     const toleranceThresholdUsd = Math.max(0, parseFloat(document.getElementById('admin-tolerance-threshold').value) || TOLERANCE_THRESHOLD);
@@ -2682,6 +2883,7 @@ function renderAdminSettings() {
       companyWebsiteUrl: document.getElementById('admin-company-url').value.trim(),
       companyContextProfile: document.getElementById('admin-company-profile').value.trim(),
       companyStructure,
+      entityContextLayers,
       defaultLinkMode: document.getElementById('admin-link-mode').value === 'yes',
       toleranceThresholdUsd,
       warningThresholdUsd,
