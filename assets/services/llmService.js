@@ -1,29 +1,41 @@
 /**
- * llmService.js — LLM service (Compass / OpenAI stub)
- * 
- * PoC: Returns realistic mock data with simulated latency.
- * 
- * TODO: Replace _callCompassAPI() with real Compass/Copilot/OpenAI call.
- * [LLM-INTEGRATION] marks integration points.
- * 
- * Compass API (Core42) uses OpenAI-compatible API format:
+ * llmService.js — LLM service (Core42 Compass + local stub)
+ *
+ * Compass API (OpenAI-compatible):
  *   POST https://api.core42.ai/v1/chat/completions
  *   Authorization: Bearer <COMPASS_API_KEY>
- * 
- * OpenAI API:
- *   POST https://api.openai.com/v1/chat/completions
- *   Authorization: Bearer <OPENAI_API_KEY>
+ *
+ * Do not hard-code real keys in this file.
+ * Set them at runtime only for local testing, or call Compass through a secure proxy.
  */
 
 const LLMService = (() => {
-  // [LLM-INTEGRATION] Set your API key and endpoint here
-  // For PoC, leave these empty and the stub will be used
-  const COMPASS_API_URL = ''; // e.g. 'https://api.core42.ai/v1/chat/completions'
-  const COMPASS_API_KEY = ''; // set at runtime via admin settings
-  const OPENAI_API_URL  = 'https://api.openai.com/v1/chat/completions';
-  let _openAIKey = '';
+  const DEFAULT_COMPASS_API_URL = 'https://api.core42.ai/v1/chat/completions';
+  const DEFAULT_COMPASS_MODEL = 'gpt-5.1';
+  let _compassApiUrl = DEFAULT_COMPASS_API_URL;
+  let _compassModel = DEFAULT_COMPASS_MODEL;
+  let _compassApiKey = '';
 
-  function setOpenAIKey(key) { _openAIKey = key; }
+  function setCompassAPIKey(key) {
+    _compassApiKey = key || '';
+  }
+
+  function setCompassConfig({ apiKey, apiUrl, model } = {}) {
+    if (typeof apiKey === 'string') _compassApiKey = apiKey;
+    if (typeof apiUrl === 'string' && apiUrl.trim()) _compassApiUrl = apiUrl.trim();
+    if (typeof model === 'string' && model.trim()) _compassModel = model.trim();
+  }
+
+  function clearCompassConfig() {
+    _compassApiUrl = DEFAULT_COMPASS_API_URL;
+    _compassModel = DEFAULT_COMPASS_MODEL;
+    _compassApiKey = '';
+  }
+
+  // Backwards-compatible alias for older setup instructions.
+  function setOpenAIKey(key) {
+    setCompassAPIKey(key);
+  }
 
   function _extractRiskCandidates(text) {
     const source = String(text || '').toLowerCase();
@@ -51,18 +63,16 @@ const LLMService = (() => {
 
   // ─── Real API call (when keys are available) ─────────────
   async function _callLLM(systemPrompt, userPrompt) {
-    const apiKey   = _openAIKey || COMPASS_API_KEY;
-    const endpoint = COMPASS_API_URL || OPENAI_API_URL;
-    if (!apiKey) return null; // fall through to stub
+    if (!_compassApiKey) return null; // fall through to stub
 
-    const res = await fetch(endpoint, {
+    const res = await fetch(_compassApiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
+        'Authorization': `Bearer ${_compassApiKey}`
       },
       body: JSON.stringify({
-        model: COMPASS_API_URL ? 'jais-adapt-70b-chat' : 'gpt-4o',
+        model: _compassModel,
         max_tokens: 1200,
         temperature: 0.3,
         messages: [
@@ -231,7 +241,7 @@ const LLMService = (() => {
     await new Promise(r => setTimeout(r, 2200 + Math.random() * 800));
 
     // Try real API first
-    if (_openAIKey || COMPASS_API_KEY) {
+    if (_compassApiKey) {
       try {
         const systemPrompt = `You are a senior cyber risk analyst specialising in FAIR methodology. 
 Given a risk scenario narrative and business context, provide structured FAIR inputs and recommendations.
@@ -281,7 +291,7 @@ ${retrievedDocs.map(d => `- ${d.title}: ${d.excerpt}`).join('\
 
   async function enhanceRiskContext(input) {
     await new Promise(r => setTimeout(r, 1400 + Math.random() * 600));
-    if (_openAIKey || COMPASS_API_KEY) {
+    if (_compassApiKey) {
       try {
         const systemPrompt = `You are a senior enterprise risk analyst. Given a risk statement, optional risk register text, business context, and regulations, return JSON only with this schema:
 {
@@ -340,5 +350,13 @@ ${(input.citations || []).map(c => `- ${c.title}: ${c.excerpt}`).join('\n')}`;
     return stub;
   }
 
-  return { generateScenarioAndInputs, enhanceRiskContext, analyseRiskRegister, setOpenAIKey };
+  return {
+    generateScenarioAndInputs,
+    enhanceRiskContext,
+    analyseRiskRegister,
+    setCompassAPIKey,
+    setCompassConfig,
+    clearCompassConfig,
+    setOpenAIKey
+  };
 })();

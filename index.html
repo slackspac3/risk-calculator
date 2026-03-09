@@ -46,17 +46,20 @@
 <!-- ── Main App ─────────────────────────────────────────────── -->
 <script src="assets/app.js"></script>
 
-<!-- ── OpenAI API Key Setup (Optional) ──────────────────────── -->
+<!-- ── Compass API Setup (Optional) ─────────────────────────── -->
 <!--
-  To enable real AI-assisted inputs, set your OpenAI API key:
-  
-  In browser console: LLMService.setOpenAIKey('sk-your-key-here');
-  
-  Or add a <script> block here (not recommended for production):
-  <script>window.addEventListener('load', () => LLMService.setOpenAIKey('sk-...'));</script>
-  
-  For Compass (Core42) API, set the COMPASS_API_URL and COMPASS_API_KEY
-  constants in assets/services/llmService.js
+  Compass OpenAI-compatible endpoint:
+  https://api.core42.ai/v1/chat/completions
+
+  Local testing only, in browser console:
+  LLMService.setCompassConfig({
+    apiKey: 'your-core42-key',
+    apiUrl: 'https://api.core42.ai/v1/chat/completions',
+    model: 'gpt-5.1'
+  });
+
+  Do not ship a real API key in this public frontend.
+  For production, call Compass through a server-side or serverless proxy.
 -->
 
 </body>
