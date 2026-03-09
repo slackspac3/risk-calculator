@@ -104,58 +104,44 @@ LLMService.setCompassConfig({
 });
 ```
 
-**Recommended — Cloudflare Worker proxy:**
+**Recommended — Vercel proxy:**
 
-This repo now includes a minimal Worker in [`cloudflare-worker/`](./cloudflare-worker) that:
+This repo now includes a minimal Vercel serverless proxy in [`api/compass.js`](./api/compass.js) that:
 - accepts browser requests from your GitHub Pages origin
 - handles CORS/preflight correctly
 - keeps the Compass API key server-side
 - forwards the request to `https://api.core42.ai/v1/chat/completions`
 
-#### Deploy the Worker
+#### Deploy on Vercel
 
-1. Install Wrangler if needed:
-```bash
-npm install -g wrangler
-```
-
-2. Authenticate:
-```bash
-wrangler login
-```
-
-3. Move into the worker directory:
-```bash
-cd cloudflare-worker
-```
-
-4. Set your Compass API key as a Worker secret:
-```bash
-wrangler secret put COMPASS_API_KEY
-```
-
-5. Deploy:
-```bash
-wrangler deploy
-```
-
-6. Wrangler will return a Worker URL such as:
+1. Push this repo to GitHub.
+2. Go to `https://vercel.com/dashboard`.
+3. Click `Add New -> Project`.
+4. Import the `risk-calculator` GitHub repo.
+5. Keep the default framework as `Other`.
+6. Before deploying, add these environment variables in Vercel:
+- `COMPASS_API_KEY` = your real Compass API key
+- `ALLOWED_ORIGIN` = `https://slackspac3.github.io`
+- `COMPASS_API_URL` = `https://api.core42.ai/v1/chat/completions`
+- `COMPASS_MODEL` = `gpt-5.1`
+7. Deploy the project.
+8. Vercel will give you a site URL such as:
 ```text
-https://risk-intelligence-compass-proxy.<your-subdomain>.workers.dev
+https://risk-calculator-proxy.vercel.app
 ```
 
 7. In the app, go to `Admin -> Settings -> Compass Session Access` and set:
-- `Compass URL`: your Worker URL
+- `Compass URL`: `https://your-vercel-project.vercel.app/api/compass`
 - `Model`: `gpt-5.1`
-- `Compass API Key`: leave blank when using the Worker
+- `Compass API Key`: leave blank when using Vercel
 
-#### How the Worker flow works
+#### How the Vercel flow works
 
-1. The browser sends a request to your Cloudflare Worker URL.
-2. The Worker responds to `OPTIONS` preflight with correct CORS headers.
-3. The Worker forwards the `POST` body to Compass.
-4. The Worker adds `Authorization: Bearer <COMPASS_API_KEY>` using the Worker secret.
-5. The Worker returns Compass’s response to the browser.
+1. The browser sends a request to your Vercel function URL.
+2. The Vercel function responds to `OPTIONS` preflight with correct CORS headers.
+3. The function forwards the `POST` body to Compass.
+4. The function adds `Authorization: Bearer <COMPASS_API_KEY>` using Vercel environment variables.
+5. The function returns Compass’s response to the browser.
 
 This solves both:
 - browser CORS failure
