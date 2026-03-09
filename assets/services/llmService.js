@@ -43,7 +43,7 @@ const LLMService = (() => {
       return new Error('Compass preflight/CORS blocked. The browser could not complete the cross-origin request to api.core42.ai.');
     }
     if (/LLM API error 400/i.test(msg)) {
-      return new Error('Compass request rejected with HTTP 400. This may be a request-shape issue, model issue, or provider-side preflight rejection.');
+      return new Error(msg);
     }
     if (/LLM API error 401|LLM API error 403/i.test(msg)) {
       return new Error('Compass rejected the request. Check the API key, permissions, and model access.');
@@ -108,7 +108,10 @@ const LLMService = (() => {
           ]
         })
       });
-      if (!res.ok) throw new Error(`LLM API error ${res.status}`);
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`LLM API error ${res.status}: ${errText}`);
+      }
       const data = await res.json();
       return data.choices?.[0]?.message?.content || null;
     } catch (error) {
