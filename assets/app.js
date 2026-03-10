@@ -3352,6 +3352,23 @@ function renderUserOnboarding(existingSettings = getUserSettings(), startStep = 
   renderStep();
 }
 
+
+function renderSettingsSection({ title, description = '', body = '', open = false, meta = '' }) {
+  return `<details class="settings-section"${open ? ' open' : ''}>
+    <summary class="settings-section__summary">
+      <div>
+        <div class="settings-section__title-row">
+          <span class="settings-section__title">${title}</span>
+          ${meta ? `<span class="settings-section__meta">${meta}</span>` : ''}
+        </div>
+        ${description ? `<p class="settings-section__description">${description}</p>` : ''}
+      </div>
+      <span class="settings-section__chevron">⌄</span>
+    </summary>
+    <div class="settings-section__body">${body}</div>
+  </details>`;
+}
+
 function renderUserPreferences(existingSettings = getUserSettings()) {
   if (!requireAuth()) return;
   if (AuthService.isAdminAuthenticated()) {
@@ -3375,239 +3392,251 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
   });
   const sessionLLM = getSessionLLMConfig();
   const directCompass = !sessionLLM.apiUrl || sessionLLM.apiUrl.includes('api.core42.ai');
+  const userContextSection = renderSettingsSection({
+    title: 'Profile And Role Context',
+    description: 'Set who you are, where you sit, and how you want outputs framed.',
+    open: true,
+    meta: `${profile.jobTitle || 'Role not set'} · ${profile.businessUnit || 'No BU selected'}`,
+    body: `
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label" for="user-full-name">Name</label>
+          <input class="form-input" id="user-full-name" value="${profile.fullName || AppState.currentUser?.displayName || ''}">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="user-job-title">Role</label>
+          <input class="form-input" id="user-job-title" value="${profile.jobTitle || ''}" placeholder="e.g. Risk Manager">
+        </div>
+      </div>
+      <div class="grid-2 mt-4">
+        <div class="form-group">
+          <label class="form-label" for="user-business-unit">Business unit or entity</label>
+          <select class="form-select" id="user-business-unit">
+            <option value="">Choose your business unit</option>
+            ${companyOptions.map(entity => `<option value="${entity.id}" ${entity.id === selectedBusinessId ? 'selected' : ''}>${entity.name}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="user-department">Department or function</label>
+          <select class="form-select" id="user-department"></select>
+        </div>
+      </div>
+      <div class="form-group mt-4">
+        <label class="form-label">Focus areas</label>
+        <div class="tag-input-wrap" id="ti-user-focus-areas"></div>
+        <div class="citation-chips" style="margin-top:10px">
+          ${USER_FOCUS_OPTIONS.map(option => `<button type="button" class="chip user-focus-chip" data-focus="${option}">${option}</button>`).join('')}
+        </div>
+      </div>
+      <div class="form-group mt-4">
+        <label class="form-label" for="user-working-context">Working context</label>
+        <textarea class="form-textarea" id="user-working-context" rows="4">${profile.workingContext || ''}</textarea>
+      </div>
+      <div class="form-group mt-4">
+        <label class="form-label" for="user-preferred-outputs">Preferred output style</label>
+        <textarea class="form-textarea" id="user-preferred-outputs" rows="4">${profile.preferredOutputs || ''}</textarea>
+      </div>`
+  });
+  const companyContextSection = renderSettingsSection({
+    title: 'Personal Company Context',
+    description: 'Optional overlay on top of the admin baseline for this account only.',
+    meta: settings.companyWebsiteUrl ? 'Website linked' : 'Optional',
+    body: `
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label" for="user-company-url">Company Website URL</label>
+          <input class="form-input" id="user-company-url" value="${settings.companyWebsiteUrl || ''}" placeholder="https://example.com">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="user-company-profile">Company Risk Context Profile</label>
+          <textarea class="form-textarea" id="user-company-profile" rows="6">${settings.companyContextProfile || ''}</textarea>
+        </div>
+      </div>
+      <details class="mt-4">
+        <summary style="cursor:pointer;font-weight:600;color:var(--text-primary)">Edit detailed company brief</summary>
+        <div class="card mt-4" style="padding:var(--sp-4);background:var(--bg-canvas)">
+          <div class="form-group mt-3">
+            <label class="form-label" for="user-company-section-summary">Company Summary</label>
+            <textarea class="form-textarea" id="user-company-section-summary" rows="3">${companyContextSections.companySummary || ''}</textarea>
+          </div>
+          <div class="form-group mt-3">
+            <label class="form-label" for="user-company-section-business-model">Business Model</label>
+            <textarea class="form-textarea" id="user-company-section-business-model" rows="3">${companyContextSections.businessModel || ''}</textarea>
+          </div>
+          <div class="form-group mt-3">
+            <label class="form-label" for="user-company-section-operating-model">Operating Model</label>
+            <textarea class="form-textarea" id="user-company-section-operating-model" rows="3">${companyContextSections.operatingModel || ''}</textarea>
+          </div>
+          <div class="form-group mt-3">
+            <label class="form-label" for="user-company-section-commitments">Public Commitments</label>
+            <textarea class="form-textarea" id="user-company-section-commitments" rows="4">${companyContextSections.publicCommitments || ''}</textarea>
+          </div>
+          <div class="form-group mt-3">
+            <label class="form-label" for="user-company-section-risks">Key Risk Signals</label>
+            <textarea class="form-textarea" id="user-company-section-risks" rows="4">${companyContextSections.keyRiskSignals || ''}</textarea>
+          </div>
+          <div class="form-group mt-3">
+            <label class="form-label" for="user-company-section-obligations">Obligations and Exposures</label>
+            <textarea class="form-textarea" id="user-company-section-obligations" rows="4">${companyContextSections.obligations || ''}</textarea>
+          </div>
+          <div class="form-group mt-3">
+            <label class="form-label" for="user-company-section-sources">Sources Reviewed</label>
+            <textarea class="form-textarea" id="user-company-section-sources" rows="4">${companyContextSections.sources || ''}</textarea>
+          </div>
+        </div>
+      </details>
+      <div class="flex items-center gap-3 mt-4" style="flex-wrap:wrap">
+        <button class="btn btn--secondary" id="btn-build-user-context">Build from Website</button>
+        <span class="form-help">Builds a personal context draft for this account only.</span>
+      </div>`
+  });
+  const roleManagementSection = `${businessOwner ? renderSettingsSection({
+    title: 'Business Unit Admin Controls',
+    description: `You can add functions beneath ${selectedBusinessEntity?.name || profile.businessUnit} and maintain their retained context.`,
+    meta: `${selectedBusinessDepartments.length} department${selectedBusinessDepartments.length === 1 ? '' : 's'}`,
+    body: `
+      <div class="flex items-center gap-3" style="flex-wrap:wrap">
+        <button class="btn btn--secondary" id="btn-user-add-department">Add Function / Department</button>
+      </div>
+      <div class="mt-4" style="display:flex;flex-direction:column;gap:12px">
+        ${selectedBusinessDepartments.length ? selectedBusinessDepartments.map(department => `
+          <div class="card" style="padding:var(--sp-4);background:var(--bg-canvas)">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
+              <div>
+                <div class="context-panel-title">${department.name}</div>
+                <div class="form-help">${department.ownerUsername ? `Owner: ${department.ownerUsername}` : 'Owner not assigned yet'}</div>
+                <div class="form-help">${getEntityLayerById(globalSettings, department.id)?.contextSummary || department.profile || 'No retained department context yet'}</div>
+              </div>
+              <div class="flex items-center gap-3" style="flex-wrap:wrap">
+                <button class="btn btn--ghost btn--sm btn-user-edit-department" data-department-id="${department.id}" type="button">Edit Department</button>
+                <button class="btn btn--secondary btn--sm btn-user-edit-department-context" data-department-id="${department.id}" type="button">Manage Context</button>
+              </div>
+            </div>
+          </div>`).join('') : '<div class="form-help">No functions or departments exist under this business unit yet.</div>'}
+      </div>`
+  }) : ''}
+  ${departmentOwner ? renderSettingsSection({
+    title: 'Department Context You Own',
+    description: `You are the assigned owner for ${selectedDepartment?.name || profile.department}.`,
+    meta: 'Department owner',
+    body: `<div class="flex items-center gap-3" style="flex-wrap:wrap"><button class="btn btn--secondary" id="btn-manage-owned-department">Manage Department Context</button></div>`
+  }) : ''}`;
+  const defaultsSection = renderSettingsSection({
+    title: 'Personal Defaults',
+    description: 'These defaults shape new assessments for this account.',
+    meta: settings.geography || globalSettings.geography,
+    body: `
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label" for="user-geo">Default Geography</label>
+          <input class="form-input" id="user-geo" value="${settings.geography}">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="user-link-mode">Default Linked-Risk Mode</label>
+          <select class="form-select" id="user-link-mode">
+            <option value="yes" ${settings.defaultLinkMode ? 'selected' : ''}>Enabled</option>
+            <option value="no" ${!settings.defaultLinkMode ? 'selected' : ''}>Disabled</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group mt-4">
+        <label class="form-label" for="user-context-summary">Personal Context Summary</label>
+        <textarea class="form-textarea" id="user-context-summary" rows="3">${settings.adminContextSummary || ''}</textarea>
+      </div>
+      <div class="form-group mt-4">
+        <label class="form-label" for="user-appetite">Risk Appetite Statement</label>
+        <textarea class="form-textarea" id="user-appetite" rows="4">${settings.riskAppetiteStatement || ''}</textarea>
+      </div>
+      <div class="form-group mt-4">
+        <label class="form-label">Applicable Regulations</label>
+        <div class="tag-input-wrap" id="ti-user-regulations"></div>
+      </div>
+      <div class="form-group mt-4">
+        <label class="form-label" for="user-ai-instructions">AI Guidance</label>
+        <textarea class="form-textarea" id="user-ai-instructions" rows="3">${settings.aiInstructions || ''}</textarea>
+      </div>
+      <div class="form-group mt-4">
+        <label class="form-label" for="user-benchmark-strategy">Benchmark Strategy</label>
+        <textarea class="form-textarea" id="user-benchmark-strategy" rows="3">${settings.benchmarkStrategy || ''}</textarea>
+      </div>`
+  });
+  const systemAccessSection = renderSettingsSection({
+    title: 'System Access For This Session',
+    description: directCompass ? 'Use direct Compass access for temporary testing only.' : 'A hosted proxy URL is configured for this user session.',
+    meta: sessionLLM.model || 'gpt-5.1',
+    body: `
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label" for="user-compass-url">Compass URL</label>
+          <input class="form-input" id="user-compass-url" value="${sessionLLM.apiUrl || DEFAULT_COMPASS_PROXY_URL}">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="user-compass-model">Model</label>
+          <input class="form-input" id="user-compass-model" value="${sessionLLM.model || 'gpt-5.1'}">
+        </div>
+      </div>
+      <div class="form-group mt-4">
+        <label class="form-label" for="user-compass-key">Compass API Key</label>
+        <input class="form-input" id="user-compass-key" type="password" value="${sessionLLM.apiKey || ''}" placeholder="Paste key for this browser session">
+      </div>
+      <div class="flex items-center gap-3 mt-4" style="flex-wrap:wrap">
+        <button class="btn btn--secondary" id="btn-save-user-session-llm">Save Session Key</button>
+        <button class="btn btn--secondary" id="btn-test-user-session-llm">Test Connection</button>
+        <button class="btn btn--ghost" id="btn-clear-user-session-llm">Clear Session Key</button>
+      </div>`
+  });
 
   setPage(`
     <main class="page">
       <div class="container container--narrow" style="padding:var(--sp-10) var(--sp-6);max-width:960px">
-        <div class="flex items-center justify-between mb-6" style="gap:var(--sp-4);flex-wrap:wrap">
-          <div>
-            <h2>Personal Settings</h2>
-            <p style="margin-top:6px;color:var(--text-muted)">These settings apply only to <strong>${AppState.currentUser?.displayName || 'your account'}</strong>. Global thresholds, organisation structure, BU customisation, and document library remain controlled by the global admin.</p>
-          </div>
-          <div class="flex items-center gap-3" style="flex-wrap:wrap">
-            <button class="btn btn--ghost" id="btn-rerun-onboarding">Re-run Setup</button>
-            <button class="btn btn--secondary" id="btn-reset-user-settings">Reset My Settings</button>
-          </div>
-        </div>
-
-        <div class="admin-overview-grid mb-6">
-          <div class="admin-overview-card">
-            <div class="admin-overview-label">Role</div>
-            <div class="admin-overview-value" style="font-size:1.1rem">${profile.jobTitle || 'Not set'}</div>
-            <div class="admin-overview-foot">${profile.department || 'No department set'}${profile.businessUnit ? ` · ${profile.businessUnit}` : ''}</div>
-          </div>
-          <div class="admin-overview-card">
-            <div class="admin-overview-label">Focus Areas</div>
-            <div class="admin-overview-value" style="font-size:1.1rem">${profile.focusAreas?.length || 0}</div>
-            <div class="admin-overview-foot">${profile.focusAreas?.length ? profile.focusAreas.join(', ') : 'No focus areas selected yet'}</div>
-          </div>
-          <div class="admin-overview-card">
-            <div class="admin-overview-label">Personal Geography</div>
-            <div class="admin-overview-value" style="font-size:1.1rem">${settings.geography || globalSettings.geography}</div>
-            <div class="admin-overview-foot">Used as your default context in new assessments</div>
-          </div>
-        </div>
-
-        <div class="card card--elevated">
-          <div class="context-panel-title">You and Your Working Context</div>
-          <p class="context-panel-copy">Keep this lightweight. These fields help the platform interpret outputs in a way that suits your role and responsibilities.</p>
-          <div class="grid-2 mt-4">
-            <div class="form-group">
-              <label class="form-label" for="user-full-name">Name</label>
-              <input class="form-input" id="user-full-name" value="${profile.fullName || AppState.currentUser?.displayName || ''}">
+        <div class="settings-shell">
+          <div class="settings-shell__header">
+            <div>
+              <h2>Personal Settings</h2>
+              <p style="margin-top:6px;color:var(--text-muted)">These settings apply only to <strong>${AppState.currentUser?.displayName || 'your account'}</strong>. Global thresholds, organisation structure, BU customisation, and document library remain controlled by the global admin.</p>
             </div>
-            <div class="form-group">
-              <label class="form-label" for="user-job-title">Role</label>
-              <input class="form-input" id="user-job-title" value="${profile.jobTitle || ''}" placeholder="e.g. Risk Manager">
-            </div>
-          </div>
-          <div class="grid-2 mt-4">
-            <div class="form-group">
-              <label class="form-label" for="user-business-unit">Business unit or entity</label>
-              <select class="form-select" id="user-business-unit">
-                <option value="">Choose your business unit</option>
-                ${companyOptions.map(entity => `<option value="${entity.id}" ${entity.id === selectedBusinessId ? 'selected' : ''}>${entity.name}</option>`).join('')}
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="user-department">Department or function</label>
-              <select class="form-select" id="user-department"></select>
-            </div>
-          </div>
-          <div class="form-group mt-4">
-            <label class="form-label">Focus areas</label>
-            <div class="tag-input-wrap" id="ti-user-focus-areas"></div>
-            <div class="citation-chips" style="margin-top:10px">
-              ${USER_FOCUS_OPTIONS.map(option => `<button type="button" class="chip user-focus-chip" data-focus="${option}">${option}</button>`).join('')}
-            </div>
-          </div>
-          <div class="form-group mt-4">
-            <label class="form-label" for="user-working-context">Working context</label>
-            <textarea class="form-textarea" id="user-working-context" rows="4">${profile.workingContext || ''}</textarea>
-          </div>
-          <div class="form-group mt-4">
-            <label class="form-label" for="user-preferred-outputs">Preferred output style</label>
-            <textarea class="form-textarea" id="user-preferred-outputs" rows="4">${profile.preferredOutputs || ''}</textarea>
-          </div>
-        </div>
-
-        <div class="card card--elevated mt-6">
-          <div class="context-panel-title">Personal Company Context</div>
-          <p class="context-panel-copy">Optional personal context that sits on top of the global admin baseline.</p>
-          <div class="grid-2 mt-4">
-            <div class="form-group">
-              <label class="form-label" for="user-company-url">Company Website URL</label>
-              <input class="form-input" id="user-company-url" value="${settings.companyWebsiteUrl || ''}" placeholder="https://example.com">
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="user-company-profile">Company Risk Context Profile</label>
-              <textarea class="form-textarea" id="user-company-profile" rows="6">${settings.companyContextProfile || ''}</textarea>
+            <div class="flex items-center gap-3" style="flex-wrap:wrap">
+              <button class="btn btn--ghost" id="btn-rerun-onboarding">Re-run Setup</button>
+              <button class="btn btn--secondary" id="btn-reset-user-settings">Reset My Settings</button>
             </div>
           </div>
 
-          <details class="mt-4">
-            <summary style="cursor:pointer;font-weight:600;color:var(--text-primary)">Edit detailed company brief</summary>
-            <div class="card mt-4" style="padding:var(--sp-4);background:var(--bg-canvas)">
-              <div class="form-group mt-3">
-                <label class="form-label" for="user-company-section-summary">Company Summary</label>
-                <textarea class="form-textarea" id="user-company-section-summary" rows="3">${companyContextSections.companySummary || ''}</textarea>
-              </div>
-              <div class="form-group mt-3">
-                <label class="form-label" for="user-company-section-business-model">Business Model</label>
-                <textarea class="form-textarea" id="user-company-section-business-model" rows="3">${companyContextSections.businessModel || ''}</textarea>
-              </div>
-              <div class="form-group mt-3">
-                <label class="form-label" for="user-company-section-operating-model">Operating Model</label>
-                <textarea class="form-textarea" id="user-company-section-operating-model" rows="3">${companyContextSections.operatingModel || ''}</textarea>
-              </div>
-              <div class="form-group mt-3">
-                <label class="form-label" for="user-company-section-commitments">Public Commitments</label>
-                <textarea class="form-textarea" id="user-company-section-commitments" rows="4">${companyContextSections.publicCommitments || ''}</textarea>
-              </div>
-              <div class="form-group mt-3">
-                <label class="form-label" for="user-company-section-risks">Key Risk Signals</label>
-                <textarea class="form-textarea" id="user-company-section-risks" rows="4">${companyContextSections.keyRiskSignals || ''}</textarea>
-              </div>
-              <div class="form-group mt-3">
-                <label class="form-label" for="user-company-section-obligations">Obligations and Exposures</label>
-                <textarea class="form-textarea" id="user-company-section-obligations" rows="4">${companyContextSections.obligations || ''}</textarea>
-              </div>
-              <div class="form-group mt-3">
-                <label class="form-label" for="user-company-section-sources">Sources Reviewed</label>
-                <textarea class="form-textarea" id="user-company-section-sources" rows="4">${companyContextSections.sources || ''}</textarea>
-              </div>
+          <div class="admin-overview-grid mb-6">
+            <div class="admin-overview-card">
+              <div class="admin-overview-label">Role</div>
+              <div class="admin-overview-value" style="font-size:1.1rem">${profile.jobTitle || 'Not set'}</div>
+              <div class="admin-overview-foot">${profile.department || 'No department set'}${profile.businessUnit ? ` · ${profile.businessUnit}` : ''}</div>
             </div>
-          </details>
+            <div class="admin-overview-card">
+              <div class="admin-overview-label">Focus Areas</div>
+              <div class="admin-overview-value" style="font-size:1.1rem">${profile.focusAreas?.length || 0}</div>
+              <div class="admin-overview-foot">${profile.focusAreas?.length ? profile.focusAreas.join(', ') : 'No focus areas selected yet'}</div>
+            </div>
+            <div class="admin-overview-card">
+              <div class="admin-overview-label">Personal Geography</div>
+              <div class="admin-overview-value" style="font-size:1.1rem">${settings.geography || globalSettings.geography}</div>
+              <div class="admin-overview-foot">Used as your default context in new assessments</div>
+            </div>
+          </div>
 
-          <div class="flex items-center gap-3 mt-4" style="flex-wrap:wrap">
-            <button class="btn btn--secondary" id="btn-build-user-context">Build from Website</button>
-            <span class="form-help">Builds a personal context draft for this account only.</span>
+          <div class="settings-accordion">
+            ${userContextSection}
+            ${companyContextSection}
+            ${roleManagementSection}
+            ${defaultsSection}
+            ${systemAccessSection}
           </div>
-        </div>
 
-        ${businessOwner ? `
-          <div class="card card--elevated mt-6">
-            <div class="context-panel-title">Business Unit Admin Controls</div>
-            <p class="context-panel-copy">You are the assigned BU admin for <strong>${selectedBusinessEntity?.name || profile.businessUnit}</strong>. You can add functions beneath this business unit and maintain their retained context.</p>
-            <div class="flex items-center gap-3 mt-4" style="flex-wrap:wrap">
-              <button class="btn btn--secondary" id="btn-user-add-department">Add Function / Department</button>
+          <div class="settings-shell__footer">
+            <div class="flex items-center gap-3" style="flex-wrap:wrap">
+              <button class="btn btn--primary" id="btn-save-user-settings">Save My Settings</button>
+              <span class="form-help">These values will be used as your personal defaults in future assessments.</span>
             </div>
-            <div class="mt-4" style="display:flex;flex-direction:column;gap:12px">
-              ${selectedBusinessDepartments.length ? selectedBusinessDepartments.map(department => `
-                <div class="card" style="padding:var(--sp-4);background:var(--bg-canvas)">
-                  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
-                    <div>
-                      <div class="context-panel-title">${department.name}</div>
-                      <div class="form-help">${department.ownerUsername ? `Owner: ${department.ownerUsername}` : 'Owner not assigned yet'}</div>
-                      <div class="form-help">${getEntityLayerById(globalSettings, department.id)?.contextSummary || department.profile || 'No retained department context yet'}</div>
-                    </div>
-                    <div class="flex items-center gap-3" style="flex-wrap:wrap">
-                      <button class="btn btn--ghost btn--sm btn-user-edit-department" data-department-id="${department.id}" type="button">Edit Department</button>
-                      <button class="btn btn--secondary btn--sm btn-user-edit-department-context" data-department-id="${department.id}" type="button">Manage Context</button>
-                    </div>
-                  </div>
-                </div>`).join('') : '<div class="form-help">No functions or departments exist under this business unit yet.</div>'}
-            </div>
-          </div>` : ''}
-
-        ${departmentOwner ? `
-          <div class="card card--elevated mt-6">
-            <div class="context-panel-title">Department Context You Own</div>
-            <p class="context-panel-copy">You are the assigned owner for <strong>${selectedDepartment?.name || profile.department}</strong>. Use this to maintain the retained context for that function.</p>
-            <div class="flex items-center gap-3 mt-4" style="flex-wrap:wrap">
-              <button class="btn btn--secondary" id="btn-manage-owned-department">Manage Department Context</button>
-            </div>
-          </div>` : ''}
-
-        <div class="card card--elevated mt-6">
-          <div class="context-panel-title">Default Context for This User</div>
-          <div class="grid-2 mt-4">
-            <div class="form-group">
-              <label class="form-label" for="user-geo">Default Geography</label>
-              <input class="form-input" id="user-geo" value="${settings.geography}">
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="user-link-mode">Default Linked-Risk Mode</label>
-              <select class="form-select" id="user-link-mode">
-                <option value="yes" ${settings.defaultLinkMode ? 'selected' : ''}>Enabled</option>
-                <option value="no" ${!settings.defaultLinkMode ? 'selected' : ''}>Disabled</option>
-              </select>
+            <div class="banner banner--poc mt-6">
+              <span class="banner-icon">ℹ</span>
+              <span class="banner-text">Global admin context still applies underneath your personal overrides for organisation structure, BU definitions, document library, thresholds, and escalation logic.</span>
             </div>
           </div>
-          <div class="form-group mt-4">
-            <label class="form-label" for="user-context-summary">Personal Context Summary</label>
-            <textarea class="form-textarea" id="user-context-summary" rows="3">${settings.adminContextSummary || ''}</textarea>
-          </div>
-          <div class="form-group mt-4">
-            <label class="form-label" for="user-appetite">Risk Appetite Statement</label>
-            <textarea class="form-textarea" id="user-appetite" rows="4">${settings.riskAppetiteStatement || ''}</textarea>
-          </div>
-          <div class="form-group mt-4">
-            <label class="form-label">Applicable Regulations</label>
-            <div class="tag-input-wrap" id="ti-user-regulations"></div>
-          </div>
-          <div class="form-group mt-4">
-            <label class="form-label" for="user-ai-instructions">AI Guidance</label>
-            <textarea class="form-textarea" id="user-ai-instructions" rows="3">${settings.aiInstructions || ''}</textarea>
-          </div>
-          <div class="form-group mt-4">
-            <label class="form-label" for="user-benchmark-strategy">Benchmark Strategy</label>
-            <textarea class="form-textarea" id="user-benchmark-strategy" rows="3">${settings.benchmarkStrategy || ''}</textarea>
-          </div>
-        </div>
-
-        <div class="card mt-6" style="padding:var(--sp-5);background:var(--bg-elevated)">
-          <div class="context-panel-title">System Access for This Session</div>
-          <p class="context-panel-copy">${directCompass ? 'Use direct Compass access for temporary testing only. For production, prefer the hosted Vercel proxy URL.' : 'A hosted proxy URL is configured for this user session. Leave the browser key blank and test through the proxy.'}</p>
-          <div class="grid-2 mt-4">
-            <div class="form-group">
-              <label class="form-label" for="user-compass-url">Compass URL</label>
-              <input class="form-input" id="user-compass-url" value="${sessionLLM.apiUrl || DEFAULT_COMPASS_PROXY_URL}">
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="user-compass-model">Model</label>
-              <input class="form-input" id="user-compass-model" value="${sessionLLM.model || 'gpt-5.1'}">
-            </div>
-          </div>
-          <div class="form-group mt-4">
-            <label class="form-label" for="user-compass-key">Compass API Key</label>
-            <input class="form-input" id="user-compass-key" type="password" value="${sessionLLM.apiKey || ''}" placeholder="Paste key for this browser session">
-          </div>
-          <div class="flex items-center gap-3 mt-4" style="flex-wrap:wrap">
-            <button class="btn btn--secondary" id="btn-save-user-session-llm">Save Session Key</button>
-            <button class="btn btn--secondary" id="btn-test-user-session-llm">Test Connection</button>
-            <button class="btn btn--ghost" id="btn-clear-user-session-llm">Clear Session Key</button>
-          </div>
-        </div>
-
-        <div class="flex items-center gap-3 mt-6" style="flex-wrap:wrap">
-          <button class="btn btn--primary" id="btn-save-user-settings">Save My Settings</button>
-          <span class="form-help">These values will be used as your personal defaults in future assessments.</span>
-        </div>
-
-        <div class="banner banner--poc mt-6">
-          <span class="banner-icon">ℹ</span>
-          <span class="banner-text">Global admin context still applies underneath your personal overrides for organisation structure, BU definitions, document library, thresholds, and escalation logic.</span>
         </div>
       </div>
     </main>`);
@@ -3901,274 +3930,276 @@ function renderAdminSettings() {
   const managedAccounts = AuthService.getManagedAccounts();
   const companyEntities = companyStructure.filter(node => isCompanyEntityType(node.type));
   const departmentEntities = companyStructure.filter(node => isDepartmentEntityType(node.type));
-  const orgContextTargetOptions = companyStructure.map(node => `<option value="${node.id}">${node.name} (${node.type})</option>`).join('');
+  const adminIntroSection = renderSettingsSection({
+    title: 'How This Screen Works',
+    description: 'Build the organisation tree first, manage context from each entity, then rely on platform defaults as fallback.',
+    open: true,
+    meta: `${companyEntities.length} business units mapped`,
+    body: `<div class="context-grid">
+      <div class="context-chip-panel">
+        <div class="context-panel-title">1. Build the organisation tree</div>
+        <p class="context-panel-copy">Add holdings, subsidiaries, portfolio companies, partners, and departments in one place.</p>
+      </div>
+      <div class="context-chip-panel">
+        <div class="context-panel-title">2. Manage context from each node</div>
+        <p class="context-panel-copy">Use the tree actions to edit retained business or department context directly on the entity you are working on.</p>
+      </div>
+      <div class="context-chip-panel">
+        <div class="context-panel-title">3. Use platform defaults as fallback</div>
+        <p class="context-panel-copy">Global geography, regulations, thresholds, and AI defaults sit underneath the entity-specific setup.</p>
+      </div>
+    </div>`
+  });
+  const organisationTreeSection = renderSettingsSection({
+    title: 'Organisation Tree',
+    description: "Use this as the main operating view. Add businesses and departments here, then manage each node's retained context from the same tree.",
+    meta: `${companyEntities.length} businesses · ${departmentEntities.length} departments`,
+    open: true,
+    body: `<div class="card" style="padding:var(--sp-5);background:var(--bg-elevated)">
+      <div class="context-panel-title">Add Businesses, Portfolio Entities, Partners, And Departments</div>
+      <p class="context-panel-copy">Use industry-standard relationship types for the wider group. Departments must always sit under a business entity. Company entities can be enriched from public website context before saving.</p>
+      <div class="flex items-center gap-3 mt-4" style="flex-wrap:wrap">
+        <button class="btn btn--secondary" id="btn-add-org-entity">Add Entity</button>
+        <span class="form-help">Context is stored locally in this browser and reused by the AI-assisted intake, register analysis, and scenario drafting steps.</span>
+      </div>
+      <div id="admin-company-structure-summary" class="mt-4">${renderCompanyStructureSummary(companyStructure)}</div>
+    </div>
+    <div class="card mt-4" style="padding:var(--sp-5);background:var(--bg-elevated)">
+      <div class="context-panel-title">Context Coverage Snapshot</div>
+      <p class="context-panel-copy">Use <strong>Manage Context</strong> on any business or department to edit geography, appetite, regulations, and AI guidance for that node.</p>
+      <div id="admin-layer-summary-list" class="mt-4"></div>
+    </div>`
+  });
+  const companyBuilderSection = renderSettingsSection({
+    title: 'AI Company Context Builder',
+    description: 'Build public context for a company website, then place it into the organisation tree as a holding company, subsidiary, portfolio company, partner, or operating business.',
+    meta: settings.companyWebsiteUrl ? 'Website loaded' : 'Optional',
+    body: `<div class="grid-2">
+      <div class="form-group">
+        <label class="form-label" for="admin-company-url">Company Website URL</label>
+        <input class="form-input" id="admin-company-url" value="${settings.companyWebsiteUrl || ''}" placeholder="https://example.com">
+        <span class="form-help">Works through the hosted proxy. Direct browser-to-Compass mode cannot build website context.</span>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="admin-company-profile">Company Risk Context Profile</label>
+        <textarea class="form-textarea" id="admin-company-profile" rows="6" placeholder="Public business profile, operating model, technology exposure, and likely risk signals.">${settings.companyContextProfile || ''}</textarea>
+      </div>
+    </div>
+    <div class="card mt-4" style="padding:var(--sp-4);background:var(--bg-canvas)">
+      <div class="context-panel-title">Editable Company Brief</div>
+      <div class="form-group mt-3">
+        <label class="form-label" for="admin-company-section-summary">Company Summary</label>
+        <textarea class="form-textarea" id="admin-company-section-summary" rows="3">${companyContextSections.companySummary || ''}</textarea>
+      </div>
+      <div class="form-group mt-3">
+        <label class="form-label" for="admin-company-section-business-model">Business Model</label>
+        <textarea class="form-textarea" id="admin-company-section-business-model" rows="3">${companyContextSections.businessModel || ''}</textarea>
+      </div>
+      <div class="form-group mt-3">
+        <label class="form-label" for="admin-company-section-operating-model">Operating Model</label>
+        <textarea class="form-textarea" id="admin-company-section-operating-model" rows="3">${companyContextSections.operatingModel || ''}</textarea>
+      </div>
+      <div class="form-group mt-3">
+        <label class="form-label" for="admin-company-section-commitments">Public Commitments</label>
+        <textarea class="form-textarea" id="admin-company-section-commitments" rows="4">${companyContextSections.publicCommitments || ''}</textarea>
+      </div>
+      <div class="form-group mt-3">
+        <label class="form-label" for="admin-company-section-risks">Key Risk Signals</label>
+        <textarea class="form-textarea" id="admin-company-section-risks" rows="4">${companyContextSections.keyRiskSignals || ''}</textarea>
+      </div>
+      <div class="form-group mt-3">
+        <label class="form-label" for="admin-company-section-obligations">Obligations And Exposures</label>
+        <textarea class="form-textarea" id="admin-company-section-obligations" rows="4">${companyContextSections.obligations || ''}</textarea>
+      </div>
+      <div class="form-group mt-3">
+        <label class="form-label" for="admin-company-section-sources">Sources Reviewed</label>
+        <textarea class="form-textarea" id="admin-company-section-sources" rows="4">${companyContextSections.sources || ''}</textarea>
+      </div>
+    </div>
+    <div class="flex items-center gap-3 mt-4" style="flex-wrap:wrap">
+      <button class="btn btn--secondary" id="btn-build-company-context">Build from Website</button>
+      <span class="form-help">This opens a review step so you can decide where the entity sits in the group.</span>
+    </div>`
+  });
+  const platformDefaultsSection = renderSettingsSection({
+    title: 'Platform Defaults And Governance',
+    description: 'These are fallback rules for the whole platform after the organisation tree and entity context are in place.',
+    meta: `${settings.geography} default geography`,
+    body: `<div class="grid-3">
+      <div class="form-group">
+        <label class="form-label" for="admin-warning-threshold">Warning Trigger (USD)</label>
+        <input class="form-input" id="admin-warning-threshold" type="number" min="0" step="100000" value="${settings.warningThresholdUsd}">
+        <span class="form-help">Amber signal when per-event P90 reaches this value.</span>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="admin-tolerance-threshold">Tolerance Threshold (USD)</label>
+        <input class="form-input" id="admin-tolerance-threshold" type="number" min="0" step="100000" value="${settings.toleranceThresholdUsd}">
+        <span class="form-help">Red trigger when per-event P90 exceeds this value.</span>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="admin-annual-threshold">Annual Review Trigger (USD)</label>
+        <input class="form-input" id="admin-annual-threshold" type="number" min="0" step="100000" value="${settings.annualReviewThresholdUsd}">
+        <span class="form-help">Used to flag high annual exposure in the results view.</span>
+      </div>
+    </div>
+    <div class="form-group mt-4">
+      <label class="form-label" for="admin-escalation-guidance">Escalation Guidance</label>
+      <textarea class="form-textarea" id="admin-escalation-guidance" rows="3">${settings.escalationGuidance}</textarea>
+    </div>
+    <div class="form-group mt-4">
+      <label class="form-label" for="admin-appetite">Risk Appetite Statement</label>
+      <textarea class="form-textarea" id="admin-appetite" rows="4">${settings.riskAppetiteStatement}</textarea>
+    </div>
+    <div class="grid-2 mt-4">
+      <div class="form-group">
+        <label class="form-label" for="admin-geo">Default Geography</label>
+        <input class="form-input" id="admin-geo" value="${settings.geography}">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="admin-link-mode">Default Linked-Risk Mode</label>
+        <select class="form-select" id="admin-link-mode">
+          <option value="yes" ${settings.defaultLinkMode ? 'selected' : ''}>Enabled</option>
+          <option value="no" ${!settings.defaultLinkMode ? 'selected' : ''}>Disabled</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group mt-4">
+      <label class="form-label" for="admin-context-summary">Admin Context Summary</label>
+      <textarea class="form-textarea" id="admin-context-summary" rows="2">${settings.adminContextSummary}</textarea>
+    </div>
+    <div class="form-group mt-4">
+      <label class="form-label">Applicable Regulations</label>
+      <div class="tag-input-wrap" id="ti-admin-regulations"></div>
+    </div>
+    <div class="form-group mt-4">
+      <label class="form-label" for="admin-ai-instructions">AI Guidance</label>
+      <textarea class="form-textarea" id="admin-ai-instructions" rows="3">${settings.aiInstructions}</textarea>
+    </div>
+    <div class="form-group mt-4">
+      <label class="form-label" for="admin-benchmark-strategy">Benchmark Strategy</label>
+      <textarea class="form-textarea" id="admin-benchmark-strategy" rows="3">${settings.benchmarkStrategy}</textarea>
+      <span class="form-help">Explain whether the AI should prefer GCC or UAE references first, and how it should justify any global fallback.</span>
+    </div>
+    <div class="admin-inline-actions mt-4">
+      <a class="btn btn--secondary" href="#/admin/bu">Open Org Customisation</a>
+      <a class="btn btn--secondary" href="#/admin/docs">Open Document Library</a>
+    </div>`
+  });
+  const systemAccessSection = renderSettingsSection({
+    title: 'System Access',
+    description: directCompass ? 'Use direct Compass access for temporary testing only. For production, prefer a hosted proxy URL such as the Vercel endpoint.' : 'A hosted proxy URL is configured. Leave the browser key blank and test through the proxy.',
+    meta: sessionLLM.model || 'gpt-5.1',
+    body: `<div class="grid-2">
+      <div class="form-group">
+        <label class="form-label" for="admin-compass-url">Compass URL</label>
+        <input class="form-input" id="admin-compass-url" value="${sessionLLM.apiUrl || 'https://risk-calculator-eight.vercel.app/api/compass'}">
+        <span class="form-help">Use <code>https://risk-calculator-eight.vercel.app/api/compass</code> for the hosted proxy path.</span>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="admin-compass-model">Model</label>
+        <input class="form-input" id="admin-compass-model" value="${sessionLLM.model || 'gpt-5.1'}">
+      </div>
+    </div>
+    <div class="form-group mt-4">
+      <label class="form-label" for="admin-compass-key">Compass API Key</label>
+      <input class="form-input" id="admin-compass-key" type="password" value="${sessionLLM.apiKey || ''}" placeholder="Paste key for this browser session">
+      <span class="form-help">Leave blank when using the hosted proxy. Only use a browser key for temporary direct testing.</span>
+    </div>
+    <div class="flex items-center gap-3 mt-4" style="flex-wrap:wrap">
+      <button class="btn btn--secondary" id="btn-save-session-llm">Save Session Key</button>
+      <button class="btn btn--secondary" id="btn-test-session-llm">Test Connection</button>
+      <button class="btn btn--ghost" id="btn-clear-session-llm">Clear Session Key</button>
+      <span class="form-help">This does not persist across browser sessions.</span>
+    </div>`
+  });
+  const userControlsSection = renderSettingsSection({
+    title: 'User Account Control',
+    description: 'Reset any standard user account back to a first-time state in this browser.',
+    meta: `${managedAccounts.length} managed accounts`,
+    body: `<div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>User</th>
+            <th>Username</th>
+            <th>Role</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${managedAccounts.map(account => `
+            <tr>
+              <td>${account.displayName}</td>
+              <td><code>${account.username}</code></td>
+              <td>${account.role}</td>
+              <td style="text-align:right">
+                <button class="btn btn--ghost btn--sm btn-reset-user-account" data-username="${account.username}" data-display-name="${account.displayName}" type="button">Reset User</button>
+              </td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div class="form-help mt-3">This only affects data stored in the current browser profile.</div>`
+  });
   setPage(adminLayout('settings', `
-    <div class="flex items-center justify-between mb-6">
-      <div>
-        <h2>Organisation-Led Admin Setup</h2>
-        <p style="margin-top:6px">Build the group structure first, then tune risk context as a layer beneath each business or department. Global defaults sit below that and only fill the gaps.</p>
-      </div>
-      <button class="btn btn--secondary" id="btn-reset-settings">Reset Defaults</button>
-    </div>
-    <div class="card card--elevated mb-6">
-      <div class="context-panel-title">How This Screen Works</div>
-      <div class="context-grid mt-4">
-        <div class="context-chip-panel">
-          <div class="context-panel-title">1. Build the organisation tree</div>
-          <p class="context-panel-copy">Add holdings, subsidiaries, portfolio companies, partners, and departments in one place.</p>
-        </div>
-        <div class="context-chip-panel">
-          <div class="context-panel-title">2. Manage context from each node</div>
-          <p class="context-panel-copy">Use the tree actions to edit the retained business or department context directly on the entity you are working on.</p>
-        </div>
-        <div class="context-chip-panel">
-          <div class="context-panel-title">3. Use platform defaults as fallback</div>
-          <p class="context-panel-copy">Global geography, regulations, thresholds, and AI defaults sit underneath the entity-specific setup.</p>
-        </div>
-      </div>
-    </div>
-    <div class="admin-overview-grid mb-6">
-      <div class="admin-overview-card">
-        <div class="admin-overview-label">Businesses</div>
-        <div class="admin-overview-value">${companyEntities.length}</div>
-        <div class="admin-overview-foot">Holding, operating, JV, listed, and partner entities in the structure</div>
-      </div>
-      <div class="admin-overview-card">
-        <div class="admin-overview-label">Departments</div>
-        <div class="admin-overview-value">${departmentEntities.length}</div>
-        <div class="admin-overview-foot">Functions attached beneath business entities</div>
-      </div>
-      <div class="admin-overview-card">
-        <div class="admin-overview-label">Context Layers</div>
-        <div class="admin-overview-value">${entityContextLayers.length}</div>
-        <div class="admin-overview-foot">Entity-specific overlays for regulations, appetite, and AI behaviour</div>
-      </div>
-      <div class="admin-overview-card">
-        <div class="admin-overview-label">Org Customisation</div>
-        <div class="admin-overview-value">${buCount}</div>
-        <div class="admin-overview-foot">Assessment-ready BU context derived from the organisation tree</div>
-      </div>
-      <div class="admin-overview-card">
-        <div class="admin-overview-label">Document Library</div>
-        <div class="admin-overview-value">${docCount}</div>
-        <div class="admin-overview-foot">Used for citations and document-grounded AI support</div>
-      </div>
-    </div>
-    <div class="card card--elevated">
-      <div class="admin-section-head">
-        <div>
-          <h3>Organisation Tree</h3>
-          <p>Use this as the main operating view. Add businesses and departments here, then manage each node's retained context from the same tree.</p>
-        </div>
-      </div>
-      <div class="card" style="padding:var(--sp-5);background:var(--bg-elevated)">
-        <div class="context-panel-title">Add Businesses, Portfolio Entities, Partners, and Departments</div>
-        <p class="context-panel-copy">Use industry-standard relationship types for the wider group. Departments must always sit under a business entity. Company entities can be enriched from public website context before saving.</p>
-        <div class="flex items-center gap-3 mt-4" style="flex-wrap:wrap">
-          <button class="btn btn--secondary" id="btn-add-org-entity">Add Entity</button>
-          <span class="form-help">Context is stored locally in this browser and reused by the AI-assisted intake, register analysis, and scenario drafting steps.</span>
-        </div>
-        <div id="admin-company-structure-summary" class="mt-4">${renderCompanyStructureSummary(companyStructure)}</div>
-      </div>
-      <div class="card mt-4" style="padding:var(--sp-5);background:var(--bg-elevated)">
-        <div class="context-panel-title">Entity Context Lives On The Tree</div>
-        <p class="context-panel-copy">Business and department context is now managed from the organisation tree itself. Use <strong>Manage Context</strong> on any business or department to edit geography, appetite, regulations, and AI guidance for that node.</p>
-        <div id="admin-layer-summary-list" class="mt-4"></div>
-      </div>
-      <div class="card mt-4" style="padding:var(--sp-5);background:var(--bg-elevated)">
-        <div class="context-panel-title">AI Company Context Builder</div>
-        <p class="context-panel-copy">Build public context for a company website, then place it into the organisation tree as a holding company, subsidiary, portfolio company, partner, or operating business.</p>
-        <div class="grid-2 mt-4">
-          <div class="form-group">
-            <label class="form-label" for="admin-company-url">Company Website URL</label>
-            <input class="form-input" id="admin-company-url" value="${settings.companyWebsiteUrl || ''}" placeholder="https://example.com">
-            <span class="form-help">Works through the hosted proxy. Direct browser-to-Compass mode cannot build website context.</span>
+    <div class="settings-shell">
+      <div class="settings-shell__header">
+        <div class="flex items-center justify-between" style="gap:var(--sp-4);flex-wrap:wrap">
+          <div>
+            <h2>Organisation-Led Admin Setup</h2>
+            <p style="margin-top:6px">Build the group structure first, then tune risk context as a layer beneath each business or department. Global defaults sit below that and only fill the gaps.</p>
           </div>
-          <div class="form-group">
-            <label class="form-label" for="admin-company-profile">Company Risk Context Profile</label>
-            <textarea class="form-textarea" id="admin-company-profile" rows="6" placeholder="Public business profile, operating model, technology exposure, and likely risk signals.">${settings.companyContextProfile || ''}</textarea>
+          <button class="btn btn--secondary" id="btn-reset-settings">Reset Defaults</button>
+        </div>
+        <div class="admin-overview-grid">
+          <div class="admin-overview-card">
+            <div class="admin-overview-label">Businesses</div>
+            <div class="admin-overview-value">${companyEntities.length}</div>
+            <div class="admin-overview-foot">Holding, operating, JV, listed, and partner entities in the structure</div>
+          </div>
+          <div class="admin-overview-card">
+            <div class="admin-overview-label">Departments</div>
+            <div class="admin-overview-value">${departmentEntities.length}</div>
+            <div class="admin-overview-foot">Functions attached beneath business entities</div>
+          </div>
+          <div class="admin-overview-card">
+            <div class="admin-overview-label">Context Layers</div>
+            <div class="admin-overview-value">${entityContextLayers.length}</div>
+            <div class="admin-overview-foot">Entity-specific overlays for regulations, appetite, and AI behaviour</div>
+          </div>
+          <div class="admin-overview-card">
+            <div class="admin-overview-label">Org Customisation</div>
+            <div class="admin-overview-value">${buCount}</div>
+            <div class="admin-overview-foot">Assessment-ready BU context derived from the organisation tree</div>
+          </div>
+          <div class="admin-overview-card">
+            <div class="admin-overview-label">Document Library</div>
+            <div class="admin-overview-value">${docCount}</div>
+            <div class="admin-overview-foot">Used for citations and document-grounded AI support</div>
           </div>
         </div>
-        <div class="card mt-4" style="padding:var(--sp-4);background:var(--bg-canvas)">
-          <div class="context-panel-title">Editable Company Brief</div>
-          <div class="form-group mt-3">
-            <label class="form-label" for="admin-company-section-summary">Company Summary</label>
-            <textarea class="form-textarea" id="admin-company-section-summary" rows="3">${companyContextSections.companySummary || ''}</textarea>
-          </div>
-          <div class="form-group mt-3">
-            <label class="form-label" for="admin-company-section-business-model">Business Model</label>
-            <textarea class="form-textarea" id="admin-company-section-business-model" rows="3">${companyContextSections.businessModel || ''}</textarea>
-          </div>
-          <div class="form-group mt-3">
-            <label class="form-label" for="admin-company-section-operating-model">Operating Model</label>
-            <textarea class="form-textarea" id="admin-company-section-operating-model" rows="3">${companyContextSections.operatingModel || ''}</textarea>
-          </div>
-          <div class="form-group mt-3">
-            <label class="form-label" for="admin-company-section-commitments">Public Commitments</label>
-            <textarea class="form-textarea" id="admin-company-section-commitments" rows="4">${companyContextSections.publicCommitments || ''}</textarea>
-          </div>
-          <div class="form-group mt-3">
-            <label class="form-label" for="admin-company-section-risks">Key Risk Signals</label>
-            <textarea class="form-textarea" id="admin-company-section-risks" rows="4">${companyContextSections.keyRiskSignals || ''}</textarea>
-          </div>
-          <div class="form-group mt-3">
-            <label class="form-label" for="admin-company-section-obligations">Obligations and Exposures</label>
-            <textarea class="form-textarea" id="admin-company-section-obligations" rows="4">${companyContextSections.obligations || ''}</textarea>
-          </div>
-          <div class="form-group mt-3">
-            <label class="form-label" for="admin-company-section-sources">Sources Reviewed</label>
-            <textarea class="form-textarea" id="admin-company-section-sources" rows="4">${companyContextSections.sources || ''}</textarea>
-          </div>
+      </div>
+      <div class="settings-accordion">
+        ${adminIntroSection}
+        ${organisationTreeSection}
+        ${companyBuilderSection}
+        ${platformDefaultsSection}
+        ${systemAccessSection}
+        ${userControlsSection}
+      </div>
+      <div class="settings-shell__footer">
+        <div class="flex items-center gap-3" style="flex-wrap:wrap">
+          <button class="btn btn--primary" id="btn-save-settings">Save Settings</button>
+          <span class="form-help">Applies to new and in-progress assessments immediately.</span>
         </div>
-        <div class="flex items-center gap-3 mt-4" style="flex-wrap:wrap">
-          <button class="btn btn--secondary" id="btn-build-company-context">Build from Website</button>
-          <span class="form-help">This opens a review step so you can decide where the entity sits in the group.</span>
-        </div>
-      </div>
-      <div class="admin-section-head mt-5">
-        <div>
-          <h3>Platform Defaults and Governance</h3>
-          <p>These are fallback rules for the whole platform. Use them after you have built the organisation tree and entity context layers above.</p>
-        </div>
-      </div>
-      <div class="grid-3">
-        <div class="form-group">
-          <label class="form-label" for="admin-warning-threshold">Warning Trigger (USD)</label>
-          <input class="form-input" id="admin-warning-threshold" type="number" min="0" step="100000" value="${settings.warningThresholdUsd}">
-          <span class="form-help">Amber signal when per-event P90 reaches this value.</span>
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="admin-tolerance-threshold">Tolerance Threshold (USD)</label>
-          <input class="form-input" id="admin-tolerance-threshold" type="number" min="0" step="100000" value="${settings.toleranceThresholdUsd}">
-          <span class="form-help">Red trigger when per-event P90 exceeds this value.</span>
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="admin-annual-threshold">Annual Review Trigger (USD)</label>
-          <input class="form-input" id="admin-annual-threshold" type="number" min="0" step="100000" value="${settings.annualReviewThresholdUsd}">
-          <span class="form-help">Used to flag high annual exposure in the results view.</span>
-        </div>
-      </div>
-      <div class="form-group mt-4">
-        <label class="form-label" for="admin-escalation-guidance">Escalation Guidance</label>
-        <textarea class="form-textarea" id="admin-escalation-guidance" rows="3">${settings.escalationGuidance}</textarea>
-      </div>
-      <div class="form-group mt-4">
-        <label class="form-label" for="admin-appetite">Risk Appetite Statement</label>
-        <textarea class="form-textarea" id="admin-appetite" rows="4">${settings.riskAppetiteStatement}</textarea>
-      </div>
-      <div class="admin-section-head mt-5">
-        <div>
-          <h3>Default Context</h3>
-          <p>These values pre-populate the AI-assisted risk builder for new and in-progress assessments.</p>
-        </div>
-      </div>
-      <div class="grid-2">
-        <div class="form-group">
-          <label class="form-label" for="admin-geo">Default Geography</label>
-          <input class="form-input" id="admin-geo" value="${settings.geography}">
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="admin-link-mode">Default Linked-Risk Mode</label>
-          <select class="form-select" id="admin-link-mode">
-            <option value="yes" ${settings.defaultLinkMode ? 'selected' : ''}>Enabled</option>
-            <option value="no" ${!settings.defaultLinkMode ? 'selected' : ''}>Disabled</option>
-          </select>
-        </div>
-      </div>
-      <div class="form-group mt-4">
-        <label class="form-label" for="admin-context-summary">Admin Context Summary</label>
-        <textarea class="form-textarea" id="admin-context-summary" rows="2">${settings.adminContextSummary}</textarea>
-      </div>
-      <div class="form-group mt-4">
-        <label class="form-label">Applicable Regulations</label>
-        <div class="tag-input-wrap" id="ti-admin-regulations"></div>
-      </div>
-      <div class="form-group mt-4">
-        <label class="form-label" for="admin-ai-instructions">AI Guidance</label>
-        <textarea class="form-textarea" id="admin-ai-instructions" rows="3">${settings.aiInstructions}</textarea>
-      </div>
-      <div class="form-group mt-4">
-        <label class="form-label" for="admin-benchmark-strategy">Benchmark Strategy</label>
-        <textarea class="form-textarea" id="admin-benchmark-strategy" rows="3">${settings.benchmarkStrategy}</textarea>
-        <span class="form-help">Explain whether the AI should prefer GCC or UAE references first, and how it should justify any global fallback.</span>
-      </div>
-      <div class="admin-inline-actions mt-4">
-        <a class="btn btn--secondary" href="#/admin/bu">Open Org Customisation</a>
-        <a class="btn btn--secondary" href="#/admin/docs">Open Document Library</a>
-      </div>
-      <div class="card mt-5" style="padding:var(--sp-5);background:var(--bg-elevated)">
-        <div class="context-panel-title">System Access</div>
-        <p class="context-panel-copy">${directCompass ? 'Use direct Compass access for temporary testing only. For production, prefer a hosted proxy URL such as the Vercel endpoint.' : 'A hosted proxy URL is configured. Leave the browser key blank and test through the proxy.'}</p>
-        <div class="grid-2 mt-4">
-          <div class="form-group">
-            <label class="form-label" for="admin-compass-url">Compass URL</label>
-            <input class="form-input" id="admin-compass-url" value="${sessionLLM.apiUrl || 'https://risk-calculator-eight.vercel.app/api/compass'}">
-            <span class="form-help">Use <code>https://risk-calculator-eight.vercel.app/api/compass</code> for the hosted proxy path.</span>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="admin-compass-model">Model</label>
-            <input class="form-input" id="admin-compass-model" value="${sessionLLM.model || 'gpt-5.1'}">
-          </div>
-        </div>
-        <div class="form-group mt-4">
-          <label class="form-label" for="admin-compass-key">Compass API Key</label>
-          <input class="form-input" id="admin-compass-key" type="password" value="${sessionLLM.apiKey || ''}" placeholder="Paste key for this browser session">
-          <span class="form-help">Leave blank when using the hosted proxy. Only use a browser key for temporary direct testing.</span>
-        </div>
-        <div class="flex items-center gap-3 mt-4" style="flex-wrap:wrap">
-          <button class="btn btn--secondary" id="btn-save-session-llm">Save Session Key</button>
-          <button class="btn btn--secondary" id="btn-test-session-llm">Test Connection</button>
-          <button class="btn btn--ghost" id="btn-clear-session-llm">Clear Session Key</button>
-          <span class="form-help">This does not persist across browser sessions.</span>
-        </div>
-      </div>
-      <div class="card mt-5" style="padding:var(--sp-5);background:var(--bg-elevated)">
-        <div class="context-panel-title">User Account Control</div>
-        <p class="context-panel-copy">Reset any standard user account back to a first-time state in this browser. This wipes their onboarding, personal context, saved assessments, learning history, draft, and session-level Compass settings.</p>
-        <div class="table-wrap mt-4">
-          <table>
-            <thead>
-              <tr>
-                <th>User</th>
-                <th>Username</th>
-                <th>Role</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              ${managedAccounts.map(account => `
-                <tr>
-                  <td>${account.displayName}</td>
-                  <td><code>${account.username}</code></td>
-                  <td>${account.role}</td>
-                  <td style="text-align:right">
-                    <button class="btn btn--ghost btn--sm btn-reset-user-account" data-username="${account.username}" data-display-name="${account.displayName}" type="button">Reset User</button>
-                  </td>
-                </tr>`).join('')}
-            </tbody>
-          </table>
-        </div>
-        <div class="form-help mt-3">This only affects data stored in the current browser profile.</div>
-      </div>
-      <div class="flex items-center gap-3 mt-5">
-        <button class="btn btn--primary" id="btn-save-settings">Save Settings</button>
-        <span class="form-help">Applies to new and in-progress assessments immediately.</span>
       </div>
     </div>`));
-
   document.getElementById('btn-admin-logout').addEventListener('click', () => { AuthService.logout(); activateAuthenticatedState(); Router.navigate('/login'); });
   const regsInput = UI.tagInput('ti-admin-regulations', settings.applicableRegulations);
-  const layerRegsInput = companyStructure.length ? UI.tagInput('ti-admin-layer-regulations', []) : null;
   const structureSummaryEl = document.getElementById('admin-company-structure-summary');
   const layerSummaryEl = document.getElementById('admin-layer-summary-list');
   const profileEl = document.getElementById('admin-company-profile');
   const websiteEl = document.getElementById('admin-company-url');
-  const layerTargetEl = document.getElementById('admin-layer-target');
-  const layerGeoEl = document.getElementById('admin-layer-geo');
-  const layerSummaryInputEl = document.getElementById('admin-layer-summary');
-  const layerAppetiteEl = document.getElementById('admin-layer-appetite');
-  const layerAiEl = document.getElementById('admin-layer-ai');
-  const layerBenchmarkEl = document.getElementById('admin-layer-benchmark');
 
   function refreshStructureSummary() {
     structureSummaryEl.innerHTML = renderCompanyStructureSummary(companyStructure);
@@ -4200,31 +4231,6 @@ function renderAdminSettings() {
     bindLayerActionHandlers();
   }
 
-  function clearLayerForm() {
-    if (layerTargetEl) layerTargetEl.value = '';
-    if (layerGeoEl) layerGeoEl.value = '';
-    if (layerSummaryInputEl) layerSummaryInputEl.value = '';
-    if (layerAppetiteEl) layerAppetiteEl.value = '';
-    if (layerAiEl) layerAiEl.value = '';
-    if (layerBenchmarkEl) layerBenchmarkEl.value = '';
-    layerRegsInput?.setTags([]);
-  }
-
-  function loadEntityLayer(entityId) {
-    if (!entityId || !layerTargetEl) {
-      clearLayerForm();
-      return;
-    }
-    const layer = entityContextLayers.find(item => item.entityId === entityId);
-    const node = companyStructure.find(item => item.id === entityId);
-    layerTargetEl.value = entityId;
-    layerGeoEl.value = layer?.geography || '';
-    layerSummaryInputEl.value = layer?.contextSummary || node?.profile || '';
-    layerAppetiteEl.value = layer?.riskAppetiteStatement || '';
-    layerAiEl.value = layer?.aiInstructions || '';
-    layerBenchmarkEl.value = layer?.benchmarkStrategy || '';
-    layerRegsInput?.setTags(layer?.applicableRegulations || []);
-  }
 
   function bindLayerActionHandlers() {
     layerSummaryEl?.querySelectorAll('.admin-layer-edit').forEach(button => {
@@ -4253,7 +4259,6 @@ function renderAdminSettings() {
         if (!await UI.confirm('Remove this business or department context layer?')) return;
         entityContextLayers.splice(index, 1);
         renderEntityLayerSummary();
-        if (layerTargetEl?.value === entityId) clearLayerForm();
         UI.toast('Context layer removed.', 'success');
       });
     });
@@ -4394,31 +4399,6 @@ function renderAdminSettings() {
   document.getElementById('btn-add-org-entity').addEventListener('click', () => openEntityEditor());
   bindStructureActionHandlers();
   renderEntityLayerSummary();
-  layerTargetEl?.addEventListener('change', () => loadEntityLayer(layerTargetEl.value));
-  document.getElementById('btn-clear-layer')?.addEventListener('click', () => clearLayerForm());
-  document.getElementById('btn-save-layer')?.addEventListener('click', () => {
-    const entityId = layerTargetEl?.value;
-    if (!entityId) {
-      UI.toast('Choose a business or department first.', 'warning');
-      return;
-    }
-    const node = companyStructure.find(item => item.id === entityId);
-    const nextLayer = {
-      entityId,
-      entityName: node?.name || '',
-      geography: layerGeoEl?.value.trim() || '',
-      contextSummary: layerSummaryInputEl?.value.trim() || '',
-      riskAppetiteStatement: layerAppetiteEl?.value.trim() || '',
-      applicableRegulations: layerRegsInput?.getTags() || [],
-      aiInstructions: layerAiEl?.value.trim() || '',
-      benchmarkStrategy: layerBenchmarkEl?.value.trim() || ''
-    };
-    const existingIndex = entityContextLayers.findIndex(item => item.entityId === entityId);
-    if (existingIndex > -1) entityContextLayers[existingIndex] = nextLayer;
-    else entityContextLayers.push(nextLayer);
-    renderEntityLayerSummary();
-    UI.toast(`Saved context layer for ${node?.name || 'selected entity'}.`, 'success');
-  });
   document.getElementById('btn-save-settings').addEventListener('click', () => {
     const warningThresholdUsd = Math.max(0, parseFloat(document.getElementById('admin-warning-threshold').value) || DEFAULT_ADMIN_SETTINGS.warningThresholdUsd);
     const toleranceThresholdUsd = Math.max(0, parseFloat(document.getElementById('admin-tolerance-threshold').value) || TOLERANCE_THRESHOLD);
