@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const { appendAuditEvent, verifySessionToken } = require('./_audit');
 
 const SETTINGS_KEY = process.env.SETTINGS_STORE_KEY || 'risk_calculator_settings';
 const ADMIN_API_SECRET = process.env.ADMIN_API_SECRET || '';
@@ -91,24 +92,6 @@ function isAdminSecretValid(req) {
   return !!ADMIN_API_SECRET && req.headers['x-admin-secret'] === ADMIN_API_SECRET;
 }
 
-function getSessionSigningSecret() {
-  return ADMIN_API_SECRET || getKvToken() || 'risk-calculator-poc-session-secret';
-}
-
-function verifySessionToken(token) {
-  const value = String(token || '').trim();
-  if (!value || !value.includes('.')) return null;
-  const [payloadPart, signature] = value.split('.', 2);
-  const expected = crypto.createHmac('sha256', getSessionSigningSecret()).update(payloadPart).digest('base64url');
-  if (signature !== expected) return null;
-  try {
-    const payload = JSON.parse(Buffer.from(payloadPart, 'base64url').toString('utf8'));
-    if (!payload?.username || Number(payload.exp || 0) < Date.now()) return null;
-    return payload;
-  } catch {
-    return null;
-  }
-}
 
 module.exports = async function handler(req, res) {
   const allowedOrigin = process.env.ALLOWED_ORIGIN || 'https://slackspac3.github.io';
@@ -158,6 +141,7 @@ module.exports = async function handler(req, res) {
         return;
       }
       const settings = await writeSettings(body.settings || {});
+      await appendAuditEvent({ category: body.audit?.category || 'settings', eventType: body.audit?.eventType || 'settings_updated', actorUsername: session?.username || 'admin', actorRole: session?.role || 'admin', target: body.audit?.target || 'global_settings', status: 'success', source: 'server', details: body.audit?.details || {} });
       res.status(200).json({ settings });
       return;
     }

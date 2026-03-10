@@ -1,4 +1,5 @@
 const USER_STATE_PREFIX = process.env.USER_STATE_PREFIX || 'risk_calculator_user_state';
+const { appendAuditEvent, verifySessionToken } = require('./_audit');
 
 function getKvUrl() {
   return process.env.APPLE_CAT || process.env.FOO_URL_TEST || process.env.RC_USER_STORE_URL || process.env.USER_STORE_KV_URL || process.env.KV_REST_API_URL || '';
@@ -66,7 +67,7 @@ module.exports = async function handler(req, res) {
 
   res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
   res.setHeader('Access-Control-Allow-Methods', 'GET,PUT,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'content-type');
+  res.setHeader('Access-Control-Allow-Headers', 'content-type,x-session-token');
   res.setHeader('Vary', 'Origin');
 
   if (req.method === 'OPTIONS') {
@@ -95,6 +96,19 @@ module.exports = async function handler(req, res) {
 
     if (req.method === 'PUT') {
       const state = await writeUserState(username, body.state || {});
+      const session = verifySessionToken(req.headers['x-session-token']);
+      if (body.audit && session?.username === username) {
+        await appendAuditEvent({
+          category: body.audit.category || 'user_state',
+          eventType: body.audit.eventType || 'user_state_updated',
+          actorUsername: session.username,
+          actorRole: session.role || 'user',
+          target: body.audit.target || username,
+          status: 'success',
+          source: 'server',
+          details: body.audit.details || {}
+        });
+      }
       res.status(200).json({ state });
       return;
     }

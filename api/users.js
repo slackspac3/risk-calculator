@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const { appendAuditEvent } = require('./_audit');
 
 const DEFAULT_ACCOUNTS = [
   { username: 'admin', password: 'Admin@Risk2026', displayName: 'Global Admin', role: 'admin', businessUnitEntityId: '', departmentEntityId: '' },
@@ -210,6 +211,7 @@ module.exports = async function handler(req, res) {
         const password = String(body.password || '');
         const throttleKey = getLoginThrottleKey(req, username);
         if (isLoginRateLimited(throttleKey)) {
+          await appendAuditEvent({ category: 'auth', eventType: 'login_rate_limited', actorUsername: username || 'unknown', actorRole: 'anonymous', status: 'blocked', source: 'server', details: { ip: getLoginThrottleKey(req, username).split('::')[1] || 'unknown' } });
           res.status(429).json({ error: 'Too many login attempts. Please wait and try again.' });
           return;
         }
@@ -217,10 +219,12 @@ module.exports = async function handler(req, res) {
         const matched = accounts.find(account => account.username === username && account.password === password);
         if (!matched) {
           recordFailedLogin(throttleKey);
+          await appendAuditEvent({ category: 'auth', eventType: 'login_failure', actorUsername: username || 'unknown', actorRole: 'anonymous', status: 'failed', source: 'server' });
           res.status(401).json({ error: 'Invalid username or password.' });
           return;
         }
         clearFailedLogin(throttleKey);
+        await appendAuditEvent({ category: 'auth', eventType: 'login_success', actorUsername: matched.username, actorRole: matched.role, status: 'success', source: 'server' });
         res.status(200).json({
           user: sanitiseAccount(matched),
           sessionToken: createSessionToken(matched)
@@ -245,6 +249,7 @@ module.exports = async function handler(req, res) {
       }
       accounts.push(account);
       await writeAccounts(accounts);
+      await appendAuditEvent({ category: 'user_admin', eventType: 'user_created', actorUsername: 'admin', actorRole: 'admin', target: account.username, status: 'success', source: 'server', details: { role: account.role, businessUnitEntityId: account.businessUnitEntityId, departmentEntityId: account.departmentEntityId } });
       res.status(201).json({
         account: sanitiseAccount(account),
         password: account.password,
@@ -269,6 +274,7 @@ module.exports = async function handler(req, res) {
           departmentEntityId: typeof updates.departmentEntityId === 'string' ? updates.departmentEntityId : accounts[index].departmentEntityId
         });
         await writeAccounts(accounts);
+        await appendAuditEvent({ category: 'profile', eventType: 'self_assignment_updated', actorUsername: accounts[index].username, actorRole: accounts[index].role, target: accounts[index].username, status: 'success', source: 'server', details: { businessUnitEntityId: accounts[index].businessUnitEntityId, departmentEntityId: accounts[index].departmentEntityId } });
         res.status(200).json({ accounts: accounts.map(sanitiseAccount) });
         return;
       }
@@ -283,6 +289,7 @@ module.exports = async function handler(req, res) {
           password: nextPassword
         });
         await writeAccounts(accounts);
+        await appendAuditEvent({ category: 'user_admin', eventType: 'password_reset', actorUsername: 'admin', actorRole: 'admin', target: accounts[index].username, status: 'success', source: 'server' });
         res.status(200).json({
           account: sanitiseAccount(accounts[index]),
           password: nextPassword,
@@ -298,6 +305,7 @@ module.exports = async function handler(req, res) {
         departmentEntityId: typeof updates.departmentEntityId === 'string' ? updates.departmentEntityId : accounts[index].departmentEntityId
       });
       await writeAccounts(accounts);
+      await appendAuditEvent({ category: 'user_admin', eventType: body.action === 'admin-update' ? 'managed_user_updated' : 'user_updated', actorUsername: 'admin', actorRole: 'admin', target: accounts[index].username, status: 'success', source: 'server', details: { role: accounts[index].role, businessUnitEntityId: accounts[index].businessUnitEntityId, departmentEntityId: accounts[index].departmentEntityId } });
       res.status(200).json({ accounts: accounts.map(sanitiseAccount) });
       return;
     }

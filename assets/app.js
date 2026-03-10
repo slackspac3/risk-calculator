@@ -53,7 +53,8 @@ const AppState = {
   settingsSectionState: {},
   settingsScrollState: {},
   adminSettingsCache: null,
-  userStateCache: { username: '', userSettings: null, assessments: null, learningStore: null }
+  userStateCache: { username: '', userSettings: null, assessments: null, learningStore: null },
+  auditLogCache: { loaded: false, loading: false, entries: [], summary: null, error: '' }
 };
 
 
@@ -108,10 +109,79 @@ async function loadSharedAdminSettings() {
   return null;
 }
 
-function syncSharedAdminSettings(settings) {
-  return requestSharedSettings('PUT', { settings }, { includeAdminSecret: true });
+function syncSharedAdminSettings(settings, audit = null) {
+  return requestSharedSettings('PUT', { settings, audit }, { includeAdminSecret: true });
 }
 
+function getAuditApiUrl() {
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  if (origin && origin.includes('vercel.app')) return `${origin}/api/audit-log`;
+  return 'https://risk-calculator-eight.vercel.app/api/audit-log';
+}
+
+async function requestAuditLog(method = 'GET', payload, { includeAdminSecret = false } = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (includeAdminSecret && AuthService.getAdminApiSecret()) headers['x-admin-secret'] = AuthService.getAdminApiSecret();
+  if (AuthService.getApiSessionToken()) headers['x-session-token'] = AuthService.getApiSessionToken();
+  const res = await fetch(getAuditApiUrl(), { method, headers, body: payload ? JSON.stringify(payload) : undefined });
+  const text = await res.text();
+  let parsed = null;
+  try { parsed = text ? JSON.parse(text) : null; } catch {}
+  if (!res.ok) throw new Error(parsed?.detail || parsed?.error || text || `Audit request failed with HTTP ${res.status}`);
+  return parsed || {};
+}
+
+async function loadAuditLog() {
+  AppState.auditLogCache.loading = true;
+  try {
+    const data = await requestAuditLog('GET', undefined, { includeAdminSecret: true });
+    AppState.auditLogCache = {
+      loaded: true,
+      loading: false,
+      entries: Array.isArray(data.entries) ? data.entries : [],
+      summary: data.summary || null,
+      error: ''
+    };
+    return AppState.auditLogCache;
+  } catch (error) {
+    AppState.auditLogCache = {
+      loaded: true,
+      loading: false,
+      entries: [],
+      summary: null,
+      error: error instanceof Error ? error.message : String(error)
+    };
+    throw error;
+  }
+}
+
+async function logAuditEvent(event = {}) {
+  try {
+    await requestAuditLog('POST', event, { includeAdminSecret: false });
+  } catch (error) {
+    console.warn('logAuditEvent failed:', error.message);
+  }
+}
+
+function formatAuditDetails(details = {}) {
+  if (!details || typeof details !== 'object') return '';
+  return Object.entries(details)
+    .filter(([, value]) => value !== undefined && value !== null && value !== '')
+    .slice(0, 3)
+    .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : String(value)}`)
+    .join(' · ');
+}
+
+async function performLogout({ renderLoginScreen = false } = {}) {
+  const currentUser = AuthService.getCurrentUser();
+  if (currentUser?.username) {
+    await logAuditEvent({ category: 'auth', eventType: 'logout', target: currentUser.username, status: 'success', source: 'client' });
+  }
+  AuthService.logout();
+  activateAuthenticatedState();
+  if (renderLoginScreen) renderLogin();
+  else Router.navigate('/login');
+}
 
 function getUserStateApiUrl() {
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
@@ -119,17 +189,19 @@ function getUserStateApiUrl() {
   return 'https://risk-calculator-eight.vercel.app/api/user-state';
 }
 
-async function requestUserState(method = 'GET', username, payload) {
+async function requestUserState(method = 'GET', username, payload, audit = null) {
   const safeUsername = String(username || '').trim().toLowerCase();
   const url = method === 'GET'
     ? `${getUserStateApiUrl()}?username=${encodeURIComponent(safeUsername)}`
     : getUserStateApiUrl();
+  const headers = {
+    'Content-Type': 'application/json'
+  };
+  if (AuthService.getApiSessionToken()) headers['x-session-token'] = AuthService.getApiSessionToken();
   const res = await fetch(url, {
     method,
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: method === 'GET' ? undefined : JSON.stringify({ username: safeUsername, state: payload })
+    headers,
+    body: method === 'GET' ? undefined : JSON.stringify({ username: safeUsername, state: payload, audit })
   });
   const text = await res.text();
   let parsed = null;
@@ -697,7 +769,7 @@ function applyManagedAccountAssignmentToSettings(account, updates = {}, baseSett
   };
 }
 
-function saveAdminSettings(settings) {
+function saveAdminSettings(settings, options = {}) {
   const merged = {
     ...DEFAULT_ADMIN_SETTINGS,
     ...settings,
@@ -708,8 +780,8 @@ function saveAdminSettings(settings) {
   };
   AppState.adminSettingsCache = merged;
   localStorage.setItem(GLOBAL_ADMIN_STORAGE_KEY, JSON.stringify(merged));
-  if (AuthService.getAdminApiSecret()) {
-    syncSharedAdminSettings(merged).catch(error => console.warn('syncSharedAdminSettings failed:', error.message));
+  if (AuthService.getAdminApiSecret() || AuthService.getApiSessionToken()) {
+    syncSharedAdminSettings(merged, options.audit || null).catch(error => console.warn('syncSharedAdminSettings failed:', error.message));
   }
 }
 
@@ -1952,9 +2024,7 @@ function renderAppBar() {
   document.getElementById('cur-usd').addEventListener('click', () => { AppState.currency='USD'; renderAppBar(); Router.resolve(); });
   document.getElementById('cur-aed').addEventListener('click', () => { AppState.currency='AED'; renderAppBar(); Router.resolve(); });
   document.getElementById('btn-sign-out')?.addEventListener('click', () => {
-    AuthService.logout();
-    activateAuthenticatedState();
-    Router.navigate('/login');
+    performLogout();
   });
 }
 
@@ -3433,9 +3503,7 @@ function renderLoginOrganisationSelection(currentUser, existingSettings = getUse
       renderSelectionStep();
     });
     document.getElementById('btn-login-switch-account').addEventListener('click', () => {
-      AuthService.logout();
-      activateAuthenticatedState();
-      renderLogin();
+      performLogout({ renderLoginScreen: true });
     });
     document.getElementById('btn-login-context-continue').addEventListener('click', async () => {
       const businessUnitEntityId = document.getElementById('login-business-unit').value;
@@ -4279,8 +4347,9 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
   const userSettingsRoot = document.querySelector('.settings-shell');
   bindAutosave(userSettingsRoot, () => persistUserSettings(false));
 
-  document.getElementById('btn-save-user-settings').addEventListener('click', () => {
+  document.getElementById('btn-save-user-settings').addEventListener('click', async () => {
     persistUserSettings(true);
+    await logAuditEvent({ category: 'profile', eventType: 'personal_settings_saved', target: AuthService.getCurrentUser()?.username || '', status: 'success', source: 'client' });
   });
 
   document.getElementById('btn-user-add-department')?.addEventListener('click', () => {
@@ -4683,6 +4752,34 @@ function renderAdminSettings() {
       <span class="form-help">This does not persist across browser sessions.</span>
     </div>`
   });
+  const auditCache = AppState.auditLogCache || { loaded: false, loading: false, entries: [], summary: null, error: '' };
+  const auditSummary = auditCache.summary || {};
+  const auditEntries = Array.isArray(auditCache.entries) ? auditCache.entries.slice(0, 25) : [];
+  const auditLogSection = renderSettingsSection({
+    title: 'Audit Log',
+    scope: 'admin-settings',
+    description: 'Short-retention PoC audit trail for login activity, user management, and shared settings changes.',
+    meta: auditSummary.total ? `${auditSummary.total} retained events` : 'Demo retention only',
+    body: `<div class="admin-overview-grid">
+      <div class="admin-overview-card"><div class="admin-overview-label">Login Success</div><div class="admin-overview-value">${auditSummary.loginSuccessCount || 0}</div></div>
+      <div class="admin-overview-card"><div class="admin-overview-label">Login Failure</div><div class="admin-overview-value">${auditSummary.loginFailureCount || 0}</div></div>
+      <div class="admin-overview-card"><div class="admin-overview-label">Logout</div><div class="admin-overview-value">${auditSummary.logoutCount || 0}</div></div>
+      <div class="admin-overview-card"><div class="admin-overview-label">Admin Actions</div><div class="admin-overview-value">${auditSummary.adminActionCount || 0}</div></div>
+      <div class="admin-overview-card"><div class="admin-overview-label">BU Admin Actions</div><div class="admin-overview-value">${auditSummary.buAdminActionCount || 0}</div></div>
+      <div class="admin-overview-card"><div class="admin-overview-label">User Actions</div><div class="admin-overview-value">${auditSummary.userActionCount || 0}</div></div>
+    </div>
+    <div class="flex items-center gap-3 mt-4" style="flex-wrap:wrap">
+      <button class="btn btn--secondary" id="btn-refresh-audit-log" type="button">${auditCache.loading ? 'Refreshing…' : 'Refresh Audit Log'}</button>
+      <span class="form-help" id="audit-log-status">${auditCache.error || `Retention is capped at ${auditSummary.retainedCapacity || 200} recent events and older entries are overwritten.`}</span>
+    </div>
+    <div class="table-wrap mt-4">
+      <table>
+        <thead><tr><th>Time</th><th>Actor</th><th>Role</th><th>Event</th><th>Target</th><th>Status</th><th>Details</th></tr></thead>
+        <tbody>${auditEntries.length ? auditEntries.map(entry => `<tr><td>${new Date(entry.ts).toLocaleString()}</td><td>${entry.actorUsername || 'system'}</td><td>${entry.actorRole || 'system'}</td><td>${entry.eventType || 'event'}</td><td>${entry.target || '—'}</td><td>${entry.status || 'success'}</td><td>${formatAuditDetails(entry.details) || '—'}</td></tr>`).join('') : '<tr><td colspan="7">No audit events loaded yet.</td></tr>'}</tbody>
+      </table>
+    </div>`
+  });
+
   const userControlsSection = renderSettingsSection({
     title: 'User Account Control',
     scope: 'admin-settings',
@@ -4831,6 +4928,7 @@ function renderAdminSettings() {
         ${platformDefaultsSection}
         ${systemAccessSection}
         ${userControlsSection}
+        ${auditLogSection}
       </div>
       <div class="settings-shell__footer">
         <div class="flex items-center gap-3" style="flex-wrap:wrap">
@@ -4842,7 +4940,22 @@ function renderAdminSettings() {
   bindSettingsSectionState('admin-settings', document);
   restoreSettingsScroll('admin-settings');
 
-  document.getElementById('btn-admin-logout').addEventListener('click', () => { AuthService.logout(); activateAuthenticatedState(); Router.navigate('/login'); });
+  document.getElementById('btn-admin-logout').addEventListener('click', () => { performLogout(); });
+  document.getElementById('btn-refresh-audit-log')?.addEventListener('click', async () => {
+    try {
+      await loadAuditLog();
+      rememberSettingsScroll('admin-settings');
+      renderAdminSettings();
+    } catch (error) {
+      UI.toast(`Audit log refresh failed: ${error instanceof Error ? error.message : String(error)}`, 'warning');
+    }
+  });
+  if (!AppState.auditLogCache.loaded && !AppState.auditLogCache.loading) {
+    loadAuditLog().then(() => {
+      rememberSettingsScroll('admin-settings');
+      renderAdminSettings();
+    }).catch(() => {});
+  }
   const regsInput = UI.tagInput('ti-admin-regulations', settings.applicableRegulations);
   const structureSummaryEl = document.getElementById('admin-company-structure-summary');
   const layerSummaryEl = document.getElementById('admin-layer-summary-list');
@@ -5548,7 +5661,7 @@ function renderAdminBU() {
         <p class="context-panel-copy">Add entities first, then add functions underneath the owning entity.</p>
       </div>`}`));
 
-  document.getElementById('btn-admin-logout').addEventListener('click', () => { AuthService.logout(); activateAuthenticatedState(); Router.navigate('/login'); });
+  document.getElementById('btn-admin-logout').addEventListener('click', () => { performLogout(); });
   document.querySelectorAll('.btn-edit-company-context').forEach(button => {
     button.addEventListener('click', () => {
       const entity = structureMap.get(button.dataset.companyId || '');
@@ -5815,7 +5928,7 @@ function renderAdminDocs() {
       </table>
     </div>`));
 
-  document.getElementById('btn-admin-logout').addEventListener('click', () => { AuthService.logout(); activateAuthenticatedState(); Router.navigate('/login'); });
+  document.getElementById('btn-admin-logout').addEventListener('click', () => { performLogout(); });
   document.getElementById('btn-reindex').addEventListener('click', () => { RAGService.init(getDocList(), getBUList()); UI.toast('Index rebuilt.','success'); });
   document.getElementById('btn-reset-docs').addEventListener('click', async () => {
     if (await UI.confirm('Reset docs to defaults?')) {
