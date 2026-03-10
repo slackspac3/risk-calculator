@@ -61,6 +61,15 @@ async function writeAccounts(accounts) {
 
 module.exports = async function handler(req, res) {
   const allowedOrigin = process.env.ALLOWED_ORIGIN || 'https://slackspac3.github.io';
+  const body = typeof req.body === 'string'
+    ? (() => {
+        try {
+          return JSON.parse(req.body || '{}');
+        } catch {
+          return {};
+        }
+      })()
+    : (req.body || {});
 
   res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,OPTIONS');
@@ -87,7 +96,7 @@ module.exports = async function handler(req, res) {
 
     if (req.method === 'POST') {
       const accounts = await readAccounts();
-      const account = normaliseAccount(req.body?.account || {});
+      const account = normaliseAccount(body.account || {});
       if (!account.username || !account.password) {
         res.status(400).json({ error: 'Missing username or password.' });
         return;
@@ -103,8 +112,8 @@ module.exports = async function handler(req, res) {
     }
 
     if (req.method === 'PATCH') {
-      const username = String(req.body?.username || '').trim().toLowerCase();
-      const updates = req.body?.updates || {};
+      const username = String(body.username || '').trim().toLowerCase();
+      const updates = body.updates || {};
       const accounts = await readAccounts();
       const index = accounts.findIndex(account => account.username === username);
       if (index < 0) {

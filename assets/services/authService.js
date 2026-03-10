@@ -70,11 +70,15 @@ const AuthService = (() => {
       },
       body: payload ? JSON.stringify(payload) : undefined
     });
+    const text = await res.text();
+    let parsed = null;
+    try {
+      parsed = text ? JSON.parse(text) : null;
+    } catch {}
     if (!res.ok) {
-      const text = await res.text();
-      throw new Error(text || `User store request failed with HTTP ${res.status}`);
+      throw new Error(parsed?.detail || parsed?.error || text || `User store request failed with HTTP ${res.status}`);
     }
-    return res.json();
+    return parsed || {};
   }
 
   async function init() {
