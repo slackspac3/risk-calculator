@@ -53,7 +53,20 @@ const USER_SETTINGS_KEYS = [
   'aiInstructions',
   'benchmarkStrategy',
   'defaultLinkMode',
-  'adminContextSummary'
+  'adminContextSummary',
+  'userProfile',
+  'onboardedAt'
+];
+
+const USER_FOCUS_OPTIONS = [
+  'Cyber risk',
+  'Technology resilience',
+  'Operational continuity',
+  'Third-party risk',
+  'Regulatory compliance',
+  'Audit readiness',
+  'Data protection',
+  'Executive reporting'
 ];
 
 function getCurrentUserOrThrow() {
@@ -79,8 +92,42 @@ function getUserSettingsDefaults(globalSettings = getAdminSettings()) {
     aiInstructions: globalSettings.aiInstructions,
     benchmarkStrategy: globalSettings.benchmarkStrategy,
     defaultLinkMode: globalSettings.defaultLinkMode,
-    adminContextSummary: globalSettings.adminContextSummary
+    adminContextSummary: globalSettings.adminContextSummary,
+    onboardedAt: '',
+    userProfile: {
+      fullName: '',
+      jobTitle: '',
+      department: '',
+      businessUnit: '',
+      focusAreas: [],
+      preferredOutputs: '',
+      workingContext: ''
+    }
   };
+}
+
+function normaliseUserProfile(profile = {}, currentUser = AuthService.getCurrentUser()) {
+  return {
+    fullName: String(profile.fullName || currentUser?.displayName || '').trim(),
+    jobTitle: String(profile.jobTitle || '').trim(),
+    department: String(profile.department || '').trim(),
+    businessUnit: String(profile.businessUnit || '').trim(),
+    focusAreas: Array.isArray(profile.focusAreas) ? profile.focusAreas.map(String).filter(Boolean) : [],
+    preferredOutputs: String(profile.preferredOutputs || '').trim(),
+    workingContext: String(profile.workingContext || '').trim()
+  };
+}
+
+function buildUserProfileSummary(profile = {}) {
+  const parts = [];
+  if (profile.fullName) parts.push(`Name: ${profile.fullName}`);
+  if (profile.jobTitle) parts.push(`Role: ${profile.jobTitle}`);
+  if (profile.department) parts.push(`Department: ${profile.department}`);
+  if (profile.businessUnit) parts.push(`Business unit: ${profile.businessUnit}`);
+  if (profile.focusAreas?.length) parts.push(`Focus areas: ${profile.focusAreas.join(', ')}`);
+  if (profile.preferredOutputs) parts.push(`Preferred outputs: ${profile.preferredOutputs}`);
+  if (profile.workingContext) parts.push(`Working context: ${profile.workingContext}`);
+  return parts.join('\n');
 }
 
 const LEARNING_PARAM_KEYS = [
@@ -364,6 +411,7 @@ function getUserSettings() {
       ...defaults,
       ...saved,
       applicableRegulations: Array.isArray(saved.applicableRegulations) ? saved.applicableRegulations : [...defaults.applicableRegulations],
+      userProfile: normaliseUserProfile(saved.userProfile || defaults.userProfile),
       companyContextSections: saved.companyContextSections && typeof saved.companyContextSections === 'object'
         ? saved.companyContextSections
         : defaults.companyContextSections
@@ -371,7 +419,8 @@ function getUserSettings() {
   } catch {
     return {
       ...defaults,
-      applicableRegulations: [...defaults.applicableRegulations]
+      applicableRegulations: [...defaults.applicableRegulations],
+      userProfile: normaliseUserProfile(defaults.userProfile)
     };
   }
 }
@@ -383,6 +432,7 @@ function saveUserSettings(settings) {
     ...defaults,
     ...settings,
     applicableRegulations: Array.isArray(settings.applicableRegulations) ? settings.applicableRegulations : [...defaults.applicableRegulations],
+    userProfile: normaliseUserProfile(settings.userProfile || defaults.userProfile),
     companyContextSections: settings.companyContextSections && typeof settings.companyContextSections === 'object'
       ? settings.companyContextSections
       : defaults.companyContextSections
@@ -401,6 +451,8 @@ function getEffectiveSettings() {
     ...globalSettings,
     ...userSettings,
     applicableRegulations: Array.isArray(userSettings.applicableRegulations) ? userSettings.applicableRegulations : [...globalSettings.applicableRegulations],
+    userProfile: normaliseUserProfile(userSettings.userProfile),
+    userProfileSummary: buildUserProfileSummary(normaliseUserProfile(userSettings.userProfile)),
     companyContextSections: userSettings.companyContextSections && typeof userSettings.companyContextSections === 'object'
       ? userSettings.companyContextSections
       : globalSettings.companyContextSections
@@ -2696,14 +2748,223 @@ function renderUserSettings() {
     Router.navigate('/admin/settings');
     return;
   }
+
+  const settings = getUserSettings();
+  if (!settings.onboardedAt) {
+    renderUserOnboarding(settings);
+    return;
+  }
+  renderUserPreferences(settings);
+}
+
+function renderUserOnboarding(existingSettings = getUserSettings(), startStep = 0) {
+  if (!requireAuth()) return;
   const globalSettings = getAdminSettings();
   const settings = getUserSettings();
+  const profile = normaliseUserProfile(existingSettings.userProfile || settings.userProfile);
+  const draftSettings = {
+    ...settings,
+    ...existingSettings,
+    userProfile: profile
+  };
+  let currentStep = Math.max(0, Math.min(4, Number(startStep) || 0));
+
+  function saveProgress(markComplete = false) {
+    saveUserSettings({
+      ...draftSettings,
+      onboardedAt: markComplete ? (draftSettings.onboardedAt || new Date().toISOString()) : draftSettings.onboardedAt || ''
+    });
+  }
+
+  function renderStep() {
+    const stepMeta = [
+      {
+        title: 'Let the platform know who you are',
+        prompt: 'Start with your name and role so the platform can tailor guidance to your perspective.',
+        body: `
+          <div class="form-group">
+            <label class="form-label" for="onboard-name">What should the platform call you?</label>
+            <input class="form-input" id="onboard-name" value="${draftSettings.userProfile.fullName || AppState.currentUser?.displayName || ''}" placeholder="Your full name">
+          </div>
+          <div class="form-group mt-4">
+            <label class="form-label" for="onboard-title">What is your role?</label>
+            <input class="form-input" id="onboard-title" value="${draftSettings.userProfile.jobTitle || ''}" placeholder="e.g. Risk Manager, Technology Lead, Compliance Officer">
+          </div>`
+      },
+      {
+        title: 'Where do you sit in the organisation?',
+        prompt: 'This helps the platform interpret scenarios using the right business context.',
+        body: `
+          <div class="form-group">
+            <label class="form-label" for="onboard-department">Department or function</label>
+            <input class="form-input" id="onboard-department" value="${draftSettings.userProfile.department || ''}" placeholder="e.g. Information Security, Operations, Legal">
+          </div>
+          <div class="form-group mt-4">
+            <label class="form-label" for="onboard-bu">Business unit or entity</label>
+            <input class="form-input" id="onboard-bu" value="${draftSettings.userProfile.businessUnit || ''}" placeholder="e.g. Digital Platforms, Shared Services, Corporate">
+          </div>`
+      },
+      {
+        title: 'What do you care about most?',
+        prompt: 'Choose the themes that should influence how the platform frames analysis for you.',
+        body: `
+          <div class="form-group">
+            <label class="form-label" for="onboard-geo">Primary geography</label>
+            <input class="form-input" id="onboard-geo" value="${draftSettings.geography || globalSettings.geography}" placeholder="e.g. UAE, GCC, Global">
+          </div>
+          <div class="form-group mt-4">
+            <label class="form-label">Focus areas</label>
+            <div class="tag-input-wrap" id="ti-onboard-focus"></div>
+            <div class="citation-chips" style="margin-top:10px">
+              ${USER_FOCUS_OPTIONS.map(option => `<button type="button" class="chip onboard-focus-chip" data-focus="${option}">${option}</button>`).join('')}
+            </div>
+          </div>`
+      },
+      {
+        title: 'What makes a useful answer for you?',
+        prompt: 'Tell the platform how you want outputs to be framed.',
+        body: `
+          <div class="form-group">
+            <label class="form-label" for="onboard-preferred-outputs">Preferred output style</label>
+            <textarea class="form-textarea" id="onboard-preferred-outputs" rows="4" placeholder="e.g. Give me crisp executive summaries, clear risk drivers, and actions I can take with my team.">${draftSettings.userProfile.preferredOutputs || ''}</textarea>
+          </div>
+          <div class="form-group mt-4">
+            <label class="form-label" for="onboard-working-context">Anything important about your working context?</label>
+            <textarea class="form-textarea" id="onboard-working-context" rows="4" placeholder="e.g. I mostly support regulated services and need outputs that balance resilience, compliance, and board reporting.">${draftSettings.userProfile.workingContext || ''}</textarea>
+          </div>`
+      },
+      {
+        title: 'Seed your personal defaults',
+        prompt: 'You can keep this light. The idea is to give your account a useful starting point, not to fill in a full admin form.',
+        body: `
+          <div class="form-group">
+            <label class="form-label" for="onboard-company-url">Company website URL</label>
+            <input class="form-input" id="onboard-company-url" value="${draftSettings.companyWebsiteUrl || ''}" placeholder="https://example.com">
+            <span class="form-help">Optional now. You can build company context later from your settings screen.</span>
+          </div>
+          <div class="form-group mt-4">
+            <label class="form-label" for="onboard-ai-guidance">Personal AI guidance</label>
+            <textarea class="form-textarea" id="onboard-ai-guidance" rows="4" placeholder="e.g. Prefer plain-English recommendations, focus on operational resilience, and keep regional context explicit.">${draftSettings.aiInstructions || ''}</textarea>
+          </div>`
+      }
+    ];
+
+    const step = stepMeta[currentStep];
+    setPage(`
+      <main class="page">
+        <div class="container container--narrow" style="padding:var(--sp-12) var(--sp-6);max-width:760px">
+          <div class="card card--elevated" style="padding:var(--sp-8)">
+            <div class="landing-badge">Personal Setup</div>
+            <div style="margin-top:var(--sp-4);display:flex;align-items:center;justify-content:space-between;gap:var(--sp-4);flex-wrap:wrap">
+              <div>
+                <h2>${step.title}</h2>
+                <p style="margin-top:8px;color:var(--text-muted)">${step.prompt}</p>
+              </div>
+              <div style="min-width:140px;text-align:right">
+                <div style="font-size:.78rem;color:var(--text-muted)">Step ${currentStep + 1} of ${stepMeta.length}</div>
+                <div style="height:8px;border-radius:999px;background:var(--bg-elevated);margin-top:8px;overflow:hidden">
+                  <div style="height:100%;width:${((currentStep + 1) / stepMeta.length) * 100}%;background:var(--accent-gold)"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card mt-6" style="padding:var(--sp-6);background:var(--bg-canvas)">
+              ${step.body}
+            </div>
+
+            <div class="flex items-center justify-between mt-6" style="gap:var(--sp-4);flex-wrap:wrap">
+              <button class="btn btn--ghost" id="btn-onboard-back" ${currentStep === 0 ? 'disabled' : ''}>Back</button>
+              <div class="flex items-center gap-3" style="flex-wrap:wrap">
+                ${currentStep === stepMeta.length - 1
+                  ? `<button class="btn btn--primary" id="btn-onboard-finish">Finish Setup</button>`
+                  : `<button class="btn btn--primary" id="btn-onboard-next">Continue</button>`}
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>`);
+
+    let focusInput = null;
+    if (currentStep === 2) {
+      focusInput = UI.tagInput('ti-onboard-focus', draftSettings.userProfile.focusAreas || []);
+      document.querySelectorAll('.onboard-focus-chip').forEach(button => {
+        button.addEventListener('click', () => {
+          const next = Array.from(new Set([...(focusInput.getTags() || []), button.dataset.focus]));
+          focusInput.setTags(next);
+        });
+      });
+    }
+
+    function captureStepValues() {
+      if (currentStep === 0) {
+        draftSettings.userProfile.fullName = document.getElementById('onboard-name').value.trim() || AppState.currentUser?.displayName || '';
+        draftSettings.userProfile.jobTitle = document.getElementById('onboard-title').value.trim();
+      }
+      if (currentStep === 1) {
+        draftSettings.userProfile.department = document.getElementById('onboard-department').value.trim();
+        draftSettings.userProfile.businessUnit = document.getElementById('onboard-bu').value.trim();
+      }
+      if (currentStep === 2) {
+        draftSettings.geography = document.getElementById('onboard-geo').value.trim() || globalSettings.geography;
+        draftSettings.userProfile.focusAreas = focusInput?.getTags() || [];
+      }
+      if (currentStep === 3) {
+        draftSettings.userProfile.preferredOutputs = document.getElementById('onboard-preferred-outputs').value.trim();
+        draftSettings.userProfile.workingContext = document.getElementById('onboard-working-context').value.trim();
+      }
+      if (currentStep === 4) {
+        draftSettings.companyWebsiteUrl = document.getElementById('onboard-company-url').value.trim();
+        draftSettings.aiInstructions = document.getElementById('onboard-ai-guidance').value.trim() || globalSettings.aiInstructions;
+      }
+      draftSettings.userProfile = normaliseUserProfile(draftSettings.userProfile);
+    }
+
+    document.getElementById('btn-onboard-back')?.addEventListener('click', () => {
+      captureStepValues();
+      saveProgress(false);
+      currentStep -= 1;
+      renderStep();
+    });
+
+    document.getElementById('btn-onboard-next')?.addEventListener('click', () => {
+      captureStepValues();
+      saveProgress(false);
+      currentStep += 1;
+      renderStep();
+    });
+
+    document.getElementById('btn-onboard-finish')?.addEventListener('click', () => {
+      captureStepValues();
+      saveUserSettings({
+        ...draftSettings,
+        onboardedAt: new Date().toISOString(),
+        adminContextSummary: draftSettings.userProfile.workingContext || draftSettings.adminContextSummary || globalSettings.adminContextSummary
+      });
+      if (!AppState.draft.geography) AppState.draft.geography = draftSettings.geography || globalSettings.geography;
+      saveDraft();
+      UI.toast('Personal setup complete.', 'success');
+      renderUserPreferences(getUserSettings());
+    });
+  }
+
+  renderStep();
+}
+
+function renderUserPreferences(existingSettings = getUserSettings()) {
+  if (!requireAuth()) return;
+  if (AuthService.isAdminAuthenticated()) {
+    Router.navigate('/admin/settings');
+    return;
+  }
+  const globalSettings = getAdminSettings();
+  const settings = existingSettings;
   const companyContextSections = settings.companyContextSections || buildCompanyContextSections({
     companySummary: settings.adminContextSummary || '',
     businessProfile: settings.companyContextProfile || ''
   });
   const sessionLLM = getSessionLLMConfig();
   const directCompass = !sessionLLM.apiUrl || sessionLLM.apiUrl.includes('api.core42.ai');
+  const profile = normaliseUserProfile(settings.userProfile);
 
   setPage(`
     <main class="page">
@@ -2713,17 +2974,77 @@ function renderUserSettings() {
             <h2>Personal Settings</h2>
             <p style="margin-top:6px;color:var(--text-muted)">These settings apply only to <strong>${AppState.currentUser?.displayName || 'your account'}</strong>. Global thresholds, organisation structure, BU customisation, and document library remain controlled by the global admin.</p>
           </div>
-          <button class="btn btn--secondary" id="btn-reset-user-settings">Reset My Settings</button>
+          <div class="flex items-center gap-3" style="flex-wrap:wrap">
+            <button class="btn btn--ghost" id="btn-rerun-onboarding">Re-run Setup</button>
+            <button class="btn btn--secondary" id="btn-reset-user-settings">Reset My Settings</button>
+          </div>
+        </div>
+
+        <div class="admin-overview-grid mb-6">
+          <div class="admin-overview-card">
+            <div class="admin-overview-label">Role</div>
+            <div class="admin-overview-value" style="font-size:1.1rem">${profile.jobTitle || 'Not set'}</div>
+            <div class="admin-overview-foot">${profile.department || 'No department set'}${profile.businessUnit ? ` · ${profile.businessUnit}` : ''}</div>
+          </div>
+          <div class="admin-overview-card">
+            <div class="admin-overview-label">Focus Areas</div>
+            <div class="admin-overview-value" style="font-size:1.1rem">${profile.focusAreas?.length || 0}</div>
+            <div class="admin-overview-foot">${profile.focusAreas?.length ? profile.focusAreas.join(', ') : 'No focus areas selected yet'}</div>
+          </div>
+          <div class="admin-overview-card">
+            <div class="admin-overview-label">Personal Geography</div>
+            <div class="admin-overview-value" style="font-size:1.1rem">${settings.geography || globalSettings.geography}</div>
+            <div class="admin-overview-foot">Used as your default context in new assessments</div>
+          </div>
         </div>
 
         <div class="card card--elevated">
+          <div class="context-panel-title">You and Your Working Context</div>
+          <p class="context-panel-copy">Keep this lightweight. These fields help the platform interpret outputs in a way that suits your role and responsibilities.</p>
+          <div class="grid-2 mt-4">
+            <div class="form-group">
+              <label class="form-label" for="user-full-name">Name</label>
+              <input class="form-input" id="user-full-name" value="${profile.fullName || AppState.currentUser?.displayName || ''}">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="user-job-title">Role</label>
+              <input class="form-input" id="user-job-title" value="${profile.jobTitle || ''}" placeholder="e.g. Risk Manager">
+            </div>
+          </div>
+          <div class="grid-2 mt-4">
+            <div class="form-group">
+              <label class="form-label" for="user-department">Department or function</label>
+              <input class="form-input" id="user-department" value="${profile.department || ''}" placeholder="e.g. Information Security">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="user-business-unit">Business unit or entity</label>
+              <input class="form-input" id="user-business-unit" value="${profile.businessUnit || ''}" placeholder="e.g. Digital Platforms">
+            </div>
+          </div>
+          <div class="form-group mt-4">
+            <label class="form-label">Focus areas</label>
+            <div class="tag-input-wrap" id="ti-user-focus-areas"></div>
+            <div class="citation-chips" style="margin-top:10px">
+              ${USER_FOCUS_OPTIONS.map(option => `<button type="button" class="chip user-focus-chip" data-focus="${option}">${option}</button>`).join('')}
+            </div>
+          </div>
+          <div class="form-group mt-4">
+            <label class="form-label" for="user-working-context">Working context</label>
+            <textarea class="form-textarea" id="user-working-context" rows="4">${profile.workingContext || ''}</textarea>
+          </div>
+          <div class="form-group mt-4">
+            <label class="form-label" for="user-preferred-outputs">Preferred output style</label>
+            <textarea class="form-textarea" id="user-preferred-outputs" rows="4">${profile.preferredOutputs || ''}</textarea>
+          </div>
+        </div>
+
+        <div class="card card--elevated mt-6">
           <div class="context-panel-title">Personal Company Context</div>
-          <p class="context-panel-copy">Set the business context, AI guidance, and default assumptions you want this account to carry into assessments.</p>
+          <p class="context-panel-copy">Optional personal context that sits on top of the global admin baseline.</p>
           <div class="grid-2 mt-4">
             <div class="form-group">
               <label class="form-label" for="user-company-url">Company Website URL</label>
               <input class="form-input" id="user-company-url" value="${settings.companyWebsiteUrl || ''}" placeholder="https://example.com">
-              <span class="form-help">This is your personal context override. It does not overwrite the global admin baseline.</span>
             </div>
             <div class="form-group">
               <label class="form-label" for="user-company-profile">Company Risk Context Profile</label>
@@ -2731,37 +3052,39 @@ function renderUserSettings() {
             </div>
           </div>
 
-          <div class="card mt-4" style="padding:var(--sp-4);background:var(--bg-canvas)">
-            <div class="context-panel-title">Editable Company Brief</div>
-            <div class="form-group mt-3">
-              <label class="form-label" for="user-company-section-summary">Company Summary</label>
-              <textarea class="form-textarea" id="user-company-section-summary" rows="3">${companyContextSections.companySummary || ''}</textarea>
+          <details class="mt-4">
+            <summary style="cursor:pointer;font-weight:600;color:var(--text-primary)">Edit detailed company brief</summary>
+            <div class="card mt-4" style="padding:var(--sp-4);background:var(--bg-canvas)">
+              <div class="form-group mt-3">
+                <label class="form-label" for="user-company-section-summary">Company Summary</label>
+                <textarea class="form-textarea" id="user-company-section-summary" rows="3">${companyContextSections.companySummary || ''}</textarea>
+              </div>
+              <div class="form-group mt-3">
+                <label class="form-label" for="user-company-section-business-model">Business Model</label>
+                <textarea class="form-textarea" id="user-company-section-business-model" rows="3">${companyContextSections.businessModel || ''}</textarea>
+              </div>
+              <div class="form-group mt-3">
+                <label class="form-label" for="user-company-section-operating-model">Operating Model</label>
+                <textarea class="form-textarea" id="user-company-section-operating-model" rows="3">${companyContextSections.operatingModel || ''}</textarea>
+              </div>
+              <div class="form-group mt-3">
+                <label class="form-label" for="user-company-section-commitments">Public Commitments</label>
+                <textarea class="form-textarea" id="user-company-section-commitments" rows="4">${companyContextSections.publicCommitments || ''}</textarea>
+              </div>
+              <div class="form-group mt-3">
+                <label class="form-label" for="user-company-section-risks">Key Risk Signals</label>
+                <textarea class="form-textarea" id="user-company-section-risks" rows="4">${companyContextSections.keyRiskSignals || ''}</textarea>
+              </div>
+              <div class="form-group mt-3">
+                <label class="form-label" for="user-company-section-obligations">Obligations and Exposures</label>
+                <textarea class="form-textarea" id="user-company-section-obligations" rows="4">${companyContextSections.obligations || ''}</textarea>
+              </div>
+              <div class="form-group mt-3">
+                <label class="form-label" for="user-company-section-sources">Sources Reviewed</label>
+                <textarea class="form-textarea" id="user-company-section-sources" rows="4">${companyContextSections.sources || ''}</textarea>
+              </div>
             </div>
-            <div class="form-group mt-3">
-              <label class="form-label" for="user-company-section-business-model">Business Model</label>
-              <textarea class="form-textarea" id="user-company-section-business-model" rows="3">${companyContextSections.businessModel || ''}</textarea>
-            </div>
-            <div class="form-group mt-3">
-              <label class="form-label" for="user-company-section-operating-model">Operating Model</label>
-              <textarea class="form-textarea" id="user-company-section-operating-model" rows="3">${companyContextSections.operatingModel || ''}</textarea>
-            </div>
-            <div class="form-group mt-3">
-              <label class="form-label" for="user-company-section-commitments">Public Commitments</label>
-              <textarea class="form-textarea" id="user-company-section-commitments" rows="4">${companyContextSections.publicCommitments || ''}</textarea>
-            </div>
-            <div class="form-group mt-3">
-              <label class="form-label" for="user-company-section-risks">Key Risk Signals</label>
-              <textarea class="form-textarea" id="user-company-section-risks" rows="4">${companyContextSections.keyRiskSignals || ''}</textarea>
-            </div>
-            <div class="form-group mt-3">
-              <label class="form-label" for="user-company-section-obligations">Obligations and Exposures</label>
-              <textarea class="form-textarea" id="user-company-section-obligations" rows="4">${companyContextSections.obligations || ''}</textarea>
-            </div>
-            <div class="form-group mt-3">
-              <label class="form-label" for="user-company-section-sources">Sources Reviewed</label>
-              <textarea class="form-textarea" id="user-company-section-sources" rows="4">${companyContextSections.sources || ''}</textarea>
-            </div>
-          </div>
+          </details>
 
           <div class="flex items-center gap-3 mt-4" style="flex-wrap:wrap">
             <button class="btn btn--secondary" id="btn-build-user-context">Build from Website</button>
@@ -2843,8 +3166,16 @@ function renderUserSettings() {
     </main>`);
 
   const regsInput = UI.tagInput('ti-user-regulations', settings.applicableRegulations);
+  const focusInput = UI.tagInput('ti-user-focus-areas', profile.focusAreas || []);
   const profileEl = document.getElementById('user-company-profile');
   const websiteEl = document.getElementById('user-company-url');
+
+  document.querySelectorAll('.user-focus-chip').forEach(button => {
+    button.addEventListener('click', () => {
+      const next = Array.from(new Set([...(focusInput.getTags() || []), button.dataset.focus]));
+      focusInput.setTags(next);
+    });
+  });
 
   document.getElementById('btn-save-user-settings').addEventListener('click', () => {
     saveUserSettings({
@@ -2868,6 +3199,15 @@ function renderUserSettings() {
         obligations: document.getElementById('user-company-section-obligations').value.trim(),
         sources: document.getElementById('user-company-section-sources').value.trim()
       }),
+      userProfile: {
+        fullName: document.getElementById('user-full-name').value.trim() || AppState.currentUser?.displayName || '',
+        jobTitle: document.getElementById('user-job-title').value.trim(),
+        department: document.getElementById('user-department').value.trim(),
+        businessUnit: document.getElementById('user-business-unit').value.trim(),
+        focusAreas: focusInput.getTags(),
+        preferredOutputs: document.getElementById('user-preferred-outputs').value.trim(),
+        workingContext: document.getElementById('user-working-context').value.trim()
+      },
       defaultLinkMode: document.getElementById('user-link-mode').value === 'yes',
       riskAppetiteStatement: document.getElementById('user-appetite').value.trim() || globalSettings.riskAppetiteStatement,
       applicableRegulations: regsInput.getTags(),
@@ -2971,8 +3311,12 @@ function renderUserSettings() {
     if (await UI.confirm('Reset your personal settings to the global admin defaults?')) {
       localStorage.removeItem(buildUserStorageKey(USER_SETTINGS_STORAGE_PREFIX));
       UI.toast('Your personal settings were reset.', 'success');
-      renderUserSettings();
+      renderUserOnboarding(getUserSettings(), 0);
     }
+  });
+
+  document.getElementById('btn-rerun-onboarding').addEventListener('click', () => {
+    renderUserOnboarding(getUserSettings(), 0);
   });
 }
 

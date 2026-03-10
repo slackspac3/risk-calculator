@@ -352,6 +352,8 @@ BU context summary: ${buContext?.contextSummary || buContext?.notes || '(none)'}
 BU-specific AI guidance: ${buContext?.aiGuidance || '(none)'}
 Benchmark strategy: ${buContext?.benchmarkStrategy || 'Prefer GCC and UAE references, then fall back to best global data with clear explanation.'}
 Company context profile: ${buContext?.companyContextProfile || '(none)'}
+User profile context:
+${buContext?.userProfileSummary || '(none)'}
 Organisation structure context:
 ${buContext?.companyStructureContext || '(none)'}
 
@@ -400,6 +402,8 @@ AI guidance: ${input.adminSettings?.aiInstructions || ''}
 Benchmark strategy: ${input.adminSettings?.benchmarkStrategy || ''}
 Admin context summary: ${input.adminSettings?.adminContextSummary || ''}
 Company context profile: ${input.adminSettings?.companyContextProfile || ''}
+User profile context:
+${input.adminSettings?.userProfileSummary || '(none)'}
 Organisation structure context:
 ${input.adminSettings?.companyStructureContext || '(none)'}
 Register metadata: ${input.registerMeta ? JSON.stringify(input.registerMeta) : '(none)'}
@@ -452,6 +456,8 @@ Register metadata: ${input.registerMeta ? JSON.stringify(input.registerMeta) : '
 Benchmark strategy: ${input.adminSettings?.benchmarkStrategy || 'Prefer GCC and UAE references where possible, then use best global data with clear explanation.'}
 Admin context summary: ${input.adminSettings?.adminContextSummary || ''}
 Company context profile: ${input.adminSettings?.companyContextProfile || ''}
+User profile context:
+${input.adminSettings?.userProfileSummary || '(none)'}
 Organisation structure context:
 ${input.adminSettings?.companyStructureContext || '(none)'}
 
