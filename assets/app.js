@@ -51,8 +51,62 @@ const AppState = {
   adminNewUserStatus: '',
   adminVisiblePasswords: {},
   settingsSectionState: {},
-  settingsScrollState: {}
+  settingsScrollState: {},
+  adminSettingsCache: null
 };
+
+
+function getSettingsApiUrl() {
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  if (origin && origin.includes('vercel.app')) return `${origin}/api/settings`;
+  return 'https://risk-calculator-eight.vercel.app/api/settings';
+}
+
+async function requestSharedSettings(method = 'GET', payload, { includeAdminSecret = false } = {}) {
+  const headers = {
+    'Content-Type': 'application/json'
+  };
+  if (includeAdminSecret && AuthService.getAdminApiSecret()) {
+    headers['x-admin-secret'] = AuthService.getAdminApiSecret();
+  }
+  const res = await fetch(getSettingsApiUrl(), {
+    method,
+    headers,
+    body: payload ? JSON.stringify(payload) : undefined
+  });
+  const text = await res.text();
+  let parsed = null;
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch {}
+  if (!res.ok) {
+    throw new Error(parsed?.detail || parsed?.error || text || `Settings request failed with HTTP ${res.status}`);
+  }
+  return parsed || {};
+}
+
+async function loadSharedAdminSettings() {
+  try {
+    const data = await requestSharedSettings('GET');
+    if (data?.settings) {
+      const merged = {
+        ...DEFAULT_ADMIN_SETTINGS,
+        ...data.settings,
+        applicableRegulations: Array.isArray(data.settings.applicableRegulations) ? data.settings.applicableRegulations : [...DEFAULT_ADMIN_SETTINGS.applicableRegulations]
+      };
+      AppState.adminSettingsCache = merged;
+      localStorage.setItem(GLOBAL_ADMIN_STORAGE_KEY, JSON.stringify(merged));
+      return merged;
+    }
+  } catch (error) {
+    console.warn('loadSharedAdminSettings fallback:', error.message);
+  }
+  return null;
+}
+
+function syncSharedAdminSettings(settings) {
+  return requestSharedSettings('PUT', { settings }, { includeAdminSecret: true });
+}
 
 const USER_SETTINGS_KEYS = [
   'geography',
@@ -489,13 +543,22 @@ function saveDocList(list) {
 }
 
 function getAdminSettings() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(GLOBAL_ADMIN_STORAGE_KEY) || 'null') || {};
+  if (AppState.adminSettingsCache) {
     return {
       ...DEFAULT_ADMIN_SETTINGS,
+      ...AppState.adminSettingsCache,
+      applicableRegulations: Array.isArray(AppState.adminSettingsCache.applicableRegulations) ? AppState.adminSettingsCache.applicableRegulations : [...DEFAULT_ADMIN_SETTINGS.applicableRegulations]
+    };
+  }
+  try {
+    const saved = JSON.parse(localStorage.getItem(GLOBAL_ADMIN_STORAGE_KEY) || 'null') || {};
+    const merged = {
+      ...DEFAULT_ADMIN_SETTINGS,
       ...saved,
-    applicableRegulations: Array.isArray(saved.applicableRegulations) ? saved.applicableRegulations : [...DEFAULT_ADMIN_SETTINGS.applicableRegulations]
-  };
+      applicableRegulations: Array.isArray(saved.applicableRegulations) ? saved.applicableRegulations : [...DEFAULT_ADMIN_SETTINGS.applicableRegulations]
+    };
+    AppState.adminSettingsCache = merged;
+    return merged;
   } catch {
     return { ...DEFAULT_ADMIN_SETTINGS, applicableRegulations: [...DEFAULT_ADMIN_SETTINGS.applicableRegulations] };
   }
@@ -510,7 +573,11 @@ function saveAdminSettings(settings) {
     companyStructure: Array.isArray(settings.companyStructure) ? settings.companyStructure : [],
     entityContextLayers: Array.isArray(settings.entityContextLayers) ? settings.entityContextLayers : []
   };
+  AppState.adminSettingsCache = merged;
   localStorage.setItem(GLOBAL_ADMIN_STORAGE_KEY, JSON.stringify(merged));
+  if (AuthService.getAdminApiSecret()) {
+    syncSharedAdminSettings(merged).catch(error => console.warn('syncSharedAdminSettings failed:', error.message));
+  }
 }
 
 function getUserSettings() {
@@ -5552,6 +5619,7 @@ function openDocEditor(doc) {
 async function init() {
   try {
     await AuthService.init();
+    await loadSharedAdminSettings();
     AppState.buList  = await loadJSON('./data/bu.json');
     AppState.docList = await loadJSON('./data/docs.json');
   } catch(e) {
