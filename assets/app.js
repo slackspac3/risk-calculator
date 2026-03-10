@@ -5226,10 +5226,19 @@ function renderAdminSettings() {
 
   document.getElementById('admin-new-user-bu')?.addEventListener('change', renderAdminNewUserDepartments);
   renderAdminNewUserDepartments();
-  document.getElementById('btn-save-admin-secret')?.addEventListener('click', () => {
+  document.getElementById('btn-save-admin-secret')?.addEventListener('click', async () => {
     const secret = document.getElementById('admin-api-secret')?.value || '';
     AuthService.setAdminApiSecret(secret);
-    UI.toast(secret ? 'Admin API secret saved in this browser.' : 'Admin API secret cleared.', 'success');
+    if (!secret) {
+      UI.toast('Admin API secret cleared.', 'success');
+      return;
+    }
+    try {
+      await syncSharedAdminSettings(getAdminSettings());
+      UI.toast('Admin API secret saved and current admin settings synced.', 'success');
+    } catch (error) {
+      UI.toast(`Admin API secret saved, but settings sync failed: ${error instanceof Error ? error.message : String(error)}`, 'warning');
+    }
   });
   document.getElementById('btn-clear-admin-secret')?.addEventListener('click', () => {
     AuthService.setAdminApiSecret('');
