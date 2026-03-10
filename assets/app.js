@@ -49,7 +49,9 @@ const AppState = {
   buList: [],
   docList: [],
   adminNewUserStatus: '',
-  adminVisiblePasswords: {}
+  adminVisiblePasswords: {},
+  settingsSectionState: {},
+  settingsScrollState: {}
 };
 
 const USER_SETTINGS_KEYS = [
@@ -3591,8 +3593,35 @@ function renderUserOnboarding(existingSettings = getUserSettings(), startStep = 
 }
 
 
-function renderSettingsSection({ title, description = '', body = '', open = false, meta = '' }) {
-  return `<details class="settings-section"${open ? ' open' : ''}>
+function getSettingsSectionStateKey(scope, title) {
+  return `${scope}::${String(title || '').trim().toLowerCase()}`;
+}
+
+function rememberSettingsScroll(scope) {
+  AppState.settingsScrollState[scope] = window.scrollY || 0;
+}
+
+function restoreSettingsScroll(scope) {
+  const nextY = Number(AppState.settingsScrollState[scope] || 0);
+  window.requestAnimationFrame(() => window.scrollTo({ top: nextY, left: 0, behavior: 'auto' }));
+}
+
+function bindSettingsSectionState(scope, root = document) {
+  root.querySelectorAll('.settings-section[data-settings-section-key]').forEach(section => {
+    const key = section.dataset.settingsSectionKey;
+    section.addEventListener('toggle', () => {
+      AppState.settingsSectionState[key] = section.open;
+      rememberSettingsScroll(scope);
+    });
+  });
+}
+
+function renderSettingsSection({ title, description = '', body = '', open = false, meta = '', scope = 'global-settings' }) {
+  const key = getSettingsSectionStateKey(scope, title);
+  const isOpen = Object.prototype.hasOwnProperty.call(AppState.settingsSectionState, key)
+    ? !!AppState.settingsSectionState[key]
+    : open;
+  return `<details class="settings-section" data-settings-section-key="${key}"${isOpen ? ' open' : ''}>
     <summary class="settings-section__summary">
       <div>
         <div class="settings-section__title-row">
@@ -3702,6 +3731,7 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
   });
   const aiWorkspaceSection = renderSettingsSection({
     title: 'AI Assist Workspace',
+    scope: 'user-settings',
     description: 'Upload notes, role descriptions, team material, or planning documents, then use AI assist across your settings.',
     meta: 'Shared source',
     open: true,
@@ -3722,6 +3752,7 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
   });
   const companyContextSection = renderSettingsSection({
     title: 'Personal Company Context',
+    scope: 'user-settings',
     description: 'Optional overlay on top of the admin baseline for this account only.',
     meta: settings.companyWebsiteUrl ? 'Website linked' : 'Optional',
     body: `
@@ -3775,6 +3806,7 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
   });
   const roleManagementSection = `${businessOwner ? renderSettingsSection({
     title: 'Business Unit Admin Controls',
+    scope: 'user-settings',
     description: `You can add functions beneath ${selectedBusinessEntity?.name || profile.businessUnit} and maintain their retained context.`,
     meta: `${selectedBusinessDepartments.length} department${selectedBusinessDepartments.length === 1 ? '' : 's'}`,
     body: `
@@ -4254,6 +4286,7 @@ function renderAdminSettings() {
   const departmentEntities = companyStructure.filter(node => isDepartmentEntityType(node.type));
   const adminIntroSection = renderSettingsSection({
     title: 'How This Screen Works',
+    scope: 'admin-settings',
     description: 'Build the organisation tree first, manage context from each entity, then rely on platform defaults as fallback.',
     open: true,
     meta: `${companyEntities.length} business units mapped`,
@@ -4274,6 +4307,7 @@ function renderAdminSettings() {
   });
   const organisationTreeSection = renderSettingsSection({
     title: 'Organisation Tree',
+    scope: 'admin-settings',
     description: "Use this as the main operating view. Add businesses and departments here, then manage each node's retained context from the same tree.",
     meta: `${companyEntities.length} businesses · ${departmentEntities.length} departments`,
     open: true,
@@ -4289,6 +4323,7 @@ function renderAdminSettings() {
   });
   const companyBuilderSection = renderSettingsSection({
     title: 'AI Company Context Builder',
+    scope: 'admin-settings',
     description: 'Build public context for a company website, then place it into the organisation tree as a holding company, subsidiary, portfolio company, partner, or operating business.',
     meta: settings.companyWebsiteUrl ? 'Website loaded' : 'Optional',
     body: `<div class="grid-2">
@@ -4340,6 +4375,7 @@ function renderAdminSettings() {
   });
   const platformDefaultsSection = renderSettingsSection({
     title: 'Platform Defaults And Governance',
+    scope: 'admin-settings',
     description: 'These are fallback rules for the whole platform after the organisation tree and entity context are in place.',
     meta: `${settings.geography} default geography`,
     body: `<div class="grid-3">
@@ -4404,6 +4440,7 @@ function renderAdminSettings() {
   });
   const systemAccessSection = renderSettingsSection({
     title: 'System Access',
+    scope: 'admin-settings',
     description: directCompass ? 'Use direct Compass access for temporary testing only. For production, prefer a hosted proxy URL such as the Vercel endpoint.' : 'A hosted proxy URL is configured. Leave the browser key blank and test through the proxy.',
     meta: sessionLLM.model || 'gpt-5.1',
     body: `<div class="grid-2">
@@ -4431,11 +4468,20 @@ function renderAdminSettings() {
   });
   const userControlsSection = renderSettingsSection({
     title: 'User Account Control',
+    scope: 'admin-settings',
     description: 'Create PoC users, assign them to a BU and function, and verify whether the shared user store is live.',
     meta: `${managedAccounts.length} managed accounts`,
     body: `<div class="card" style="padding:var(--sp-4);background:var(--bg-canvas)">
       <div class="context-panel-title">Shared User Store</div>
+      <div class="grid-2 mt-3">
+        <div class="form-group">
+          <label class="form-label" for="admin-api-secret">Admin API Secret</label>
+          <input class="form-input" id="admin-api-secret" type="password" placeholder="Paste the Vercel admin secret for this browser session" value="${AuthService.getAdminApiSecret() || ''}">
+          <span class="form-help">Session only. Required for admin-only user actions.</span>
+        </div>
+      </div>
       <div class="flex items-center gap-3 mt-3" style="flex-wrap:wrap">
+        <button class="btn btn--secondary" id="btn-save-admin-secret" type="button">Save Admin Secret</button>
         <button class="btn btn--secondary" id="btn-test-users-store" type="button">Test Shared User Store</button>
         <span class="form-help" id="admin-users-store-status">Checks whether the Vercel user store is reachable from this browser.</span>
       </div>
@@ -4461,7 +4507,7 @@ function renderAdminSettings() {
       </div>
       <div class="flex items-center gap-3 mt-4" style="flex-wrap:wrap">
         <button class="btn btn--secondary" id="btn-admin-add-user">Add User</button>
-        <span class="form-help" id="admin-new-user-result">${AppState.adminNewUserStatus || 'A username and password will be generated automatically. Existing passwords are not viewable; use Reset Password to issue a new one.'}</span>
+        <span class="form-help" id="admin-new-user-result">${AppState.adminNewUserStatus || 'A username and password will be generated automatically. Passwords are shown only when first issued or reset in this admin session.'}</span>
       </div>
     </div>
     <div class="table-wrap mt-4">
@@ -4472,7 +4518,7 @@ function renderAdminSettings() {
             <th>Username</th>
             <th>Assigned BU</th>
             <th>Assigned Function</th>
-            <th>Password</th>
+            <th>Issued Password</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -4486,9 +4532,9 @@ function renderAdminSettings() {
               <td><code>${account.username}</code></td>
               <td>${assignedBU}</td>
               <td>${assignedDepartment}</td>
-              <td><code>${AppState.adminVisiblePasswords[account.username] || 'Hidden'}</code></td>
+              <td><code>${AppState.adminVisiblePasswords[account.username] || 'Reset to issue'}</code></td>
               <td style="text-align:right">
-                <button class="btn btn--ghost btn--sm btn-show-user-password" data-username="${account.username}" data-display-name="${account.displayName}" type="button">Show Password</button> <button class="btn btn--ghost btn--sm btn-reset-user-account" data-username="${account.username}" data-display-name="${account.displayName}" type="button">Reset User</button> <button class="btn btn--secondary btn--sm btn-reset-user-password" data-username="${account.username}" data-display-name="${account.displayName}" type="button">Reset Password</button>
+                <button class="btn btn--ghost btn--sm btn-reset-user-account" data-username="${account.username}" data-display-name="${account.displayName}" type="button">Reset User</button> <button class="btn btn--secondary btn--sm btn-reset-user-password" data-username="${account.username}" data-display-name="${account.displayName}" type="button">Reset Password</button>
               </td>
             </tr>`;
           }).join('')}
@@ -4550,6 +4596,9 @@ function renderAdminSettings() {
         </div>
       </div>
     </div>`));
+  bindSettingsSectionState('admin-settings', document);
+  restoreSettingsScroll('admin-settings');
+
   document.getElementById('btn-admin-logout').addEventListener('click', () => { AuthService.logout(); activateAuthenticatedState(); Router.navigate('/login'); });
   const regsInput = UI.tagInput('ti-admin-regulations', settings.applicableRegulations);
   const structureSummaryEl = document.getElementById('admin-company-structure-summary');
@@ -4934,25 +4983,9 @@ function renderAdminSettings() {
   document.getElementById('btn-clear-session-llm').addEventListener('click', () => {
     sessionStorage.removeItem(buildUserStorageKey(SESSION_LLM_STORAGE_PREFIX));
     LLMService.clearCompassConfig();
-    renderAdminSettings();
+    rememberSettingsScroll('admin-settings');
+      renderAdminSettings();
     UI.toast('Compass session key cleared.', 'success');
-  });
-  document.querySelectorAll('.btn-show-user-password').forEach(button => {
-    button.addEventListener('click', async () => {
-      const username = button.dataset.username || '';
-      const displayName = button.dataset.displayName || username;
-      try {
-        const result = await AuthService.revealManagedPassword(username);
-        AppState.adminVisiblePasswords[username] = result.password || '';
-        AppState.adminNewUserStatus = `Current password for ${displayName}: username ${username} / password ${result.password}`;
-        UI.toast(`Password revealed for ${username}.`, 'success');
-        renderAdminSettings();
-      } catch (error) {
-        AppState.adminNewUserStatus = `Password lookup failed: ${error instanceof Error ? error.message : String(error)}`;
-        document.getElementById('admin-new-user-result').textContent = AppState.adminNewUserStatus;
-        UI.toast('Password lookup failed.', 'danger');
-      }
-    });
   });
 
   document.querySelectorAll('.btn-reset-user-account').forEach(button => {
@@ -4962,6 +4995,7 @@ function renderAdminSettings() {
       if (!await UI.confirm(`Reset ${displayName} to a first-time user state? This will clear their stored context, memory, assessments, and session settings in this browser.`)) return;
       clearUserPersistentState(username);
       UI.toast(`${displayName} was reset.`, 'success');
+      rememberSettingsScroll('admin-settings');
       renderAdminSettings();
     });
   });
@@ -4975,7 +5009,8 @@ function renderAdminSettings() {
         AppState.adminVisiblePasswords[username] = result.password || '';
         AppState.adminNewUserStatus = `Password reset for ${displayName}: username ${username} / password ${result.password}`;
         UI.toast(`Password reset for ${username}.`, 'success');
-        renderAdminSettings();
+        rememberSettingsScroll('admin-settings');
+      renderAdminSettings();
       } catch (error) {
         AppState.adminNewUserStatus = `Password reset failed: ${error instanceof Error ? error.message : String(error)}`;
         document.getElementById('admin-new-user-result').textContent = AppState.adminNewUserStatus;
@@ -4996,6 +5031,12 @@ function renderAdminSettings() {
 
   document.getElementById('admin-new-user-bu')?.addEventListener('change', renderAdminNewUserDepartments);
   renderAdminNewUserDepartments();
+  document.getElementById('btn-save-admin-secret')?.addEventListener('click', () => {
+    const secret = document.getElementById('admin-api-secret')?.value || '';
+    AuthService.setAdminApiSecret(secret);
+    UI.toast(secret ? 'Admin API secret saved for this session.' : 'Admin API secret cleared.', 'success');
+  });
+
   document.getElementById('btn-test-users-store')?.addEventListener('click', async () => {
     const btn = document.getElementById('btn-test-users-store');
     const statusEl = document.getElementById('admin-users-store-status');
@@ -5009,7 +5050,7 @@ function renderAdminSettings() {
         statusEl.textContent = `Connected to shared user store at ${result.apiUrl} · writable · ${result.accountCount} account(s) available.`;
         UI.toast('Shared user store is reachable and writable.', 'success');
       } else {
-        statusEl.textContent = `Connected to ${result.apiUrl}, but it is running in ${result.mode} mode. Add KV_REST_API_URL and KV_REST_API_TOKEN in Vercel to enable shared user creation.`;
+        statusEl.textContent = `Connected to ${result.apiUrl}, but it is running in ${result.mode} mode. Check the shared store configuration in Vercel.`;
         UI.toast('Shared user store is reachable but not writable.', 'warning');
       }
     } else {
@@ -5051,6 +5092,7 @@ function renderAdminSettings() {
       AppState.adminVisiblePasswords[account.username] = account.password || '';
       AppState.adminNewUserStatus = `Created ${account.displayName}: username ${account.username} / password ${account.password}`;
       UI.toast(`Created ${account.username}.`, 'success');
+      rememberSettingsScroll('admin-settings');
       renderAdminSettings();
     } catch (error) {
       AppState.adminNewUserStatus = `User creation failed: ${error instanceof Error ? error.message : String(error)}`;
@@ -5065,6 +5107,7 @@ function renderAdminSettings() {
     if (await UI.confirm('Reset platform settings to defaults?')) {
       localStorage.removeItem(GLOBAL_ADMIN_STORAGE_KEY);
       UI.toast('Settings reset.', 'success');
+      rememberSettingsScroll('admin-settings');
       renderAdminSettings();
     }
   });

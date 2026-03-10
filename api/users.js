@@ -8,7 +8,10 @@ const DEFAULT_ACCOUNTS = [
 ];
 
 const USERS_KEY = process.env.USER_STORE_KEY || 'risk_calculator_users';
-
+const ADMIN_API_SECRET = process.env.ADMIN_API_SECRET || '';
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const LOGIN_MAX_ATTEMPTS = 10;
+const loginAttempts = new Map();
 
 function getKvUrl() {
   return process.env.APPLE_CAT || process.env.FOO_URL_TEST || process.env.RC_USER_STORE_URL || process.env.USER_STORE_KV_URL || process.env.KV_REST_API_URL || '';
@@ -41,6 +44,41 @@ function sanitiseAccount(account = {}) {
 
 function generatePassword() {
   return `RiskUser@${Math.floor(1000 + Math.random() * 9000)}`;
+}
+
+function isAdminSecretValid(req) {
+  return !!ADMIN_API_SECRET && req.headers['x-admin-secret'] === ADMIN_API_SECRET;
+}
+
+function getLoginThrottleKey(req, username) {
+  const forwarded = req.headers['x-forwarded-for'];
+  const ip = Array.isArray(forwarded) ? forwarded[0] : String(forwarded || '').split(',')[0].trim();
+  return `${String(username || '').trim().toLowerCase()}::${ip || 'unknown'}`;
+}
+
+function isLoginRateLimited(key) {
+  const entry = loginAttempts.get(key);
+  if (!entry) return false;
+  if (Date.now() - entry.firstAttemptAt > LOGIN_WINDOW_MS) {
+    loginAttempts.delete(key);
+    return false;
+  }
+  return entry.count >= LOGIN_MAX_ATTEMPTS;
+}
+
+function recordFailedLogin(key) {
+  const now = Date.now();
+  const entry = loginAttempts.get(key);
+  if (!entry || now - entry.firstAttemptAt > LOGIN_WINDOW_MS) {
+    loginAttempts.set(key, { count: 1, firstAttemptAt: now });
+    return;
+  }
+  entry.count += 1;
+  loginAttempts.set(key, entry);
+}
+
+function clearFailedLogin(key) {
+  loginAttempts.delete(key);
 }
 
 async function runKvCommand(command) {
@@ -80,7 +118,7 @@ async function readAccounts() {
 
 async function writeAccounts(accounts) {
   if (!hasWritableKv()) {
-    throw new Error('Shared user store is not writable. Add KV_REST_API_URL and KV_REST_API_TOKEN in the Vercel project.');
+    throw new Error('Shared user store is not writable. Configure the shared store environment variables in Vercel.');
   }
   await runKvCommand(['SET', USERS_KEY, JSON.stringify(accounts.map(normaliseAccount))]);
   return accounts.map(normaliseAccount);
@@ -131,13 +169,25 @@ module.exports = async function handler(req, res) {
       if (body.action === 'login') {
         const username = String(body.username || '').trim().toLowerCase();
         const password = String(body.password || '');
+        const throttleKey = getLoginThrottleKey(req, username);
+        if (isLoginRateLimited(throttleKey)) {
+          res.status(429).json({ error: 'Too many login attempts. Please wait and try again.' });
+          return;
+        }
         const accounts = await readAccounts();
         const matched = accounts.find(account => account.username === username && account.password === password);
         if (!matched) {
+          recordFailedLogin(throttleKey);
           res.status(401).json({ error: 'Invalid username or password.' });
           return;
         }
+        clearFailedLogin(throttleKey);
         res.status(200).json({ user: sanitiseAccount(matched) });
+        return;
+      }
+
+      if (!isAdminSecretValid(req)) {
+        res.status(403).json({ error: 'Admin secret required.' });
         return;
       }
 
@@ -170,6 +220,20 @@ module.exports = async function handler(req, res) {
         res.status(404).json({ error: 'User not found.' });
         return;
       }
+      if (body.action === 'self-update') {
+        accounts[index] = normaliseAccount({
+          ...accounts[index],
+          businessUnitEntityId: typeof updates.businessUnitEntityId === 'string' ? updates.businessUnitEntityId : accounts[index].businessUnitEntityId,
+          departmentEntityId: typeof updates.departmentEntityId === 'string' ? updates.departmentEntityId : accounts[index].departmentEntityId
+        });
+        await writeAccounts(accounts);
+        res.status(200).json({ accounts: accounts.map(sanitiseAccount) });
+        return;
+      }
+      if (!isAdminSecretValid(req)) {
+        res.status(403).json({ error: 'Admin secret required.' });
+        return;
+      }
       if (body.action === 'reset-password') {
         const nextPassword = generatePassword();
         accounts[index] = normaliseAccount({
@@ -180,15 +244,6 @@ module.exports = async function handler(req, res) {
         res.status(200).json({
           account: sanitiseAccount(accounts[index]),
           password: nextPassword,
-          accounts: accounts.map(sanitiseAccount)
-        });
-        return;
-      }
-
-      if (body.action === 'reveal-password') {
-        res.status(200).json({
-          account: sanitiseAccount(accounts[index]),
-          password: accounts[index].password,
           accounts: accounts.map(sanitiseAccount)
         });
         return;

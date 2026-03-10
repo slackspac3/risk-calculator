@@ -10,6 +10,7 @@ const AuthService = (() => {
   const SESSION_KEY = 'rq_auth_session';
   const ACCOUNTS_CACHE_KEY = 'rq_auth_accounts_cache';
   const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
+  const ADMIN_SECRET_KEY = 'rq_admin_api_secret';
   const DEFAULT_USERS_API_URL = resolveApiUrl('/api/users');
   const DEFAULT_ACCOUNTS = [
     { username: 'admin', password: 'Admin@Risk2026', displayName: 'Global Admin', role: 'admin' },
@@ -30,6 +31,18 @@ function resolveApiUrl(path) {
   function getUsersApiUrl() {
     return DEFAULT_USERS_API_URL;
   }
+
+  function getAdminApiSecret() {
+    return sessionStorage.getItem(ADMIN_SECRET_KEY) || '';
+  }
+
+  function setAdminApiSecret(secret) {
+    const value = String(secret || '').trim();
+    if (value) sessionStorage.setItem(ADMIN_SECRET_KEY, value);
+    else sessionStorage.removeItem(ADMIN_SECRET_KEY);
+    return value;
+  }
+
 
   function sanitiseAccount(account) {
     if (!account) return null;
@@ -68,12 +81,16 @@ function resolveApiUrl(path) {
     return accountsCache;
   }
 
-  async function requestUsers(method = 'GET', payload) {
+  async function requestUsers(method = 'GET', payload, { includeAdminSecret = false } = {}) {
+    const headers = {
+      'Content-Type': 'application/json'
+    };
+    if (includeAdminSecret && getAdminApiSecret()) {
+      headers['x-admin-secret'] = getAdminApiSecret();
+    }
     const res = await fetch(getUsersApiUrl(), {
       method,
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers,
       body: payload ? JSON.stringify(payload) : undefined
     });
     const text = await res.text();
@@ -166,24 +183,16 @@ function resolveApiUrl(path) {
   async function login(username, password) {
     const normalizedUsername = String(username || '').trim().toLowerCase();
     const normalizedPassword = String(password || '');
-    const cached = readCachedAccounts().find(item =>
-      item.username.toLowerCase() === normalizedUsername && item.password === normalizedPassword
-    );
-    if (cached) {
-      writeSession(cached);
-      return { success: true, user: sanitiseAccount(cached) };
-    }
     try {
       const data = await requestUsers('POST', {
         action: 'login',
         username: normalizedUsername,
         password: normalizedPassword
       });
-      if (Array.isArray(data?.accounts)) saveCache(data.accounts);
       if (!data?.user) return { success: false, error: 'Invalid username or password' };
-      writeSession(data.user);
       const knownAccounts = readCachedAccounts().filter(account => account.username !== data.user.username);
       saveCache([...knownAccounts, data.user]);
+      writeSession(data.user);
       return { success: true, user: sanitiseAccount(data.user) };
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : 'Invalid username or password' };
@@ -192,6 +201,7 @@ function resolveApiUrl(path) {
 
   function logout() {
     sessionStorage.removeItem(SESSION_KEY);
+    sessionStorage.removeItem(ADMIN_SECRET_KEY);
   }
 
   function isAuthenticated() {
@@ -242,14 +252,14 @@ function resolveApiUrl(path) {
       businessUnitEntityId,
       departmentEntityId
     });
-    const data = await requestUsers('POST', { action: 'create', account });
+    const data = await requestUsers('POST', { action: 'create', account }, { includeAdminSecret: true });
     if (Array.isArray(data?.accounts)) saveCache(data.accounts);
     return { ...(data?.account || sanitiseAccount(account)), password: data?.password || password };
   }
 
   async function updateManagedAccount(username, updates = {}) {
     const data = await requestUsers('PATCH', {
-      action: 'update',
+      action: 'self-update',
       username: String(username || '').trim().toLowerCase(),
       updates: {
         displayName: typeof updates.displayName === 'string' ? updates.displayName.trim() : undefined,
@@ -271,7 +281,7 @@ function resolveApiUrl(path) {
     const data = await requestUsers('PATCH', {
       action: 'reset-password',
       username: String(username || '').trim().toLowerCase()
-    });
+    }, { includeAdminSecret: true });
     if (Array.isArray(data?.accounts)) saveCache(data.accounts);
     return {
       account: data?.account ? sanitiseAccount(data.account) : null,
@@ -279,17 +289,6 @@ function resolveApiUrl(path) {
     };
   }
 
-  async function revealManagedPassword(username) {
-    const data = await requestUsers('PATCH', {
-      action: 'reveal-password',
-      username: String(username || '').trim().toLowerCase()
-    });
-    if (Array.isArray(data?.accounts)) saveCache(data.accounts);
-    return {
-      account: data?.account ? sanitiseAccount(data.account) : null,
-      password: data?.password || ''
-    };
-  }
 
   return {
     init,
@@ -304,6 +303,7 @@ function resolveApiUrl(path) {
     createManagedAccount,
     updateManagedAccount,
     resetManagedPassword,
-    revealManagedPassword
+    getAdminApiSecret,
+    setAdminApiSecret
   };
 })();
