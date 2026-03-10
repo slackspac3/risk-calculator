@@ -9,6 +9,15 @@ const DEFAULT_ACCOUNTS = [
 
 const USERS_KEY = process.env.USER_STORE_KEY || 'risk_calculator_users';
 
+
+function getKvUrl() {
+  return process.env.USER_STORE_KV_URL || process.env.KV_REST_API_URL || '';
+}
+
+function getKvToken() {
+  return process.env.USER_STORE_KV_TOKEN || process.env.KV_REST_API_TOKEN || '';
+}
+
 function normaliseAccount(account = {}) {
   return {
     username: String(account.username || '').trim().toLowerCase(),
@@ -21,8 +30,8 @@ function normaliseAccount(account = {}) {
 }
 
 async function runKvCommand(command) {
-  const url = process.env.KV_REST_API_URL;
-  const token = process.env.KV_REST_API_TOKEN;
+  const url = getKvUrl();
+  const token = getKvToken();
   if (!url || !token) return null;
   const res = await fetch(url, {
     method: 'POST',
@@ -40,7 +49,7 @@ async function runKvCommand(command) {
 }
 
 function hasWritableKv() {
-  return !!(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
+  return !!(getKvUrl() && getKvToken());
 }
 
 async function readAccounts() {
@@ -102,6 +111,8 @@ module.exports = async function handler(req, res) {
           diagnostics: {
             kvUrlPresent: !!process.env.KV_REST_API_URL,
             kvTokenPresent: !!process.env.KV_REST_API_TOKEN,
+            userStoreKvUrlPresent: !!process.env.USER_STORE_KV_URL,
+            userStoreKvTokenPresent: !!process.env.USER_STORE_KV_TOKEN,
             userStoreKey: USERS_KEY,
             allowedOrigin,
             debugPresent: !!process.env.USER_STORE_DEBUG,
