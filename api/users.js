@@ -103,7 +103,9 @@ module.exports = async function handler(req, res) {
             kvUrlPresent: !!process.env.KV_REST_API_URL,
             kvTokenPresent: !!process.env.KV_REST_API_TOKEN,
             userStoreKey: USERS_KEY,
-            allowedOrigin
+            allowedOrigin,
+            debugPresent: !!process.env.USER_STORE_DEBUG,
+            debugValue: process.env.USER_STORE_DEBUG || ''
           }
         }
       });
