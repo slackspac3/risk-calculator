@@ -90,6 +90,23 @@ const AuthService = (() => {
     return accountsCache;
   }
 
+  async function testUsersStoreHealth() {
+    try {
+      const data = await requestUsers('GET');
+      return {
+        ok: true,
+        apiUrl: getUsersApiUrl(),
+        accountCount: Array.isArray(data?.accounts) ? data.accounts.length : 0
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        apiUrl: getUsersApiUrl(),
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  }
+
   function buildUsername(displayName, accounts) {
     const base = String(displayName || 'user')
       .trim()
@@ -226,6 +243,7 @@ const AuthService = (() => {
 
   return {
     init,
+    testUsersStoreHealth,
     login,
     logout,
     isAuthenticated,

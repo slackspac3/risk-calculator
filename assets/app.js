@@ -4421,9 +4421,16 @@ function renderAdminSettings() {
   });
   const userControlsSection = renderSettingsSection({
     title: 'User Account Control',
-    description: 'Create PoC users, assign them to a BU and function, and reset their browser-stored state when needed.',
+    description: 'Create PoC users, assign them to a BU and function, and verify whether the shared user store is live.',
     meta: `${managedAccounts.length} managed accounts`,
     body: `<div class="card" style="padding:var(--sp-4);background:var(--bg-canvas)">
+      <div class="context-panel-title">Shared User Store</div>
+      <div class="flex items-center gap-3 mt-3" style="flex-wrap:wrap">
+        <button class="btn btn--secondary" id="btn-test-users-store" type="button">Test Shared User Store</button>
+        <span class="form-help" id="admin-users-store-status">Checks whether the Vercel user store is reachable from this browser.</span>
+      </div>
+    </div>
+    <div class="card mt-4" style="padding:var(--sp-4);background:var(--bg-canvas)">
       <div class="context-panel-title">Add User</div>
       <div class="grid-3 mt-3">
         <div class="form-group">
@@ -4941,6 +4948,24 @@ function renderAdminSettings() {
 
   document.getElementById('admin-new-user-bu')?.addEventListener('change', renderAdminNewUserDepartments);
   renderAdminNewUserDepartments();
+  document.getElementById('btn-test-users-store')?.addEventListener('click', async () => {
+    const btn = document.getElementById('btn-test-users-store');
+    const statusEl = document.getElementById('admin-users-store-status');
+    if (!btn || !statusEl) return;
+    btn.disabled = true;
+    btn.textContent = 'Testing…';
+    statusEl.textContent = 'Checking shared Vercel user store…';
+    const result = await AuthService.testUsersStoreHealth();
+    if (result.ok) {
+      statusEl.textContent = `Connected to shared user store at ${result.apiUrl} · ${result.accountCount} account(s) available.`;
+      UI.toast('Shared user store is reachable.', 'success');
+    } else {
+      statusEl.textContent = `Shared user store check failed: ${result.error}`;
+      UI.toast('Shared user store check failed.', 'warning');
+    }
+    btn.disabled = false;
+    btn.textContent = 'Test Shared User Store';
+  });
   document.getElementById('btn-admin-add-user')?.addEventListener('click', async () => {
     const displayName = document.getElementById('admin-new-user-name').value.trim();
     const businessUnitEntityId = document.getElementById('admin-new-user-bu').value.trim();
