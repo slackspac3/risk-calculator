@@ -608,21 +608,29 @@ function renderCompanyStructureSummary(structure = []) {
   });
   function renderNodes(parentId, depth = 0) {
     return (byParent.get(parentId || 'root') || []).map(node => `
-      <div style="padding-left:${depth * 18}px;margin-top:8px">
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          <span class="badge badge--gold">${node.type}</span>
-          <strong style="color:var(--text-primary)">${node.name}</strong>
-          ${node.websiteUrl ? `<span class="form-help" style="margin-top:0">${node.websiteUrl}</span>` : ''}
-          ${node.ownerUsername ? `<span class="form-help" style="margin-top:0">Owner: ${accountLabelByUsername.get(node.ownerUsername) || node.ownerUsername}</span>` : ''}
-          ${isCompanyEntityType(node.type) ? `<button class="btn btn--secondary btn--sm org-entity-add-department" data-org-id="${node.id}" type="button">Add Function / Department</button>` : ''}
-          <button class="btn btn--ghost btn--sm org-entity-context" data-org-id="${node.id}" type="button">Manage Context</button>
-          <button class="btn btn--ghost btn--sm org-entity-edit" data-org-id="${node.id}" type="button">Edit</button>
-          <button class="btn btn--ghost btn--sm org-entity-delete" data-org-id="${node.id}" type="button">Remove</button>
+      <div class="org-tree-node ${getOrgEntityThemeClass(node.type)}" style="--org-depth:${depth};margin-top:8px">
+        <div class="org-tree-node__rail"></div>
+        <div class="org-tree-node__card">
+          <div class="org-tree-node__head">
+            <div class="org-tree-node__identity">
+              <span class="badge badge--gold">${node.type}</span>
+              <strong class="org-tree-node__name">${node.name}</strong>
+              ${node.websiteUrl ? `<span class="form-help" style="margin-top:0">${node.websiteUrl}</span>` : ''}
+              ${node.ownerUsername ? `<span class="form-help" style="margin-top:0">Owner: ${accountLabelByUsername.get(node.ownerUsername) || node.ownerUsername}</span>` : ''}
+            </div>
+            <div class="org-tree-node__actions">
+              ${isCompanyEntityType(node.type) ? `<button class="btn btn--secondary btn--sm org-entity-add-department" data-org-id="${node.id}" type="button">Add Function / Department</button>` : ''}
+              <button class="btn btn--ghost btn--sm org-entity-context" data-org-id="${node.id}" type="button">Manage Context</button>
+              <button class="btn btn--ghost btn--sm org-entity-edit" data-org-id="${node.id}" type="button">Edit</button>
+              <button class="btn btn--ghost btn--sm org-entity-delete" data-org-id="${node.id}" type="button">Remove</button>
+            </div>
+          </div>
+          ${depth ? `<div class="org-tree-node__path">${getEntityLineageLabel(structure, node.id)}</div>` : ''}
         </div>
-        ${renderNodes(node.id, depth + 1)}
+        <div class="org-tree-node__children">${renderNodes(node.id, depth + 1)}</div>
       </div>`).join('');
   }
-  return `<div>${renderNodes('root')}</div>`;
+  return `<div class="org-tree">${renderNodes('root')}</div>`;
 }
 
 function getEntityLineage(structure = [], entityId = '') {
@@ -648,6 +656,18 @@ function getChildCompanyEntities(structure = [], parentId = '') {
   return (Array.isArray(structure) ? structure : []).filter(node =>
     isCompanyEntityType(node.type) && String(node.parentId || '') === String(parentId || '')
   );
+}
+
+function getOrgEntityThemeClass(type = '') {
+  const value = String(type || '').toLowerCase();
+  if (value === 'holding company') return 'org-theme--holding';
+  if (value.includes('subsidiary')) return 'org-theme--subsidiary';
+  if (value.includes('operating company')) return 'org-theme--operating';
+  if (value.includes('joint venture')) return 'org-theme--jointventure';
+  if (value.includes('portfolio company')) return 'org-theme--portfolio';
+  if (value.includes('partner')) return 'org-theme--partner';
+  if (value === 'department / function') return 'org-theme--department';
+  return 'org-theme--default';
 }
 
 function getEntityLayerById(settings = getAdminSettings(), entityId = '') {
@@ -4580,8 +4600,8 @@ function renderAdminBU() {
 
   function renderDepartmentCard(department) {
     return `
-      <div class="card" style="padding:var(--sp-4);background:var(--bg-canvas)">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <div class="org-related-card org-theme--department">
+        <div class="org-related-card__head">
           <div>
             <div class="context-panel-title">${department.name}</div>
             <div class="form-help">${department.ownerUsername ? `Owner: ${accountLabelByUsername.get(department.ownerUsername) || department.ownerUsername}` : 'Owner not assigned yet'}</div>
@@ -4600,7 +4620,8 @@ function renderAdminBU() {
     const departments = getDepartmentEntities(companyStructure, entity.id);
     const childCompanies = getChildCompanyEntities(companyStructure, entity.id);
     return `
-      <div class="card card--elevated" style="padding:var(--sp-5);margin-left:${depth * 20}px;border-left:${depth ? '3px solid rgba(212,160,23,0.22)' : '1px solid var(--border-subtle)'}">
+      <div class="card card--elevated org-hierarchy-card ${getOrgEntityThemeClass(entity.type)}" style="padding:var(--sp-5);margin-left:${depth * 20}px">
+        <div class="org-hierarchy-card__accent"></div>
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap">
           <div>
             <div class="context-panel-title">${entity.name}</div>

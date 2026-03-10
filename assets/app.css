@@ -742,6 +742,125 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 
+
+.org-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.org-tree-node {
+  margin-left: calc(var(--org-depth, 0) * 18px);
+}
+
+.org-tree-node__rail {
+  width: 3px;
+  min-height: 14px;
+  background: var(--org-accent, var(--border-default));
+  border-radius: 999px;
+  margin-left: 10px;
+}
+
+.org-tree-node__card {
+  margin-top: 6px;
+  padding: var(--sp-4);
+  border-radius: var(--radius-lg);
+  border: 1px solid color-mix(in srgb, var(--org-accent, var(--border-default)) 35%, transparent);
+  background: color-mix(in srgb, var(--org-accent, var(--bg-elevated)) 10%, var(--bg-elevated));
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02);
+}
+
+.org-tree-node__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.org-tree-node__identity,
+.org-tree-node__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.org-tree-node__name {
+  color: var(--text-primary);
+}
+
+.org-tree-node__path {
+  margin-top: 8px;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.org-tree-node__children {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.org-hierarchy-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.org-hierarchy-card__accent {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--org-accent, var(--border-default));
+}
+
+.org-related-card {
+  padding: var(--sp-4);
+  border-radius: var(--radius-lg);
+  border: 1px solid color-mix(in srgb, var(--org-accent, var(--border-default)) 35%, transparent);
+  background: color-mix(in srgb, var(--org-accent, var(--bg-canvas)) 10%, var(--bg-canvas));
+}
+
+.org-related-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.org-theme--holding {
+  --org-accent: #60a5fa;
+}
+
+.org-theme--subsidiary {
+  --org-accent: #22c55e;
+}
+
+.org-theme--operating {
+  --org-accent: #14b8a6;
+}
+
+.org-theme--jointventure {
+  --org-accent: #f59e0b;
+}
+
+.org-theme--portfolio {
+  --org-accent: #a78bfa;
+}
+
+.org-theme--partner {
+  --org-accent: #fb7185;
+}
+
+.org-theme--department {
+  --org-accent: #f97316;
+}
+
+.org-theme--default {
+  --org-accent: #94a3b8;
+}
+
 .settings-shell {
   display: flex;
   flex-direction: column;
