@@ -109,6 +109,11 @@ module.exports = async function handler(req, res) {
           writable: hasWritableKv(),
           mode: hasWritableKv() ? 'shared-kv' : 'fallback-defaults',
           diagnostics: {
+            vercelEnv: process.env.VERCEL_ENV || '',
+            vercelTargetEnv: process.env.VERCEL_TARGET_ENV || '',
+            vercelUrl: process.env.VERCEL_URL || '',
+            vercelBranchUrl: process.env.VERCEL_BRANCH_URL || '',
+            vercelProjectProductionUrl: process.env.VERCEL_PROJECT_PRODUCTION_URL || '',
             rcUserStoreUrlPresent: !!process.env.RC_USER_STORE_URL,
             rcUserStoreTokenPresent: !!process.env.RC_USER_STORE_TOKEN,
             kvUrlPresent: !!process.env.KV_REST_API_URL,
