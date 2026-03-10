@@ -48,7 +48,8 @@ const AppState = {
   draft: {},
   buList: [],
   docList: [],
-  adminNewUserStatus: ''
+  adminNewUserStatus: '',
+  adminVisiblePasswords: {}
 };
 
 const USER_SETTINGS_KEYS = [
@@ -4471,6 +4472,7 @@ function renderAdminSettings() {
             <th>Username</th>
             <th>Assigned BU</th>
             <th>Assigned Function</th>
+            <th>Password</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -4484,8 +4486,9 @@ function renderAdminSettings() {
               <td><code>${account.username}</code></td>
               <td>${assignedBU}</td>
               <td>${assignedDepartment}</td>
+              <td><code>${AppState.adminVisiblePasswords[account.username] || 'Hidden'}</code></td>
               <td style="text-align:right">
-                <button class="btn btn--ghost btn--sm btn-reset-user-account" data-username="${account.username}" data-display-name="${account.displayName}" type="button">Reset User</button> <button class="btn btn--secondary btn--sm btn-reset-user-password" data-username="${account.username}" data-display-name="${account.displayName}" type="button">Reset Password</button>
+                <button class="btn btn--ghost btn--sm btn-show-user-password" data-username="${account.username}" data-display-name="${account.displayName}" type="button">Show Password</button> <button class="btn btn--ghost btn--sm btn-reset-user-account" data-username="${account.username}" data-display-name="${account.displayName}" type="button">Reset User</button> <button class="btn btn--secondary btn--sm btn-reset-user-password" data-username="${account.username}" data-display-name="${account.displayName}" type="button">Reset Password</button>
               </td>
             </tr>`;
           }).join('')}
@@ -4934,6 +4937,24 @@ function renderAdminSettings() {
     renderAdminSettings();
     UI.toast('Compass session key cleared.', 'success');
   });
+  document.querySelectorAll('.btn-show-user-password').forEach(button => {
+    button.addEventListener('click', async () => {
+      const username = button.dataset.username || '';
+      const displayName = button.dataset.displayName || username;
+      try {
+        const result = await AuthService.revealManagedPassword(username);
+        AppState.adminVisiblePasswords[username] = result.password || '';
+        AppState.adminNewUserStatus = `Current password for ${displayName}: username ${username} / password ${result.password}`;
+        UI.toast(`Password revealed for ${username}.`, 'success');
+        renderAdminSettings();
+      } catch (error) {
+        AppState.adminNewUserStatus = `Password lookup failed: ${error instanceof Error ? error.message : String(error)}`;
+        document.getElementById('admin-new-user-result').textContent = AppState.adminNewUserStatus;
+        UI.toast('Password lookup failed.', 'danger');
+      }
+    });
+  });
+
   document.querySelectorAll('.btn-reset-user-account').forEach(button => {
     button.addEventListener('click', async () => {
       const username = button.dataset.username || '';
@@ -4951,6 +4972,7 @@ function renderAdminSettings() {
       if (!await UI.confirm(`Issue a new password for ${displayName}? The old password will stop working.`)) return;
       try {
         const result = await AuthService.resetManagedPassword(username);
+        AppState.adminVisiblePasswords[username] = result.password || '';
         AppState.adminNewUserStatus = `Password reset for ${displayName}: username ${username} / password ${result.password}`;
         UI.toast(`Password reset for ${username}.`, 'success');
         renderAdminSettings();
@@ -5026,6 +5048,7 @@ function renderAdminSettings() {
     resultEl.textContent = 'Creating shared user account…';
     try {
       const account = await AuthService.createManagedAccount({ displayName, businessUnitEntityId, departmentEntityId });
+      AppState.adminVisiblePasswords[account.username] = account.password || '';
       AppState.adminNewUserStatus = `Created ${account.displayName}: username ${account.username} / password ${account.password}`;
       UI.toast(`Created ${account.username}.`, 'success');
       renderAdminSettings();

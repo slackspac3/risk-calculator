@@ -184,6 +184,15 @@ module.exports = async function handler(req, res) {
         });
         return;
       }
+
+      if (body.action === 'reveal-password') {
+        res.status(200).json({
+          account: sanitiseAccount(accounts[index]),
+          password: accounts[index].password,
+          accounts: accounts.map(sanitiseAccount)
+        });
+        return;
+      }
       accounts[index] = normaliseAccount({
         ...accounts[index],
         displayName: typeof updates.displayName === 'string' && updates.displayName.trim() ? updates.displayName.trim() : accounts[index].displayName,

@@ -279,6 +279,18 @@ function resolveApiUrl(path) {
     };
   }
 
+  async function revealManagedPassword(username) {
+    const data = await requestUsers('PATCH', {
+      action: 'reveal-password',
+      username: String(username || '').trim().toLowerCase()
+    });
+    if (Array.isArray(data?.accounts)) saveCache(data.accounts);
+    return {
+      account: data?.account ? sanitiseAccount(data.account) : null,
+      password: data?.password || ''
+    };
+  }
+
   return {
     init,
     testUsersStoreHealth,
@@ -291,6 +303,7 @@ function resolveApiUrl(path) {
     getManagedAccounts,
     createManagedAccount,
     updateManagedAccount,
-    resetManagedPassword
+    resetManagedPassword,
+    revealManagedPassword
   };
 })();
