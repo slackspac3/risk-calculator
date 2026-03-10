@@ -1,3 +1,5 @@
+const crypto = require('crypto');
+
 const DEFAULT_ACCOUNTS = [
   { username: 'admin', password: 'Admin@Risk2026', displayName: 'Global Admin', role: 'admin', businessUnitEntityId: '', departmentEntityId: '' },
   { username: 'alex.risk', password: 'RiskUser@01', displayName: 'Alex Risk', role: 'user', businessUnitEntityId: '', departmentEntityId: '' },
@@ -11,6 +13,7 @@ const USERS_KEY = process.env.USER_STORE_KEY || 'risk_calculator_users';
 const ADMIN_API_SECRET = process.env.ADMIN_API_SECRET || '';
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_MAX_ATTEMPTS = 10;
+const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const loginAttempts = new Map();
 
 function getKvUrl() {
@@ -48,6 +51,42 @@ function generatePassword() {
 
 function isAdminSecretValid(req) {
   return !!ADMIN_API_SECRET && req.headers['x-admin-secret'] === ADMIN_API_SECRET;
+}
+
+function getSessionSigningSecret() {
+  return ADMIN_API_SECRET || getKvToken() || 'risk-calculator-poc-session-secret';
+}
+
+function encodeTokenSegment(value) {
+  return Buffer.from(value).toString('base64url');
+}
+
+function createSessionToken(account) {
+  const payload = JSON.stringify({
+    username: account.username,
+    role: account.role,
+    businessUnitEntityId: account.businessUnitEntityId || '',
+    departmentEntityId: account.departmentEntityId || '',
+    exp: Date.now() + SESSION_TTL_MS
+  });
+  const payloadPart = encodeTokenSegment(payload);
+  const signature = crypto.createHmac('sha256', getSessionSigningSecret()).update(payloadPart).digest('base64url');
+  return `${payloadPart}.${signature}`;
+}
+
+function verifySessionToken(token) {
+  const value = String(token || '').trim();
+  if (!value || !value.includes('.')) return null;
+  const [payloadPart, signature] = value.split('.', 2);
+  const expected = crypto.createHmac('sha256', getSessionSigningSecret()).update(payloadPart).digest('base64url');
+  if (signature !== expected) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(payloadPart, 'base64url').toString('utf8'));
+    if (!payload?.username || Number(payload.exp || 0) < Date.now()) return null;
+    return payload;
+  } catch {
+    return null;
+  }
 }
 
 function getLoginThrottleKey(req, username) {
@@ -138,7 +177,7 @@ module.exports = async function handler(req, res) {
 
   res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'content-type');
+  res.setHeader('Access-Control-Allow-Headers', 'content-type,x-admin-secret,x-session-token');
   res.setHeader('Vary', 'Origin');
 
   if (req.method === 'OPTIONS') {
@@ -182,7 +221,10 @@ module.exports = async function handler(req, res) {
           return;
         }
         clearFailedLogin(throttleKey);
-        res.status(200).json({ user: sanitiseAccount(matched) });
+        res.status(200).json({
+          user: sanitiseAccount(matched),
+          sessionToken: createSessionToken(matched)
+        });
         return;
       }
 

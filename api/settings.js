@@ -1,3 +1,5 @@
+const crypto = require('crypto');
+
 const SETTINGS_KEY = process.env.SETTINGS_STORE_KEY || 'risk_calculator_settings';
 const ADMIN_API_SECRET = process.env.ADMIN_API_SECRET || '';
 
@@ -89,6 +91,25 @@ function isAdminSecretValid(req) {
   return !!ADMIN_API_SECRET && req.headers['x-admin-secret'] === ADMIN_API_SECRET;
 }
 
+function getSessionSigningSecret() {
+  return ADMIN_API_SECRET || getKvToken() || 'risk-calculator-poc-session-secret';
+}
+
+function verifySessionToken(token) {
+  const value = String(token || '').trim();
+  if (!value || !value.includes('.')) return null;
+  const [payloadPart, signature] = value.split('.', 2);
+  const expected = crypto.createHmac('sha256', getSessionSigningSecret()).update(payloadPart).digest('base64url');
+  if (signature !== expected) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(payloadPart, 'base64url').toString('utf8'));
+    if (!payload?.username || Number(payload.exp || 0) < Date.now()) return null;
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
 module.exports = async function handler(req, res) {
   const allowedOrigin = process.env.ALLOWED_ORIGIN || 'https://slackspac3.github.io';
   const body = typeof req.body === 'string'
@@ -103,7 +124,7 @@ module.exports = async function handler(req, res) {
 
   res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
   res.setHeader('Access-Control-Allow-Methods', 'GET,PUT,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'content-type,x-admin-secret');
+  res.setHeader('Access-Control-Allow-Headers', 'content-type,x-admin-secret,x-session-token');
   res.setHeader('Vary', 'Origin');
 
   if (req.method === 'OPTIONS') {
@@ -131,8 +152,9 @@ module.exports = async function handler(req, res) {
     }
 
     if (req.method === 'PUT') {
-      if (!isAdminSecretValid(req)) {
-        res.status(403).json({ error: 'Admin secret required.' });
+      const session = verifySessionToken(req.headers['x-session-token']);
+      if (!isAdminSecretValid(req) && !session) {
+        res.status(403).json({ error: 'Admin secret or valid session token required.' });
         return;
       }
       const settings = await writeSettings(body.settings || {});

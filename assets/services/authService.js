@@ -161,6 +161,7 @@ function resolveApiUrl(path) {
       authenticated: true,
       ts: Date.now(),
       user: sanitiseAccount(account),
+      apiSessionToken: account.apiSessionToken || '',
       context: {}
     }));
   }
@@ -192,7 +193,7 @@ function resolveApiUrl(path) {
       if (!data?.user) return { success: false, error: 'Invalid username or password' };
       const knownAccounts = readCachedAccounts().filter(account => account.username !== data.user.username);
       saveCache([...knownAccounts, data.user]);
-      writeSession(data.user);
+      writeSession({ ...data.user, apiSessionToken: data.sessionToken || '' });
       return { success: true, user: sanitiseAccount(data.user) };
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : 'Invalid username or password' };
@@ -231,6 +232,10 @@ function resolveApiUrl(path) {
     session.ts = Date.now();
     sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
     return getCurrentUser();
+  }
+
+  function getApiSessionToken() {
+    return readSession()?.apiSessionToken || '';
   }
 
 
@@ -299,6 +304,7 @@ function resolveApiUrl(path) {
     isAdminAuthenticated,
     getCurrentUser,
     updateSessionContext,
+    getApiSessionToken,
     getManagedAccounts,
     createManagedAccount,
     updateManagedAccount,

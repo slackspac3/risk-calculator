@@ -70,6 +70,9 @@ async function requestSharedSettings(method = 'GET', payload, { includeAdminSecr
   if (includeAdminSecret && AuthService.getAdminApiSecret()) {
     headers['x-admin-secret'] = AuthService.getAdminApiSecret();
   }
+  if (AuthService.getApiSessionToken()) {
+    headers['x-session-token'] = AuthService.getApiSessionToken();
+  }
   const res = await fetch(getSettingsApiUrl(), {
     method,
     headers,
