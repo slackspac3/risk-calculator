@@ -3395,6 +3395,29 @@ function renderSettingsSection({ title, description = '', body = '', open = fals
   </details>`;
 }
 
+function createDebouncedSaver(callback, delay = 350) {
+  let timeoutId = null;
+  return () => {
+    window.clearTimeout(timeoutId);
+    timeoutId = window.setTimeout(() => callback(), delay);
+  };
+}
+
+function bindAutosave(container, callback, { events = ['input', 'change'] } = {}) {
+  if (!container || typeof callback !== 'function') return () => {};
+  const run = createDebouncedSaver(callback);
+  const listeners = events.map(eventName => {
+    const handler = event => {
+      if (!event.target || !(event.target instanceof HTMLElement)) return;
+      if (event.target.closest('.tag-input-chip button')) return;
+      run();
+    };
+    container.addEventListener(eventName, handler);
+    return { eventName, handler };
+  });
+  return () => listeners.forEach(({ eventName, handler }) => container.removeEventListener(eventName, handler));
+}
+
 function renderUserPreferences(existingSettings = getUserSettings()) {
   if (!requireAuth()) return;
   if (AuthService.isAdminAuthenticated()) {
@@ -3693,57 +3716,70 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
     });
   });
 
-  document.getElementById('btn-save-user-settings').addEventListener('click', () => {
+  function buildUserSettingsPayload() {
     const businessUnitEntityId = businessUnitEl.value.trim();
     const departmentEntityId = departmentEl.value.trim();
     const businessEntity = getEntityById(companyStructure, businessUnitEntityId);
     const departmentEntity = getEntityById(companyStructure, departmentEntityId);
-    saveUserSettings({
-      companyContextSections: {
-        companySummary: document.getElementById('user-company-section-summary').value.trim(),
-        businessModel: document.getElementById('user-company-section-business-model').value.trim(),
-        operatingModel: document.getElementById('user-company-section-operating-model').value.trim(),
-        publicCommitments: document.getElementById('user-company-section-commitments').value.trim(),
-        keyRiskSignals: document.getElementById('user-company-section-risks').value.trim(),
-        obligations: document.getElementById('user-company-section-obligations').value.trim(),
-        sources: document.getElementById('user-company-section-sources').value.trim()
+    return {
+      payload: {
+        companyContextSections: {
+          companySummary: document.getElementById('user-company-section-summary').value.trim(),
+          businessModel: document.getElementById('user-company-section-business-model').value.trim(),
+          operatingModel: document.getElementById('user-company-section-operating-model').value.trim(),
+          publicCommitments: document.getElementById('user-company-section-commitments').value.trim(),
+          keyRiskSignals: document.getElementById('user-company-section-risks').value.trim(),
+          obligations: document.getElementById('user-company-section-obligations').value.trim(),
+          sources: document.getElementById('user-company-section-sources').value.trim()
+        },
+        geography: document.getElementById('user-geo').value.trim() || globalSettings.geography,
+        companyWebsiteUrl: websiteEl.value.trim(),
+        companyContextProfile: serialiseCompanyContextSections({
+          companySummary: document.getElementById('user-company-section-summary').value.trim(),
+          businessModel: document.getElementById('user-company-section-business-model').value.trim(),
+          operatingModel: document.getElementById('user-company-section-operating-model').value.trim(),
+          publicCommitments: document.getElementById('user-company-section-commitments').value.trim(),
+          keyRiskSignals: document.getElementById('user-company-section-risks').value.trim(),
+          obligations: document.getElementById('user-company-section-obligations').value.trim(),
+          sources: document.getElementById('user-company-section-sources').value.trim()
+        }),
+        userProfile: {
+          fullName: document.getElementById('user-full-name').value.trim() || AppState.currentUser?.displayName || '',
+          jobTitle: document.getElementById('user-job-title').value.trim(),
+          department: departmentEntity?.name || '',
+          businessUnit: businessEntity?.name || '',
+          departmentEntityId: departmentEntity?.id || '',
+          businessUnitEntityId,
+          focusAreas: focusInput.getTags(),
+          preferredOutputs: document.getElementById('user-preferred-outputs').value.trim(),
+          workingContext: document.getElementById('user-working-context').value.trim()
+        },
+        defaultLinkMode: document.getElementById('user-link-mode').value === 'yes',
+        riskAppetiteStatement: document.getElementById('user-appetite').value.trim() || globalSettings.riskAppetiteStatement,
+        applicableRegulations: regsInput.getTags(),
+        aiInstructions: document.getElementById('user-ai-instructions').value.trim(),
+        benchmarkStrategy: document.getElementById('user-benchmark-strategy').value.trim() || globalSettings.benchmarkStrategy,
+        adminContextSummary: document.getElementById('user-context-summary').value.trim() || globalSettings.adminContextSummary
       },
-      geography: document.getElementById('user-geo').value.trim() || globalSettings.geography,
-      companyWebsiteUrl: websiteEl.value.trim(),
-      companyContextProfile: serialiseCompanyContextSections({
-        companySummary: document.getElementById('user-company-section-summary').value.trim(),
-        businessModel: document.getElementById('user-company-section-business-model').value.trim(),
-        operatingModel: document.getElementById('user-company-section-operating-model').value.trim(),
-        publicCommitments: document.getElementById('user-company-section-commitments').value.trim(),
-        keyRiskSignals: document.getElementById('user-company-section-risks').value.trim(),
-        obligations: document.getElementById('user-company-section-obligations').value.trim(),
-        sources: document.getElementById('user-company-section-sources').value.trim()
-      }),
-      userProfile: {
-        fullName: document.getElementById('user-full-name').value.trim() || AppState.currentUser?.displayName || '',
-        jobTitle: document.getElementById('user-job-title').value.trim(),
-        department: departmentEntity?.name || '',
-        businessUnit: businessEntity?.name || '',
-        departmentEntityId: departmentEntity?.id || '',
-        businessUnitEntityId,
-        focusAreas: focusInput.getTags(),
-        preferredOutputs: document.getElementById('user-preferred-outputs').value.trim(),
-        workingContext: document.getElementById('user-working-context').value.trim()
-      },
-      defaultLinkMode: document.getElementById('user-link-mode').value === 'yes',
-      riskAppetiteStatement: document.getElementById('user-appetite').value.trim() || globalSettings.riskAppetiteStatement,
-      applicableRegulations: regsInput.getTags(),
-      aiInstructions: document.getElementById('user-ai-instructions').value.trim(),
-      benchmarkStrategy: document.getElementById('user-benchmark-strategy').value.trim() || globalSettings.benchmarkStrategy,
-      adminContextSummary: document.getElementById('user-context-summary').value.trim() || globalSettings.adminContextSummary
-    });
-    AuthService.updateSessionContext({
       businessUnitEntityId,
       departmentEntityId: departmentEntity?.id || ''
-    });
+    };
+  }
+
+  function persistUserSettings(showToast = false) {
+    const { payload, businessUnitEntityId, departmentEntityId } = buildUserSettingsPayload();
+    saveUserSettings(payload);
+    AuthService.updateSessionContext({ businessUnitEntityId, departmentEntityId });
     if (!AppState.draft.geography) AppState.draft.geography = getEffectiveSettings().geography;
     saveDraft();
-    UI.toast('Personal settings saved.', 'success');
+    if (showToast) UI.toast('Personal settings saved.', 'success');
+  }
+
+  const userSettingsRoot = document.querySelector('.settings-shell');
+  bindAutosave(userSettingsRoot, () => persistUserSettings(false));
+
+  document.getElementById('btn-save-user-settings').addEventListener('click', () => {
+    persistUserSettings(true);
   });
 
   document.getElementById('btn-user-add-department')?.addEventListener('click', () => {
@@ -4440,10 +4476,67 @@ function renderAdminSettings() {
   document.getElementById('btn-add-org-function')?.addEventListener('click', () => openEntityEditor(null, { type: 'Department / function' }));
   bindStructureActionHandlers();
   renderEntityLayerSummary();
-  document.getElementById('btn-save-settings').addEventListener('click', () => {
+  function buildAdminSettingsPayload() {
     const warningThresholdUsd = Math.max(0, parseFloat(document.getElementById('admin-warning-threshold').value) || DEFAULT_ADMIN_SETTINGS.warningThresholdUsd);
     const toleranceThresholdUsd = Math.max(0, parseFloat(document.getElementById('admin-tolerance-threshold').value) || TOLERANCE_THRESHOLD);
     const annualReviewThresholdUsd = Math.max(0, parseFloat(document.getElementById('admin-annual-threshold').value) || DEFAULT_ADMIN_SETTINGS.annualReviewThresholdUsd);
+    return {
+      warningThresholdUsd,
+      toleranceThresholdUsd,
+      annualReviewThresholdUsd,
+      payload: {
+        companyContextSections: {
+          companySummary: document.getElementById('admin-company-section-summary').value.trim(),
+          businessModel: document.getElementById('admin-company-section-business-model').value.trim(),
+          operatingModel: document.getElementById('admin-company-section-operating-model').value.trim(),
+          publicCommitments: document.getElementById('admin-company-section-commitments').value.trim(),
+          keyRiskSignals: document.getElementById('admin-company-section-risks').value.trim(),
+          obligations: document.getElementById('admin-company-section-obligations').value.trim(),
+          sources: document.getElementById('admin-company-section-sources').value.trim()
+        },
+        geography: document.getElementById('admin-geo').value.trim() || DEFAULT_ADMIN_SETTINGS.geography,
+        companyWebsiteUrl: document.getElementById('admin-company-url').value.trim(),
+        companyContextProfile: serialiseCompanyContextSections({
+          companySummary: document.getElementById('admin-company-section-summary').value.trim(),
+          businessModel: document.getElementById('admin-company-section-business-model').value.trim(),
+          operatingModel: document.getElementById('admin-company-section-operating-model').value.trim(),
+          publicCommitments: document.getElementById('admin-company-section-commitments').value.trim(),
+          keyRiskSignals: document.getElementById('admin-company-section-risks').value.trim(),
+          obligations: document.getElementById('admin-company-section-obligations').value.trim(),
+          sources: document.getElementById('admin-company-section-sources').value.trim()
+        }),
+        companyStructure,
+        entityContextLayers,
+        defaultLinkMode: document.getElementById('admin-link-mode').value === 'yes',
+        toleranceThresholdUsd,
+        warningThresholdUsd,
+        annualReviewThresholdUsd,
+        riskAppetiteStatement: document.getElementById('admin-appetite').value.trim() || DEFAULT_ADMIN_SETTINGS.riskAppetiteStatement,
+        applicableRegulations: regsInput.getTags(),
+        aiInstructions: document.getElementById('admin-ai-instructions').value.trim(),
+        benchmarkStrategy: document.getElementById('admin-benchmark-strategy').value.trim() || DEFAULT_ADMIN_SETTINGS.benchmarkStrategy,
+        adminContextSummary: document.getElementById('admin-context-summary').value.trim() || DEFAULT_ADMIN_SETTINGS.adminContextSummary,
+        escalationGuidance: document.getElementById('admin-escalation-guidance').value.trim() || DEFAULT_ADMIN_SETTINGS.escalationGuidance
+      }
+    };
+  }
+
+  function persistAdminSettings(showToast = false) {
+    const { warningThresholdUsd, toleranceThresholdUsd, annualReviewThresholdUsd, payload } = buildAdminSettingsPayload();
+    if (warningThresholdUsd > toleranceThresholdUsd) return false;
+    if (annualReviewThresholdUsd < toleranceThresholdUsd) return false;
+    saveAdminSettings(payload);
+    if (!AppState.draft.geography) AppState.draft.geography = getAdminSettings().geography;
+    saveDraft();
+    if (showToast) UI.toast('Settings saved.', 'success');
+    return true;
+  }
+
+  const adminSettingsRoot = document.querySelector('.settings-shell');
+  bindAutosave(adminSettingsRoot, () => persistAdminSettings(false));
+
+  document.getElementById('btn-save-settings').addEventListener('click', () => {
+    const { warningThresholdUsd, toleranceThresholdUsd, annualReviewThresholdUsd } = buildAdminSettingsPayload();
     if (warningThresholdUsd > toleranceThresholdUsd) {
       UI.toast('Warning trigger must be less than or equal to the tolerance threshold.', 'warning');
       return;
@@ -4452,43 +4545,7 @@ function renderAdminSettings() {
       UI.toast('Annual review trigger should be greater than or equal to the tolerance threshold.', 'warning');
       return;
     }
-    saveAdminSettings({
-      companyContextSections: {
-        companySummary: document.getElementById('admin-company-section-summary').value.trim(),
-        businessModel: document.getElementById('admin-company-section-business-model').value.trim(),
-        operatingModel: document.getElementById('admin-company-section-operating-model').value.trim(),
-        publicCommitments: document.getElementById('admin-company-section-commitments').value.trim(),
-        keyRiskSignals: document.getElementById('admin-company-section-risks').value.trim(),
-        obligations: document.getElementById('admin-company-section-obligations').value.trim(),
-        sources: document.getElementById('admin-company-section-sources').value.trim()
-      },
-      geography: document.getElementById('admin-geo').value.trim() || DEFAULT_ADMIN_SETTINGS.geography,
-      companyWebsiteUrl: document.getElementById('admin-company-url').value.trim(),
-      companyContextProfile: serialiseCompanyContextSections({
-        companySummary: document.getElementById('admin-company-section-summary').value.trim(),
-        businessModel: document.getElementById('admin-company-section-business-model').value.trim(),
-        operatingModel: document.getElementById('admin-company-section-operating-model').value.trim(),
-        publicCommitments: document.getElementById('admin-company-section-commitments').value.trim(),
-        keyRiskSignals: document.getElementById('admin-company-section-risks').value.trim(),
-        obligations: document.getElementById('admin-company-section-obligations').value.trim(),
-        sources: document.getElementById('admin-company-section-sources').value.trim()
-      }),
-      companyStructure,
-      entityContextLayers,
-      defaultLinkMode: document.getElementById('admin-link-mode').value === 'yes',
-      toleranceThresholdUsd,
-      warningThresholdUsd,
-      annualReviewThresholdUsd,
-      riskAppetiteStatement: document.getElementById('admin-appetite').value.trim() || DEFAULT_ADMIN_SETTINGS.riskAppetiteStatement,
-      applicableRegulations: regsInput.getTags(),
-      aiInstructions: document.getElementById('admin-ai-instructions').value.trim(),
-      benchmarkStrategy: document.getElementById('admin-benchmark-strategy').value.trim() || DEFAULT_ADMIN_SETTINGS.benchmarkStrategy,
-      adminContextSummary: document.getElementById('admin-context-summary').value.trim() || DEFAULT_ADMIN_SETTINGS.adminContextSummary,
-      escalationGuidance: document.getElementById('admin-escalation-guidance').value.trim() || DEFAULT_ADMIN_SETTINGS.escalationGuidance
-    });
-    if (!AppState.draft.geography) AppState.draft.geography = getAdminSettings().geography;
-    saveDraft();
-    UI.toast('Settings saved.', 'success');
+    persistAdminSettings(true);
   });
   document.getElementById('btn-build-company-context').addEventListener('click', async () => {
     const btn = document.getElementById('btn-build-company-context');
