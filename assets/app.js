@@ -644,6 +644,12 @@ function getEntityLineageLabel(structure = [], entityId = '') {
   return chain.length ? chain.map(node => node.name).join(' > ') : '';
 }
 
+function getChildCompanyEntities(structure = [], parentId = '') {
+  return (Array.isArray(structure) ? structure : []).filter(node =>
+    isCompanyEntityType(node.type) && String(node.parentId || '') === String(parentId || '')
+  );
+}
+
 function getEntityLayerById(settings = getAdminSettings(), entityId = '') {
   const layers = Array.isArray(settings.entityContextLayers) ? settings.entityContextLayers : [];
   return layers.find(layer => layer.entityId === entityId) || null;
@@ -4568,11 +4574,71 @@ function renderAdminBU() {
   const departmentEntities = getDepartmentEntities(companyStructure);
   const managedAccounts = AuthService.getManagedAccounts();
   const accountLabelByUsername = new Map(managedAccounts.map(account => [account.username, account.displayName]));
+  const topLevelCompanies = getChildCompanyEntities(companyStructure, '');
+
+  function renderDepartmentCard(department) {
+    return `
+      <div class="card" style="padding:var(--sp-4);background:var(--bg-canvas)">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
+          <div>
+            <div class="context-panel-title">${department.name}</div>
+            <div class="form-help">${department.ownerUsername ? `Owner: ${accountLabelByUsername.get(department.ownerUsername) || department.ownerUsername}` : 'Owner not assigned yet'}</div>
+            <div class="form-help">${getEntityLayerById(settings, department.id)?.contextSummary || department.profile || 'No retained department context yet'}</div>
+          </div>
+          <div class="flex items-center gap-3" style="flex-wrap:wrap">
+            <button class="btn btn--ghost btn--sm btn-edit-department" data-department-id="${department.id}" type="button">Edit Department</button>
+            <button class="btn btn--secondary btn--sm btn-edit-department-context" data-department-id="${department.id}" type="button">Manage Context</button>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function renderCompanyNode(entity, depth = 0) {
+    const bu = buList.find(item => item.orgEntityId === entity.id) || buildBUFromOrgEntity(entity, settings);
+    const departments = getDepartmentEntities(companyStructure, entity.id);
+    const childCompanies = getChildCompanyEntities(companyStructure, entity.id);
+    return `
+      <div class="card card--elevated" style="padding:var(--sp-5);margin-left:${depth * 20}px;border-left:${depth ? '3px solid rgba(212,160,23,0.22)' : '1px solid var(--border-subtle)'}">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap">
+          <div>
+            <div class="context-panel-title">${entity.name}</div>
+            <div class="form-help">${entity.type}</div>
+            <div class="form-help">${getEntityLineageLabel(companyStructure, entity.id) || entity.name}</div>
+          </div>
+          <div class="flex items-center gap-3" style="flex-wrap:wrap">
+            <button class="btn btn--secondary btn--sm btn-edit-company-context" data-bu-id="${bu.id}" type="button">Manage BU Context</button>
+            <button class="btn btn--primary btn--sm btn-create-department" data-company-id="${entity.id}" type="button">Create Function / Department</button>
+          </div>
+        </div>
+        <div class="grid-3 mt-4">
+          <div class="context-chip-panel">
+            <div class="context-panel-title">Critical Services</div>
+            <p class="context-panel-copy">${bu.criticalServices?.length ? bu.criticalServices.join(', ') : 'Not set yet'}</p>
+          </div>
+          <div class="context-chip-panel">
+            <div class="context-panel-title">Regulatory Tags</div>
+            <p class="context-panel-copy">${bu.regulatoryTags?.length ? bu.regulatoryTags.join(', ') : 'No regulatory tags yet'}</p>
+          </div>
+          <div class="context-chip-panel">
+            <div class="context-panel-title">Structure Under This Entity</div>
+            <p class="context-panel-copy">${departments.length} function${departments.length === 1 ? '' : 's'} · ${childCompanies.length} sub-business${childCompanies.length === 1 ? '' : 'es'}</p>
+          </div>
+        </div>
+        <div class="mt-4" style="display:flex;flex-direction:column;gap:12px">
+          ${departments.length ? departments.map(renderDepartmentCard).join('') : `<div class="form-help">No functions or departments exist directly under this entity yet.</div>`}
+        </div>
+        ${childCompanies.length ? `
+          <div class="mt-4" style="display:flex;flex-direction:column;gap:16px">
+            ${childCompanies.map(child => renderCompanyNode(child, depth + 1)).join('')}
+          </div>` : ''}
+      </div>`;
+  }
+
   setPage(adminLayout('bu', `
     <div class="flex items-center justify-between mb-6">
       <div>
         <h2>Organisation Customisation</h2>
-        <p style="margin-top:6px">Companies from Organisation Setup act as the assessment business units. Create functions and departments beneath them, retain context for each layer, and assign owners who can maintain their own function context.</p>
+        <p style="margin-top:6px">Companies from Organisation Setup act as the assessment business units. The hierarchy below now follows the actual holding, subsidiary, and function structure so departments stay attached to the correct entity.</p>
       </div>
       <div class="flex gap-3">
         <button class="btn btn--ghost btn--sm" id="btn-reset-bu">Reset Defaults</button>
@@ -4601,56 +4667,9 @@ function renderAdminBU() {
         <div class="admin-overview-foot">Signals how much retained context each business unit carries</div>
       </div>
     </div>
-    ${companyEntities.length ? `
+    ${topLevelCompanies.length ? `
       <div style="display:flex;flex-direction:column;gap:16px">
-        ${companyEntities.map(entity => {
-          const bu = buList.find(item => item.orgEntityId === entity.id) || buildBUFromOrgEntity(entity, settings);
-          const departments = getDepartmentEntities(companyStructure, entity.id);
-          return `
-            <div class="card card--elevated" style="padding:var(--sp-5)">
-              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap">
-                <div>
-                  <div class="context-panel-title">${entity.name}</div>
-                  <div class="form-help">${entity.type}</div>
-                  <div class="form-help">${getEntityLineageLabel(companyStructure, entity.id) || entity.name}</div>
-                </div>
-                <div class="flex items-center gap-3" style="flex-wrap:wrap">
-                  <button class="btn btn--secondary btn--sm btn-edit-company-context" data-bu-id="${bu.id}" type="button">Manage BU Context</button>
-                  <button class="btn btn--primary btn--sm btn-create-department" data-company-id="${entity.id}" type="button">Create Function / Department</button>
-                </div>
-              </div>
-              <div class="grid-3 mt-4">
-                <div class="context-chip-panel">
-                  <div class="context-panel-title">Critical Services</div>
-                  <p class="context-panel-copy">${bu.criticalServices?.length ? bu.criticalServices.join(', ') : 'Not set yet'}</p>
-                </div>
-                <div class="context-chip-panel">
-                  <div class="context-panel-title">Regulatory Tags</div>
-                  <p class="context-panel-copy">${bu.regulatoryTags?.length ? bu.regulatoryTags.join(', ') : 'No regulatory tags yet'}</p>
-                </div>
-                <div class="context-chip-panel">
-                  <div class="context-panel-title">Functions / Departments</div>
-                  <p class="context-panel-copy">${departments.length ? `${departments.length} configured beneath this business unit` : 'No departments configured yet'}</p>
-                </div>
-              </div>
-              <div class="mt-4" style="display:flex;flex-direction:column;gap:12px">
-                ${departments.length ? departments.map(department => `
-                  <div class="card" style="padding:var(--sp-4);background:var(--bg-canvas)">
-                    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
-                      <div>
-                        <div class="context-panel-title">${department.name}</div>
-                        <div class="form-help">${department.ownerUsername ? `Owner: ${accountLabelByUsername.get(department.ownerUsername) || department.ownerUsername}` : 'Owner not assigned yet'}</div>
-                        <div class="form-help">${getEntityLayerById(settings, department.id)?.contextSummary || department.profile || 'No retained department context yet'}</div>
-                      </div>
-                      <div class="flex items-center gap-3" style="flex-wrap:wrap">
-                        <button class="btn btn--ghost btn--sm btn-edit-department" data-department-id="${department.id}" type="button">Edit Department</button>
-                        <button class="btn btn--secondary btn--sm btn-edit-department-context" data-department-id="${department.id}" type="button">Manage Context</button>
-                      </div>
-                    </div>
-                  </div>`).join('') : `<div class="form-help">No functions or departments exist under this business unit yet.</div>`}
-              </div>
-            </div>`;
-        }).join('')}
+        ${topLevelCompanies.map(entity => renderCompanyNode(entity)).join('')}
       </div>` : `
       <div class="card card--elevated">
         <div class="context-panel-title">No business units yet</div>
