@@ -4808,17 +4808,18 @@ function renderAdminBU() {
 
   function renderDepartmentCard(department) {
     const departmentLayer = getEntityLayerById(settings, department.id);
+    const ownerLabel = department.ownerUsername ? (accountLabelByUsername.get(department.ownerUsername) || department.ownerUsername) : 'No owner';
+    const contextLabel = departmentLayer?.contextSummary ? 'Context saved' : 'No context';
     return `
-      <div class="org-related-card org-theme--department">
+      <div class="org-related-card org-related-card--compact org-theme--department">
         <div class="org-related-card__head">
           <div>
-            <div class="context-panel-title">${department.name}</div>
-            <div class="form-help">${department.departmentRelationshipType || 'In-house'} · ${department.ownerUsername ? `Owner: ${accountLabelByUsername.get(department.ownerUsername) || department.ownerUsername}` : 'Owner not assigned yet'}</div>
-            <div class="form-help">${departmentLayer?.contextSummary || department.profile || 'No retained department context yet'}</div>
+            <div class="org-related-card__title">${department.name}</div>
+            <div class="form-help">${department.departmentRelationshipType || 'In-house'} · ${ownerLabel} · ${contextLabel}</div>
           </div>
           <div class="flex items-center gap-3" style="flex-wrap:wrap">
-            <button class="btn btn--ghost btn--sm btn-edit-department" data-department-id="${department.id}" type="button">Edit Department</button>
-            <button class="btn btn--secondary btn--sm btn-edit-department-context" data-department-id="${department.id}" type="button">Manage Context</button>
+            <button class="btn btn--ghost btn--sm btn-edit-department" data-department-id="${department.id}" type="button">Edit</button>
+            <button class="btn btn--secondary btn--sm btn-edit-department-context" data-department-id="${department.id}" type="button">Context</button>
           </div>
         </div>
       </div>`;
@@ -4828,84 +4829,79 @@ function renderAdminBU() {
     const entityLayer = getEntityLayerById(settings, entity.id);
     const departments = getDepartmentEntities(companyStructure, entity.id);
     const childCompanies = getChildCompanyEntities(companyStructure, entity.id);
+    const lineage = getEntityLineageLabel(companyStructure, entity.id) || entity.name;
+    const summary = truncateText(entityLayer?.contextSummary || entity.profile || 'No retained context yet.', 120);
+    const childMarkup = childCompanies.length ? childCompanies.map(child => renderCompanyNode(child, depth + 1)).join('') : '';
     return `
-      <div class="card card--elevated org-hierarchy-card ${getOrgEntityThemeClass(entity.type)}" style="padding:var(--sp-5);margin-left:${depth * 20}px">
-        <div class="org-hierarchy-card__accent"></div>
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap">
-          <div>
-            <div class="context-panel-title">${entity.name}</div>
-            <div class="form-help">${entity.type}</div>
-            <div class="form-help">${getEntityLineageLabel(companyStructure, entity.id) || entity.name}</div>
-            <div class="form-help" style="margin-top:6px">${entityLayer?.contextSummary || entity.profile || 'No retained business context yet.'}</div>
+      <details class="org-accordion ${getOrgEntityThemeClass(entity.type)}" ${depth < 1 ? 'open' : ''} style="margin-left:${depth * 16}px">
+        <summary class="org-accordion__summary">
+          <div class="org-accordion__identity">
+            <span class="badge badge--gold">${entity.type}</span>
+            <strong>${entity.name}</strong>
+            <span class="form-help">${departments.length} functions · ${childCompanies.length} child entities</span>
           </div>
-          <div class="flex items-center gap-3" style="flex-wrap:wrap">
-            <button class="btn btn--secondary btn--sm btn-edit-company-context" data-company-id="${entity.id}" type="button">Manage Context</button>
-            <button class="btn btn--primary btn--sm btn-create-department" data-company-id="${entity.id}" type="button">Add Function / Department</button>
+          <div class="org-accordion__meta">
+            <span class="form-help">${entityLayer?.contextSummary ? 'Context saved' : 'No context'}</span>
           </div>
+        </summary>
+        <div class="org-accordion__body">
+          <div class="org-accordion__toolbar">
+            <div class="form-help">${lineage}</div>
+            <div class="flex items-center gap-3" style="flex-wrap:wrap">
+              <button class="btn btn--secondary btn--sm btn-edit-company-context" data-company-id="${entity.id}" type="button">Manage Context</button>
+              <button class="btn btn--primary btn--sm btn-create-department" data-company-id="${entity.id}" type="button">Add Function</button>
+            </div>
+          </div>
+          <div class="org-accordion__snapshot">${summary}</div>
+          ${departments.length ? `
+            <div class="org-accordion__section">
+              <div class="org-accordion__label">Functions</div>
+              <div style="display:flex;flex-direction:column;gap:8px">${departments.map(renderDepartmentCard).join('')}</div>
+            </div>` : ''}
+          ${childMarkup ? `
+            <div class="org-accordion__section">
+              <div class="org-accordion__label">Child Entities</div>
+              <div style="display:flex;flex-direction:column;gap:12px">${childMarkup}</div>
+            </div>` : ''}
         </div>
-        <div class="grid-3 mt-4">
-          <div class="context-chip-panel">
-            <div class="context-panel-title">Functions</div>
-            <p class="context-panel-copy">${departments.length} linked to this entity</p>
-          </div>
-          <div class="context-chip-panel">
-            <div class="context-panel-title">Child Entities</div>
-            <p class="context-panel-copy">${childCompanies.length} sit beneath this entity</p>
-          </div>
-          <div class="context-chip-panel">
-            <div class="context-panel-title">Context Coverage</div>
-            <p class="context-panel-copy">${entityLayer?.contextSummary ? 'Retained context saved' : 'No retained context saved yet'}</p>
-          </div>
-        </div>
-        <div class="mt-4" style="display:flex;flex-direction:column;gap:12px">
-          ${departments.length ? departments.map(renderDepartmentCard).join('') : `<div class="form-help">No functions or departments exist directly under this entity yet.</div>`}
-        </div>
-        ${childCompanies.length ? `
-          <div class="mt-4" style="display:flex;flex-direction:column;gap:16px">
-            ${childCompanies.map(child => renderCompanyNode(child, depth + 1)).join('')}
-          </div>` : ''}
-      </div>`;
+      </details>`;
   }
 
   setPage(adminLayout('bu', `
-    <div class="flex items-center justify-between mb-6">
+    <div class="flex items-center justify-between mb-4">
       <div>
         <h2>Organisation Customisation</h2>
-        <p style="margin-top:6px">This page now follows the same model as the organisation tree: legal entities and business units form the hierarchy, while functions sit directly under the entity that owns them.</p>
+        <p style="margin-top:6px">Compact hierarchy view for entities and their functions.</p>
       </div>
       <div class="flex gap-3">
-        <a class="btn btn--primary btn--sm" href="#/admin/settings">Open Organisation Setup</a>
+        <a class="btn btn--primary btn--sm" href="#/admin/settings">Organisation Setup</a>
       </div>
     </div>
-    <div class="admin-overview-grid mb-6">
+    <div class="admin-overview-grid mb-5">
       <div class="admin-overview-card">
-        <div class="admin-overview-label">Top-level Entities</div>
+        <div class="admin-overview-label">Top Level</div>
         <div class="admin-overview-value">${topLevelCompanies.length}</div>
-        <div class="admin-overview-foot">Holding companies or standalone operating entities at the root</div>
       </div>
       <div class="admin-overview-card">
-        <div class="admin-overview-label">Total Entities</div>
+        <div class="admin-overview-label">Entities</div>
         <div class="admin-overview-value">${companyEntities.length}</div>
-        <div class="admin-overview-foot">All business entities currently in the structure</div>
       </div>
       <div class="admin-overview-card">
         <div class="admin-overview-label">Functions</div>
         <div class="admin-overview-value">${departmentEntities.length}</div>
-        <div class="admin-overview-foot">Departments and functions attached beneath entities</div>
       </div>
       <div class="admin-overview-card">
-        <div class="admin-overview-label">Assigned Owners</div>
+        <div class="admin-overview-label">Owners</div>
         <div class="admin-overview-value">${companyEntities.filter(entity => entity.ownerUsername).length + departmentEntities.filter(entity => entity.ownerUsername).length}</div>
-        <div class="admin-overview-foot">Entities or functions already delegated to named users</div>
       </div>
     </div>
     ${topLevelCompanies.length ? `
-      <div style="display:flex;flex-direction:column;gap:16px">
+      <div class="org-accordion-list">
         ${topLevelCompanies.map(entity => renderCompanyNode(entity)).join('')}
       </div>` : `
       <div class="card card--elevated">
         <div class="context-panel-title">No organisation structure yet</div>
-        <p class="context-panel-copy">Add entities from Organisation Setup first. Functions should then be created underneath the entity that owns them.</p>
+        <p class="context-panel-copy">Add entities first, then add functions underneath the owning entity.</p>
       </div>`}`));
 
   document.getElementById('btn-admin-logout').addEventListener('click', () => { AuthService.logout(); activateAuthenticatedState(); Router.navigate('/login'); });
