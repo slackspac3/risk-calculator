@@ -662,16 +662,13 @@ function renderCompanyStructureSummary(structure = []) {
             <div class="org-accordion__meta">
               <span class="form-help">${getEntityLayerById(settings, node.id)?.contextSummary ? 'Context saved' : 'No context'}</span>
               <button class="btn btn--secondary btn--sm org-entity-add-department org-summary-action" data-org-id="${node.id}" type="button">Add Function</button>
+              <button class="btn btn--ghost btn--sm org-entity-context org-summary-action" data-org-id="${node.id}" type="button">Context</button>
+              <button class="btn btn--ghost btn--sm org-entity-edit org-summary-action" data-org-id="${node.id}" type="button">Edit</button>
             </div>
           </summary>
           <div class="org-accordion__body">
             <div class="org-accordion__toolbar">
               <div class="form-help">${getEntityLineageLabel(structure, node.id) || node.name}</div>
-              <div class="flex items-center gap-3" style="flex-wrap:wrap">
-                <button class="btn btn--secondary btn--sm org-entity-add-department" data-org-id="${node.id}" type="button">Add Function</button>
-                <button class="btn btn--ghost btn--sm org-entity-context" data-org-id="${node.id}" type="button">Manage Context</button>
-                <button class="btn btn--ghost btn--sm org-entity-edit" data-org-id="${node.id}" type="button">Edit</button>
-              </div>
             </div>
             <div class="org-accordion__snapshot">${contextSummary}</div>
             ${renderDepartmentList(node)}
