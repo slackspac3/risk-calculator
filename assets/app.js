@@ -3210,7 +3210,7 @@ function renderLoginOrganisationSelection(currentUser, existingSettings = getUse
       activateAuthenticatedState();
       renderLogin();
     });
-    document.getElementById('btn-login-context-continue').addEventListener('click', () => {
+    document.getElementById('btn-login-context-continue').addEventListener('click', async () => {
       const businessUnitEntityId = document.getElementById('login-business-unit').value;
       const departmentEntityId = document.getElementById('login-department').value;
       const businessEntity = getEntityById(companyStructure, businessUnitEntityId);
@@ -3234,7 +3234,7 @@ function renderLoginOrganisationSelection(currentUser, existingSettings = getUse
           departmentEntityId: departmentEntity?.id || ''
         }
       });
-      AuthService.updateManagedAccount(currentUser.username, {
+      await AuthService.updateManagedAccount(currentUser.username, {
         businessUnitEntityId,
         departmentEntityId: departmentEntity?.id || ''
       });
@@ -3261,40 +3261,24 @@ function renderLogin() {
     Router.navigate(getDefaultRouteForCurrentUser());
     return;
   }
-  const accounts = AuthService.getSeededAccounts();
   setPage(`
     <main class="page">
-      <div class="container container--narrow" style="padding:var(--sp-16) var(--sp-6);max-width:720px">
-        <div class="banner banner--poc mb-6"><span class="banner-icon">⚠</span><span class="banner-text"><strong>PoC Security:</strong> Local test accounts only. Replace with Microsoft Entra ID before production. [ENTRA-INTEGRATION]</span></div>
+      <div class="container container--narrow" style="padding:var(--sp-16) var(--sp-6);max-width:640px">
+        <div class="banner banner--poc mb-6"><span class="banner-icon">⚠</span><span class="banner-text"><strong>PoC Security:</strong> Shared team credentials only. Replace with Microsoft Entra ID before production. [ENTRA-INTEGRATION]</span></div>
         <div class="card card--elevated">
           <h2 style="margin-bottom:var(--sp-2)">Sign In</h2>
-          <p style="margin-bottom:var(--sp-6);color:var(--text-muted)">Each test account keeps its own draft state, saved assessments, AI session settings, and personal context. The <strong>admin</strong> account also has access to the global backend.</p>
-          <div class="grid-2" style="gap:var(--sp-6);align-items:start">
-            <div>
-              <div class="form-group mb-4">
-                <label class="form-label" for="login-user">Username</label>
-                <input class="form-input" id="login-user" type="text" placeholder="Enter username" autocomplete="username">
-              </div>
-              <div class="form-group mb-4">
-                <label class="form-label" for="login-pass">Password</label>
-                <input class="form-input" id="login-pass" type="password" placeholder="Enter password" autocomplete="current-password">
-                <span class="form-error hidden" id="login-err">⚠ Invalid username or password</span>
-              </div>
-              <button class="btn btn--primary w-full" id="btn-login" style="justify-content:center">Sign In</button>
+          <p style="margin-bottom:var(--sp-6);color:var(--text-muted)">Each user keeps their own draft state, saved assessments, and assigned BU/function context. Ask the global admin for your username and password.</p>
+          <div>
+            <div class="form-group mb-4">
+              <label class="form-label" for="login-user">Username</label>
+              <input class="form-input" id="login-user" type="text" placeholder="Enter username" autocomplete="username">
             </div>
-            <div class="card" style="padding:var(--sp-4);background:var(--bg-elevated)">
-              <div class="context-panel-title">Test Accounts</div>
-              <div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">
-                ${accounts.map(account => `
-                  <div class="assessment-item" data-username="${account.username}" data-password="${account.password}" role="button" tabindex="0">
-                    <div class="assessment-meta">
-                      <div class="assessment-title">${account.displayName}</div>
-                      <div class="assessment-detail">${account.username} · ${account.role === 'admin' ? 'Global Admin' : 'User Settings'}</div>
-                    </div>
-                  </div>`).join('')}
-              </div>
-              <div class="form-help" style="margin-top:12px">Click an account to auto-fill the sign-in form for local testing.</div>
+            <div class="form-group mb-4">
+              <label class="form-label" for="login-pass">Password</label>
+              <input class="form-input" id="login-pass" type="password" placeholder="Enter password" autocomplete="current-password">
+              <span class="form-error hidden" id="login-err">⚠ Invalid username or password</span>
             </div>
+            <button class="btn btn--primary w-full" id="btn-login" style="justify-content:center">Sign In</button>
           </div>
         </div>
       </div>
@@ -3323,15 +3307,6 @@ function renderLogin() {
   document.getElementById('btn-login').addEventListener('click', login);
   document.getElementById('login-pass').addEventListener('keydown', e => { if (e.key==='Enter') login(); });
   document.getElementById('login-user').addEventListener('keydown', e => { if (e.key==='Enter') login(); });
-  document.querySelectorAll('[data-username]').forEach(node => {
-    node.addEventListener('click', () => {
-      document.getElementById('login-user').value = node.dataset.username || '';
-      document.getElementById('login-pass').value = node.dataset.password || '';
-      document.getElementById('login-err').classList.add('hidden');
-      document.getElementById('login-user').classList.remove('error');
-      document.getElementById('login-pass').classList.remove('error');
-    });
-  });
 }
 
 function requireAdmin() {
@@ -3584,14 +3559,14 @@ function renderUserOnboarding(existingSettings = getUserSettings(), startStep = 
       renderStep();
     });
 
-    document.getElementById('btn-onboard-finish')?.addEventListener('click', () => {
+    document.getElementById('btn-onboard-finish')?.addEventListener('click', async () => {
       captureStepValues();
       saveUserSettings({
         ...draftSettings,
         onboardedAt: new Date().toISOString(),
         adminContextSummary: draftSettings.userProfile.workingContext || draftSettings.adminContextSummary || globalSettings.adminContextSummary
       });
-      AuthService.updateManagedAccount(AppState.currentUser?.username, {
+      await AuthService.updateManagedAccount(AppState.currentUser?.username, {
         businessUnitEntityId: draftSettings.userProfile.businessUnitEntityId || '',
         departmentEntityId: draftSettings.userProfile.departmentEntityId || ''
       });
@@ -4966,7 +4941,7 @@ function renderAdminSettings() {
 
   document.getElementById('admin-new-user-bu')?.addEventListener('change', renderAdminNewUserDepartments);
   renderAdminNewUserDepartments();
-  document.getElementById('btn-admin-add-user')?.addEventListener('click', () => {
+  document.getElementById('btn-admin-add-user')?.addEventListener('click', async () => {
     const displayName = document.getElementById('admin-new-user-name').value.trim();
     const businessUnitEntityId = document.getElementById('admin-new-user-bu').value.trim();
     const departmentEntityId = document.getElementById('admin-new-user-department').value.trim();
@@ -4974,7 +4949,7 @@ function renderAdminSettings() {
       UI.toast('Enter a display name for the new user.', 'warning');
       return;
     }
-    const account = AuthService.createManagedAccount({ displayName, businessUnitEntityId, departmentEntityId });
+    const account = await AuthService.createManagedAccount({ displayName, businessUnitEntityId, departmentEntityId });
     document.getElementById('admin-new-user-result').textContent = `Created ${account.displayName}: username ${account.username} / password ${account.password}`;
     UI.toast(`Created ${account.username}.`, 'success');
     renderAdminSettings();
@@ -5420,6 +5395,7 @@ function openDocEditor(doc) {
 // ─── INIT ─────────────────────────────────────────────────────
 async function init() {
   try {
+    await AuthService.init();
     AppState.buList  = await loadJSON('./data/bu.json');
     AppState.docList = await loadJSON('./data/docs.json');
   } catch(e) {

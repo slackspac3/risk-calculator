@@ -275,3 +275,18 @@ The default BU assumptions in `bu.json` are **illustrative only**. For productio
 ---
 
 *G42 Tech & Cyber Risk Quantifier PoC — Built with FAIR methodology principles*
+
+
+## Shared PoC User Store
+
+Cross-system PoC users now use the Vercel `api/users` endpoint.
+
+Required Vercel environment variables:
+- `KV_REST_API_URL`
+- `KV_REST_API_TOKEN`
+- optional: `USER_STORE_KEY` (defaults to `risk_calculator_users`)
+- optional: `ALLOWED_ORIGIN` (defaults to `https://slackspac3.github.io`)
+
+Behavior:
+- `GET /api/users` falls back to seeded default accounts if KV is empty.
+- admin-created users persist across systems only when the KV env vars are configured.

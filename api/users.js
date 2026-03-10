@@ -1,0 +1,132 @@
+const DEFAULT_ACCOUNTS = [
+  { username: 'admin', password: 'Admin@Risk2026', displayName: 'Global Admin', role: 'admin', businessUnitEntityId: '', departmentEntityId: '' },
+  { username: 'alex.risk', password: 'RiskUser@01', displayName: 'Alex Risk', role: 'user', businessUnitEntityId: '', departmentEntityId: '' },
+  { username: 'nina.ops', password: 'RiskUser@02', displayName: 'Nina Ops', role: 'user', businessUnitEntityId: '', departmentEntityId: '' },
+  { username: 'omar.tech', password: 'RiskUser@03', displayName: 'Omar Tech', role: 'user', businessUnitEntityId: '', departmentEntityId: '' },
+  { username: 'priya.audit', password: 'RiskUser@04', displayName: 'Priya Audit', role: 'user', businessUnitEntityId: '', departmentEntityId: '' },
+  { username: 'samir.compliance', password: 'RiskUser@05', displayName: 'Samir Compliance', role: 'user', businessUnitEntityId: '', departmentEntityId: '' }
+];
+
+const USERS_KEY = process.env.USER_STORE_KEY || 'risk_calculator_users';
+
+function normaliseAccount(account = {}) {
+  return {
+    username: String(account.username || '').trim().toLowerCase(),
+    password: String(account.password || ''),
+    displayName: String(account.displayName || '').trim() || 'User',
+    role: account.role === 'admin' ? 'admin' : 'user',
+    businessUnitEntityId: String(account.businessUnitEntityId || '').trim(),
+    departmentEntityId: String(account.departmentEntityId || '').trim()
+  };
+}
+
+async function runKvCommand(command) {
+  const url = process.env.KV_REST_API_URL;
+  const token = process.env.KV_REST_API_TOKEN;
+  if (!url || !token) return null;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(command)
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `KV request failed with HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+async function readAccounts() {
+  const response = await runKvCommand(['GET', USERS_KEY]);
+  const raw = response?.result;
+  if (!raw) return DEFAULT_ACCOUNTS.map(normaliseAccount);
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length ? parsed.map(normaliseAccount) : DEFAULT_ACCOUNTS.map(normaliseAccount);
+  } catch {
+    return DEFAULT_ACCOUNTS.map(normaliseAccount);
+  }
+}
+
+async function writeAccounts(accounts) {
+  if (!process.env.KV_REST_API_URL || !process.env.KV_REST_API_TOKEN) {
+    throw new Error('Missing KV_REST_API_URL or KV_REST_API_TOKEN secret in Vercel.');
+  }
+  await runKvCommand(['SET', USERS_KEY, JSON.stringify(accounts.map(normaliseAccount))]);
+  return accounts.map(normaliseAccount);
+}
+
+module.exports = async function handler(req, res) {
+  const allowedOrigin = process.env.ALLOWED_ORIGIN || 'https://slackspac3.github.io';
+
+  res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'content-type');
+  res.setHeader('Vary', 'Origin');
+
+  if (req.method === 'OPTIONS') {
+    res.status(204).end();
+    return;
+  }
+
+  const origin = req.headers.origin;
+  if (origin && origin !== allowedOrigin) {
+    res.status(403).json({ error: 'Origin not allowed' });
+    return;
+  }
+
+  try {
+    if (req.method === 'GET') {
+      const accounts = await readAccounts();
+      res.status(200).json({ accounts });
+      return;
+    }
+
+    if (req.method === 'POST') {
+      const accounts = await readAccounts();
+      const account = normaliseAccount(req.body?.account || {});
+      if (!account.username || !account.password) {
+        res.status(400).json({ error: 'Missing username or password.' });
+        return;
+      }
+      if (accounts.some(item => item.username === account.username)) {
+        res.status(409).json({ error: 'Username already exists.' });
+        return;
+      }
+      accounts.push(account);
+      await writeAccounts(accounts);
+      res.status(201).json({ accounts });
+      return;
+    }
+
+    if (req.method === 'PATCH') {
+      const username = String(req.body?.username || '').trim().toLowerCase();
+      const updates = req.body?.updates || {};
+      const accounts = await readAccounts();
+      const index = accounts.findIndex(account => account.username === username);
+      if (index < 0) {
+        res.status(404).json({ error: 'User not found.' });
+        return;
+      }
+      accounts[index] = normaliseAccount({
+        ...accounts[index],
+        displayName: typeof updates.displayName === 'string' && updates.displayName.trim() ? updates.displayName.trim() : accounts[index].displayName,
+        businessUnitEntityId: typeof updates.businessUnitEntityId === 'string' ? updates.businessUnitEntityId : accounts[index].businessUnitEntityId,
+        departmentEntityId: typeof updates.departmentEntityId === 'string' ? updates.departmentEntityId : accounts[index].departmentEntityId
+      });
+      await writeAccounts(accounts);
+      res.status(200).json({ accounts });
+      return;
+    }
+
+    res.status(405).json({ error: 'Method not allowed' });
+  } catch (error) {
+    res.status(500).json({
+      error: 'User store request failed.',
+      detail: error instanceof Error ? error.message : String(error)
+    });
+  }
+};

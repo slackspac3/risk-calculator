@@ -1,15 +1,16 @@
 /**
  * authService.js — Local PoC authentication stub
  *
- * PoC: six seeded accounts stored in code for local testing only.
+ * PoC: user accounts are loaded from the shared Vercel user store when available.
  * Production: replace with Microsoft Entra ID (MSAL.js).
  * Integration points marked with [ENTRA-INTEGRATION].
  */
 
 const AuthService = (() => {
   const SESSION_KEY = 'rq_auth_session';
-  const ACCOUNTS_KEY = 'rq_auth_accounts';
+  const ACCOUNTS_CACHE_KEY = 'rq_auth_accounts_cache';
   const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
+  const DEFAULT_USERS_API_URL = 'https://risk-calculator-eight.vercel.app/api/users';
   const DEFAULT_ACCOUNTS = [
     { username: 'admin', password: 'Admin@Risk2026', displayName: 'Global Admin', role: 'admin' },
     { username: 'alex.risk', password: 'RiskUser@01', displayName: 'Alex Risk', role: 'user' },
@@ -18,18 +19,10 @@ const AuthService = (() => {
     { username: 'priya.audit', password: 'RiskUser@04', displayName: 'Priya Audit', role: 'user' },
     { username: 'samir.compliance', password: 'RiskUser@05', displayName: 'Samir Compliance', role: 'user' }
   ];
+  let accountsCache = DEFAULT_ACCOUNTS.slice();
 
-  function readAccounts() {
-    try {
-      const stored = JSON.parse(localStorage.getItem(ACCOUNTS_KEY) || 'null');
-      return Array.isArray(stored) && stored.length ? stored : DEFAULT_ACCOUNTS;
-    } catch {
-      return DEFAULT_ACCOUNTS;
-    }
-  }
-
-  function saveAccounts(accounts) {
-    localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
+  function getUsersApiUrl() {
+    return DEFAULT_USERS_API_URL;
   }
 
   function sanitiseAccount(account) {
@@ -41,6 +34,60 @@ const AuthService = (() => {
       businessUnitEntityId: account.businessUnitEntityId || '',
       departmentEntityId: account.departmentEntityId || ''
     };
+  }
+
+  function normaliseAccount(account = {}) {
+    return {
+      username: String(account.username || '').trim().toLowerCase(),
+      password: String(account.password || ''),
+      displayName: String(account.displayName || '').trim() || 'User',
+      role: account.role === 'admin' ? 'admin' : 'user',
+      businessUnitEntityId: String(account.businessUnitEntityId || '').trim(),
+      departmentEntityId: String(account.departmentEntityId || '').trim()
+    };
+  }
+
+  function saveCache(accounts) {
+    accountsCache = Array.isArray(accounts) && accounts.length ? accounts.map(normaliseAccount) : DEFAULT_ACCOUNTS.slice();
+    localStorage.setItem(ACCOUNTS_CACHE_KEY, JSON.stringify(accountsCache));
+  }
+
+  function readCachedAccounts() {
+    try {
+      const stored = JSON.parse(localStorage.getItem(ACCOUNTS_CACHE_KEY) || 'null');
+      if (Array.isArray(stored) && stored.length) {
+        accountsCache = stored.map(normaliseAccount);
+      }
+    } catch {}
+    return accountsCache;
+  }
+
+  async function requestUsers(method = 'GET', payload) {
+    const res = await fetch(getUsersApiUrl(), {
+      method,
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: payload ? JSON.stringify(payload) : undefined
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(text || `User store request failed with HTTP ${res.status}`);
+    }
+    return res.json();
+  }
+
+  async function init() {
+    readCachedAccounts();
+    try {
+      const data = await requestUsers('GET');
+      if (Array.isArray(data?.accounts) && data.accounts.length) {
+        saveCache(data.accounts);
+      }
+    } catch (error) {
+      console.warn('AuthService.init fallback:', error.message);
+    }
+    return accountsCache;
   }
 
   function buildUsername(displayName, accounts) {
@@ -90,7 +137,7 @@ const AuthService = (() => {
   function login(username, password) {
     const normalizedUsername = String(username || '').trim().toLowerCase();
     const normalizedPassword = String(password || '');
-    const account = readAccounts().find(item =>
+    const account = readCachedAccounts().find(item =>
       item.username.toLowerCase() === normalizedUsername && item.password === normalizedPassword
     );
     if (!account) return { success: false, error: 'Invalid username or password' };
@@ -100,7 +147,6 @@ const AuthService = (() => {
 
   function logout() {
     sessionStorage.removeItem(SESSION_KEY);
-    // [ENTRA-INTEGRATION] Call MSAL logout here.
   }
 
   function isAuthenticated() {
@@ -133,52 +179,53 @@ const AuthService = (() => {
   }
 
   function getSeededAccounts() {
-    return readAccounts().map(account => ({ ...sanitiseAccount(account), password: account.password }));
+    return readCachedAccounts().map(account => ({ ...sanitiseAccount(account), password: account.password }));
   }
 
   function getManagedAccounts() {
-    return readAccounts()
+    return readCachedAccounts()
       .filter(account => account.role !== 'admin')
       .map(account => sanitiseAccount(account));
   }
 
-  function createManagedAccount({ displayName, businessUnitEntityId = '', departmentEntityId = '' } = {}) {
-    const accounts = readAccounts();
+  async function createManagedAccount({ displayName, businessUnitEntityId = '', departmentEntityId = '' } = {}) {
+    const accounts = readCachedAccounts();
     const username = buildUsername(displayName, accounts);
     const password = generatePassword(accounts);
-    const account = {
+    const account = normaliseAccount({
       username,
       password,
-      displayName: String(displayName || '').trim() || 'New User',
+      displayName,
       role: 'user',
-      businessUnitEntityId: String(businessUnitEntityId || '').trim(),
-      departmentEntityId: String(departmentEntityId || '').trim()
-    };
-    accounts.push(account);
-    saveAccounts(accounts);
+      businessUnitEntityId,
+      departmentEntityId
+    });
+    const data = await requestUsers('POST', { account });
+    if (Array.isArray(data?.accounts)) saveCache(data.accounts);
     return { ...sanitiseAccount(account), password };
   }
 
-  function updateManagedAccount(username, updates = {}) {
-    const accounts = readAccounts();
-    const index = accounts.findIndex(account => account.username === String(username || '').trim().toLowerCase());
-    if (index < 0) return null;
-    accounts[index] = {
-      ...accounts[index],
-      displayName: typeof updates.displayName === 'string' && updates.displayName.trim() ? updates.displayName.trim() : accounts[index].displayName,
-      businessUnitEntityId: typeof updates.businessUnitEntityId === 'string' ? updates.businessUnitEntityId.trim() : accounts[index].businessUnitEntityId || '',
-      departmentEntityId: typeof updates.departmentEntityId === 'string' ? updates.departmentEntityId.trim() : accounts[index].departmentEntityId || ''
-    };
-    saveAccounts(accounts);
+  async function updateManagedAccount(username, updates = {}) {
+    const data = await requestUsers('PATCH', {
+      username: String(username || '').trim().toLowerCase(),
+      updates: {
+        displayName: typeof updates.displayName === 'string' ? updates.displayName.trim() : undefined,
+        businessUnitEntityId: typeof updates.businessUnitEntityId === 'string' ? updates.businessUnitEntityId.trim() : undefined,
+        departmentEntityId: typeof updates.departmentEntityId === 'string' ? updates.departmentEntityId.trim() : undefined
+      }
+    });
+    if (Array.isArray(data?.accounts)) saveCache(data.accounts);
+    const updated = readCachedAccounts().find(account => account.username === String(username || '').trim().toLowerCase()) || null;
     const session = readSession();
-    if (session?.user?.username === accounts[index].username) {
-      session.user = sanitiseAccount(accounts[index]);
+    if (session?.user?.username === updated?.username) {
+      session.user = sanitiseAccount(updated);
       sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
     }
-    return sanitiseAccount(accounts[index]);
+    return updated ? sanitiseAccount(updated) : null;
   }
 
   return {
+    init,
     login,
     logout,
     isAuthenticated,
