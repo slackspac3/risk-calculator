@@ -10,7 +10,7 @@ const AuthService = (() => {
   const SESSION_KEY = 'rq_auth_session';
   const ACCOUNTS_CACHE_KEY = 'rq_auth_accounts_cache';
   const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
-  const DEFAULT_USERS_API_URL = 'https://risk-calculator-eight.vercel.app/api/users';
+  const DEFAULT_USERS_API_URL = resolveApiUrl('/api/users');
   const DEFAULT_ACCOUNTS = [
     { username: 'admin', password: 'Admin@Risk2026', displayName: 'Global Admin', role: 'admin' },
     { username: 'alex.risk', password: 'RiskUser@01', displayName: 'Alex Risk', role: 'user' },
@@ -20,6 +20,12 @@ const AuthService = (() => {
     { username: 'samir.compliance', password: 'RiskUser@05', displayName: 'Samir Compliance', role: 'user' }
   ];
   let accountsCache = DEFAULT_ACCOUNTS.slice();
+
+function resolveApiUrl(path) {
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  if (origin && origin.includes('vercel.app')) return `${origin}${path}`;
+  return `https://risk-calculator.vercel.app${path}`;
+}
 
   function getUsersApiUrl() {
     return DEFAULT_USERS_API_URL;

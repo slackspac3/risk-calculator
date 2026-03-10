@@ -7,7 +7,7 @@
 
 const TOLERANCE_THRESHOLD = 5_000_000;
 const DEFAULT_FX_RATE = 3.6725;
-const DEFAULT_COMPASS_PROXY_URL = 'https://risk-calculator-eight.vercel.app/api/compass';
+const DEFAULT_COMPASS_PROXY_URL = resolveCompassProxyUrl();
 const GLOBAL_ADMIN_STORAGE_KEY = 'rq_admin_settings';
 const USER_SETTINGS_STORAGE_PREFIX = 'rq_user_settings';
 const ASSESSMENTS_STORAGE_PREFIX = 'rq_assessments';
@@ -32,6 +32,13 @@ const DEFAULT_ADMIN_SETTINGS = {
   adminContextSummary: 'Use this workspace to maintain geography, regulations, thresholds, and AI guidance for the platform.',
   escalationGuidance: 'Escalate to leadership when the scenario is above tolerance, close to tolerance, or materially affects regulated services.'
 };
+
+
+function resolveCompassProxyUrl() {
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  if (origin && origin.includes('vercel.app')) return `${origin}/api/compass`;
+  return 'https://risk-calculator.vercel.app/api/compass';
+}
 
 const AppState = {
   currency: 'USD',
@@ -4400,8 +4407,8 @@ function renderAdminSettings() {
     body: `<div class="grid-2">
       <div class="form-group">
         <label class="form-label" for="admin-compass-url">Compass URL</label>
-        <input class="form-input" id="admin-compass-url" value="${sessionLLM.apiUrl || 'https://risk-calculator-eight.vercel.app/api/compass'}">
-        <span class="form-help">Use <code>https://risk-calculator-eight.vercel.app/api/compass</code> for the hosted proxy path.</span>
+        <input class="form-input" id="admin-compass-url" value="${sessionLLM.apiUrl || DEFAULT_COMPASS_PROXY_URL}">
+        <span class="form-help">Use <code>${DEFAULT_COMPASS_PROXY_URL}</code> for the hosted proxy path.</span>
       </div>
       <div class="form-group">
         <label class="form-label" for="admin-compass-model">Model</label>
@@ -4649,7 +4656,7 @@ function renderAdminSettings() {
     if (buildContextBtn && !departmentEditorMode) {
       buildContextBtn.addEventListener('click', async () => {
         const llmConfig = {
-          apiUrl: document.getElementById('admin-compass-url').value.trim() || 'https://risk-calculator-eight.vercel.app/api/compass',
+          apiUrl: document.getElementById('admin-compass-url').value.trim() || '${DEFAULT_COMPASS_PROXY_URL}',
           model: document.getElementById('admin-compass-model').value.trim() || 'gpt-5.1',
           apiKey: document.getElementById('admin-compass-key').value.trim()
         };
@@ -4840,7 +4847,7 @@ function renderAdminSettings() {
     const btn = document.getElementById('btn-build-company-context');
     const websiteUrl = websiteEl.value.trim();
     const llmConfig = {
-      apiUrl: document.getElementById('admin-compass-url').value.trim() || 'https://risk-calculator-eight.vercel.app/api/compass',
+      apiUrl: document.getElementById('admin-compass-url').value.trim() || '${DEFAULT_COMPASS_PROXY_URL}',
       model: document.getElementById('admin-compass-model').value.trim() || 'gpt-5.1',
       apiKey: document.getElementById('admin-compass-key').value.trim()
     };
@@ -4892,7 +4899,7 @@ function renderAdminSettings() {
   });
   document.getElementById('btn-save-session-llm').addEventListener('click', () => {
     const config = {
-      apiUrl: document.getElementById('admin-compass-url').value.trim() || 'https://risk-calculator-eight.vercel.app/api/compass',
+      apiUrl: document.getElementById('admin-compass-url').value.trim() || '${DEFAULT_COMPASS_PROXY_URL}',
       model: document.getElementById('admin-compass-model').value.trim() || 'gpt-5.1',
       apiKey: document.getElementById('admin-compass-key').value.trim()
     };
@@ -4903,7 +4910,7 @@ function renderAdminSettings() {
   document.getElementById('btn-test-session-llm').addEventListener('click', async () => {
     const btn = document.getElementById('btn-test-session-llm');
     const config = {
-      apiUrl: document.getElementById('admin-compass-url').value.trim() || 'https://risk-calculator-eight.vercel.app/api/compass',
+      apiUrl: document.getElementById('admin-compass-url').value.trim() || '${DEFAULT_COMPASS_PROXY_URL}',
       model: document.getElementById('admin-compass-model').value.trim() || 'gpt-5.1',
       apiKey: document.getElementById('admin-compass-key').value.trim()
     };
