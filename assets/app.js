@@ -1971,6 +1971,26 @@ function parseDelimitedText(text, delimiter = ',') {
   });
 }
 
+function extractTextFromBinaryDocument(buffer) {
+  const ascii = new TextDecoder('latin1').decode(buffer);
+  const textChunks = [];
+  const xmlChunks = ascii.match(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g) || [];
+  if (xmlChunks.length) {
+    xmlChunks.forEach(chunk => {
+      const match = chunk.match(/<w:t[^>]*>([\s\S]*?)<\/w:t>/);
+      if (match?.[1]) textChunks.push(match[1]);
+    });
+  }
+  const pdfChunks = ascii.match(/\(([^()\\]{3,})\)/g) || [];
+  pdfChunks.slice(0, 400).forEach(chunk => {
+    const cleaned = chunk.slice(1, -1).replace(/\[nrtbf()\]/g, ' ').trim();
+    if (cleaned.length > 3) textChunks.push(cleaned);
+  });
+  const plainChunks = ascii.match(/[A-Za-z0-9][A-Za-z0-9 ,.;:()\/\-]{20,}/g) || [];
+  plainChunks.slice(0, 400).forEach(chunk => textChunks.push(chunk));
+  return textChunks.join('\n').replace(/\s+/g, ' ').trim();
+}
+
 async function parseRegisterFile(file) {
   const ext = getFileExtension(file.name);
   if (ext === 'xlsx' || ext === 'xls') {
@@ -1995,6 +2015,20 @@ async function parseRegisterFile(file) {
         extension: ext,
         sheetCount: workbook.SheetNames.length,
         sheets: sheetSummaries.map(s => ({ sheetName: s.sheetName, rowCount: s.rowCount }))
+      }
+    };
+  }
+
+  if (ext === 'pdf' || ext === 'doc' || ext === 'docx') {
+    const buffer = await file.arrayBuffer();
+    const extracted = extractTextFromBinaryDocument(buffer);
+    return {
+      text: extracted || `${file.name} was uploaded, but only limited text could be extracted in the browser.`,
+      meta: {
+        type: 'document',
+        extension: ext,
+        sheetCount: 1,
+        sheets: [{ sheetName: file.name, rowCount: extracted ? extracted.split(/\r?\n/).length : 0 }]
       }
     };
   }
@@ -3712,6 +3746,8 @@ function renderUserOnboarding(existingSettings = getUserSettings(), startStep = 
     userProfile: profile
   };
   let currentStep = Math.max(0, Math.min(4, Number(startStep) || 0));
+  let onboardingAiSourceText = '';
+  let onboardingAiSourceName = '';
 
   function saveProgress(markComplete = false) {
     saveUserSettings({
@@ -3778,6 +3814,22 @@ function renderUserOnboarding(existingSettings = getUserSettings(), startStep = 
           <div class="form-group mt-4">
             <label class="form-label" for="onboard-working-context">Anything important about your working context?</label>
             <textarea class="form-textarea" id="onboard-working-context" rows="4" placeholder="e.g. I mostly support regulated services and need outputs that balance resilience, compliance, and board reporting.">${draftSettings.userProfile.workingContext || ''}</textarea>
+          </div>
+          <div class="card mt-4" style="padding:var(--sp-4);background:var(--bg-elevated)">
+            <div class="context-panel-title">AI Assist</div>
+            <div class="form-group mt-3">
+              <label class="form-label" for="onboard-answer-notes">Notes for AI assist</label>
+              <textarea class="form-textarea" id="onboard-answer-notes" rows="3" placeholder="Paste role notes, writing preferences, reporting expectations, board-facing requirements, or any other helpful context."></textarea>
+            </div>
+            <div class="form-group mt-3">
+              <label class="form-label" for="onboard-answer-file">Upload source material</label>
+              <input class="form-input" id="onboard-answer-file" type="file" accept=".txt,.csv,.json,.md,.tsv,.xlsx,.xls,.doc,.docx,.pdf">
+              <div class="form-help" id="onboard-answer-file-help">Upload TXT, CSV, TSV, JSON, Markdown, Excel, DOC, DOCX, or PDF. The extracted text will be used only to draft this step.</div>
+            </div>
+            <div class="flex items-center gap-3 mt-4" style="flex-wrap:wrap">
+              <button class="btn btn--secondary" id="btn-onboard-answer-ai" type="button">AI Assist This Step</button>
+              <span class="form-help">Drafts your working context and preferred output style from your role, BU, and uploaded material.</span>
+            </div>
           </div>`
       },
       {
@@ -3858,6 +3910,67 @@ function renderUserOnboarding(existingSettings = getUserSettings(), startStep = 
         renderDepartmentOptions();
       });
       renderDepartmentOptions();
+    }
+    if (currentStep === 3) {
+      async function loadOnboardingAiSource() {
+        const notes = document.getElementById('onboard-answer-notes')?.value.trim() || '';
+        const file = document.getElementById('onboard-answer-file')?.files?.[0];
+        let uploadedText = '';
+        if (file) {
+          const parsed = await parseRegisterFile(file);
+          uploadedText = parsed.text || '';
+          onboardingAiSourceText = uploadedText;
+          onboardingAiSourceName = file.name;
+          const help = document.getElementById('onboard-answer-file-help');
+          if (help) help.textContent = `Loaded ${file.name}. AI assist will use the extracted text for this setup step.`;
+        }
+        return [notes, uploadedText || onboardingAiSourceText].filter(Boolean).join('\n\n');
+      }
+
+      document.getElementById('btn-onboard-answer-ai')?.addEventListener('click', async () => {
+        const btn = document.getElementById('btn-onboard-answer-ai');
+        btn.disabled = true;
+        btn.textContent = 'Drafting…';
+        try {
+          const sourceText = await loadOnboardingAiSource();
+          const llmConfig = getSessionLLMConfig();
+          LLMService.setCompassConfig({
+            apiUrl: llmConfig.apiUrl || DEFAULT_COMPASS_PROXY_URL,
+            model: llmConfig.model || 'gpt-5.1',
+            apiKey: llmConfig.apiKey || ''
+          });
+          const businessEntity = getEntityById(companyStructure, draftSettings.userProfile.businessUnitEntityId || '');
+          const departmentEntity = getEntityById(companyStructure, draftSettings.userProfile.departmentEntityId || '');
+          const result = await LLMService.buildUserPreferenceAssist({
+            userProfile: {
+              fullName: draftSettings.userProfile.fullName || AppState.currentUser?.displayName || '',
+              jobTitle: draftSettings.userProfile.jobTitle || '',
+              businessUnit: businessEntity?.name || draftSettings.userProfile.businessUnit || '',
+              department: departmentEntity?.name || draftSettings.userProfile.department || '',
+              focusAreas: draftSettings.userProfile.focusAreas || [],
+              preferredOutputs: document.getElementById('onboard-preferred-outputs').value.trim(),
+              workingContext: document.getElementById('onboard-working-context').value.trim()
+            },
+            organisationContext: {
+              businessUnitContext: businessEntity?.profile || getEntityLayerById(globalSettings, businessEntity?.id || '')?.contextSummary || '',
+              departmentContext: departmentEntity?.profile || getEntityLayerById(globalSettings, departmentEntity?.id || '')?.contextSummary || ''
+            },
+            currentSettings: {
+              aiInstructions: draftSettings.aiInstructions || globalSettings.aiInstructions,
+              adminContextSummary: draftSettings.adminContextSummary || globalSettings.adminContextSummary
+            },
+            uploadedText: sourceText
+          });
+          document.getElementById('onboard-working-context').value = result.workingContext || document.getElementById('onboard-working-context').value;
+          document.getElementById('onboard-preferred-outputs').value = result.preferredOutputs || document.getElementById('onboard-preferred-outputs').value;
+          UI.toast(`Drafted this step${onboardingAiSourceName ? ` using ${onboardingAiSourceName}` : ''}.`, 'success');
+        } catch (error) {
+          UI.toast('AI assist failed: ' + error.message, 'danger');
+        } finally {
+          btn.disabled = false;
+          btn.textContent = 'AI Assist This Step';
+        }
+      });
     }
 
     function captureStepValues() {
