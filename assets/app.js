@@ -700,6 +700,7 @@ function resetDraft() {
     riskCandidates: [],
     selectedRiskIds: [],
     selectedRisks: [],
+    sourceNarrative: '',
     enhancedNarrative: '',
     uploadedRegisterName: '',
     registerFindings: '',
@@ -770,6 +771,7 @@ function ensureDraftShape() {
     riskCandidates: Array.isArray(AppState.draft.riskCandidates) ? AppState.draft.riskCandidates : (Array.isArray(AppState.draft.selectedRisks) ? AppState.draft.selectedRisks : []),
     selectedRiskIds: Array.isArray(AppState.draft.selectedRiskIds) ? AppState.draft.selectedRiskIds : (Array.isArray(AppState.draft.selectedRisks) ? AppState.draft.selectedRisks.map(risk => risk?.id).filter(Boolean) : []),
     selectedRisks: Array.isArray(AppState.draft.selectedRisks) ? AppState.draft.selectedRisks : [],
+    sourceNarrative: AppState.draft.sourceNarrative || AppState.draft.narrative || '',
     enhancedNarrative: AppState.draft.enhancedNarrative || '',
     uploadedRegisterName: AppState.draft.uploadedRegisterName || '',
     registerFindings: AppState.draft.registerFindings || '',
@@ -1946,6 +1948,35 @@ function getScenarioAssistSeedNarrative(currentValue) {
   return current || enhanced || base;
 }
 
+function normaliseScenarioSeedText(value) {
+  const raw = String(value || '').replace(/\s+/g, ' ').trim();
+  if (!raw) return '';
+  const sentences = raw.split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter(Boolean);
+  const seen = new Set();
+  const filtered = sentences.filter((sentence) => {
+    const key = sentence.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    if (/^in .*faces a material .*scenario in which/i.test(sentence)) return false;
+    if (/^this scenario should be assessed/i.test(sentence)) return false;
+    if (/^a likely progression is/i.test(sentence)) return false;
+    if (/^in practice, this can drive/i.test(sentence)) return false;
+    if (/^given the stated urgency/i.test(sentence)) return false;
+    if (/^current urgency is assessed as /i.test(sentence)) return false;
+    return true;
+  });
+  return (filtered.join(' ').trim() || raw);
+}
+
+function getIntakeAssistSeedNarrative(currentValue) {
+  const current = normaliseScenarioSeedText(currentValue);
+  const source = normaliseScenarioSeedText(AppState.draft.sourceNarrative || '');
+  const base = normaliseScenarioSeedText(AppState.draft.narrative || '');
+  const enhanced = normaliseScenarioSeedText(AppState.draft.enhancedNarrative || '');
+  if (current && enhanced && current === enhanced && (source || base)) return source || base;
+  return source || current || base || enhanced;
+}
+
 function buildScenarioNarrative(introOverride = '') {
   const selected = getSelectedRisks();
   const titles = selected.map(r => r.title);
@@ -2864,6 +2895,7 @@ function renderWizard1() {
   });
   document.getElementById('intake-risk-statement').addEventListener('input', function() {
     AppState.draft.narrative = this.value;
+    AppState.draft.sourceNarrative = this.value;
   });
   document.getElementById('btn-build-guided-narrative').addEventListener('click', () => {
     const composed = composeGuidedNarrative(AppState.draft.guidedInput);
@@ -2872,6 +2904,7 @@ function renderWizard1() {
       return;
     }
     AppState.draft.narrative = composed;
+    AppState.draft.sourceNarrative = composed;
     document.getElementById('intake-risk-statement').value = composed;
     saveDraft();
     UI.toast('Risk statement created from guided answers.', 'success');
@@ -2909,6 +2942,7 @@ function renderWizard1() {
       const composed = composeGuidedNarrative(AppState.draft.guidedInput);
       if (composed) {
         AppState.draft.narrative = composed;
+        AppState.draft.sourceNarrative = composed;
         document.getElementById('intake-risk-statement').value = composed;
       }
     }
@@ -2916,6 +2950,7 @@ function renderWizard1() {
     AppState.draft.geographies = normaliseScenarioGeographies(wizardGeographyInput.getTags(), settings.geography);
     AppState.draft.geography = formatScenarioGeographies(AppState.draft.geographies, settings.geography);
     AppState.draft.narrative = AppState.draft.narrative.trim();
+    AppState.draft.sourceNarrative = normaliseScenarioSeedText(AppState.draft.sourceNarrative || AppState.draft.narrative);
     AppState.draft.enhancedNarrative = AppState.draft.enhancedNarrative || AppState.draft.narrative;
     AppState.draft.applicableRegulations = deriveApplicableRegulations(buList.find(b => b.id === buId), selected, AppState.draft.geographies);
     if (!AppState.draft.scenarioTitle) {
@@ -3039,6 +3074,7 @@ async function handleRegisterUpload(e) {
 
 async function runIntakeAssist() {
   const narrative = document.getElementById('intake-risk-statement')?.value.trim() || AppState.draft.narrative || '';
+  const assistSeed = getIntakeAssistSeedNarrative(narrative || AppState.draft.registerFindings);
   const output = document.getElementById('intake-output');
   const bu = getBUList().find(b => b.id === (document.getElementById('wizard-bu')?.value || AppState.draft.buId));
   if (!narrative && !AppState.draft.registerFindings) {
@@ -3047,9 +3083,9 @@ async function runIntakeAssist() {
   }
   output.innerHTML = `<div class="card">${UI.skeletonBlock(18)}<div class="mt-3">${UI.skeletonBlock(14, 4)}</div><div class="mt-3">${UI.skeletonBlock(90, 10)}</div></div>`;
   try {
-    const citations = await RAGService.retrieveRelevantDocs(bu?.id, narrative || AppState.draft.registerFindings, 5);
+    const citations = await RAGService.retrieveRelevantDocs(bu?.id, assistSeed || AppState.draft.registerFindings, 5);
     const result = await LLMService.enhanceRiskContext({
-      riskStatement: narrative,
+      riskStatement: assistSeed || narrative,
       registerText: AppState.draft.registerFindings,
       registerMeta: AppState.draft.registerMeta,
       businessUnit: bu,
@@ -3064,7 +3100,8 @@ async function runIntakeAssist() {
     });
     const nextNarrative = result.enhancedStatement || narrative;
     AppState.draft.llmAssisted = true;
-    AppState.draft.narrative = narrative;
+    AppState.draft.sourceNarrative = assistSeed || narrative;
+    AppState.draft.narrative = assistSeed || narrative;
     AppState.draft.enhancedNarrative = nextNarrative;
     AppState.draft.intakeSummary = result.summary || '';
     AppState.draft.linkAnalysis = result.linkAnalysis || '';
@@ -3084,6 +3121,7 @@ async function runIntakeAssist() {
 
 async function enhanceNarrativeWithAI() {
   const narrative = document.getElementById('intake-risk-statement')?.value.trim() || AppState.draft.narrative || '';
+  const assistSeed = getIntakeAssistSeedNarrative(narrative);
   const output = document.getElementById('intake-output');
   const bu = getBUList().find(b => b.id === (document.getElementById('wizard-bu')?.value || AppState.draft.buId));
   if (!narrative) {
@@ -3095,9 +3133,9 @@ async function enhanceNarrativeWithAI() {
   button.textContent = 'Enhancing…';
   output.innerHTML = `<div class="card">${UI.skeletonBlock(18)}<div class="mt-3">${UI.skeletonBlock(14, 4)}</div><div class="mt-3">${UI.skeletonBlock(90, 10)}</div></div>`;
   try {
-    const citations = await RAGService.retrieveRelevantDocs(bu?.id, narrative, 5);
+    const citations = await RAGService.retrieveRelevantDocs(bu?.id, assistSeed || narrative, 5);
     const result = await LLMService.enhanceRiskContext({
-      riskStatement: narrative,
+      riskStatement: assistSeed || narrative,
       registerText: '',
       registerMeta: null,
       businessUnit: bu,
@@ -3112,7 +3150,8 @@ async function enhanceNarrativeWithAI() {
     });
     const nextNarrative = result.enhancedStatement || narrative;
     AppState.draft.llmAssisted = true;
-    AppState.draft.narrative = narrative;
+    AppState.draft.sourceNarrative = assistSeed || narrative;
+    AppState.draft.narrative = assistSeed || narrative;
     AppState.draft.enhancedNarrative = nextNarrative;
     AppState.draft.intakeSummary = result.summary || AppState.draft.intakeSummary;
     AppState.draft.linkAnalysis = result.linkAnalysis || AppState.draft.linkAnalysis;
