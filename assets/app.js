@@ -53,7 +53,7 @@ const AppState = {
   settingsSectionState: {},
   settingsScrollState: {},
   adminSettingsCache: null,
-  userStateCache: { username: '', userSettings: null, assessments: null, learningStore: null },
+  userStateCache: { username: '', userSettings: null, assessments: null, learningStore: null, draft: null },
   auditLogCache: { loaded: false, loading: false, entries: [], summary: null, error: '' }
 };
 
@@ -239,13 +239,15 @@ async function loadSharedUserState(username = AuthService.getCurrentUser()?.user
       username: safeUsername,
       userSettings: state.userSettings || null,
       assessments: Array.isArray(state.assessments) ? state.assessments : [],
-      learningStore: state.learningStore && typeof state.learningStore === 'object' ? state.learningStore : { templates: {} }
+      learningStore: state.learningStore && typeof state.learningStore === 'object' ? state.learningStore : { templates: {} },
+      draft: state.draft && typeof state.draft === 'object' ? state.draft : null
     };
     if (state.userSettings) {
       localStorage.setItem(buildUserStorageKey(USER_SETTINGS_STORAGE_PREFIX, safeUsername), JSON.stringify(state.userSettings));
     }
     localStorage.setItem(buildUserStorageKey(ASSESSMENTS_STORAGE_PREFIX, safeUsername), JSON.stringify(AppState.userStateCache.assessments));
     localStorage.setItem(buildUserStorageKey(LEARNING_STORAGE_PREFIX, safeUsername), JSON.stringify(AppState.userStateCache.learningStore));
+    sessionStorage.setItem(buildUserStorageKey(DRAFT_STORAGE_PREFIX, safeUsername), JSON.stringify(AppState.userStateCache.draft || {}));
     return AppState.userStateCache;
   } catch (error) {
     console.warn('loadSharedUserState fallback:', error.message);
@@ -259,7 +261,8 @@ function queueSharedUserStateSync(username = AuthService.getCurrentUser()?.usern
   const payload = {
     userSettings: AppState.userStateCache.userSettings,
     assessments: Array.isArray(AppState.userStateCache.assessments) ? AppState.userStateCache.assessments : [],
-    learningStore: AppState.userStateCache.learningStore && typeof AppState.userStateCache.learningStore === 'object' ? AppState.userStateCache.learningStore : { templates: {} }
+    learningStore: AppState.userStateCache.learningStore && typeof AppState.userStateCache.learningStore === 'object' ? AppState.userStateCache.learningStore : { templates: {} },
+    draft: AppState.userStateCache.draft && typeof AppState.userStateCache.draft === 'object' ? AppState.userStateCache.draft : null
   };
   requestUserState('PUT', safeUsername, payload).catch(error => console.warn('queueSharedUserStateSync failed:', error.message));
 }
@@ -267,14 +270,15 @@ function queueSharedUserStateSync(username = AuthService.getCurrentUser()?.usern
 function ensureUserStateCache(username = AuthService.getCurrentUser()?.username || '') {
   const safeUsername = String(username || '').trim().toLowerCase();
   if (!safeUsername) {
-    return { username: '', userSettings: null, assessments: [], learningStore: { templates: {} } };
+    return { username: '', userSettings: null, assessments: [], learningStore: { templates: {} }, draft: null };
   }
   if (AppState.userStateCache.username !== safeUsername) {
     AppState.userStateCache = {
       username: safeUsername,
       userSettings: null,
       assessments: null,
-      learningStore: null
+      learningStore: null,
+      draft: null
     };
   }
   return AppState.userStateCache;
@@ -327,9 +331,9 @@ function clearUserPersistentState(username) {
   sessionStorage.removeItem(buildUserStorageKey(DRAFT_STORAGE_PREFIX, safeUsername));
   sessionStorage.removeItem(buildUserStorageKey(SESSION_LLM_STORAGE_PREFIX, safeUsername));
   if (AppState.userStateCache.username === safeUsername) {
-    AppState.userStateCache = { username: safeUsername, userSettings: null, assessments: [], learningStore: { templates: {} } };
+    AppState.userStateCache = { username: safeUsername, userSettings: null, assessments: [], learningStore: { templates: {} }, draft: null };
   }
-  requestUserState('PUT', safeUsername, { userSettings: null, assessments: [], learningStore: { templates: {} } }).catch(error => console.warn('clearUserPersistentState sync failed:', error.message));
+  requestUserState('PUT', safeUsername, { userSettings: null, assessments: [], learningStore: { templates: {} }, draft: null }, { category: 'user_admin', eventType: 'user_state_reset', target: safeUsername }).catch(error => console.warn('clearUserPersistentState sync failed:', error.message));
 }
 
 function getUserSettingsDefaults(globalSettings = getAdminSettings()) {
@@ -588,8 +592,16 @@ function applyLearnedTemplateDraft(tmpl) {
 
 function saveDraft() {
   try { sessionStorage.setItem(buildUserStorageKey(DRAFT_STORAGE_PREFIX), JSON.stringify(AppState.draft)); } catch {}
+  const cache = ensureUserStateCache();
+  cache.draft = { ...AppState.draft };
+  queueSharedUserStateSync();
 }
 function loadDraft() {
+  const cache = ensureUserStateCache();
+  if (cache.draft && typeof cache.draft === 'object') {
+    Object.assign(AppState.draft, cache.draft);
+    return;
+  }
   try {
     const d = JSON.parse(sessionStorage.getItem(buildUserStorageKey(DRAFT_STORAGE_PREFIX)) || 'null');
     if (d) Object.assign(AppState.draft, d);

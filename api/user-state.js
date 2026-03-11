@@ -36,7 +36,8 @@ function normaliseState(state = {}) {
   return {
     userSettings: state.userSettings && typeof state.userSettings === 'object' ? state.userSettings : null,
     assessments: Array.isArray(state.assessments) ? state.assessments : [],
-    learningStore: state.learningStore && typeof state.learningStore === 'object' ? state.learningStore : { templates: {} }
+    learningStore: state.learningStore && typeof state.learningStore === 'object' ? state.learningStore : { templates: {} },
+    draft: state.draft && typeof state.draft === 'object' ? state.draft : null
   };
 }
 
