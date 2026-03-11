@@ -3619,11 +3619,18 @@ function withAuth(renderer) {
   };
 }
 
-function adminLayout(active, content) {
+function adminLayout(active, content, activeSettingsSection = 'org') {
   return `<div style="display:flex;min-height:calc(100vh - 60px)">
     <nav class="admin-sidebar">
       <div style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:var(--sp-3)">Admin</div>
-      <a href="#/admin/settings" class="admin-nav-link ${active==='settings'?'active':''}">🌐 Organisation Setup</a>
+      <div style="font-size:.68rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:var(--sp-2)">Setup</div>
+      <a href="#/admin/settings/org" class="admin-nav-link ${active==='settings' && activeSettingsSection==='org' ? 'active' : ''}">🌐 Organisation Setup</a>
+      <a href="#/admin/settings/company" class="admin-nav-link ${active==='settings' && activeSettingsSection==='company' ? 'active' : ''}">🧠 AI Company Builder</a>
+      <a href="#/admin/settings/defaults" class="admin-nav-link ${active==='settings' && activeSettingsSection==='defaults' ? 'active' : ''}">🛡 Platform Defaults</a>
+      <a href="#/admin/settings/access" class="admin-nav-link ${active==='settings' && activeSettingsSection==='access' ? 'active' : ''}">🔐 System Access</a>
+      <a href="#/admin/settings/users" class="admin-nav-link ${active==='settings' && activeSettingsSection==='users' ? 'active' : ''}">👥 User Accounts</a>
+      <a href="#/admin/settings/audit" class="admin-nav-link ${active==='settings' && activeSettingsSection==='audit' ? 'active' : ''}">🧾 Audit Log</a>
+      <div style="font-size:.68rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin:var(--sp-4) 0 var(--sp-2)">Libraries</div>
       <a href="#/admin/bu" class="admin-nav-link ${active==='bu'?'active':''}">🏢 Org Customisation</a>
       <a href="#/admin/docs" class="admin-nav-link ${active==='docs'?'active':''}">📚 Document Library</a>
       <div style="flex:1"></div>
@@ -4554,7 +4561,7 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
   });
 }
 
-function renderAdminSettings() {
+function renderAdminSettings(activeSection = 'org') {
   if (!requireAdmin()) return;
   const settings = getAdminSettings();
   const companyStructure = Array.isArray(settings.companyStructure) ? [...settings.companyStructure] : [];
@@ -4570,6 +4577,15 @@ function renderAdminSettings() {
   const managedAccounts = AuthService.getManagedAccounts();
   const companyEntities = companyStructure.filter(node => isCompanyEntityType(node.type));
   const departmentEntities = companyStructure.filter(node => isDepartmentEntityType(node.type));
+  const settingsSectionMeta = {
+    org: { title: 'Organisation Setup', description: 'Build the organisation tree first, then tune risk context from the left navigation.' },
+    company: { title: 'AI Company Context Builder', description: 'Build public company context and place it into the organisation structure.' },
+    defaults: { title: 'Platform Defaults And Governance', description: 'Manage thresholds, regulations, risk appetite, and global AI defaults.' },
+    access: { title: 'System Access', description: 'Configure the Compass proxy, model, and session-level access controls.' },
+    users: { title: 'User Account Control', description: 'Manage shared users, roles, BU assignments, and issued passwords.' },
+    audit: { title: 'Audit Log', description: 'Review short-retention PoC audit events and sign-in statistics.' }
+  };
+  const currentSettingsSection = settingsSectionMeta[activeSection] ? activeSection : 'org';
   const adminIntroSection = renderSettingsSection({
     title: 'How This Screen Works',
     scope: 'admin-settings',
@@ -4883,13 +4899,22 @@ function renderAdminSettings() {
     </div>
     <div class="form-help mt-3">Reset only affects browser-stored state. Account creation and BU/function assignment are shared through the Vercel user store.</div>`
   });
+  const adminSectionBody = {
+    org: adminIntroSection + organisationTreeSection,
+    company: companyBuilderSection,
+    defaults: platformDefaultsSection,
+    access: systemAccessSection,
+    users: userControlsSection,
+    audit: auditLogSection
+  }[currentSettingsSection] || (adminIntroSection + organisationTreeSection);
+
   setPage(adminLayout('settings', `
     <div class="settings-shell">
       <div class="settings-shell__header">
         <div class="flex items-center justify-between" style="gap:var(--sp-4);flex-wrap:wrap">
           <div>
-            <h2>Organisation-Led Admin Setup</h2>
-            <p style="margin-top:6px">Build the group structure first, then tune risk context as a layer beneath each business or department. Global defaults sit below that and only fill the gaps.</p>
+            <h2>${settingsSectionMeta[currentSettingsSection].title}</h2>
+            <p style="margin-top:6px">${settingsSectionMeta[currentSettingsSection].description}</p>
           </div>
           <button class="btn btn--secondary" id="btn-reset-settings">Reset Defaults</button>
         </div>
@@ -4922,13 +4947,7 @@ function renderAdminSettings() {
         </div>
       </div>
       <div class="settings-accordion">
-        ${adminIntroSection}
-        ${organisationTreeSection}
-        ${companyBuilderSection}
-        ${platformDefaultsSection}
-        ${systemAccessSection}
-        ${userControlsSection}
-        ${auditLogSection}
+        ${adminSectionBody}
       </div>
       <div class="settings-shell__footer">
         <div class="flex items-center gap-3" style="flex-wrap:wrap">
@@ -4936,7 +4955,7 @@ function renderAdminSettings() {
           <span class="form-help">Applies to new and in-progress assessments immediately.</span>
         </div>
       </div>
-    </div>`));
+    </div>`, currentSettingsSection));
   bindSettingsSectionState('admin-settings', document);
   restoreSettingsScroll('admin-settings');
 
@@ -5631,7 +5650,7 @@ function renderAdminBU() {
         <p style="margin-top:6px">Compact hierarchy view for entities and their functions.</p>
       </div>
       <div class="flex gap-3">
-        <a class="btn btn--primary btn--sm" href="#/admin/settings">Organisation Setup</a>
+        <a class="btn btn--primary btn--sm" href="#/admin/settings/org">Organisation Setup</a>
       </div>
     </div>
     <div class="admin-overview-grid mb-5">
@@ -6007,7 +6026,13 @@ async function init() {
     .on('/results/:id', withAuth(params => renderResults(params.id)))
     .on('/settings', renderUserSettings)
     .on('/admin', renderLogin)
-    .on('/admin/settings', renderAdminSettings)
+    .on('/admin/settings', () => renderAdminSettings('org'))
+    .on('/admin/settings/org', () => renderAdminSettings('org'))
+    .on('/admin/settings/company', () => renderAdminSettings('company'))
+    .on('/admin/settings/defaults', () => renderAdminSettings('defaults'))
+    .on('/admin/settings/access', () => renderAdminSettings('access'))
+    .on('/admin/settings/users', () => renderAdminSettings('users'))
+    .on('/admin/settings/audit', () => renderAdminSettings('audit'))
     .on('/admin/bu', renderAdminBU)
     .on('/admin/docs', renderAdminDocs)
     .notFound(() => {
