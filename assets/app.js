@@ -94,13 +94,30 @@ async function loadSharedAdminSettings() {
   try {
     const data = await requestSharedSettings('GET');
     if (data?.settings) {
-      const merged = {
+      let localSaved = null;
+      try {
+        localSaved = JSON.parse(localStorage.getItem(GLOBAL_ADMIN_STORAGE_KEY) || 'null');
+      } catch {}
+      const sharedSettings = {
         ...DEFAULT_ADMIN_SETTINGS,
         ...data.settings,
         applicableRegulations: Array.isArray(data.settings.applicableRegulations) ? data.settings.applicableRegulations : [...DEFAULT_ADMIN_SETTINGS.applicableRegulations]
       };
+      const localHasStructure = Array.isArray(localSaved?.companyStructure) && localSaved.companyStructure.length;
+      const sharedHasStructure = Array.isArray(sharedSettings.companyStructure) && sharedSettings.companyStructure.length;
+      const localHasLayers = Array.isArray(localSaved?.entityContextLayers) && localSaved.entityContextLayers.length;
+      const sharedHasLayers = Array.isArray(sharedSettings.entityContextLayers) && sharedSettings.entityContextLayers.length;
+      const merged = {
+        ...sharedSettings,
+        companyStructure: sharedHasStructure ? sharedSettings.companyStructure : (localHasStructure ? localSaved.companyStructure : sharedSettings.companyStructure),
+        entityContextLayers: sharedHasLayers ? sharedSettings.entityContextLayers : (localHasLayers ? localSaved.entityContextLayers : sharedSettings.entityContextLayers),
+        companyContextSections: sharedSettings.companyContextSections || localSaved?.companyContextSections || null
+      };
       AppState.adminSettingsCache = merged;
       localStorage.setItem(GLOBAL_ADMIN_STORAGE_KEY, JSON.stringify(merged));
+      if ((!sharedHasStructure && localHasStructure) || (!sharedHasLayers && localHasLayers)) {
+        syncSharedAdminSettings(merged, { category: 'settings', eventType: 'shared_settings_rehydrated', target: 'global_settings', details: { reason: 'local_backup_richer_than_shared' } }).catch(error => console.warn('shared settings rehydrate failed:', error.message));
+      }
       return merged;
     }
   } catch (error) {
@@ -5201,46 +5218,49 @@ function renderAdminSettings(activeSection = 'org') {
   bindStructureActionHandlers();
   renderEntityLayerSummary();
   function buildAdminSettingsPayload() {
-    const warningThresholdUsd = Math.max(0, parseFloat(document.getElementById('admin-warning-threshold').value) || DEFAULT_ADMIN_SETTINGS.warningThresholdUsd);
-    const toleranceThresholdUsd = Math.max(0, parseFloat(document.getElementById('admin-tolerance-threshold').value) || TOLERANCE_THRESHOLD);
-    const annualReviewThresholdUsd = Math.max(0, parseFloat(document.getElementById('admin-annual-threshold').value) || DEFAULT_ADMIN_SETTINGS.annualReviewThresholdUsd);
+    const currentSettings = getAdminSettings();
+    const getInputValue = (id, fallback = '') => {
+      const el = document.getElementById(id);
+      return el ? el.value.trim() : fallback;
+    };
+    const getNumericValue = (id, fallback) => {
+      const el = document.getElementById(id);
+      return Math.max(0, parseFloat(el?.value) || fallback);
+    };
+    const warningThresholdUsd = getNumericValue('admin-warning-threshold', currentSettings.warningThresholdUsd || DEFAULT_ADMIN_SETTINGS.warningThresholdUsd);
+    const toleranceThresholdUsd = getNumericValue('admin-tolerance-threshold', currentSettings.toleranceThresholdUsd || TOLERANCE_THRESHOLD);
+    const annualReviewThresholdUsd = getNumericValue('admin-annual-threshold', currentSettings.annualReviewThresholdUsd || DEFAULT_ADMIN_SETTINGS.annualReviewThresholdUsd);
+    const companyContextSections = {
+      companySummary: getInputValue('admin-company-section-summary', currentSettings.companyContextSections?.companySummary || ''),
+      businessModel: getInputValue('admin-company-section-business-model', currentSettings.companyContextSections?.businessModel || ''),
+      operatingModel: getInputValue('admin-company-section-operating-model', currentSettings.companyContextSections?.operatingModel || ''),
+      publicCommitments: getInputValue('admin-company-section-commitments', currentSettings.companyContextSections?.publicCommitments || ''),
+      keyRiskSignals: getInputValue('admin-company-section-risks', currentSettings.companyContextSections?.keyRiskSignals || ''),
+      obligations: getInputValue('admin-company-section-obligations', currentSettings.companyContextSections?.obligations || ''),
+      sources: getInputValue('admin-company-section-sources', currentSettings.companyContextSections?.sources || '')
+    };
     return {
       warningThresholdUsd,
       toleranceThresholdUsd,
       annualReviewThresholdUsd,
       payload: {
-        companyContextSections: {
-          companySummary: document.getElementById('admin-company-section-summary').value.trim(),
-          businessModel: document.getElementById('admin-company-section-business-model').value.trim(),
-          operatingModel: document.getElementById('admin-company-section-operating-model').value.trim(),
-          publicCommitments: document.getElementById('admin-company-section-commitments').value.trim(),
-          keyRiskSignals: document.getElementById('admin-company-section-risks').value.trim(),
-          obligations: document.getElementById('admin-company-section-obligations').value.trim(),
-          sources: document.getElementById('admin-company-section-sources').value.trim()
-        },
-        geography: document.getElementById('admin-geo').value.trim() || DEFAULT_ADMIN_SETTINGS.geography,
-        companyWebsiteUrl: document.getElementById('admin-company-url').value.trim(),
-        companyContextProfile: serialiseCompanyContextSections({
-          companySummary: document.getElementById('admin-company-section-summary').value.trim(),
-          businessModel: document.getElementById('admin-company-section-business-model').value.trim(),
-          operatingModel: document.getElementById('admin-company-section-operating-model').value.trim(),
-          publicCommitments: document.getElementById('admin-company-section-commitments').value.trim(),
-          keyRiskSignals: document.getElementById('admin-company-section-risks').value.trim(),
-          obligations: document.getElementById('admin-company-section-obligations').value.trim(),
-          sources: document.getElementById('admin-company-section-sources').value.trim()
-        }),
+        ...currentSettings,
+        companyContextSections,
+        geography: getInputValue('admin-geo', currentSettings.geography || DEFAULT_ADMIN_SETTINGS.geography) || DEFAULT_ADMIN_SETTINGS.geography,
+        companyWebsiteUrl: getInputValue('admin-company-url', currentSettings.companyWebsiteUrl || ''),
+        companyContextProfile: serialiseCompanyContextSections(companyContextSections),
         companyStructure,
         entityContextLayers,
-        defaultLinkMode: document.getElementById('admin-link-mode').value === 'yes',
+        defaultLinkMode: document.getElementById('admin-link-mode') ? document.getElementById('admin-link-mode').value === 'yes' : !!currentSettings.defaultLinkMode,
         toleranceThresholdUsd,
         warningThresholdUsd,
         annualReviewThresholdUsd,
-        riskAppetiteStatement: document.getElementById('admin-appetite').value.trim() || DEFAULT_ADMIN_SETTINGS.riskAppetiteStatement,
-        applicableRegulations: regsInput.getTags(),
-        aiInstructions: document.getElementById('admin-ai-instructions').value.trim(),
-        benchmarkStrategy: document.getElementById('admin-benchmark-strategy').value.trim() || DEFAULT_ADMIN_SETTINGS.benchmarkStrategy,
-        adminContextSummary: document.getElementById('admin-context-summary').value.trim() || DEFAULT_ADMIN_SETTINGS.adminContextSummary,
-        escalationGuidance: document.getElementById('admin-escalation-guidance').value.trim() || DEFAULT_ADMIN_SETTINGS.escalationGuidance
+        riskAppetiteStatement: getInputValue('admin-appetite', currentSettings.riskAppetiteStatement || DEFAULT_ADMIN_SETTINGS.riskAppetiteStatement) || DEFAULT_ADMIN_SETTINGS.riskAppetiteStatement,
+        applicableRegulations: regsInput?.getTags ? regsInput.getTags() : (Array.isArray(currentSettings.applicableRegulations) ? currentSettings.applicableRegulations : [...DEFAULT_ADMIN_SETTINGS.applicableRegulations]),
+        aiInstructions: getInputValue('admin-ai-instructions', currentSettings.aiInstructions || ''),
+        benchmarkStrategy: getInputValue('admin-benchmark-strategy', currentSettings.benchmarkStrategy || DEFAULT_ADMIN_SETTINGS.benchmarkStrategy) || DEFAULT_ADMIN_SETTINGS.benchmarkStrategy,
+        adminContextSummary: getInputValue('admin-context-summary', currentSettings.adminContextSummary || DEFAULT_ADMIN_SETTINGS.adminContextSummary) || DEFAULT_ADMIN_SETTINGS.adminContextSummary,
+        escalationGuidance: getInputValue('admin-escalation-guidance', currentSettings.escalationGuidance || DEFAULT_ADMIN_SETTINGS.escalationGuidance) || DEFAULT_ADMIN_SETTINGS.escalationGuidance
       }
     };
   }
