@@ -416,7 +416,38 @@ ${retrievedDocs.map(d => `- ${d.title}: ${d.excerpt}`).join('\
         const raw = await _callLLM(systemPrompt, userPrompt);
         if (raw) {
           const parsed = JSON.parse(raw.replace(/```json\n?|```/g, '').trim());
-          return { ...parsed, citations: retrievedDocs };
+          const fallback = _generateStub(narrative, buContext, retrievedDocs);
+          const parsedInputs = parsed?.suggestedInputs || {};
+          const fallbackInputs = fallback.suggestedInputs || {};
+          const parsedLoss = parsedInputs.lossComponents || {};
+          const fallbackLoss = fallbackInputs.lossComponents || {};
+          const ensureRange = (value, fallbackRange) => ({
+            min: value?.min ?? fallbackRange?.min ?? 0,
+            likely: value?.likely ?? fallbackRange?.likely ?? 0,
+            max: value?.max ?? fallbackRange?.max ?? 0,
+          });
+          return {
+            ...fallback,
+            ...parsed,
+            suggestedInputs: {
+              ...fallbackInputs,
+              ...parsedInputs,
+              TEF: ensureRange(parsedInputs.TEF, fallbackInputs.TEF),
+              controlStrength: ensureRange(parsedInputs.controlStrength, fallbackInputs.controlStrength),
+              threatCapability: ensureRange(parsedInputs.threatCapability, fallbackInputs.threatCapability),
+              lossComponents: {
+                ...fallbackLoss,
+                ...parsedLoss,
+                incidentResponse: ensureRange(parsedLoss.incidentResponse, fallbackLoss.incidentResponse),
+                businessInterruption: ensureRange(parsedLoss.businessInterruption, fallbackLoss.businessInterruption),
+                dataBreachRemediation: ensureRange(parsedLoss.dataBreachRemediation, fallbackLoss.dataBreachRemediation),
+                regulatoryLegal: ensureRange(parsedLoss.regulatoryLegal, fallbackLoss.regulatoryLegal),
+                thirdPartyLiability: ensureRange(parsedLoss.thirdPartyLiability, fallbackLoss.thirdPartyLiability),
+                reputationContract: ensureRange(parsedLoss.reputationContract, fallbackLoss.reputationContract),
+              }
+            },
+            citations: retrievedDocs
+          };
         }
       } catch (e) {
         console.warn('LLM API call failed, falling back to stub:', e.message);
