@@ -51,7 +51,7 @@ function deriveCandidateUrls(rootUrl, html) {
   const root = new URL(rootUrl);
   const discovered = extractLinks(html, rootUrl)
     .filter(link => sameHost(link, root.hostname))
-    .filter(link => /about|company|solutions|services|products|industries|security|compliance|governance|investor|news|contact/i.test(link));
+    .filter(link => /about|company|solutions|services|products|industries|security|compliance|governance|investor|news|contact|leadership|platform|technology|responsible|sustainab|privacy|policy|trust|case-stud|partners?|portfolio|business|operations?/i.test(link));
   const defaults = [
     rootUrl,
     new URL('/about', root).toString(),
@@ -61,9 +61,16 @@ function deriveCandidateUrls(rootUrl, html) {
     new URL('/industries', root).toString(),
     new URL('/security', root).toString(),
     new URL('/compliance', root).toString(),
-    new URL('/about-us', root).toString()
+    new URL('/about-us', root).toString(),
+    new URL('/leadership', root).toString(),
+    new URL('/technology', root).toString(),
+    new URL('/platforms', root).toString(),
+    new URL('/privacy', root).toString(),
+    new URL('/responsible-ai', root).toString(),
+    new URL('/sustainability', root).toString(),
+    new URL('/newsroom', root).toString()
   ];
-  return Array.from(new Set([...defaults, ...discovered])).slice(0, 8);
+  return Array.from(new Set([...defaults, ...discovered])).slice(0, 14);
 }
 
 function extractCompanySearchTerm(canonicalUrl) {
@@ -179,19 +186,27 @@ async function fetchNewsContext(canonicalUrl, rootHtml = '') {
   const feeds = [
     {
       label: 'Local UAE/GCC business news',
-      url: `https://news.google.com/rss/search?q=${encodedAliasQuery}%20(site%3Athenationalnews.com%20OR%20site%3Agulfnews.com%20OR%20site%3Akhaleejtimes.com%20OR%20site%3Azawya.com%20OR%20site%3Aarabianbusiness.com)&hl=en-AE&gl=AE&ceid=AE:en`
+      url: `https://news.google.com/rss/search?q=${encodedAliasQuery}%20(site%3Athenationalnews.com%20OR%20site%3Agulfnews.com%20OR%20site%3Akhaleejtimes.com%20OR%20site%3Azawya.com%20OR%20site%3Aarabianbusiness.com%20OR%20site%3Agulfbusiness.com%20OR%20site%3Aeconomymiddleeast.com)&hl=en-AE&gl=AE&ceid=AE:en`
+    },
+    {
+      label: 'Regional technology and policy news',
+      url: `https://news.google.com/rss/search?q=${encodedAliasQuery}%20(site%3Athenationalnews.com%20OR%20site%3Azawya.com%20OR%20site%3Arestofworld.org%20OR%20site%3Atechcrunch.com)%20(AI%20OR%20data%20centre%20OR%20sovereign%20OR%20cloud%20OR%20government)&hl=en-AE&gl=AE&ceid=AE:en`
     },
     {
       label: 'Global business news',
-      url: `https://news.google.com/rss/search?q=${encodedAliasQuery}%20(site%3Areuters.com%20OR%20site%3Abloomberg.com%20OR%20site%3Acnbc.com%20OR%20site%3Aft.com%20OR%20site%3Awsj.com)&hl=en-US&gl=US&ceid=US:en`
+      url: `https://news.google.com/rss/search?q=${encodedAliasQuery}%20(site%3Areuters.com%20OR%20site%3Abloomberg.com%20OR%20site%3Acnbc.com%20OR%20site%3Aft.com%20OR%20site%3Awsj.com%20OR%20site%3Aforbes.com)%20(AI%20OR%20cloud%20OR%20technology%20OR%20partnership)&hl=en-US&gl=US&ceid=US:en`
     },
     {
       label: 'Risk and incident news',
-      url: `https://news.google.com/rss/search?q=${quotedAlias}%20(cyber%20OR%20breach%20OR%20outage%20OR%20incident%20OR%20fine%20OR%20sanctions)&hl=en-US&gl=US&ceid=US:en`
+      url: `https://news.google.com/rss/search?q=${quotedAlias}%20(cyber%20OR%20breach%20OR%20outage%20OR%20incident%20OR%20fine%20OR%20sanctions%20OR%20attack%20OR%20ransomware)&hl=en-US&gl=US&ceid=US:en`
     },
     {
       label: 'Strategy and regulatory news',
-      url: `https://news.google.com/rss/search?q=${quotedAlias}%20(regulation%20OR%20compliance%20OR%20licence%20OR%20partnership%20OR%20acquisition%20OR%20expansion)&hl=en-US&gl=US&ceid=US:en`
+      url: `https://news.google.com/rss/search?q=${quotedAlias}%20(regulation%20OR%20compliance%20OR%20licence%20OR%20partnership%20OR%20acquisition%20OR%20expansion%20OR%20investment%20OR%20joint%20venture)&hl=en-US&gl=US&ceid=US:en`
+    },
+    {
+      label: 'Leadership and governance news',
+      url: `https://news.google.com/rss/search?q=${quotedAlias}%20(board%20OR%20chairman%20OR%20CEO%20OR%20governance%20OR%20responsible%20AI%20OR%20ethics)&hl=en-US&gl=US&ceid=US:en`
     }
   ];
   const feedResults = await Promise.allSettled(
@@ -200,13 +215,13 @@ async function fetchNewsContext(canonicalUrl, rootHtml = '') {
   const results = [];
   feedResults.forEach(result => {
     if (result.status !== 'fulfilled') return;
-    const items = parseRssItems(result.value.xml).slice(0, 4).map(item => ({
+    const items = parseRssItems(result.value.xml).slice(0, 6).map(item => ({
       ...item,
       feed: result.value.feed.label
     }));
     results.push(...items);
   });
-  return Array.from(new Map(results.map(item => [item.link, item])).values()).slice(0, 12);
+  return Array.from(new Map(results.map(item => [item.link, item])).values()).slice(0, 20);
 }
 
 function buildFallbackProfile(canonicalUrl, pages, newsItems = []) {
@@ -330,10 +345,10 @@ module.exports = async function handler(req, res) {
       .filter(result => result.status === 'fulfilled')
       .map(result => ({
         url: result.value.url,
-        content: stripHtml(result.value.html).slice(0, 4500)
+        content: stripHtml(result.value.html).slice(0, 7000)
       }))
       .filter(page => page.content.length > 200)
-      .slice(0, 5);
+      .slice(0, 8);
 
     if (!pages.length) {
       throw new Error('No usable public website content could be extracted from the supplied URL.');
@@ -371,7 +386,9 @@ ${newsItems.length ? newsItems.map((item, idx) => `News ${idx + 1}: ${item.feed}
 Instructions:
 - infer the company's business model, operating profile, technology reliance, public commitments, likely obligations, data exposure, and likely regulatory posture
 - focus on technology, cyber, operational resilience, third-party, compliance, and data risks
-- use the aliases and the mix of local and global news to widen the context beyond the company website
+- use the aliases and the mix of local, regional, and global news to widen the context beyond the company website
+- weigh company pages covering leadership, governance, partnerships, privacy, responsible AI, operations, sustainability, and technology posture when available
+- use the broader source set to infer ownership signals, strategic partnerships, governance posture, and sector-specific dependencies
 - keep the output useful for setting admin context for a risk quantification platform
 - mention that this is based on public website and public news context only
 - prefer concrete, company-specific statements over generic technology-company language
