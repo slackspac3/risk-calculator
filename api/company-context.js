@@ -178,6 +178,44 @@ function parseRssItems(xml) {
   return items;
 }
 
+function isDirectlyRelevantNews(item, aliases = []) {
+  const haystack = `${item.title || ''} ${item.description || ''}`.toLowerCase();
+  const aliasMatch = aliases.some(alias => String(alias || '').trim() && haystack.includes(String(alias).toLowerCase()));
+  if (!aliasMatch) return false;
+  return /cyber|breach|outage|incident|fine|sanction|attack|ransomware|jailbreak|security/.test(haystack);
+}
+
+function selectNewsCoverage(items = [], aliases = []) {
+  const caps = {
+    'Local UAE/GCC business news': 5,
+    'Regional technology and policy news': 5,
+    'Strategy and regulatory news': 5,
+    'Leadership and governance news': 4,
+    'Global business news': 5,
+    'Risk and incident news': 4
+  };
+  const grouped = new Map();
+  items.forEach(item => {
+    const list = grouped.get(item.feed) || [];
+    list.push(item);
+    grouped.set(item.feed, list);
+  });
+  const orderedFeeds = [
+    'Local UAE/GCC business news',
+    'Regional technology and policy news',
+    'Strategy and regulatory news',
+    'Leadership and governance news',
+    'Global business news',
+    'Risk and incident news'
+  ];
+  const selected = [];
+  orderedFeeds.forEach(feed => {
+    const feedItems = (grouped.get(feed) || []).filter(item => feed !== 'Risk and incident news' || isDirectlyRelevantNews(item, aliases));
+    selected.push(...feedItems.slice(0, caps[feed] || 4));
+  });
+  return selected.slice(0, 28);
+}
+
 async function fetchNewsContext(canonicalUrl, rootHtml = '') {
   const aliases = extractCompanyAliases(canonicalUrl, rootHtml);
   const quotedAlias = encodeURIComponent(`"${aliases[0] || extractCompanySearchTerm(canonicalUrl)}"`);
@@ -215,13 +253,14 @@ async function fetchNewsContext(canonicalUrl, rootHtml = '') {
   const results = [];
   feedResults.forEach(result => {
     if (result.status !== 'fulfilled') return;
-    const items = parseRssItems(result.value.xml).slice(0, 6).map(item => ({
+    const items = parseRssItems(result.value.xml).slice(0, 8).map(item => ({
       ...item,
       feed: result.value.feed.label
     }));
     results.push(...items);
   });
-  return Array.from(new Map(results.map(item => [item.link, item])).values()).slice(0, 20);
+  const deduped = Array.from(new Map(results.map(item => [item.link, item])).values());
+  return selectNewsCoverage(deduped, aliases);
 }
 
 function buildFallbackProfile(canonicalUrl, pages, newsItems = []) {
@@ -398,7 +437,7 @@ module.exports = async function handler(req, res) {
         content: stripHtml(result.value.html).slice(0, 7000)
       }))
       .filter(page => page.content.length > 200)
-      .slice(0, 8);
+      .slice(0, 9);
 
     if (!pages.length) {
       throw new Error('No usable public website content could be extracted from the supplied URL.');
