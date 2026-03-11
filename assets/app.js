@@ -1924,10 +1924,32 @@ function deriveApplicableRegulations(bu, selectedRisks = [], geographies = getSc
   return Array.from(new Set(tags));
 }
 
-function buildScenarioNarrative() {
+function normaliseCitations(citations) {
+  const list = Array.isArray(citations) ? citations : [];
+  const seen = new Set();
+  return list.filter((citation) => {
+    const key = [citation?.docId || '', citation?.title || '', citation?.url || '', citation?.excerpt || '']
+      .join('|')
+      .trim()
+      .toLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function getScenarioAssistSeedNarrative(currentValue) {
+  const current = String(currentValue || '').trim();
+  const enhanced = String(AppState.draft.enhancedNarrative || '').trim();
+  const base = String(AppState.draft.narrative || '').trim();
+  if (current && enhanced && base && current === enhanced) return base;
+  return current || enhanced || base;
+}
+
+function buildScenarioNarrative(introOverride = '') {
   const selected = getSelectedRisks();
   const titles = selected.map(r => r.title);
-  const intro = AppState.draft.enhancedNarrative || AppState.draft.narrative || '';
+  const intro = String(introOverride || AppState.draft.enhancedNarrative || AppState.draft.narrative || '').trim();
   if (!titles.length) return intro;
   const linkage = AppState.draft.linkedRisks && titles.length > 1
     ? 'These risks should be treated as linked and capable of cascading into one another.'
@@ -3042,15 +3064,15 @@ async function runIntakeAssist() {
     });
     const nextNarrative = result.enhancedStatement || narrative;
     AppState.draft.llmAssisted = true;
+    AppState.draft.narrative = narrative;
     AppState.draft.enhancedNarrative = nextNarrative;
-    AppState.draft.narrative = nextNarrative;
     AppState.draft.intakeSummary = result.summary || '';
     AppState.draft.linkAnalysis = result.linkAnalysis || '';
     AppState.draft.workflowGuidance = Array.isArray(result.workflowGuidance) ? result.workflowGuidance : AppState.draft.workflowGuidance;
     AppState.draft.benchmarkBasis = result.benchmarkBasis || AppState.draft.benchmarkBasis;
     appendRiskCandidates(result.risks || guessRisksFromText(narrative + '\n' + AppState.draft.registerFindings), { selectNew: true });
     AppState.draft.applicableRegulations = Array.from(new Set([...(deriveApplicableRegulations(bu, getSelectedRisks(), getScenarioGeographies()) || []), ...(result.regulations || [])]));
-    AppState.draft.citations = result.citations || citations;
+    AppState.draft.citations = normaliseCitations(result.citations || citations);
     if (!AppState.draft.scenarioTitle && getSelectedRisks()[0]) AppState.draft.scenarioTitle = getSelectedRisks()[0].title;
     saveDraft();
     renderWizard1();
@@ -3090,13 +3112,13 @@ async function enhanceNarrativeWithAI() {
     });
     const nextNarrative = result.enhancedStatement || narrative;
     AppState.draft.llmAssisted = true;
-    AppState.draft.narrative = nextNarrative;
+    AppState.draft.narrative = narrative;
     AppState.draft.enhancedNarrative = nextNarrative;
     AppState.draft.intakeSummary = result.summary || AppState.draft.intakeSummary;
     AppState.draft.linkAnalysis = result.linkAnalysis || AppState.draft.linkAnalysis;
     AppState.draft.workflowGuidance = Array.isArray(result.workflowGuidance) ? result.workflowGuidance : AppState.draft.workflowGuidance;
     AppState.draft.benchmarkBasis = result.benchmarkBasis || AppState.draft.benchmarkBasis;
-    AppState.draft.citations = result.citations || citations;
+    AppState.draft.citations = normaliseCitations(result.citations || citations);
     appendRiskCandidates(result.risks || guessRisksFromText(nextNarrative), { selectNew: true });
     AppState.draft.applicableRegulations = Array.from(new Set([...(deriveApplicableRegulations(bu, getSelectedRisks(), getScenarioGeographies()) || []), ...(result.regulations || [])]));
     if (!AppState.draft.scenarioTitle && getSelectedRisks()[0]) AppState.draft.scenarioTitle = getSelectedRisks()[0].title;
@@ -3243,6 +3265,7 @@ function renderWizard2() {
 async function runLLMAssist() {
   const narrative = document.getElementById('narrative').value.trim();
   if (!narrative) { UI.toast('Please enter a narrative first.', 'warning'); return; }
+  const assistSeed = getScenarioAssistSeedNarrative(narrative);
   const btn = document.getElementById('btn-llm-assist');
   const btnText = document.getElementById('llm-btn-text');
   const output = document.getElementById('llm-output-area');
@@ -3251,7 +3274,7 @@ async function runLLMAssist() {
   output.innerHTML = `<div class="card mt-4">${UI.skeletonBlock(20)}<div style="margin-top:12px">${UI.skeletonBlock(14,4)}</div><div style="margin-top:8px">${UI.skeletonBlock(14,4)}</div></div>`;
   try {
     const bu = getBUList().find(b => b.id === AppState.draft.buId);
-    const scenarioText = [narrative, buildScenarioNarrative()].filter(Boolean).join('\n\n');
+    const scenarioText = buildScenarioNarrative(assistSeed);
     const citations = await RAGService.retrieveRelevantDocs(AppState.draft.buId, scenarioText);
     const result = await LLMService.generateScenarioAndInputs(scenarioText, {
       ...bu,
@@ -3265,7 +3288,7 @@ async function runLLMAssist() {
     AppState.draft.structuredScenario = result.structuredScenario;
     AppState.draft.llmAssisted = true;
     AppState.draft.enhancedNarrative = narrative;
-    AppState.draft.citations = result.citations || citations;
+    AppState.draft.citations = normaliseCitations(result.citations || citations);
     AppState.draft.recommendations = result.recommendations || [];
     AppState.draft.workflowGuidance = Array.isArray(result.workflowGuidance) ? result.workflowGuidance : AppState.draft.workflowGuidance;
     AppState.draft.benchmarkBasis = result.benchmarkBasis || AppState.draft.benchmarkBasis;
@@ -3325,11 +3348,12 @@ async function runLLMAssist() {
 }
 
 function renderCitationBlock(citations) {
-  if (!citations?.length) return '';
+  const unique = normaliseCitations(citations);
+  if (!unique.length) return '';
   return `<div class="card mt-4 anim-fade-in">
     <div class="context-panel-title">📚 Citations — Internal Documents</div>
     <div class="citation-chips">
-      ${citations.map(c=>`<button class="citation-chip" data-doc-id="${c.docId}"><span class="citation-chip-icon">📄</span>${c.title}</button>`).join('')}
+      ${unique.map(c=>`<button class="citation-chip" data-doc-id="${c.docId}"><span class="citation-chip-icon">📄</span>${c.title}</button>`).join('')}
     </div>
   </div>`;
 }

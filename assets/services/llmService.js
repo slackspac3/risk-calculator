@@ -148,7 +148,8 @@ const LLMService = (() => {
     const isRansomware = n.includes('ransomware') || n.includes('encrypt') || n.includes('ransom');
     const isDataBreach = n.includes('breach') || n.includes('data theft') || n.includes('exfil');
     const isPhishing   = n.includes('phish') || n.includes('bec') || n.includes('email');
-    const isCloud      = n.includes('cloud') || n.includes('misconfigur') || n.includes('s3') || n.includes('azure');
+    const isIdentity   = n.includes('azure ad') || n.includes('active directory') || n.includes('entra') || n.includes('identity') || n.includes('sso');
+    const isCloud      = !isIdentity && (n.includes('cloud') || n.includes('misconfigur') || n.includes('s3') || n.includes('azure'));
     const isInsider    = n.includes('insider') || n.includes('employee') || n.includes('privilege');
 
     let scenarioType = 'General Cyber Threat';
@@ -178,6 +179,16 @@ const LLMService = (() => {
         { title: 'Zero Trust Network Access (ZTNA)', why: 'Lateral movement to data stores post-compromise is the typical path. ZTNA enforces least-privilege access per session.', impact: 'Limits attacker reach to one data zone; reduces breach scope by ~70%.' },
         { title: 'Encryption at Rest for All Restricted Data', why: 'Encryption renders stolen data unreadable, potentially exempting the organisation from breach notification requirements.', impact: 'May eliminate regulatory notification obligation; reduces reputational impact.' },
         { title: 'Breach Notification Runbook', why: 'UAE, GDPR, and PCI notification windows are tight (24–72 hours). A pre-tested runbook reduces costly delays and regulator friction.', impact: 'Avoids late-notification fines; reduces legal costs by 20–30%.' }
+      ];
+    } else if (isIdentity) {
+      scenarioType = 'Identity Platform Compromise';
+      tef = { min: 1, likely: 4, max: 14 };
+      tc  = { min: 0.45, likely: 0.68, max: 0.86 };
+      recommendations = [
+        { title: 'Phishing-Resistant MFA for All Privileged Identities', why: 'Identity compromise usually begins with token theft, credential phishing, or session hijacking. Phishing-resistant MFA materially reduces that path.', impact: 'Significantly lowers the chance of privileged account takeover through credential theft.' },
+        { title: 'Conditional Access and Impossible-Travel Detection Tuning', why: 'Strong access policies and anomaly detection help contain account takeover before it becomes broader tenant compromise.', impact: 'Improves early detection and reduces attacker dwell time inside core identity services.' },
+        { title: 'Privileged Identity Management', why: 'Just-in-time privileged access reduces standing admin exposure if Azure AD or Entra credentials are compromised.', impact: 'Limits blast radius from a single compromised administrator account.' },
+        { title: 'Mailbox and Identity Recovery Runbook', why: 'Identity-led incidents often turn into email compromise, fraud, and lockout. Recovery speed directly affects operational and financial loss.', impact: 'Reduces disruption time and lowers downstream fraud and recovery costs.' }
       ];
     } else if (isCloud) {
       scenarioType = 'Cloud Misconfiguration / Exposure';
@@ -228,16 +239,19 @@ const LLMService = (() => {
       structuredScenario: {
         assetService: buContext?.criticalServices?.[0] || 'Core application platform',
         threatCommunity: isRansomware ? 'Organised cybercriminal groups (ransomware-as-a-service)' :
+          isIdentity ? 'Credential theft and account-takeover specialists' :
           isPhishing ? 'Opportunistic threat actors / BEC specialists' :
           isInsider  ? 'Malicious or negligent insider' :
           'External threat actors (mixed motivation)',
         attackType: isRansomware ? 'Ransomware deployment via initial access broker' :
+          isIdentity   ? 'Credential theft, token hijack, or federated identity abuse' :
           isDataBreach ? 'Data exfiltration after credential compromise' :
           isPhishing   ? 'Spear-phishing / adversary-in-the-middle phishing kit' :
           isCloud      ? 'Exploitation of cloud misconfiguration' :
           isInsider    ? 'Insider data theft / sabotage' :
           'Multi-vector cyber attack',
         effect: isRansomware ? 'Encryption of critical data and systems; service unavailability; potential data leak for double-extortion' :
+          isIdentity ? 'Compromise of core identity services leading to account takeover, privilege abuse, mailbox compromise, and disruption across federated business systems' :
           isDataBreach ? 'Unauthorised access to and exfiltration of sensitive/regulated data' :
           'Loss of confidentiality, integrity, or availability of critical assets'
       },
@@ -277,8 +291,28 @@ const LLMService = (() => {
     };
   }
 
+  function _cleanScenarioSeed(statement = '') {
+    const raw = String(statement || '').replace(/\s+/g, ' ').trim();
+    if (!raw) return '';
+    const sentences = raw.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(Boolean);
+    const seen = new Set();
+    const filtered = sentences.filter((sentence) => {
+      const key = sentence.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      if (/^in .*faces a material .*scenario in which/i.test(sentence)) return false;
+      if (/^this scenario should be assessed/i.test(sentence)) return false;
+      if (/^a likely progression is/i.test(sentence)) return false;
+      if (/^in practice, this can drive/i.test(sentence)) return false;
+      if (/^given the stated urgency/i.test(sentence)) return false;
+      return true;
+    });
+    const cleaned = filtered.join(' ').trim();
+    return cleaned || raw;
+  }
+
   function _buildScenarioExpansion(input = {}) {
-    const statement = String(input.riskStatement || '').trim();
+    const statement = _cleanScenarioSeed(input.riskStatement);
     const businessUnit = String(input.businessUnit?.name || 'the business unit').trim();
     const geography = String(input.geography || 'the selected geography').trim();
     const asset = String(input.guidedInput?.asset || '').trim();
