@@ -5115,8 +5115,8 @@ function renderAdminSettings(activeSection = 'org') {
           node.profile = serialiseCompanyContextSections(node.contextSections);
         }
         upsertCompanyStructureNode(node);
-        if (node.profile) profileEl.value = node.profile;
-        if (node.websiteUrl) websiteEl.value = node.websiteUrl;
+        if (node.profile && profileEl) profileEl.value = node.profile;
+        if (node.websiteUrl && websiteEl) websiteEl.value = node.websiteUrl;
         modal.close();
         UI.toast(`${node.name} saved to the organisation tree.`, 'success', 5000);
       }
@@ -5142,14 +5142,16 @@ function renderAdminSettings(activeSection = 'org') {
           if (!document.getElementById('org-entity-name').value.trim()) {
             editor.setName(inferCompanyNameFromUrl(targetUrl));
           }
-          if (Array.isArray(result.regulatorySignals) && result.regulatorySignals.length) {
-            regsInput.setTags(Array.from(new Set([...regsInput.getTags(), ...result.regulatorySignals])));
+          if (Array.isArray(result.regulatorySignals) && result.regulatorySignals.length && regsInput?.setTags) {
+            regsInput.setTags(Array.from(new Set([...(regsInput.getTags() || []), ...result.regulatorySignals])));
           }
-          if (result.aiGuidance) {
-            document.getElementById('admin-ai-instructions').value = result.aiGuidance;
+          const adminAiInstructionsEl = document.getElementById('admin-ai-instructions');
+          if (result.aiGuidance && adminAiInstructionsEl) {
+            adminAiInstructionsEl.value = result.aiGuidance;
           }
-          if (result.suggestedGeography && !document.getElementById('admin-geo').value.trim()) {
-            document.getElementById('admin-geo').value = result.suggestedGeography;
+          const adminGeoEl = document.getElementById('admin-geo');
+          if (result.suggestedGeography && adminGeoEl && !adminGeoEl.value.trim()) {
+            adminGeoEl.value = result.suggestedGeography;
           }
           UI.toast('Company context built. Review the entity details and save it into the organisation tree.', 'success', 5000);
         } catch (error) {
@@ -5330,25 +5332,35 @@ function renderAdminSettings(activeSection = 'org') {
       const result = await LLMService.buildCompanyContext(websiteUrl);
       const sections = buildCompanyContextSections(result);
       const profileText = serialiseCompanyContextSections(sections);
-      profileEl.value = profileText;
-      document.getElementById('admin-company-section-summary').value = sections.companySummary || '';
-      document.getElementById('admin-company-section-business-model').value = sections.businessModel || '';
-      document.getElementById('admin-company-section-operating-model').value = sections.operatingModel || '';
-      document.getElementById('admin-company-section-commitments').value = sections.publicCommitments || '';
-      document.getElementById('admin-company-section-risks').value = sections.keyRiskSignals || '';
-      document.getElementById('admin-company-section-obligations').value = sections.obligations || '';
-      document.getElementById('admin-company-section-sources').value = sections.sources || '';
-      if (!document.getElementById('admin-context-summary').value.trim()) {
-        document.getElementById('admin-context-summary').value = result.companySummary || '';
+      if (profileEl) profileEl.value = profileText;
+      const adminCompanySummaryEl = document.getElementById('admin-company-section-summary');
+      const adminBusinessModelEl = document.getElementById('admin-company-section-business-model');
+      const adminOperatingModelEl = document.getElementById('admin-company-section-operating-model');
+      const adminCommitmentsEl = document.getElementById('admin-company-section-commitments');
+      const adminRisksEl = document.getElementById('admin-company-section-risks');
+      const adminObligationsEl = document.getElementById('admin-company-section-obligations');
+      const adminSourcesEl = document.getElementById('admin-company-section-sources');
+      if (adminCompanySummaryEl) adminCompanySummaryEl.value = sections.companySummary || '';
+      if (adminBusinessModelEl) adminBusinessModelEl.value = sections.businessModel || '';
+      if (adminOperatingModelEl) adminOperatingModelEl.value = sections.operatingModel || '';
+      if (adminCommitmentsEl) adminCommitmentsEl.value = sections.publicCommitments || '';
+      if (adminRisksEl) adminRisksEl.value = sections.keyRiskSignals || '';
+      if (adminObligationsEl) adminObligationsEl.value = sections.obligations || '';
+      if (adminSourcesEl) adminSourcesEl.value = sections.sources || '';
+      const adminContextSummaryEl = document.getElementById('admin-context-summary');
+      if (adminContextSummaryEl && !adminContextSummaryEl.value.trim()) {
+        adminContextSummaryEl.value = result.companySummary || '';
       }
-      if (result.aiGuidance) {
-        document.getElementById('admin-ai-instructions').value = result.aiGuidance;
+      const adminAiInstructionsEl = document.getElementById('admin-ai-instructions');
+      if (result.aiGuidance && adminAiInstructionsEl) {
+        adminAiInstructionsEl.value = result.aiGuidance;
       }
-      if (result.suggestedGeography && !document.getElementById('admin-geo').value.trim()) {
-        document.getElementById('admin-geo').value = result.suggestedGeography;
+      const adminGeoEl = document.getElementById('admin-geo');
+      if (result.suggestedGeography && adminGeoEl && !adminGeoEl.value.trim()) {
+        adminGeoEl.value = result.suggestedGeography;
       }
-      if (Array.isArray(result.regulatorySignals) && result.regulatorySignals.length) {
-        regsInput.setTags(Array.from(new Set([...regsInput.getTags(), ...result.regulatorySignals])));
+      if (Array.isArray(result.regulatorySignals) && result.regulatorySignals.length && regsInput?.setTags) {
+        regsInput.setTags(Array.from(new Set([...(regsInput.getTags() || []), ...result.regulatorySignals])));
       }
       openEntityEditor(null, {
         name: inferCompanyNameFromUrl(websiteUrl),
