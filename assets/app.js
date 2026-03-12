@@ -2561,12 +2561,32 @@ function renderUserDashboard() {
   const assessments = getAssessments()
     .slice()
     .sort((a, b) => new Date(b.completedAt || b.createdAt || 0).getTime() - new Date(a.completedAt || a.createdAt || 0).getTime());
-  const recentAssessments = assessments.slice(0, 3);
+  const recentAssessments = assessments.slice(0, 4);
   const latestAssessment = recentAssessments[0] || null;
   const learningStore = getLearningStore();
   const templateLoads = Object.values(learningStore.templates || {}).reduce((sum, item) => sum + Number(item.loads || 0), 0);
   const draftTitle = String(AppState.draft?.scenarioTitle || AppState.draft?.scenarioNarrative || '').trim();
+  const hasDraft = Boolean(draftTitle);
   const focusAreas = Array.isArray(profile.focusAreas) ? profile.focusAreas.filter(Boolean) : [];
+  const assessmentsNeedingReview = assessments.filter(a => a?.results && (a.results.toleranceBreached || a.results.nearTolerance || a.results.annualReviewTriggered)).slice(0, 3);
+  const openAssessmentRows = [
+    ...(hasDraft ? [{
+      id: 'draft',
+      title: draftTitle || 'Untitled draft',
+      status: 'Draft in progress',
+      detail: 'Continue from where you left off and complete the next assessment step.',
+      actionLabel: 'Continue Draft',
+      action: 'draft'
+    }] : []),
+    ...assessmentsNeedingReview.map(a => ({
+      id: a.id,
+      title: a.scenarioTitle || 'Untitled assessment',
+      status: a.results?.toleranceBreached ? 'Above tolerance' : a.results?.nearTolerance ? 'Needs management review' : 'Annual review triggered',
+      detail: `${a.buName || profile.businessUnit || user?.businessUnit || 'Business unit not set'} · ${new Date(a.completedAt || a.createdAt || Date.now()).toLocaleDateString('en-AE', { year: 'numeric', month: 'short', day: 'numeric' })}`,
+      actionLabel: 'Open Result',
+      action: a.id
+    }))
+  ].slice(0, 4);
   const dashboardPriorities = [
     focusAreas.length
       ? `Your saved focus areas are ${focusAreas.slice(0, 3).join(', ')}${focusAreas.length > 3 ? ', and related topics.' : '.'}`
@@ -2615,46 +2635,38 @@ function renderUserDashboard() {
           <div class="admin-overview-card">
             <div class="admin-overview-label">Templates Started</div>
             <div class="admin-overview-value" style="font-size:1.2rem">${templateLoads}</div>
-            <div class="admin-overview-foot">${draftTitle ? 'You also have an assessment draft in progress' : 'No draft in progress right now'}</div>
+            <div class="admin-overview-foot">${hasDraft ? 'You also have an assessment draft in progress' : 'No draft in progress right now'}</div>
+          </div>
+          <div class="admin-overview-card">
+            <div class="admin-overview-label">Needs Review</div>
+            <div class="admin-overview-value" style="font-size:1.2rem">${assessmentsNeedingReview.length}</div>
+            <div class="admin-overview-foot">${assessmentsNeedingReview.length ? 'Scenarios near or above tolerance are ready for review.' : 'No high-priority reviews waiting right now.'}</div>
           </div>
         </section>
 
         <section class="grid-2" style="margin-top:var(--sp-8);align-items:start">
-          <div class="card card--elevated" style="padding:var(--sp-6)">
-            <div class="flex items-center justify-between" style="gap:var(--sp-3);flex-wrap:wrap">
-              <div>
-                <div class="context-panel-title">What to track next</div>
-                <div class="form-help">A concise working view of what deserves attention.</div>
-              </div>
-              <span class="badge badge--neutral">${dashboardPriorities.length} items</span>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:12px;margin-top:var(--sp-5)">
-              ${dashboardPriorities.map((item, index) => `
-                <div style="display:flex;gap:12px;align-items:flex-start;background:var(--bg-elevated);padding:var(--sp-4);border-radius:var(--radius-lg)">
-                  <div style="width:28px;height:28px;border-radius:999px;background:rgba(244,193,90,.18);display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:700;color:var(--accent-gold);flex-shrink:0">${index + 1}</div>
-                  <div style="font-size:.9rem;line-height:1.6">${item}</div>
-                </div>
-              `).join('')}
-            </div>
-          </div>
-
           <div style="display:flex;flex-direction:column;gap:var(--sp-5)">
             <div class="card card--elevated" style="padding:var(--sp-6)">
-              <div class="context-panel-title">Current activity</div>
-              <div style="display:grid;gap:12px;margin-top:var(--sp-5)">
-                <div style="background:var(--bg-elevated);padding:var(--sp-4);border-radius:var(--radius-lg)">
-                  <div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted)">Setup status</div>
-                  <div style="margin-top:6px;font-weight:600">Completed on ${new Date(settings.onboardedAt).toLocaleDateString('en-AE', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
+              <div class="flex items-center justify-between" style="gap:var(--sp-3);flex-wrap:wrap">
+                <div>
+                  <div class="context-panel-title">Open work</div>
+                  <div class="form-help">The next assessments or reviews most likely to need your attention.</div>
                 </div>
-                <div style="background:var(--bg-elevated);padding:var(--sp-4);border-radius:var(--radius-lg)">
-                  <div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted)">Draft assessment</div>
-                  <div style="margin-top:6px;font-weight:600">${draftTitle || 'No draft in progress'}</div>
-                  <div class="form-help" style="margin-top:6px">${draftTitle ? 'Continue from where you left off or start a new analysis.' : 'A new draft will be created when you start your next assessment.'}</div>
-                </div>
+                <span class="badge badge--neutral">${openAssessmentRows.length}</span>
               </div>
-              <div class="flex items-center gap-3 mt-5" style="flex-wrap:wrap">
-                <button class="btn btn--secondary" id="btn-dashboard-continue-draft" ${draftTitle ? '' : 'disabled'}>Continue Draft</button>
-                <button class="btn btn--ghost" id="btn-dashboard-settings-secondary">Open Settings</button>
+              <div style="display:flex;flex-direction:column;gap:12px;margin-top:var(--sp-5)">
+                ${openAssessmentRows.length ? openAssessmentRows.map(item => `
+                  <button type="button" class="card dashboard-assessment-row" data-assessment-id="${item.action}" style="padding:var(--sp-4);background:var(--bg-elevated);text-align:left;cursor:pointer">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+                      <div>
+                        <div style="font-weight:600;color:var(--text-primary)">${item.title}</div>
+                        <div class="form-help" style="margin-top:6px">${item.detail}</div>
+                      </div>
+                      <span class="badge ${/above tolerance/i.test(item.status) ? 'badge--danger' : /review/i.test(item.status) ? 'badge--warning' : 'badge--gold'}">${item.status}</span>
+                    </div>
+                    <div class="form-help" style="margin-top:10px">${item.actionLabel} →</div>
+                  </button>
+                `).join('') : `<div class="form-help">No draft or review actions are open. Start a new assessment when you are ready.</div>`}
               </div>
             </div>
 
@@ -2674,10 +2686,67 @@ function renderUserDashboard() {
                         <div style="font-weight:600;color:var(--text-primary)">${assessment.scenarioTitle || 'Untitled assessment'}</div>
                         <div class="form-help" style="margin-top:6px">${assessment.buName || profile.businessUnit || user?.businessUnit || 'Business unit not set'} · ${new Date(assessment.completedAt || assessment.createdAt || Date.now()).toLocaleDateString('en-AE', { year: 'numeric', month: 'short', day: 'numeric' })}</div>
                       </div>
-                      <span class="badge badge--gold">Open</span>
+                      <span class="badge ${assessment.results?.toleranceBreached ? 'badge--danger' : assessment.results?.nearTolerance ? 'badge--warning' : 'badge--gold'}">${assessment.results?.toleranceBreached ? 'Above tolerance' : assessment.results?.nearTolerance ? 'Close to tolerance' : 'Open result'}</span>
                     </div>
                   </button>
                 `).join('') : `<div class="form-help">No completed assessments yet. Your completed analyses will appear here.</div>`}
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:var(--sp-5)">
+            <div class="card card--elevated" style="padding:var(--sp-6)">
+              <div class="flex items-center justify-between" style="gap:var(--sp-3);flex-wrap:wrap">
+                <div>
+                  <div class="context-panel-title">What to track next</div>
+                  <div class="form-help">A concise working view of what deserves attention.</div>
+                </div>
+                <span class="badge badge--neutral">${dashboardPriorities.length} items</span>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:12px;margin-top:var(--sp-5)">
+                ${dashboardPriorities.map((item, index) => `
+                  <div style="display:flex;gap:12px;align-items:flex-start;background:var(--bg-elevated);padding:var(--sp-4);border-radius:var(--radius-lg)">
+                    <div style="width:28px;height:28px;border-radius:999px;background:rgba(244,193,90,.18);display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:700;color:var(--accent-gold);flex-shrink:0">${index + 1}</div>
+                    <div style="font-size:.9rem;line-height:1.6">${item}</div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+
+            <div class="card card--elevated" style="padding:var(--sp-6)">
+              <div class="context-panel-title">Items needing review</div>
+              <div class="form-help" style="margin-top:6px">Scenarios that are near tolerance, above tolerance, or ready for another management look.</div>
+              <div style="display:flex;flex-direction:column;gap:12px;margin-top:var(--sp-5)">
+                ${assessmentsNeedingReview.length ? assessmentsNeedingReview.map(assessment => `
+                  <button type="button" class="card dashboard-assessment-row" data-assessment-id="${assessment.id}" style="padding:var(--sp-4);background:var(--bg-elevated);text-align:left;cursor:pointer">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+                      <div>
+                        <div style="font-weight:600;color:var(--text-primary)">${assessment.scenarioTitle || 'Untitled assessment'}</div>
+                        <div class="form-help" style="margin-top:6px">${assessment.buName || profile.businessUnit || user?.businessUnit || 'Business unit not set'} · ${new Date(assessment.completedAt || assessment.createdAt || Date.now()).toLocaleDateString('en-AE', { year: 'numeric', month: 'short', day: 'numeric' })}</div>
+                      </div>
+                      <span class="badge ${assessment.results?.toleranceBreached ? 'badge--danger' : 'badge--warning'}">${assessment.results?.toleranceBreached ? 'Escalate' : 'Review'}</span>
+                    </div>
+                  </button>
+                `).join('') : `<div class="form-help">Nothing currently stands out for urgent review.</div>`}
+              </div>
+            </div>
+
+            <div class="card card--elevated" style="padding:var(--sp-6)">
+              <div class="context-panel-title">Current activity</div>
+              <div style="display:grid;gap:12px;margin-top:var(--sp-5)">
+                <div style="background:var(--bg-elevated);padding:var(--sp-4);border-radius:var(--radius-lg)">
+                  <div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted)">Setup status</div>
+                  <div style="margin-top:6px;font-weight:600">Completed on ${new Date(settings.onboardedAt).toLocaleDateString('en-AE', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
+                </div>
+                <div style="background:var(--bg-elevated);padding:var(--sp-4);border-radius:var(--radius-lg)">
+                  <div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted)">Draft assessment</div>
+                  <div style="margin-top:6px;font-weight:600">${draftTitle || 'No draft in progress'}</div>
+                  <div class="form-help" style="margin-top:6px">${hasDraft ? 'Continue from where you left off or start a new analysis.' : 'A new draft will be created when you start your next assessment.'}</div>
+                </div>
+              </div>
+              <div class="flex items-center gap-3 mt-5" style="flex-wrap:wrap">
+                <button class="btn btn--secondary" id="btn-dashboard-continue-draft" ${hasDraft ? '' : 'disabled'}>Continue Draft</button>
+                <button class="btn btn--ghost" id="btn-dashboard-settings-secondary">Open Settings</button>
               </div>
             </div>
           </div>
@@ -2693,7 +2762,13 @@ function renderUserDashboard() {
   document.getElementById('btn-dashboard-settings-secondary')?.addEventListener('click', () => Router.navigate('/settings'));
   document.getElementById('btn-dashboard-continue-draft')?.addEventListener('click', () => Router.navigate('/wizard/1'));
   document.querySelectorAll('.dashboard-assessment-row').forEach(button => {
-    button.addEventListener('click', () => Router.navigate(`/results/${button.dataset.assessmentId}`));
+    button.addEventListener('click', () => {
+      if (button.dataset.assessmentId === 'draft') {
+        Router.navigate('/wizard/1');
+        return;
+      }
+      Router.navigate(`/results/${button.dataset.assessmentId}`);
+    });
   });
 }
 
