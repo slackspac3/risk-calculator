@@ -6049,7 +6049,7 @@ function renderAdminSettings(activeSection = 'org') {
   const directCompass = !sessionLLM.apiUrl || sessionLLM.apiUrl.includes('api.core42.ai');
   const buCount = getBUList().length;
   const docCount = getDocList().length;
-  const managedAccounts = AuthService.getManagedAccounts();
+  const managedAccounts = getManagedAccountsForAdmin(settings);
   const companyEntities = companyStructure.filter(node => isCompanyEntityType(node.type));
   const departmentEntities = companyStructure.filter(node => isDepartmentEntityType(node.type));
   const settingsSectionMeta = {
@@ -6435,7 +6435,8 @@ function renderAdminSettings(activeSection = 'org') {
   restoreSettingsScroll('admin-settings');
 
   document.querySelectorAll('[data-admin-route]').forEach(button => {
-    button.addEventListener('click', () => {
+    button.addEventListener('click', event => {
+      event.preventDefault();
       const route = button.dataset.adminRoute || '/admin/settings/org';
       if (route.startsWith('/admin/settings/')) {
         const section = route.split('/').pop() || 'org';
@@ -6449,7 +6450,7 @@ function renderAdminSettings(activeSection = 'org') {
     try {
       await loadAuditLog();
       rememberSettingsScroll('admin-settings');
-      renderAdminSettings(currentSettingsSection);
+      safeRenderAdminSettings(currentSettingsSection);
     } catch (error) {
       UI.toast(`Audit log refresh failed: ${error instanceof Error ? error.message : String(error)}`, 'warning');
     }
@@ -6457,7 +6458,7 @@ function renderAdminSettings(activeSection = 'org') {
   if (!AppState.auditLogCache.loaded && !AppState.auditLogCache.loading) {
     loadAuditLog().then(() => {
       rememberSettingsScroll('admin-settings');
-      renderAdminSettings(currentSettingsSection);
+      safeRenderAdminSettings(currentSettingsSection);
     }).catch(() => {});
   }
   const regsHost = document.getElementById('ti-admin-regulations');
@@ -6911,7 +6912,7 @@ function renderAdminSettings(activeSection = 'org') {
     sessionStorage.removeItem(buildUserStorageKey(SESSION_LLM_STORAGE_PREFIX));
     LLMService.clearCompassConfig();
     rememberSettingsScroll('admin-settings');
-      renderAdminSettings(currentSettingsSection);
+      safeRenderAdminSettings(currentSettingsSection);
     UI.toast('Compass browser key cleared.', 'success');
   });
 
@@ -6923,7 +6924,7 @@ function renderAdminSettings(activeSection = 'org') {
       clearUserPersistentState(username);
       UI.toast(`${displayName} was reset.`, 'success');
       rememberSettingsScroll('admin-settings');
-      renderAdminSettings(currentSettingsSection);
+      safeRenderAdminSettings(currentSettingsSection);
     });
   });
   document.querySelectorAll('.btn-reset-user-password').forEach(button => {
@@ -6937,7 +6938,7 @@ function renderAdminSettings(activeSection = 'org') {
         AppState.adminNewUserStatus = `Password reset for ${displayName}: username ${username} / password ${result.password}`;
         UI.toast(`Password reset for ${username}.`, 'success');
         rememberSettingsScroll('admin-settings');
-      renderAdminSettings(currentSettingsSection);
+      safeRenderAdminSettings(currentSettingsSection);
       } catch (error) {
         AppState.adminNewUserStatus = `Password reset failed: ${error instanceof Error ? error.message : String(error)}`;
         document.getElementById('admin-new-user-result').textContent = AppState.adminNewUserStatus;
@@ -6952,7 +6953,7 @@ function renderAdminSettings(activeSection = 'org') {
       if (!ok) return;
       UI.toast(`Updated access for ${button.dataset.displayName || button.dataset.username || 'user'}.`, 'success');
       rememberSettingsScroll('admin-settings');
-      renderAdminSettings(currentSettingsSection);
+      safeRenderAdminSettings(currentSettingsSection);
     });
   });
   function renderAdminNewUserDepartments() {
@@ -7078,7 +7079,7 @@ function renderAdminSettings(activeSection = 'org') {
       AppState.adminNewUserStatus = `Created ${account.displayName}: username ${account.username} / password ${account.password}`;
       UI.toast(`Created ${account.username}.`, 'success');
       rememberSettingsScroll('admin-settings');
-      renderAdminSettings(currentSettingsSection);
+      safeRenderAdminSettings(currentSettingsSection);
     } catch (error) {
       AppState.adminNewUserStatus = `User creation failed: ${error instanceof Error ? error.message : String(error)}`;
       resultEl.textContent = AppState.adminNewUserStatus;
@@ -7093,7 +7094,7 @@ function renderAdminSettings(activeSection = 'org') {
       localStorage.removeItem(GLOBAL_ADMIN_STORAGE_KEY);
       UI.toast('Settings reset.', 'success');
       rememberSettingsScroll('admin-settings');
-      renderAdminSettings(currentSettingsSection);
+      safeRenderAdminSettings(currentSettingsSection);
     }
   });
 }
@@ -7122,7 +7123,7 @@ function renderAdminBU() {
   const structureMap = new Map(companyStructure.map(node => [node.id, node]));
   const companyEntities = getCompanyEntities(companyStructure);
   const departmentEntities = getDepartmentEntities(companyStructure);
-  const managedAccounts = AuthService.getManagedAccounts();
+  const managedAccounts = getManagedAccountsForAdmin(settings);
   const accountLabelByUsername = new Map(managedAccounts.map(account => [account.username, account.displayName]));
   const topLevelCompanies = getChildCompanyEntities(companyStructure, '');
 
