@@ -3896,6 +3896,68 @@ function renderAssessmentDriversBlock(drivers) {
   </div>`;
 }
 
+function cleanExecutiveNarrativeText(value) {
+  return String(value || '')
+    .replace(/\s+/g, ' ')
+    .replace(/\.\./g, '.')
+    .replace(/\bIn [^,]+(?:, [^,]+)*, [^,]+ faces a material [^.]+ scenario in which\s*/gi, '')
+    .replace(/\bThe main asset, service, or team affected is\s*/gi, 'The scenario centres on ')
+    .replace(/\bThe likely trigger or threat driver is\s*/gi, 'It is most likely triggered by ')
+    .replace(/\bThe expected business, operational, or regulatory impact is\s*/gi, 'The main consequence is ')
+    .replace(/\bGiven the stated urgency, this should be treated as\s*/gi, 'This should be treated as ')
+    .replace(/\bA likely progression is\s*/gi, 'The most likely path is ')
+    .trim();
+}
+
+function buildExecutiveScenarioSummary(assessment) {
+  const structured = assessment.structuredScenario || {};
+  const entity = assessment.buName || 'the organisation';
+  const geographies = assessment.geography || 'the selected geographies';
+  const asset = structured.assetService || assessment.guidedInput?.asset || '';
+  const attack = structured.attackType || assessment.guidedInput?.cause || '';
+  const effect = structured.effect || assessment.guidedInput?.impact || '';
+  const rawNarrative = cleanExecutiveNarrativeText(assessment.enhancedNarrative || assessment.narrative || assessment.scenarioText || '');
+
+  const openingParts = [];
+  if (entity) openingParts.push(`${entity}`);
+  openingParts.push('is assessing an identity and access scenario');
+  if (asset) openingParts.push(`centred on ${asset}`);
+  let opening = openingParts.join(' ');
+  if (!opening.endsWith('.')) opening += '.';
+
+  const sentencePool = [];
+  if (attack) sentencePool.push(`The most likely trigger is ${attack.toLowerCase()}.`);
+  if (effect) sentencePool.push(`The main business consequence is ${String(effect).replace(/\.$/, '').toLowerCase()}.`);
+  if (rawNarrative) {
+    const cleanedSentences = rawNarrative
+      .split(/(?<=[.!?])\s+/)
+      .map(s => s.trim())
+      .filter(Boolean)
+      .filter(s => !/^the main consequence is /i.test(s))
+      .filter(s => !/^it is most likely triggered by /i.test(s))
+      .filter(s => !/^the scenario centres on /i.test(s));
+    sentencePool.push(...cleanedSentences);
+  }
+
+  const deduped = [];
+  const seen = new Set();
+  for (const sentence of sentencePool) {
+    const normalised = sentence.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    if (!normalised || seen.has(normalised)) continue;
+    seen.add(normalised);
+    deduped.push(sentence.replace(/^([a-z])/, (_, c) => c.toUpperCase()));
+    if (deduped.length >= 3) break;
+  }
+
+  const geographySentence = geographies ? `This assessment is being considered across ${geographies}.` : '';
+  return [opening, ...deduped, geographySentence]
+    .filter(Boolean)
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .replace(/\.\s*\./g, '.')
+    .trim();
+}
+
 function renderAssessmentAssumptionsBlock(assumptions) {
   if (!assumptions?.length) return '';
   return `<section class="results-section-stack">
@@ -4086,7 +4148,7 @@ function renderResults(id, isShared) {
     : `${r.selectedRiskCount || assessment.selectedRisks?.length || 1} risks are being assessed together without linked uplift.`;
   const exceedancePct = ((r.toleranceDetail?.lmExceedProb || 0) * 100).toFixed(1);
   const completedLabel = new Date(assessment.completedAt || Date.now()).toLocaleDateString('en-AE', { year: 'numeric', month: 'long', day: 'numeric' });
-  const scenarioNarrative = assessment.enhancedNarrative || assessment.narrative || assessment.scenarioText || 'No scenario narrative available.';
+  const scenarioNarrative = buildExecutiveScenarioSummary(assessment) || 'No scenario narrative available.';
   const technicalInputs = r.inputs || assessment.fairParams || {};
   const assessmentIntelligence = assessment.assessmentIntelligence || buildAssessmentIntelligence(assessment, r, technicalInputs, r.portfolioMeta || {});
   const recommendationCards = assessment.recommendations?.length ? `

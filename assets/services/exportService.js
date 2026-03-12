@@ -20,6 +20,68 @@ const ExportService = (() => {
     return (currency === 'AED' ? 'AED ' : '$') + v.toFixed(0);
   }
 
+  function _cleanExecutiveNarrativeText(value) {
+    return String(value || '')
+      .replace(/\s+/g, ' ')
+      .replace(/\.\./g, '.')
+      .replace(/\bIn [^,]+(?:, [^,]+)*, [^,]+ faces a material [^.]+ scenario in which\s*/gi, '')
+      .replace(/\bThe main asset, service, or team affected is\s*/gi, 'The scenario centres on ')
+      .replace(/\bThe likely trigger or threat driver is\s*/gi, 'It is most likely triggered by ')
+      .replace(/\bThe expected business, operational, or regulatory impact is\s*/gi, 'The main consequence is ')
+      .replace(/\bGiven the stated urgency, this should be treated as\s*/gi, 'This should be treated as ')
+      .replace(/\bA likely progression is\s*/gi, 'The most likely path is ')
+      .trim();
+  }
+
+  function _buildExecutiveScenarioSummary(assessment) {
+    const structured = assessment.structuredScenario || {};
+    const entity = assessment.buName || 'the organisation';
+    const geographies = assessment.geography || 'the selected geographies';
+    const asset = structured.assetService || assessment.guidedInput?.asset || '';
+    const attack = structured.attackType || assessment.guidedInput?.cause || '';
+    const effect = structured.effect || assessment.guidedInput?.impact || '';
+    const rawNarrative = _cleanExecutiveNarrativeText(assessment.enhancedNarrative || assessment.narrative || assessment.scenarioText || '');
+
+    const openingParts = [];
+    if (entity) openingParts.push(`${entity}`);
+    openingParts.push('is assessing an identity and access scenario');
+    if (asset) openingParts.push(`centred on ${asset}`);
+    let opening = openingParts.join(' ');
+    if (!opening.endsWith('.')) opening += '.';
+
+    const sentencePool = [];
+    if (attack) sentencePool.push(`The most likely trigger is ${String(attack).toLowerCase()}.`);
+    if (effect) sentencePool.push(`The main business consequence is ${String(effect).replace(/\.$/, '').toLowerCase()}.`);
+    if (rawNarrative) {
+      const cleanedSentences = rawNarrative
+        .split(/(?<=[.!?])\s+/)
+        .map(s => s.trim())
+        .filter(Boolean)
+        .filter(s => !/^the main consequence is /i.test(s))
+        .filter(s => !/^it is most likely triggered by /i.test(s))
+        .filter(s => !/^the scenario centres on /i.test(s));
+      sentencePool.push(...cleanedSentences);
+    }
+
+    const deduped = [];
+    const seen = new Set();
+    for (const sentence of sentencePool) {
+      const normalised = sentence.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+      if (!normalised || seen.has(normalised)) continue;
+      seen.add(normalised);
+      deduped.push(sentence.replace(/^([a-z])/, (_, c) => c.toUpperCase()));
+      if (deduped.length >= 3) break;
+    }
+
+    const geographySentence = geographies ? `This assessment is being considered across ${geographies}.` : '';
+    return [opening, ...deduped, geographySentence]
+      .filter(Boolean)
+      .join(' ')
+      .replace(/\s+/g, ' ')
+      .replace(/\.\s*\./g, '.')
+      .trim();
+  }
+
   // ─── JSON Export ─────────────────────────────────────────
   function exportJSON(assessment) {
     const blob = new Blob([JSON.stringify(assessment, null, 2)], { type: 'application/json' });
@@ -54,7 +116,7 @@ const ExportService = (() => {
       : `Annual exposure is ${fmt(r.ale.p90)} on a severe-but-plausible basis, which stays below the annual review trigger.`;
     const exceedancePct = ((r.toleranceDetail?.lmExceedProb || 0) * 100).toFixed(1);
     const completed = new Date(assessment.completedAt || Date.now()).toLocaleDateString('en-AE', { year: 'numeric', month: 'long', day: 'numeric' });
-    const narrative = assessment.enhancedNarrative || assessment.narrative || assessment.scenarioText || 'No scenario narrative available.';
+    const narrative = _buildExecutiveScenarioSummary(assessment) || 'No scenario narrative available.';
     const risks = Array.isArray(assessment.selectedRisks) ? assessment.selectedRisks : [];
     const regulations = Array.isArray(assessment.applicableRegulations) ? assessment.applicableRegulations : [];
     const citations = Array.isArray(assessment.citations)
