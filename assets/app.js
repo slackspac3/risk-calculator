@@ -4118,6 +4118,36 @@ function buildAssessmentComparison(currentAssessment, baselineAssessment) {
   const severeAnnual = formatComparisonDelta(current.ale?.p90, baseline.ale?.p90);
   const currentStatus = current.toleranceBreached ? 'Above tolerance' : current.nearTolerance ? 'Close to tolerance' : 'Within tolerance';
   const baselineStatus = baseline.toleranceBreached ? 'Above tolerance' : baseline.nearTolerance ? 'Close to tolerance' : 'Within tolerance';
+  const statusShift = currentStatus === baselineStatus
+    ? `Tolerance status is unchanged at ${currentStatus.toLowerCase()}.`
+    : `Tolerance status moved from ${baselineStatus.toLowerCase()} to ${currentStatus.toLowerCase()}.`;
+
+  const currentInputs = current.inputs || currentAssessment.fairParams || {};
+  const baselineInputs = baseline.inputs || baselineAssessment.fairParams || {};
+  const levers = [
+    {
+      key: 'control',
+      magnitude: Math.abs(Number(currentInputs.controlStrLikely || 0) - Number(baselineInputs.controlStrLikely || 0)),
+      message: Number(currentInputs.controlStrLikely || 0) > Number(baselineInputs.controlStrLikely || 0)
+        ? 'Stronger controls appear to be one of the main reasons the treated case improved.'
+        : 'Weaker control strength appears to be one of the main reasons this case worsened.'
+    },
+    {
+      key: 'frequency',
+      magnitude: Math.abs(Number(currentInputs.tefLikely || 0) - Number(baselineInputs.tefLikely || 0)),
+      message: Number(currentInputs.tefLikely || 0) < Number(baselineInputs.tefLikely || 0)
+        ? 'A lower event frequency assumption is materially helping the treated case.'
+        : 'A higher event frequency assumption is materially pushing this case upward.'
+    },
+    {
+      key: 'business-interruption',
+      magnitude: Math.abs(Number(currentInputs.biLikely || 0) - Number(baselineInputs.biLikely || 0)),
+      message: Number(currentInputs.biLikely || 0) < Number(baselineInputs.biLikely || 0)
+        ? 'Lower business interruption cost is one of the clearest improvements in the treated case.'
+        : 'Higher business interruption cost is one of the clearest reasons this case is worse.'
+    }
+  ].sort((a, b) => b.magnitude - a.magnitude);
+
   return {
     baselineTitle: baselineAssessment.scenarioTitle || 'Selected baseline',
     baselineDate: new Date(baselineAssessment.completedAt || baselineAssessment.createdAt || Date.now()).toLocaleDateString('en-AE', { year: 'numeric', month: 'short', day: 'numeric' }),
@@ -4126,6 +4156,8 @@ function buildAssessmentComparison(currentAssessment, baselineAssessment) {
     severeAnnual,
     currentStatus,
     baselineStatus,
+    statusShift,
+    keyDriver: levers[0]?.magnitude > 0 ? levers[0].message : 'The two cases are directionally similar, so no single input change stands out as the dominant driver.',
     summary: severeEvent.direction === 'up'
       ? 'This scenario is currently running hotter than the selected baseline on the severe single-event view.'
       : severeEvent.direction === 'down'
@@ -4204,6 +4236,8 @@ function renderAssessmentComparisonBlock(comparisonOptions, activeComparisonId, 
           <strong>Comparing against:</strong> ${comparison.baselineTitle} · ${comparison.baselineDate}
         </div>
         <p class="results-summary-copy" style="margin-top:var(--sp-3)">${comparison.summary}</p>
+        <div class="results-comparison-banner" style="margin-top:var(--sp-3)">${comparison.statusShift}</div>
+        <div class="results-comparison-banner" style="margin-top:var(--sp-3)">${comparison.keyDriver}</div>
         <div class="results-comparison-grid">
           <div class="results-comparison-metric ${comparison.severeEvent.direction}">
             <div class="results-impact-label">Severe single event</div>
@@ -4428,7 +4462,7 @@ function renderResults(id, isShared) {
       id: item.id,
       label: `${item.scenarioTitle || 'Untitled assessment'} · ${item.buName || '—'} · ${new Date(item.completedAt || item.createdAt || Date.now()).toLocaleDateString('en-AE', { year: 'numeric', month: 'short', day: 'numeric' })}`
     }));
-  const activeComparisonId = AppState.resultsComparisonId || '';
+  const activeComparisonId = AppState.resultsComparisonId || assessment.comparisonBaselineId || '';
   const baselineAssessment = activeComparisonId ? getAssessmentById(activeComparisonId) : null;
   const comparison = baselineAssessment ? buildAssessmentComparison(assessment, baselineAssessment) : null;
   const recommendationCards = assessment.recommendations?.length ? `
