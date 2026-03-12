@@ -4015,7 +4015,7 @@ function renderAssessmentConfidenceBlock(confidence) {
   if (!confidence) return '';
   const badgeClass = confidence.label === 'High confidence' ? 'badge--success' : confidence.label === 'Low confidence' ? 'badge--danger' : 'badge--warning';
   return `<div class="results-decision-card">
-    <div class="results-section-heading">Confidence in this assessment</div>
+    <div class="results-section-heading">How confident to be in this assessment</div>
     <div style="display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);flex-wrap:wrap">
       <span class="badge ${badgeClass}">${confidence.label}</span>
       <strong style="font-family:var(--font-display);font-size:var(--text-lg);color:var(--text-primary)">${confidence.score}/100</strong>
@@ -4029,7 +4029,7 @@ function renderAssessmentConfidenceBlock(confidence) {
 function renderAssessmentDriversBlock(drivers) {
   if (!drivers) return '';
   return `<div class="results-summary-card">
-    <div class="results-section-heading">What is driving the result</div>
+    <div class="results-section-heading">What is pushing the result up or down</div>
     ${drivers.upward?.length ? `<div class="results-driver-group"><div class="results-driver-label">Main upward drivers</div><div class="results-summary-copy">${drivers.upward.map(item => `• ${item}`).join('<br>')}</div></div>` : ''}
     ${drivers.stabilisers?.length ? `<div class="results-driver-group" style="margin-top:var(--sp-4)"><div class="results-driver-label">Main stabilisers</div><div class="results-summary-copy">${drivers.stabilisers.map(item => `• ${item}`).join('<br>')}</div></div>` : ''}
   </div>`;
@@ -4254,7 +4254,7 @@ function createTreatmentDraftFromAssessment(assessment) {
 function renderAssessmentComparisonBlock(comparisonOptions, activeComparisonId, comparison) {
   if (!comparisonOptions?.length) return '';
   return `<section class="results-section-stack">
-    <div class="results-section-heading">Compare with another assessment</div>
+    <div class="results-section-heading">Compare against another assessment</div>
     <div class="results-comparison-card">
       <div class="results-comparison-head">
         <div>
@@ -4298,7 +4298,7 @@ function renderAssessmentComparisonBlock(comparisonOptions, activeComparisonId, 
 function renderAssessmentAssumptionsBlock(assumptions) {
   if (!assumptions?.length) return '';
   return `<section class="results-section-stack">
-    <div class="results-section-heading">Key assumptions behind the result</div>
+    <div class="results-section-heading">Key assumptions to keep in mind</div>
     <div class="results-assumptions-grid">
       ${assumptions.map(item => `<div class="results-assumption-card"><div class="results-assumption-label">${item.category}</div><div class="results-assumption-copy">${item.text}</div></div>`).join('')}
     </div>
@@ -4461,7 +4461,7 @@ function renderResults(id, isShared) {
   const activeTab = String(AppState.resultsTab || 'executive');
   const statusClass = r.toleranceBreached ? 'above' : r.nearTolerance ? 'warning' : 'within';
   const statusIcon = r.toleranceBreached ? '🔴' : r.nearTolerance ? '🟠' : '🟢';
-  const statusTitle = r.toleranceBreached ? 'Above Tolerance Threshold' : r.nearTolerance ? 'Approaching Tolerance Threshold' : 'Within Tolerance Threshold';
+  const statusTitle = r.toleranceBreached ? 'Needs leadership action' : r.nearTolerance ? 'Needs management attention' : 'Within current tolerance';
   const statusDetail = r.toleranceBreached
     ? `Per-event P90 ${fmtCurrency(r.lm.p90)} is above the tolerance threshold of ${fmtCurrency(r.threshold)}.`
     : r.nearTolerance
@@ -4540,65 +4540,65 @@ function renderResults(id, isShared) {
 
       <div class="results-exec-metrics">
         <div class="results-impact-card">
-          <div class="results-impact-label">If one major event happens</div>
+          <div class="results-impact-label">Potential impact from one serious event</div>
           <div class="results-impact-value ${r.toleranceBreached ? 'danger' : ''}">${fmtCurrency(r.lm.p90)}</div>
-          <div class="results-impact-copy">Think of this as the downside case for one serious incident. This is the number compared against tolerance.</div>
+          <div class="results-impact-copy">Use this as the serious single-event view when discussing tolerance and escalation.</div>
         </div>
         <div class="results-impact-card">
-          <div class="results-impact-label">Likely yearly impact</div>
+          <div class="results-impact-label">Most likely impact over a year</div>
           <div class="results-impact-value">${fmtCurrency(r.ale.mean)}</div>
-          <div class="results-impact-copy">If conditions stay broadly the same, this is the modelled average loss across a year.</div>
+          <div class="results-impact-copy">Use this as the most likely yearly view if conditions stay broadly the same.</div>
         </div>
         <div class="results-impact-card">
-          <div class="results-impact-label">High-end yearly impact</div>
+          <div class="results-impact-label">High-stress impact over a year</div>
           <div class="results-impact-value warning">${fmtCurrency(r.ale.p90)}</div>
-          <div class="results-impact-copy">Use this as the heavy-stress annual view for planning, resilience, and escalation discussions.</div>
+          <div class="results-impact-copy">Use this as the more severe yearly view for resilience, capital, and escalation discussions.</div>
         </div>
       </div>
 
       <div class="results-decision-grid">
         <div class="results-decision-card">
-          <div class="results-section-heading">Recommended decision</div>
+          <div class="results-section-heading">Recommended management decision</div>
           <div style="display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);flex-wrap:wrap">
             <strong style="font-family:var(--font-display);font-size:var(--text-xl);color:var(--text-primary)">${executiveDecision.decision}</strong>
             <span class="badge ${r.toleranceBreached ? 'badge--danger' : r.nearTolerance ? 'badge--warning' : 'badge--success'}">${statusTitle}</span>
           </div>
           <p class="results-decision-copy" style="margin-top:var(--sp-3)">${executiveDecision.rationale}</p>
           <div class="results-decision-row">
-            <span class="results-decision-label">Immediate action</span>
+            <span class="results-decision-label">What should happen now</span>
             <div class="results-decision-copy">${executiveAction}</div>
           </div>
           <div class="results-decision-row">
-            <span class="results-decision-label">Main priority now</span>
+            <span class="results-decision-label">Main priority</span>
             <div class="results-decision-copy">${executiveDecision.priority}</div>
           </div>
           <div class="results-decision-row">
-            <span class="results-decision-label">Management focus</span>
+            <span class="results-decision-label">Management focus area</span>
             <div class="results-decision-copy">${executiveDecision.managementFocus}</div>
           </div>
         </div>
         <div class="results-decision-card">
-          <div class="results-section-heading">Threshold view</div>
+          <div class="results-section-heading">Threshold position</div>
           <div class="results-threshold-stack">
             <div class="results-threshold-row"><span>Warning trigger</span><strong>${fmtCurrency(r.warningThreshold || getWarningThreshold())}</strong></div>
             <div class="results-threshold-row"><span>Tolerance threshold</span><strong>${fmtCurrency(r.threshold)}</strong></div>
             <div class="results-threshold-row"><span>Annual review trigger</span><strong>${fmtCurrency(r.annualReviewThreshold || getAnnualReviewThreshold())}</strong></div>
           </div>
           <div class="results-decision-row">
-            <span class="results-decision-label">Why this matters</span>
+            <span class="results-decision-label">Why this matters now</span>
             <div class="results-decision-copy">${scenarioScopeSummary}</div>
           </div>
           <div class="results-decision-row">
-            <span class="results-decision-label">Escalation rule</span>
+            <span class="results-decision-label">Escalation guidance</span>
             <div class="results-decision-copy">${getEffectiveSettings().escalationGuidance}</div>
           </div>
-          <p class="results-threshold-foot">The page is ordered so leaders see the decision threshold first, then the numbers that explain why.</p>
+          <p class="results-threshold-foot">This section is designed to show the decision first and the supporting numbers second.</p>
         </div>
       </div>
 
       <div class="results-summary-grid">
         <div class="results-summary-card results-summary-card--wide">
-          <div class="results-section-heading">Scenario in plain language</div>
+          <div class="results-section-heading">What this scenario means in practice</div>
           <p class="results-summary-copy">${scenarioNarrative}</p>
         </div>
         ${renderAssessmentDriversBlock(assessmentIntelligence.drivers)}

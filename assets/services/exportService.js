@@ -135,7 +135,7 @@ const ExportService = (() => {
     const fmt = v => _formatCurrency(v, currency, fxRate);
     const d = new Date().toLocaleDateString('en-AE', { year: 'numeric', month: 'long', day: 'numeric' });
     const statusClass = r.toleranceBreached ? 'above' : r.nearTolerance ? 'warning' : 'within';
-    const statusTitle = r.toleranceBreached ? 'Above Tolerance Threshold' : r.nearTolerance ? 'Approaching Tolerance Threshold' : 'Within Tolerance Threshold';
+    const statusTitle = r.toleranceBreached ? 'Needs leadership action' : r.nearTolerance ? 'Needs management attention' : 'Within current tolerance';
     const executiveHeadline = r.toleranceBreached
       ? 'This scenario is above tolerance and needs leadership attention now.'
       : r.nearTolerance
@@ -278,45 +278,45 @@ const ExportService = (() => {
 
       <div class="metric-grid">
         <div class="card">
-          <div class="metric-label">If one major event happens</div>
+          <div class="metric-label">Potential impact from one serious event</div>
           <div class="metric-value ${r.toleranceBreached ? 'danger' : ''}">${fmt(r.lm.p90)}</div>
-          <div class="metric-copy">Think of this as the downside case for one serious incident. This is the number compared against tolerance.</div>
+          <div class="metric-copy">Use this as the serious single-event view when discussing tolerance and escalation.</div>
         </div>
         <div class="card">
-          <div class="metric-label">Likely yearly impact</div>
+          <div class="metric-label">Most likely impact over a year</div>
           <div class="metric-value">${fmt(r.ale.mean)}</div>
-          <div class="metric-copy">If conditions stay broadly the same, this is the modelled average loss across a year.</div>
+          <div class="metric-copy">Use this as the most likely yearly view if conditions stay broadly the same.</div>
         </div>
         <div class="card">
-          <div class="metric-label">High-end yearly impact</div>
+          <div class="metric-label">High-stress impact over a year</div>
           <div class="metric-value warning">${fmt(r.ale.p90)}</div>
-          <div class="metric-copy">Use this as the heavy-stress annual view for planning, resilience, and escalation discussions.</div>
+          <div class="metric-copy">Use this as the more severe yearly view for resilience, capital, and escalation discussions.</div>
         </div>
       </div>
 
       <div class="decision-grid">
         <div class="card">
-          <div class="section-label">Recommended decision</div>
+          <div class="section-label">Recommended management decision</div>
           <div class="decision-row"><div class="section-label">Decision</div><div class="body-copy">${executiveDecision.decision}</div></div>
           <div class="decision-row"><div class="section-label">Why this is the right call now</div><div class="body-copy">${executiveDecision.rationale}</div></div>
-          <div class="decision-row"><div class="section-label">Immediate action</div><div class="body-copy">${executiveAction}</div></div>
-          <div class="decision-row"><div class="section-label">Main priority now</div><div class="body-copy">${executiveDecision.priority}</div></div>
-          <div class="decision-row"><div class="section-label">Management focus</div><div class="body-copy">${executiveDecision.managementFocus}</div></div>
+          <div class="decision-row"><div class="section-label">What should happen now</div><div class="body-copy">${executiveAction}</div></div>
+          <div class="decision-row"><div class="section-label">Main priority</div><div class="body-copy">${executiveDecision.priority}</div></div>
+          <div class="decision-row"><div class="section-label">Management focus area</div><div class="body-copy">${executiveDecision.managementFocus}</div></div>
         </div>
         <div class="card">
-          <div class="section-label">Threshold view</div>
+          <div class="section-label">Threshold position</div>
           <div class="threshold-row"><span>Warning trigger</span><strong>${fmt(r.warningThreshold || r.threshold)}</strong></div>
           <div class="threshold-row"><span>Tolerance threshold</span><strong>${fmt(r.threshold)}</strong></div>
           <div class="threshold-row"><span>Annual review trigger</span><strong>${fmt(r.annualReviewThreshold || r.ale.p90)}</strong></div>
-          <div class="decision-row"><div class="section-label">Why this matters</div><div class="body-copy">${r.portfolioMeta?.linked ? `${r.selectedRiskCount || risks.length || 1} linked risks are being treated as one connected scenario.` : `${r.selectedRiskCount || risks.length || 1} risks are being assessed together without linked uplift.`}</div></div>
-          <div class="decision-row"><div class="section-label">Escalation rule</div><div class="body-copy">${(typeof getEffectiveSettings === 'function' ? getEffectiveSettings().escalationGuidance : '') || 'Escalate when the scenario is above tolerance, close to tolerance, or materially affects regulated services.'}</div></div>
-          <div class="body-copy">The report leads with the decision threshold first, then the supporting detail behind it.</div>
+          <div class="decision-row"><div class="section-label">Why this matters now</div><div class="body-copy">${r.portfolioMeta?.linked ? `${r.selectedRiskCount || risks.length || 1} linked risks are being treated as one connected scenario.` : `${r.selectedRiskCount || risks.length || 1} risks are being assessed together without linked uplift.`}</div></div>
+          <div class="decision-row"><div class="section-label">Escalation guidance</div><div class="body-copy">${(typeof getEffectiveSettings === 'function' ? getEffectiveSettings().escalationGuidance : '') || 'Escalate when the scenario is above tolerance, close to tolerance, or materially affects regulated services.'}</div></div>
+          <div class="body-copy">The report leads with the decision first and the supporting detail after it.</div>
         </div>
       </div>
 
       <div class="summary-grid">
         <div class="card">
-          <div class="section-label">Scenario in plain language</div>
+          <div class="section-label">What this scenario means in practice</div>
           <div class="body-copy">${narrative}</div>
         </div>
         <div class="card">
@@ -329,7 +329,7 @@ const ExportService = (() => {
       ${confidence ? `
       <div class="decision-grid">
         <div class="card">
-          <div class="section-label">Confidence in this assessment</div>
+          <div class="section-label">How confident to be in this assessment</div>
           <div class="badge-row" style="margin-top:12px">
             <span class="badge ${confidence.label === 'High confidence' ? 'success' : confidence.label === 'Low confidence' ? 'danger' : 'warning'}">${confidence.label}</span>
             <span class="badge neutral">${confidence.score}/100</span>
@@ -339,7 +339,7 @@ const ExportService = (() => {
           ${confidence.improvements?.length ? `<div class="driver-block"><div class="driver-label">What would improve confidence</div><div class="body-copy">${confidence.improvements.map(item => `• ${item}`).join('<br>')}</div></div>` : ''}
         </div>
         <div class="card">
-          <div class="section-label">What is driving the result</div>
+          <div class="section-label">What is pushing the result up or down</div>
           ${drivers?.upward?.length ? `<div class="driver-block"><div class="driver-label">Main upward drivers</div><div class="body-copy">${drivers.upward.map(item => `• ${item}`).join('<br>')}</div></div>` : ''}
           ${drivers?.stabilisers?.length ? `<div class="driver-block"><div class="driver-label">Main stabilisers</div><div class="body-copy">${drivers.stabilisers.map(item => `• ${item}`).join('<br>')}</div></div>` : ''}
         </div>
@@ -348,7 +348,7 @@ const ExportService = (() => {
       ${assumptions.length ? `
       <div class="section">
         <div class="section-header">
-          <h2>Key assumptions behind the result</h2>
+          <h2>Key assumptions to keep in mind</h2>
           <div class="small">Core modelling assumptions captured for review</div>
         </div>
         <div class="assumptions-grid">
