@@ -6327,7 +6327,7 @@ function renderAdminSettings(activeSection = 'org') {
         </tbody>
       </table>
     </div>
-    <div class="form-help mt-3">Reset only affects browser-stored state. Account creation and BU/function assignment are shared through the Vercel user store.</div>`
+    <div class="form-help mt-3">Reset clears this user's saved working state and returns them to a first-time setup experience.</div>`
   });
   const adminSectionBody = {
     org: adminIntroSection + organisationTreeSection,
@@ -6382,7 +6382,7 @@ function renderAdminSettings(activeSection = 'org') {
       <div class="settings-shell__footer">
         <div class="flex items-center gap-3" style="flex-wrap:wrap">
           <button class="btn btn--primary" id="btn-save-settings">Save Settings</button>
-          <span class="form-help">Applies to new and in-progress assessments immediately.</span>
+          <span class="form-help">Saves admin configuration and user access changes for the platform.</span>
         </div>
       </div>
     </div>`, currentSettingsSection));
