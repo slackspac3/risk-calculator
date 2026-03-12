@@ -141,17 +141,90 @@ const LLMService = (() => {
   }
 
   // ─── Stub generator ──────────────────────────────────────
+  function _normaliseSentenceKey(sentence = '') {
+    return String(sentence || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
   function _dedupeSentences(text = '') {
     const raw = String(text || '').replace(/\s+/g, ' ').trim();
     if (!raw) return '';
     const sentences = raw.split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter(Boolean);
     const seen = new Set();
     return sentences.filter((sentence) => {
-      const key = sentence.toLowerCase();
-      if (seen.has(key)) return false;
+      const key = _normaliseSentenceKey(sentence);
+      if (!key || seen.has(key)) return false;
       seen.add(key);
       return true;
     }).join(' ').trim();
+  }
+
+  function _titleCaseWord(word = '') {
+    const value = String(word || '').trim();
+    if (!value) return '';
+    if (/^[A-Z0-9&/+.-]+$/.test(value)) return value;
+    return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+  }
+
+  function _toDisplayLabel(value = '') {
+    return String(value || '')
+      .split(/[\s_-]+/)
+      .map(_titleCaseWord)
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+  }
+
+  function _joinList(items = []) {
+    const values = Array.from(new Set((Array.isArray(items) ? items : []).map((item) => String(item || '').trim()).filter(Boolean)));
+    if (!values.length) return '';
+    if (values.length === 1) return values[0];
+    if (values.length === 2) return `${values[0]} and ${values[1]}`;
+    return `${values.slice(0, -1).join(', ')}, and ${values[values.length - 1]}`;
+  }
+
+  function _stripScenarioLeadIns(value = '') {
+    let text = String(value || '').replace(/\s+/g, ' ').trim();
+    if (!text) return '';
+    text = text
+      .replace(/^in [^.]+?,\s*[^.]+? faces a material [^.]+? scenario in which\s*/i, '')
+      .replace(/^in [^.]+?,\s*[^.]+? faces a material risk scenario in which\s*/i, '')
+      .replace(/^a risk scenario is being assessed where\s*/i, '')
+      .replace(/^the scenario is that\s*/i, '')
+      .replace(/^scenario:\s*/i, '')
+      .replace(/^risk statement:\s*/i, '')
+      .trim();
+    return text.replace(/^[,:;\-\s]+/, '').trim();
+  }
+
+  function _ensureSentence(text = '') {
+    const value = String(text || '').replace(/\s+/g, ' ').trim();
+    if (!value) return '';
+    return /[.!?]$/.test(value) ? value : `${value}.`;
+  }
+
+  function _buildScenarioLead({ geography = '', businessUnit = '', asset = '', cause = '', impact = '', scenarioLabel = 'risk scenario' } = {}) {
+    const place = geography ? `Across ${geography}` : 'Across the selected operating footprint';
+    const org = businessUnit || 'the business unit';
+    const focus = asset ? `${scenarioLabel} affecting ${asset}` : scenarioLabel;
+    const causeText = cause ? `The most credible initial path is ${cause.toLowerCase()}` : '';
+    const impactText = impact ? `The likely business effect is ${impact.toLowerCase()}` : '';
+    return _ensureSentence([`${place}, ${org} could face a material ${focus}`.replace(/\s+/g, ' ').trim(), causeText, impactText].filter(Boolean).join(' '));
+  }
+
+  function _isGenericRiskTitle(title = '') {
+    const value = _normaliseSentenceKey(title);
+    return [
+      'material technology and cyber risk requiring structured assessment',
+      'technology outage affecting core business services',
+      'general cyber threat',
+      'material cyber risk',
+      'cyber incident',
+      'material operational risk'
+    ].includes(value);
   }
 
   function _classifyScenario(narrative = '') {
@@ -264,9 +337,14 @@ const LLMService = (() => {
       .replace(/the main asset, service, or team affected is\s*/gi, 'The scenario affects ')
       .replace(/the likely trigger or threat driver is\s*/gi, 'The likely trigger is ')
       .replace(/the expected business, operational, or regulatory impact is\s*/gi, 'The likely impact is ')
+      .replace(/given the stated urgency,?\s*/gi, '')
+      .replace(/in practice, this can drive\s*/gi, 'This could lead to ')
+      .replace(/a likely progression is\s*/gi, 'The most likely progression is ')
+      .replace(/material-control scenario/gi, 'material scenario')
       .replace(/\s+\./g, '.')
       .replace(/\.\./g, '.')
       .replace(/\s+,/g, ',')
+      .replace(/\s{2,}/g, ' ')
       .trim();
 
     if (maxSentences > 0) {
@@ -298,21 +376,25 @@ const LLMService = (() => {
   }
 
   function _normaliseRiskCards(risks = []) {
-    const seen = new Set();
-    return (Array.isArray(risks) ? risks : []).filter((risk) => {
-      const key = String(risk?.title || '').trim().toLowerCase();
-      if (!key || seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    }).map((risk) => ({
+    const cleaned = (Array.isArray(risks) ? risks : []).map((risk) => ({
       ...risk,
       title: _cleanUserFacingText(risk.title || '', { maxSentences: 1, stripTrailingPeriod: true }),
-      category: _cleanUserFacingText(risk.category || 'Cyber', { maxSentences: 1, stripTrailingPeriod: true }) || 'Cyber',
+      category: _toDisplayLabel(_cleanUserFacingText(risk.category || 'Cyber', { maxSentences: 1, stripTrailingPeriod: true }) || 'Cyber') || 'Cyber',
       description: _cleanUserFacingText(risk.description || '', { maxSentences: 2 }),
       impact: _cleanUserFacingText(risk.impact || '', { maxSentences: 1 }),
       why: _cleanUserFacingText(risk.why || '', { maxSentences: 2 }),
       regulations: Array.from(new Set((risk.regulations || []).map(String).filter(Boolean))).slice(0, 5)
     })).filter((risk) => risk.title);
+
+    const hasSpecific = cleaned.some((risk) => !_isGenericRiskTitle(risk.title));
+    const seen = new Set();
+    return cleaned.filter((risk) => {
+      if (hasSpecific && _isGenericRiskTitle(risk.title)) return false;
+      const key = _normaliseSentenceKey(risk.title);
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   }
 
   function _generateStub(narrative, buContext, citations) {
@@ -448,22 +530,35 @@ const LLMService = (() => {
   }
 
   function _buildScenarioExpansion(input = {}) {
-    const statement = _cleanScenarioSeed(input.riskStatement);
+    const statement = _stripScenarioLeadIns(_cleanScenarioSeed(input.riskStatement));
     const businessUnit = String(input.businessUnit?.name || 'the business unit').trim();
-    const geography = String(input.geography || 'the selected geography').trim();
-    const asset = String(input.guidedInput?.asset || '').trim();
-    const cause = String(input.guidedInput?.cause || '').trim();
-    const impact = String(input.guidedInput?.impact || '').trim();
+    const geography = _joinList(String(input.geography || '').split(',').map((item) => item.trim()).filter(Boolean)) || 'the selected geography';
+    const asset = _cleanUserFacingText(String(input.guidedInput?.asset || '').trim(), { maxSentences: 1, stripTrailingPeriod: true });
+    const cause = _cleanUserFacingText(String(input.guidedInput?.cause || '').trim(), { maxSentences: 1, stripTrailingPeriod: true });
+    const impact = _cleanUserFacingText(String(input.guidedInput?.impact || '').trim(), { maxSentences: 1, stripTrailingPeriod: true });
     const urgency = String(input.guidedInput?.urgency || 'medium').trim().toLowerCase();
     const lower = [statement, asset, cause, impact].join(' ').toLowerCase();
 
-    let scenarioExpansion = statement;
-    let summary = `AI identified candidate risks and expanded the scenario into a more realistic assessment narrative for ${businessUnit}.`;
+    let scenarioExpansion = _ensureSentence(statement) || _buildScenarioLead({ geography, businessUnit });
+    let summary = `AI expanded the scenario into a clearer risk narrative for ${businessUnit}.`;
     let riskTitles = _extractRiskCandidates([statement, cause, impact].join('\n'));
 
     if (/azure ad|active directory|identity|entra|sso|email/i.test(lower)) {
-      scenarioExpansion = `In ${geography}, ${businessUnit} faces a material identity-compromise scenario in which ${statement.charAt(0).toLowerCase() + statement.slice(1)}. A likely progression is targeted credential theft or session hijack against ${asset || 'the central identity platform'}, followed by account takeover, privileged escalation, and unauthorised access to email, collaboration tools, cloud administration, and other federated business services. In practice, this can drive downstream business email compromise, internal fraud, disruptive administrative changes, loss of access for legitimate users, and regulatory or contractual exposure where sensitive data, critical operations, or cross-border services are affected. ${['high', 'critical'].includes(urgency) ? 'Given the stated urgency, this should be treated as an active material-control scenario requiring immediate containment, privileged-account review, and assessment of downstream operational and financial exposure.' : 'This should be assessed not only as an isolated identity event, but as a gateway scenario with knock-on operational, financial, third-party, and regulatory effects.'}`;
-      summary = `AI expanded the scenario beyond the initial identity-control failure to include the common knock-on effects seen in real identity compromise events: account takeover, email compromise, privileged abuse, downstream service disruption, fraud, and regulatory exposure.`;
+      scenarioExpansion = [
+        _buildScenarioLead({
+          geography,
+          businessUnit,
+          asset: asset || 'the identity platform',
+          cause: cause || 'targeted credential theft or session hijack',
+          impact: impact || 'operational disruption, fraud, and regulatory exposure',
+          scenarioLabel: 'identity compromise'
+        }),
+        'The most likely progression is account takeover, privileged escalation, and unauthorised access to email, collaboration tools, cloud administration, and other federated business services.',
+        ['high', 'critical'].includes(urgency)
+          ? 'This should be treated as an active material scenario requiring rapid containment, privileged-account review, and assessment of downstream operational and financial exposure.'
+          : 'This should be assessed as a gateway scenario that can trigger fraud, service disruption, data exposure, and regulatory consequences across connected services.'
+      ].join(' ');
+      summary = 'AI expanded the scenario beyond the initial identity failure to include likely knock-on effects such as mailbox compromise, privileged abuse, service disruption, fraud, and data exposure.';
       riskTitles = [
         { title: 'Privileged account takeover through identity platform compromise', category: 'Identity & Access', description: 'Compromised Azure AD or Entra credentials could let an attacker take over privileged identities and move into federated services or administrative workflows.', regulations: ['UAE PDPL', 'UK GDPR', 'SEC cyber disclosure rules'] },
         { title: 'Business email compromise enabled by mailbox access', category: 'Financial Crime', description: 'Once identity controls are bypassed, mailbox access can support payment fraud, executive impersonation, and manipulation of approvals or supplier instructions.', regulations: ['UAE AML/CFT'] },
@@ -471,16 +566,33 @@ const LLMService = (() => {
         { title: 'Sensitive data exposure across mailboxes and connected cloud services', category: 'Data Protection', description: 'The same compromise could expose regulated or commercially sensitive information stored in mail, identity-linked applications, and collaboration platforms.', regulations: ['UAE PDPL', 'GDPR'] }
       ];
     } else if (/ransom|encrypt/i.test(lower)) {
-      scenarioExpansion = `In ${geography}, ${businessUnit} faces a ransomware-driven disruption scenario in which ${statement.charAt(0).toLowerCase() + statement.slice(1)}. A realistic progression is initial access, lateral movement, abuse of privileged access, encryption or destructive action against critical systems, and secondary pressure through data theft or extortion. The scenario should therefore be assessed for downtime, operational backlog, emergency response cost, customer or stakeholder disruption, and regulatory consequences where sensitive or regulated services are impacted.`;
+      scenarioExpansion = [
+        _buildScenarioLead({ geography, businessUnit, asset: asset || 'critical business services', cause: cause || 'initial access followed by ransomware deployment', impact: impact || 'service downtime and recovery cost', scenarioLabel: 'ransomware-driven disruption' }),
+        'The most likely progression is attacker access, lateral movement, abuse of privileged access, encryption or destructive action against critical systems, and secondary extortion through data theft or public pressure.',
+        'This should be assessed for downtime, operational backlog, emergency response cost, stakeholder disruption, and regulatory consequences where sensitive or regulated services are involved.'
+      ].join(' ');
     } else if (/supplier|vendor|third-party/i.test(lower)) {
-      scenarioExpansion = `In ${geography}, ${businessUnit} faces a third-party driven risk scenario in which ${statement.charAt(0).toLowerCase() + statement.slice(1)}. The realistic concern is not only the initial supplier-side failure, but the downstream effect on privileged access, data exchange, service dependency, contractual commitments, and concentration risk across connected business processes. This should be assessed for both immediate operational disruption and follow-on regulatory, commercial, and assurance impacts.`;
+      scenarioExpansion = [
+        _buildScenarioLead({ geography, businessUnit, asset: asset || 'a critical supplier-dependent service', cause: cause || 'third-party failure or compromise', impact: impact || 'operational disruption and commercial exposure', scenarioLabel: 'third-party disruption' }),
+        'The most likely progression is service dependency failure, inherited control weakness, or privileged supplier access creating operational, data, and contractual consequences across connected processes.',
+        'This should be assessed for immediate disruption as well as follow-on regulatory, commercial, and assurance impacts.'
+      ].join(' ');
     } else if (/cloud|misconfig|storage|bucket/i.test(lower)) {
-      scenarioExpansion = `In ${geography}, ${businessUnit} faces a cloud exposure scenario in which ${statement.charAt(0).toLowerCase() + statement.slice(1)}. A realistic progression includes unauthorised discovery, data exposure or exfiltration, service mis-use, persistence through compromised credentials or automation, and delayed detection due to fragmented cloud ownership. This should be assessed for confidentiality impact, operational recovery effort, regulatory response, and reputational consequences where customer or business-critical data is involved.`;
+      scenarioExpansion = [
+        _buildScenarioLead({ geography, businessUnit, asset: asset || 'the exposed cloud service', cause: cause || 'cloud misconfiguration or weak access control', impact: impact || 'data exposure and operational recovery effort', scenarioLabel: 'cloud exposure' }),
+        'The most likely progression is unauthorised discovery, data exposure or exfiltration, misuse of cloud services, persistence through compromised credentials or automation, and delayed detection caused by fragmented ownership.',
+        'This should be assessed for confidentiality impact, operational recovery effort, regulatory response, and reputational consequences.'
+      ].join(' ');
+    } else if (statement) {
+      scenarioExpansion = [
+        _buildScenarioLead({ geography, businessUnit, asset, cause, impact, scenarioLabel: 'risk scenario' }),
+        _ensureSentence(statement)
+      ].join(' ');
     }
 
     return {
-      scenarioExpansion,
-      summary,
+      scenarioExpansion: _dedupeSentences(scenarioExpansion),
+      summary: _cleanUserFacingText(summary, { maxSentences: 2 }),
       riskTitles
     };
   }
@@ -705,7 +817,7 @@ Instructions:
           const parsed = JSON.parse(raw.replace(/```json\n?|```/g, '').trim());
           return {
             ...parsed,
-            enhancedStatement: _buildScenarioExpansion({ ...input, riskStatement: parsed.enhancedStatement || input.riskStatement }).scenarioExpansion,
+            enhancedStatement: _buildScenarioExpansion({ ...input, riskStatement: input.riskStatement || parsed.enhancedStatement }).scenarioExpansion,
             summary: _cleanUserFacingText(parsed.summary || '', { maxSentences: 3 }),
             linkAnalysis: _cleanUserFacingText(parsed.linkAnalysis || '', { maxSentences: 3 }),
             workflowGuidance: _normaliseGuidance(parsed.workflowGuidance),
@@ -863,6 +975,7 @@ Instructions:
 
   async function buildEntityContext(input = {}) {
     const stub = _buildEntityContextStub(input);
+    const isDepartment = String(input.entity?.type || '').toLowerCase() === 'department / function';
     if (_isDirectCompassUrl(_compassApiUrl) && !_compassApiKey) {
       return stub;
     }
@@ -912,11 +1025,11 @@ Instructions:
       const parsed = JSON.parse(String(raw).replace(/```json\n?|```/g, '').trim());
       return {
         geography: String(parsed.geography || stub.geography || '').trim(),
-        contextSummary: String(parsed.contextSummary || stub.contextSummary || '').trim(),
-        riskAppetiteStatement: String(parsed.riskAppetiteStatement || stub.riskAppetiteStatement || '').trim(),
+        contextSummary: _cleanUserFacingText(parsed.contextSummary || stub.contextSummary || '', { maxSentences: isDepartment ? 4 : 5 }),
+        riskAppetiteStatement: _cleanUserFacingText(parsed.riskAppetiteStatement || stub.riskAppetiteStatement || '', { maxSentences: 2 }),
         applicableRegulations: Array.isArray(parsed.applicableRegulations) ? parsed.applicableRegulations.map(String).filter(Boolean) : stub.applicableRegulations,
-        aiInstructions: String(parsed.aiInstructions || stub.aiInstructions || '').trim(),
-        benchmarkStrategy: String(parsed.benchmarkStrategy || stub.benchmarkStrategy || '').trim()
+        aiInstructions: _cleanUserFacingText(parsed.aiInstructions || stub.aiInstructions || '', { maxSentences: 3 }),
+        benchmarkStrategy: _cleanUserFacingText(parsed.benchmarkStrategy || stub.benchmarkStrategy || '', { maxSentences: 2 })
       };
     } catch (error) {
       console.warn('buildEntityContext fallback:', error.message);
@@ -976,10 +1089,10 @@ Instructions:
       if (!raw) return stub;
       const parsed = JSON.parse(String(raw).replace(/```json\n?|```/g, '').trim());
       return {
-        workingContext: String(parsed.workingContext || stub.workingContext || '').trim(),
-        preferredOutputs: String(parsed.preferredOutputs || stub.preferredOutputs || '').trim(),
-        aiInstructions: String(parsed.aiInstructions || stub.aiInstructions || '').trim(),
-        adminContextSummary: String(parsed.adminContextSummary || stub.adminContextSummary || '').trim()
+        workingContext: _cleanUserFacingText(parsed.workingContext || stub.workingContext || '', { maxSentences: 4 }),
+        preferredOutputs: _cleanUserFacingText(parsed.preferredOutputs || stub.preferredOutputs || '', { maxSentences: 3 }),
+        aiInstructions: _cleanUserFacingText(parsed.aiInstructions || stub.aiInstructions || '', { maxSentences: 3 }),
+        adminContextSummary: _cleanUserFacingText(parsed.adminContextSummary || stub.adminContextSummary || '', { maxSentences: 3 })
       };
     } catch (error) {
       console.warn('buildUserPreferenceAssist fallback:', error.message);
