@@ -31,15 +31,20 @@ const UI = (() => {
       </div>`;
     document.body.appendChild(backdrop);
 
+    let closed = false;
+    const esc = e => {
+      if (e.key === 'Escape') close();
+    };
     const close = () => {
+      if (closed) return;
+      closed = true;
+      document.removeEventListener('keydown', esc);
       backdrop.remove();
       if (onClose) onClose();
     };
     backdrop.querySelector('.modal-close').addEventListener('click', close);
     backdrop.addEventListener('click', e => { if (e.target === backdrop) close(); });
-    document.addEventListener('keydown', function esc(e) {
-      if (e.key === 'Escape') { close(); document.removeEventListener('keydown', esc); }
-    });
+    document.addEventListener('keydown', esc);
     return { close };
   }
 
