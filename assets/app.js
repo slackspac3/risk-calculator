@@ -1319,7 +1319,7 @@ function openOrgEntityEditor({ structure = [], existingNode = null, seed = {}, o
   const defaultSections = node.contextSections || seed.contextSections || null;
   const defaultDepartmentHint = node.departmentHint || seed.departmentHint || '';
   const defaultOwner = node.ownerUsername || seed.ownerUsername || '';
-  const managedAccounts = getManagedAccountsForAdmin(settings);
+  const managedAccounts = getManagedAccountsForAdmin(getAdminSettings());
   const body = `
     <div class="context-panel-copy" style="margin-bottom:12px">Capture how this entity fits into the wider group so later assessments inherit the right business, ownership, and department context.</div>
     <div class="grid-2" style="gap:12px">
