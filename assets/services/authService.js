@@ -67,7 +67,7 @@ function resolveApiUrl(path) {
   }
 
   function saveCache(accounts) {
-    accountsCache = Array.isArray(accounts) && accounts.length ? accounts.map(normaliseAccount) : DEFAULT_ACCOUNTS.map(sanitiseAccount).map(normaliseAccount);
+    accountsCache = Array.isArray(accounts) && accounts.length ? accounts.map(normaliseAccount) : DEFAULT_ACCOUNTS.map(normaliseAccount);
     localStorage.setItem(ACCOUNTS_CACHE_KEY, JSON.stringify(accountsCache));
   }
 

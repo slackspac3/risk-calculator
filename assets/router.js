@@ -20,6 +20,10 @@ const Router = (() => {
   }
 
   function navigate(path) {
+    if (_getHash() === path) {
+      resolve();
+      return;
+    }
     window.location.hash = path;
   }
 
