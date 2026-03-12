@@ -2932,67 +2932,73 @@ function renderUserDashboard() {
     if (!target) return;
     const row = target.closest('.dashboard-assessment-row');
     const id = target.dataset.assessmentId || row?.dataset.assessmentId || '';
+    event.preventDefault();
+    event.stopPropagation();
 
-    if (target.classList.contains('dashboard-open-action')) {
-      if (id === 'draft') {
-        Router.navigate('/wizard/1');
+    try {
+      if (target.classList.contains('dashboard-open-action')) {
+        if (id === 'draft') {
+          Router.navigate('/wizard/1');
+          return;
+        }
+        if (id) Router.navigate(`/results/${id}`);
         return;
       }
-      if (id) Router.navigate(`/results/${id}`);
-      return;
-    }
 
-    if (target.classList.contains('dashboard-archive-assessment')) {
-      if (!id) return;
-      if (!await UI.confirm('Archive this assessment? It will be removed from your main dashboard.')) return;
-      if (!archiveAssessment(id)) { UI.toast('Could not find that assessment to archive.', 'warning'); return; }
-      UI.toast('Assessment archived.', 'success');
-      renderUserDashboard();
-      return;
-    }
-
-    if (target.classList.contains('dashboard-delete-assessment')) {
-      if (!id) return;
-      if (!await UI.confirm('Delete this assessment permanently from your workspace?')) return;
-      if (!deleteAssessment(id)) { UI.toast('Could not find that assessment to delete.', 'warning'); return; }
-      UI.toast('Assessment deleted.', 'success');
-      renderUserDashboard();
-      return;
-    }
-
-    if (target.classList.contains('dashboard-archive-draft')) {
-      if (!await UI.confirm('Archive the current draft and remove it from your active dashboard?')) return;
-      const archived = archiveCurrentDraft();
-      if (!archived) {
-        UI.toast('There is no draft to archive yet.', 'warning');
-        return;
-      }
-      UI.toast('Draft archived.', 'success');
-      renderUserDashboard();
-      return;
-    }
-
-    if (target.classList.contains('dashboard-delete-draft')) {
-      if (!await UI.confirm('Delete the current draft from your workspace?')) return;
-      deleteCurrentDraft();
-      UI.toast('Draft deleted.', 'success');
-      renderUserDashboard();
-      return;
-    }
-
-    if (target.classList.contains('dashboard-restore-assessment')) {
-      if (!id) return;
-      const assessment = getAssessmentById(id);
-      if (!assessment) return;
-      if (assessment.results) {
-        unarchiveAssessment(id);
-        UI.toast('Archived assessment restored to your dashboard.', 'success');
+      if (target.classList.contains('dashboard-archive-assessment')) {
+        if (!id) return;
+        if (!await UI.confirm('Archive this assessment? It will be removed from your main dashboard.')) return;
+        if (!archiveAssessment(id)) { UI.toast('Could not find that assessment to archive.', 'warning'); return; }
         renderUserDashboard();
+        UI.toast('Assessment archived.', 'success');
         return;
       }
-      restoreArchivedDraftToWorkspace(id);
-      UI.toast('Archived draft restored to your active workspace.', 'success');
-      Router.navigate('/wizard/1');
+
+      if (target.classList.contains('dashboard-delete-assessment')) {
+        if (!id) return;
+        if (!await UI.confirm('Delete this assessment permanently from your workspace?')) return;
+        if (!deleteAssessment(id)) { UI.toast('Could not find that assessment to delete.', 'warning'); return; }
+        renderUserDashboard();
+        UI.toast('Assessment deleted.', 'success');
+        return;
+      }
+
+      if (target.classList.contains('dashboard-archive-draft')) {
+        if (!await UI.confirm('Archive the current draft and remove it from your active dashboard?')) return;
+        const archived = archiveCurrentDraft();
+        if (!archived) {
+          UI.toast('There is no draft to archive yet.', 'warning');
+          return;
+        }
+        renderUserDashboard();
+        UI.toast('Draft archived.', 'success');
+        return;
+      }
+
+      if (target.classList.contains('dashboard-delete-draft')) {
+        if (!await UI.confirm('Delete the current draft from your workspace?')) return;
+        deleteCurrentDraft();
+        renderUserDashboard();
+        UI.toast('Draft deleted.', 'success');
+        return;
+      }
+
+      if (target.classList.contains('dashboard-restore-assessment')) {
+        if (!id) return;
+        const assessment = getAssessmentById(id);
+        if (!assessment) return;
+        if (assessment.results) {
+          unarchiveAssessment(id);
+          renderUserDashboard();
+          UI.toast('Archived assessment restored to your dashboard.', 'success');
+          return;
+        }
+        restoreArchivedDraftToWorkspace(id);
+        UI.toast('Archived draft restored to your active workspace.', 'success');
+        Router.navigate('/wizard/1');
+      }
+    } catch (error) {
+      UI.toast(`Dashboard action failed: ${error instanceof Error ? error.message : String(error)}`, 'danger');
     }
   });
 }
