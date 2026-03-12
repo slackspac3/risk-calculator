@@ -191,6 +191,76 @@ function formatAuditDetails(details = {}) {
     .join(' · ');
 }
 
+function buildAdminImpactAssessment(currentSettings = DEFAULT_ADMIN_SETTINGS, nextSettings = DEFAULT_ADMIN_SETTINGS) {
+  const impacts = [];
+  const currentStructure = Array.isArray(currentSettings.companyStructure) ? currentSettings.companyStructure : [];
+  const nextStructure = Array.isArray(nextSettings.companyStructure) ? nextSettings.companyStructure : [];
+  const currentEntities = getCompanyEntities(currentStructure);
+  const nextEntities = getCompanyEntities(nextStructure);
+  const currentDepartments = currentStructure.filter(node => isDepartmentEntityType(node.type));
+  const nextDepartments = nextStructure.filter(node => isDepartmentEntityType(node.type));
+  const nextEntityIds = new Set(nextEntities.map(item => item.id));
+  const nextDepartmentIds = new Set(nextDepartments.map(item => item.id));
+  const managedAccounts = getManagedAccountsForAdmin(nextSettings);
+
+  const removedEntities = currentEntities.filter(item => !nextEntityIds.has(item.id));
+  const removedDepartments = currentDepartments.filter(item => !nextDepartmentIds.has(item.id));
+  if (removedEntities.length) {
+    impacts.push({ severity: 'high', title: 'Businesses removed from the organisation structure', detail: `${removedEntities.length} business unit${removedEntities.length === 1 ? '' : 's'} will disappear from user selection and inherited context.` });
+  }
+  if (removedDepartments.length) {
+    impacts.push({ severity: 'high', title: 'Functions or departments removed', detail: `${removedDepartments.length} function${removedDepartments.length === 1 ? '' : 's'} will no longer be available to assigned users.` });
+  }
+
+  const orphanedUsers = managedAccounts.filter(account => account.businessUnitEntityId && !nextEntityIds.has(account.businessUnitEntityId));
+  if (orphanedUsers.length) {
+    impacts.push({ severity: 'high', title: 'Users would lose their BU assignment', detail: `${orphanedUsers.length} managed user${orphanedUsers.length === 1 ? '' : 's'} are assigned to business units that no longer exist.` });
+  }
+  const orphanedFunctions = managedAccounts.filter(account => account.departmentEntityId && !nextDepartmentIds.has(account.departmentEntityId));
+  if (orphanedFunctions.length) {
+    impacts.push({ severity: 'high', title: 'Users would lose their function assignment', detail: `${orphanedFunctions.length} managed user${orphanedFunctions.length === 1 ? '' : 's'} are assigned to functions that no longer exist.` });
+  }
+
+  if ((currentSettings.geography || '') !== (nextSettings.geography || '')) {
+    impacts.push({ severity: 'medium', title: 'Default geography will change', detail: `New users and fallback regulatory context will shift from ${currentSettings.geography || 'unset'} to ${nextSettings.geography || 'unset'}.` });
+  }
+  if (!!currentSettings.defaultLinkMode !== !!nextSettings.defaultLinkMode) {
+    impacts.push({ severity: 'medium', title: 'Default linked-risk behaviour will change', detail: `New assessments will default to linked-risk mode being ${nextSettings.defaultLinkMode ? 'enabled' : 'disabled'}.` });
+  }
+  if (Number(currentSettings.warningThresholdUsd || 0) !== Number(nextSettings.warningThresholdUsd || 0) || Number(currentSettings.toleranceThresholdUsd || 0) !== Number(nextSettings.toleranceThresholdUsd || 0) || Number(currentSettings.annualReviewThresholdUsd || 0) !== Number(nextSettings.annualReviewThresholdUsd || 0)) {
+    impacts.push({ severity: 'medium', title: 'Risk thresholds will change', detail: 'Assessment flags, escalation signals, and annual review triggers will shift for new and reopened scenarios.' });
+  }
+
+  const currentRegs = Array.isArray(currentSettings.applicableRegulations) ? currentSettings.applicableRegulations : [];
+  const nextRegs = Array.isArray(nextSettings.applicableRegulations) ? nextSettings.applicableRegulations : [];
+  if (JSON.stringify(currentRegs) !== JSON.stringify(nextRegs)) {
+    impacts.push({ severity: 'medium', title: 'Fallback regulations will change', detail: `Shared regulatory guidance changed from ${currentRegs.length} to ${nextRegs.length} fallback tags.` });
+  }
+  if ((currentSettings.aiInstructions || '') !== (nextSettings.aiInstructions || '') || (currentSettings.benchmarkStrategy || '') !== (nextSettings.benchmarkStrategy || '')) {
+    impacts.push({ severity: 'low', title: 'AI guidance will change', detail: 'New AI-assisted outputs may read differently for both admin and end users.' });
+  }
+  if ((currentSettings.riskAppetiteStatement || '') !== (nextSettings.riskAppetiteStatement || '') || (currentSettings.escalationGuidance || '') !== (nextSettings.escalationGuidance || '')) {
+    impacts.push({ severity: 'low', title: 'Leadership guidance text will change', detail: 'Executive summaries and escalation wording will reflect the new governance guidance.' });
+  }
+
+  return {
+    impacts,
+    counts: {
+      high: impacts.filter(item => item.severity === 'high').length,
+      medium: impacts.filter(item => item.severity === 'medium').length,
+      low: impacts.filter(item => item.severity === 'low').length
+    }
+  };
+}
+
+function renderAdminImpactAssessment(assessment) {
+  const items = Array.isArray(assessment?.impacts) ? assessment.impacts : [];
+  if (!items.length) {
+    return `<div class="card" style="padding:var(--sp-4);background:var(--bg-canvas)"><div class="context-panel-title">End-user impact review</div><div class="form-help" style="margin-top:8px">No material end-user impact is currently detected from these admin changes.</div></div>`;
+  }
+  return `<div class="card" style="padding:var(--sp-4);background:var(--bg-canvas)"><div class="context-panel-title">End-user impact review</div><div class="citation-chips" style="margin-top:10px"><span class="badge badge--danger">High ${assessment.counts.high}</span><span class="badge badge--warning">Medium ${assessment.counts.medium}</span><span class="badge badge--neutral">Low ${assessment.counts.low}</span></div><div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">${items.slice(0, 6).map(item => `<div style="background:var(--bg-elevated);padding:var(--sp-3);border-radius:var(--radius-lg)"><div style="font-weight:600;color:var(--text-primary)">${item.title}</div><div class="form-help" style="margin-top:6px">${item.detail}</div></div>`).join('')}</div></div>`;
+}
+
 async function performLogout({ renderLoginScreen = false } = {}) {
   const currentUser = AuthService.getCurrentUser();
   if (currentUser?.username) {
@@ -6677,9 +6747,11 @@ function renderAdminSettings(activeSection = 'org') {
         ${adminSectionBody}
       </div>
       <div class="settings-shell__footer">
-        <div class="flex items-center gap-3" style="flex-wrap:wrap">
+        <div id="admin-impact-assessment">${renderAdminImpactAssessment(buildAdminImpactAssessment(settings, settings))}</div>
+        <div class="flex items-center gap-3 mt-4" style="flex-wrap:wrap">
+          <button class="btn btn--secondary" id="btn-assess-admin-impact">Assess End-User Impact</button>
           <button class="btn btn--primary" id="btn-save-settings">Save Settings</button>
-          <span class="form-help">Saves admin configuration and user access changes for the platform.</span>
+          <span class="form-help">Assess likely downstream impact first, then save admin configuration and user access changes for the platform.</span>
         </div>
       </div>
     </div>`, currentSettingsSection));
@@ -6987,6 +7059,14 @@ function renderAdminSettings(activeSection = 'org') {
     };
   }
 
+  function assessAdminSettingsImpact() {
+    const { payload } = buildAdminSettingsPayload();
+    const assessment = buildAdminImpactAssessment(getAdminSettings(), payload);
+    const host = document.getElementById('admin-impact-assessment');
+    if (host) host.innerHTML = renderAdminImpactAssessment(assessment);
+    return assessment;
+  }
+
   function persistAdminSettings(showToast = false) {
     const { warningThresholdUsd, toleranceThresholdUsd, annualReviewThresholdUsd, payload } = buildAdminSettingsPayload();
     if (warningThresholdUsd > toleranceThresholdUsd) return false;
@@ -7058,6 +7138,11 @@ function renderAdminSettings(activeSection = 'org') {
     return true;
   }
 
+  document.getElementById('btn-assess-admin-impact')?.addEventListener('click', () => {
+    assessAdminSettingsImpact();
+    UI.toast('End-user impact review updated.', 'info');
+  });
+
   document.getElementById('btn-save-settings')?.addEventListener('click', async () => {
     const { warningThresholdUsd, toleranceThresholdUsd, annualReviewThresholdUsd } = buildAdminSettingsPayload();
     if (warningThresholdUsd > toleranceThresholdUsd) {
@@ -7067,6 +7152,11 @@ function renderAdminSettings(activeSection = 'org') {
     if (annualReviewThresholdUsd < toleranceThresholdUsd) {
       UI.toast('Annual review trigger should be greater than or equal to the tolerance threshold.', 'warning');
       return;
+    }
+    const impactAssessment = assessAdminSettingsImpact();
+    if (impactAssessment.counts.high) {
+      const proceed = await UI.confirm(`These admin changes show ${impactAssessment.counts.high} high-impact issue${impactAssessment.counts.high === 1 ? '' : 's'} for end users. Save anyway?`);
+      if (!proceed) return;
     }
     const accessSaved = await applyPendingManagedAccountChanges();
     if (!accessSaved) return;
