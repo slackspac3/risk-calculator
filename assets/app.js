@@ -627,6 +627,65 @@ function saveAssessment(a) {
   localStorage.setItem(buildUserStorageKey(ASSESSMENTS_STORAGE_PREFIX), JSON.stringify(list));
   queueSharedUserStateSync();
 }
+function updateAssessmentRecord(id, updater) {
+  const list = getAssessments().slice();
+  const idx = list.findIndex(item => item.id === id);
+  if (idx < 0) return null;
+  const current = list[idx];
+  const next = typeof updater === 'function' ? updater(current) : { ...current, ...(updater || {}) };
+  list[idx] = next;
+  const cache = ensureUserStateCache();
+  cache.assessments = list;
+  localStorage.setItem(buildUserStorageKey(ASSESSMENTS_STORAGE_PREFIX), JSON.stringify(list));
+  queueSharedUserStateSync();
+  return next;
+}
+function deleteAssessment(id) {
+  const list = getAssessments().slice().filter(item => item.id !== id);
+  const cache = ensureUserStateCache();
+  cache.assessments = list;
+  localStorage.setItem(buildUserStorageKey(ASSESSMENTS_STORAGE_PREFIX), JSON.stringify(list));
+  queueSharedUserStateSync();
+}
+function archiveAssessment(id) {
+  return updateAssessmentRecord(id, assessment => ({ ...assessment, archivedAt: new Date().toISOString() }));
+}
+function unarchiveAssessment(id) {
+  return updateAssessmentRecord(id, assessment => {
+    const next = { ...assessment };
+    delete next.archivedAt;
+    return next;
+  });
+}
+function archiveCurrentDraft() {
+  ensureDraftShape();
+  const draftTitle = String(AppState.draft?.scenarioTitle || AppState.draft?.narrative || '').trim();
+  if (!draftTitle) return null;
+  const archived = {
+    ...JSON.parse(JSON.stringify(AppState.draft)),
+    id: AppState.draft.id || ('a_' + Date.now()),
+    scenarioTitle: draftTitle,
+    archivedAt: new Date().toISOString(),
+    completedAt: null,
+    results: null
+  };
+  saveAssessment(archived);
+  resetDraft();
+  return archived;
+}
+function deleteCurrentDraft() {
+  resetDraft();
+}
+function restoreArchivedDraftToWorkspace(id) {
+  const archived = getAssessmentById(id);
+  if (!archived || archived.results) return null;
+  const restored = JSON.parse(JSON.stringify(archived));
+  delete restored.archivedAt;
+  AppState.draft = { ...ensureDraftShape(), ...restored, results: null, completedAt: null };
+  deleteAssessment(id);
+  saveDraft();
+  return AppState.draft;
+}
 function getAssessmentById(id) {
   return getAssessments().find(a => a.id === id) || null;
 }
@@ -745,6 +804,7 @@ function resetDraft() {
     benchmarkBasis: '',
     inputRationale: null,
     learningNote: '',
+    treatmentImprovementRequest: '',
     guidedInput: {
       event: '',
       asset: '',
@@ -816,6 +876,7 @@ function ensureDraftShape() {
     benchmarkBasis: AppState.draft.benchmarkBasis || '',
     inputRationale: AppState.draft.inputRationale || null,
     learningNote: AppState.draft.learningNote || '',
+    treatmentImprovementRequest: AppState.draft.treatmentImprovementRequest || '',
     guidedInput: {
       event: AppState.draft.guidedInput?.event || '',
       asset: AppState.draft.guidedInput?.asset || '',
@@ -2610,9 +2671,16 @@ function renderUserDashboard() {
   const user = AppState.currentUser || AuthService.getCurrentUser();
   const globalSettings = getAdminSettings();
   const profile = normaliseUserProfile(settings.userProfile, user);
-  const assessments = getAssessments()
+  const allAssessments = getAssessments();
+  const assessments = allAssessments
+    .filter(a => !a?.archivedAt)
     .slice()
     .sort((a, b) => new Date(b.completedAt || b.createdAt || 0).getTime() - new Date(a.completedAt || a.createdAt || 0).getTime());
+  const archivedAssessments = allAssessments
+    .filter(a => a?.archivedAt)
+    .slice()
+    .sort((a, b) => new Date(b.archivedAt || b.completedAt || b.createdAt || 0).getTime() - new Date(a.archivedAt || a.completedAt || a.createdAt || 0).getTime())
+    .slice(0, 6);
   const recentAssessments = assessments.slice(0, 4);
   const latestAssessment = recentAssessments[0] || null;
   const learningStore = getLearningStore();
@@ -2708,7 +2776,7 @@ function renderUserDashboard() {
               </div>
               <div style="display:flex;flex-direction:column;gap:12px;margin-top:var(--sp-5)">
                 ${openAssessmentRows.length ? openAssessmentRows.map(item => `
-                  <button type="button" class="card dashboard-assessment-row" data-assessment-id="${item.action}" style="padding:var(--sp-4);background:var(--bg-elevated);text-align:left;cursor:pointer">
+                  <div class="card dashboard-assessment-row" data-assessment-id="${item.action}" style="padding:var(--sp-4);background:var(--bg-elevated);text-align:left">
                     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
                       <div>
                         <div style="font-weight:600;color:var(--text-primary)">${item.title}</div>
@@ -2716,8 +2784,11 @@ function renderUserDashboard() {
                       </div>
                       <span class="badge ${/above tolerance/i.test(item.status) ? 'badge--danger' : /review/i.test(item.status) ? 'badge--warning' : 'badge--gold'}">${item.status}</span>
                     </div>
-                    <div class="form-help" style="margin-top:10px">${item.actionLabel} →</div>
-                  </button>
+                    <div class="flex items-center gap-3" style="margin-top:10px;flex-wrap:wrap">
+                      <button type="button" class="btn btn--ghost btn--sm dashboard-open-action" data-assessment-id="${item.action}">${item.actionLabel}</button>
+                      ${item.action === 'draft' ? '<button type="button" class="btn btn--ghost btn--sm dashboard-archive-draft">Archive</button><button type="button" class="btn btn--ghost btn--sm dashboard-delete-draft">Delete</button>' : '<button type="button" class="btn btn--ghost btn--sm dashboard-archive-assessment" data-assessment-id="'+"${item.action}"+'">Archive</button><button type="button" class="btn btn--ghost btn--sm dashboard-delete-assessment" data-assessment-id="'+"${item.action}"+'">Delete</button>'}
+                    </div>
+                  </div>
                 `).join('') : `<div class="form-help">You have nothing waiting for review right now. Start a new assessment when you are ready.</div>`}
               </div>
             </div>
@@ -2732,7 +2803,7 @@ function renderUserDashboard() {
               </div>
               <div style="display:flex;flex-direction:column;gap:12px;margin-top:var(--sp-5)">
                 ${recentAssessments.length ? recentAssessments.map(assessment => `
-                  <button type="button" class="card dashboard-assessment-row" data-assessment-id="${assessment.id}" style="padding:var(--sp-4);background:var(--bg-elevated);text-align:left;cursor:pointer">
+                  <div class="card dashboard-assessment-row" data-assessment-id="${assessment.id}" style="padding:var(--sp-4);background:var(--bg-elevated);text-align:left">
                     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
                       <div>
                         <div style="font-weight:600;color:var(--text-primary)">${assessment.scenarioTitle || 'Untitled assessment'}</div>
@@ -2740,7 +2811,12 @@ function renderUserDashboard() {
                       </div>
                       <span class="badge ${assessment.results?.toleranceBreached ? 'badge--danger' : assessment.results?.nearTolerance ? 'badge--warning' : 'badge--gold'}">${assessment.results?.toleranceBreached ? 'Above tolerance' : assessment.results?.nearTolerance ? 'Close to tolerance' : 'Open result'}</span>
                     </div>
-                  </button>
+                    <div class="flex items-center gap-3" style="margin-top:10px;flex-wrap:wrap">
+                      <button type="button" class="btn btn--ghost btn--sm dashboard-open-action" data-assessment-id="${assessment.id}">Open Result</button>
+                      <button type="button" class="btn btn--ghost btn--sm dashboard-archive-assessment" data-assessment-id="${assessment.id}">Archive</button>
+                      <button type="button" class="btn btn--ghost btn--sm dashboard-delete-assessment" data-assessment-id="${assessment.id}">Delete</button>
+                    </div>
+                  </div>
                 `).join('') : `<div class="form-help">No completed assessments yet. Finished assessments will appear here for quick review and comparison.</div>`}
               </div>
             </div>
@@ -2770,7 +2846,7 @@ function renderUserDashboard() {
               <div class="form-help" style="margin-top:6px">Scenarios that are near tolerance, above tolerance, or ready for another management look.</div>
               <div style="display:flex;flex-direction:column;gap:12px;margin-top:var(--sp-5)">
                 ${assessmentsNeedingReview.length ? assessmentsNeedingReview.map(assessment => `
-                  <button type="button" class="card dashboard-assessment-row" data-assessment-id="${assessment.id}" style="padding:var(--sp-4);background:var(--bg-elevated);text-align:left;cursor:pointer">
+                  <div class="card dashboard-assessment-row" data-assessment-id="${assessment.id}" style="padding:var(--sp-4);background:var(--bg-elevated);text-align:left">
                     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
                       <div>
                         <div style="font-weight:600;color:var(--text-primary)">${assessment.scenarioTitle || 'Untitled assessment'}</div>
@@ -2778,7 +2854,12 @@ function renderUserDashboard() {
                       </div>
                       <span class="badge ${assessment.results?.toleranceBreached ? 'badge--danger' : 'badge--warning'}">${assessment.results?.toleranceBreached ? 'Escalate' : 'Review'}</span>
                     </div>
-                  </button>
+                    <div class="flex items-center gap-3" style="margin-top:10px;flex-wrap:wrap">
+                      <button type="button" class="btn btn--ghost btn--sm dashboard-open-action" data-assessment-id="${assessment.id}">Open Result</button>
+                      <button type="button" class="btn btn--ghost btn--sm dashboard-archive-assessment" data-assessment-id="${assessment.id}">Archive</button>
+                      <button type="button" class="btn btn--ghost btn--sm dashboard-delete-assessment" data-assessment-id="${assessment.id}">Delete</button>
+                    </div>
+                  </div>
                 `).join('') : `<div class="form-help">Nothing currently stands out for urgent review.</div>`}
               </div>
             </div>
@@ -2801,6 +2882,34 @@ function renderUserDashboard() {
                 <button class="btn btn--ghost" id="btn-dashboard-settings-secondary">Open Settings</button>
               </div>
             </div>
+
+            <div class="card card--elevated" style="padding:var(--sp-6)">
+              <div class="flex items-center justify-between" style="gap:var(--sp-3);flex-wrap:wrap">
+                <div>
+                  <div class="context-panel-title">Archived items</div>
+                  <div class="form-help">Stored out of the way, but still available if you need them again.</div>
+                </div>
+                <span class="badge badge--neutral">${archivedAssessments.length}</span>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:12px;margin-top:var(--sp-5)">
+                ${archivedAssessments.length ? archivedAssessments.map(assessment => `
+                  <div class="card dashboard-assessment-row" style="padding:var(--sp-4);background:var(--bg-elevated);text-align:left">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+                      <div>
+                        <div style="font-weight:600;color:var(--text-primary)">${assessment.scenarioTitle || 'Untitled scenario'}</div>
+                        <div class="form-help" style="margin-top:6px">Archived ${new Date(assessment.archivedAt || assessment.completedAt || assessment.createdAt || Date.now()).toLocaleDateString('en-AE', { year: 'numeric', month: 'short', day: 'numeric' })}${assessment.results ? ' · Completed assessment' : ' · Draft snapshot'}</div>
+                      </div>
+                      <span class="badge badge--neutral">Archived</span>
+                    </div>
+                    <div class="flex items-center gap-3" style="margin-top:10px;flex-wrap:wrap">
+                      <button type="button" class="btn btn--ghost btn--sm dashboard-restore-assessment" data-assessment-id="${assessment.id}">${assessment.results ? 'Restore to Dashboard' : 'Resume as Draft'}</button>
+                      ${assessment.results ? '<button type="button" class="btn btn--ghost btn--sm dashboard-open-action" data-assessment-id="'+assessment.id+'">Open Result</button>' : ''}
+                      <button type="button" class="btn btn--ghost btn--sm dashboard-delete-assessment" data-assessment-id="${assessment.id}">Delete</button>
+                    </div>
+                  </div>
+                `).join('') : `<div class="form-help">Nothing is archived right now.</div>`}
+              </div>
+            </div>
           </div>
         </section>
       </div>
@@ -2813,13 +2922,71 @@ function renderUserDashboard() {
   document.getElementById('btn-dashboard-open-settings')?.addEventListener('click', () => Router.navigate('/settings'));
   document.getElementById('btn-dashboard-settings-secondary')?.addEventListener('click', () => Router.navigate('/settings'));
   document.getElementById('btn-dashboard-continue-draft')?.addEventListener('click', () => Router.navigate('/wizard/1'));
-  document.querySelectorAll('.dashboard-assessment-row').forEach(button => {
+  document.querySelectorAll('.dashboard-open-action').forEach(button => {
     button.addEventListener('click', () => {
-      if (button.dataset.assessmentId === 'draft') {
+      const id = button.dataset.assessmentId;
+      if (id === 'draft') {
         Router.navigate('/wizard/1');
         return;
       }
-      Router.navigate(`/results/${button.dataset.assessmentId}`);
+      Router.navigate(`/results/${id}`);
+    });
+  });
+  document.querySelectorAll('.dashboard-archive-assessment').forEach(button => {
+    button.addEventListener('click', async () => {
+      const id = button.dataset.assessmentId;
+      if (!id) return;
+      if (!await UI.confirm('Archive this assessment? It will be removed from your main dashboard.')) return;
+      archiveAssessment(id);
+      UI.toast('Assessment archived.', 'success');
+      renderUserDashboard();
+    });
+  });
+  document.querySelectorAll('.dashboard-delete-assessment').forEach(button => {
+    button.addEventListener('click', async () => {
+      const id = button.dataset.assessmentId;
+      if (!id) return;
+      if (!await UI.confirm('Delete this assessment permanently from your workspace?')) return;
+      deleteAssessment(id);
+      UI.toast('Assessment deleted.', 'success');
+      renderUserDashboard();
+    });
+  });
+  document.querySelectorAll('.dashboard-archive-draft').forEach(button => {
+    button.addEventListener('click', async () => {
+      if (!await UI.confirm('Archive the current draft and remove it from your active dashboard?')) return;
+      const archived = archiveCurrentDraft();
+      if (!archived) {
+        UI.toast('There is no draft to archive yet.', 'warning');
+        return;
+      }
+      UI.toast('Draft archived.', 'success');
+      renderUserDashboard();
+    });
+  });
+  document.querySelectorAll('.dashboard-delete-draft').forEach(button => {
+    button.addEventListener('click', async () => {
+      if (!await UI.confirm('Delete the current draft from your workspace?')) return;
+      deleteCurrentDraft();
+      UI.toast('Draft deleted.', 'success');
+      renderUserDashboard();
+    });
+  });
+  document.querySelectorAll('.dashboard-restore-assessment').forEach(button => {
+    button.addEventListener('click', () => {
+      const id = button.dataset.assessmentId;
+      if (!id) return;
+      const assessment = getAssessmentById(id);
+      if (!assessment) return;
+      if (assessment.results) {
+        unarchiveAssessment(id);
+        UI.toast('Archived assessment restored to your dashboard.', 'success');
+        renderUserDashboard();
+        return;
+      }
+      restoreArchivedDraftToWorkspace(id);
+      UI.toast('Archived draft restored to your active workspace.', 'success');
+      Router.navigate('/wizard/1');
     });
   });
 }
@@ -3696,7 +3863,7 @@ function renderWizard3() {
         </div>
         <div class="wizard-body">
           ${draft.learningNote ? `<div class="card card--elevated anim-fade-in"><div class="context-panel-title">Template learning</div><p class="context-panel-copy">${draft.learningNote}</p></div>` : ''}
-          ${baselineAssessment ? `<div class="card card--elevated anim-fade-in"><div class="context-panel-title">Current assessment baseline</div><p class="context-panel-copy">You are working from <strong>${baselineAssessment.scenarioTitle || 'the original assessment'}</strong>. Adjust the assumptions below to reflect a stronger control position or better resilience, then rerun to compare the new result against the current baseline.</p><div class="form-help" style="margin-top:10px">Baseline completed on ${new Date(baselineAssessment.completedAt || baselineAssessment.createdAt || Date.now()).toLocaleDateString('en-AE', { year: 'numeric', month: 'long', day: 'numeric' })}.</div><div class="citation-chips" style="margin-top:12px"><button type="button" class="chip treatment-prompt-chip" data-treatment-prompt="control-strength">Try stronger controls</button><button type="button" class="chip treatment-prompt-chip" data-treatment-prompt="frequency">Try lower event frequency</button><button type="button" class="chip treatment-prompt-chip" data-treatment-prompt="business-interruption">Try lower disruption cost</button></div><div class="form-help" style="margin-top:10px">These are quick starting points. You can still adjust every number manually before rerunning the analysis.</div></div>` : ''}
+          ${baselineAssessment ? `<div class="card card--elevated anim-fade-in"><div class="context-panel-title">Current assessment baseline</div><p class="context-panel-copy">You are working from <strong>${baselineAssessment.scenarioTitle || 'the original assessment'}</strong>. Adjust the assumptions below to reflect a stronger control position or better resilience, then rerun to compare the new result against the current baseline.</p><div class="form-help" style="margin-top:10px">Baseline completed on ${new Date(baselineAssessment.completedAt || baselineAssessment.createdAt || Date.now()).toLocaleDateString('en-AE', { year: 'numeric', month: 'long', day: 'numeric' })}.</div><div class="citation-chips" style="margin-top:12px"><button type="button" class="chip treatment-prompt-chip" data-treatment-prompt="control-strength">Try stronger controls</button><button type="button" class="chip treatment-prompt-chip" data-treatment-prompt="frequency">Try lower event frequency</button><button type="button" class="chip treatment-prompt-chip" data-treatment-prompt="business-interruption">Try lower disruption cost</button></div><div class="form-group" style="margin-top:16px"><label class="form-label" for="treatment-improvement-request">Describe the better outcome you want to test</label><textarea class="form-textarea" id="treatment-improvement-request" rows="3" placeholder="e.g. stronger identity controls, lower business disruption, less financial loss, better containment">${draft.treatmentImprovementRequest || ''}</textarea><span class="form-help">Describe the improvement in plain language and let AI adjust the copied baseline values before you simulate the new case.</span></div><div class="flex items-center gap-3" style="margin-top:12px;flex-wrap:wrap"><button class="btn btn--secondary" id="btn-treatment-ai-assist" type="button">AI Assist This Better Outcome</button><span class="form-help" id="treatment-improvement-status">These are quick starting points. You can still adjust every number manually before rerunning the analysis.</span></div></div>` : ''}
           ${draft.workflowGuidance?.length ? renderWorkflowGuidanceBlock(draft.workflowGuidance) : ''}
           ${renderBenchmarkRationaleBlock(draft.benchmarkBasis, draft.inputRationale)}
           ${renderEstimateExplainerCard(draft, bu, isAdv, cur)}
@@ -3827,12 +3994,68 @@ function renderWizard3() {
     AppState.draft.fairParams.vulnDirect = this.checked;
   });
   attachFormattedMoneyInputs();
+  function applySuggestedTreatmentInputs(suggestedInputs = {}) {
+    const p = AppState.draft.fairParams || (AppState.draft.fairParams = {});
+    const applyRange = (prefix, range) => {
+      if (!range) return;
+      if (Number.isFinite(Number(range.min))) p[`${prefix}Min`] = Number(range.min);
+      if (Number.isFinite(Number(range.likely))) p[`${prefix}Likely`] = Number(range.likely);
+      if (Number.isFinite(Number(range.max))) p[`${prefix}Max`] = Number(range.max);
+    };
+    applyRange('tef', suggestedInputs.TEF);
+    applyRange('controlStr', suggestedInputs.controlStrength);
+    applyRange('threatCap', suggestedInputs.threatCapability);
+    applyRange('ir', suggestedInputs.lossComponents?.incidentResponse);
+    applyRange('bi', suggestedInputs.lossComponents?.businessInterruption);
+    applyRange('db', suggestedInputs.lossComponents?.dataBreachRemediation);
+    applyRange('rl', suggestedInputs.lossComponents?.regulatoryLegal);
+    applyRange('tp', suggestedInputs.lossComponents?.thirdPartyLiability);
+    applyRange('rc', suggestedInputs.lossComponents?.reputationContract);
+  }
   document.querySelectorAll('.treatment-prompt-chip').forEach(button => {
     button.addEventListener('click', () => {
       applyTreatmentPrompt(button.dataset.treatmentPrompt);
       renderWizard3();
       UI.toast('Treatment prompt applied. Review the numbers and rerun the scenario.', 'success');
     });
+  });
+  document.getElementById('btn-treatment-ai-assist')?.addEventListener('click', async () => {
+    const requestEl = document.getElementById('treatment-improvement-request');
+    const statusEl = document.getElementById('treatment-improvement-status');
+    const request = requestEl?.value.trim() || '';
+    if (!baselineAssessment) return;
+    if (!request) {
+      UI.toast('Describe the better outcome you want to test first.', 'warning');
+      return;
+    }
+    AppState.draft.treatmentImprovementRequest = request;
+    if (statusEl) statusEl.textContent = 'Using AI to adjust the copied baseline values…';
+    const btn = document.getElementById('btn-treatment-ai-assist');
+    if (btn) { btn.disabled = true; btn.textContent = 'Adjusting…'; }
+    try {
+      const buContext = getBUList().find(b => b.id === draft.buId) || bu || null;
+      const citations = await RAGService.retrieveRelevantDocs(draft.buId, `${baselineAssessment.scenarioTitle || ''}
+${request}`, 5);
+      const result = await LLMService.suggestTreatmentImprovement({
+        baselineAssessment,
+        improvementRequest: request,
+        businessUnit: buContext,
+        citations
+      });
+      applySuggestedTreatmentInputs(result.suggestedInputs || {});
+      AppState.draft.workflowGuidance = Array.isArray(result.workflowGuidance) ? result.workflowGuidance : (AppState.draft.workflowGuidance || []);
+      AppState.draft.benchmarkBasis = result.benchmarkBasis || AppState.draft.benchmarkBasis || '';
+      AppState.draft.inputRationale = result.inputRationale || AppState.draft.inputRationale || null;
+      AppState.draft.citations = normaliseCitations(result.citations || citations);
+      AppState.draft.learningNote = result.changesSummary || result.summary || '';
+      saveDraft();
+      renderWizard3();
+      UI.toast('The better-outcome case has been adjusted. Review the numbers before rerunning.', 'success');
+    } catch (error) {
+      if (statusEl) statusEl.textContent = `AI assist failed: ${error instanceof Error ? error.message : String(error)}`;
+      UI.toast(`AI assist failed: ${error instanceof Error ? error.message : String(error)}`, 'danger');
+      if (btn) { btn.disabled = false; btn.textContent = 'AI Assist This Better Outcome'; }
+    }
   });
   document.getElementById('btn-back-3').addEventListener('click', () => Router.navigate('/wizard/2'));
   document.getElementById('btn-next-3').addEventListener('click', () => {
@@ -4490,7 +4713,7 @@ function renderResults(id, isShared) {
   const assessmentIntelligence = assessment.assessmentIntelligence || buildAssessmentIntelligence(assessment, r, technicalInputs, r.portfolioMeta || {});
   const executiveDecision = buildExecutiveDecisionSupport(assessment, r, assessmentIntelligence);
   const comparisonOptions = getAssessments()
-    .filter(item => item.id !== assessment.id && item.results)
+    .filter(item => !item?.archivedAt && item.id !== assessment.id && item.results)
     .sort((a, b) => new Date(b.completedAt || b.createdAt || 0).getTime() - new Date(a.completedAt || a.createdAt || 0).getTime())
     .slice(0, 12)
     .map(item => ({

@@ -987,6 +987,168 @@ Instructions:
     }
   }
 
+
+  function _buildTreatmentImprovementStub(input = {}) {
+    const request = String(input.improvementRequest || '').toLowerCase();
+    const baseline = input.baselineAssessment?.fairParams || input.baselineAssessment?.results?.inputs || {};
+    const next = JSON.parse(JSON.stringify(baseline || {}));
+    const notes = [];
+    const adjust = (key, factor, floor = null, ceil = null) => {
+      const current = Number(next[key]);
+      if (!Number.isFinite(current)) return;
+      let value = current * factor;
+      if (floor != null) value = Math.max(floor, value);
+      if (ceil != null) value = Math.min(ceil, value);
+      next[key] = Number(value.toFixed(2));
+    };
+
+    if (/control|mfa|access|identity|monitor|detect|response/.test(request)) {
+      adjust('controlStrMin', 1.12, 0, 0.99);
+      adjust('controlStrLikely', 1.15, 0, 0.99);
+      adjust('controlStrMax', 1.1, 0, 0.995);
+      adjust('vulnMin', 0.9, 0.01, 1);
+      adjust('vulnLikely', 0.85, 0.01, 1);
+      adjust('vulnMax', 0.82, 0.01, 1);
+      notes.push('Control strength has been lifted to reflect stronger preventive and detective controls.');
+    }
+    if (/less exposure|lower exposure|reduc|contain|segmentation|hardening/.test(request)) {
+      adjust('threatCapMin', 0.95, 0, 1);
+      adjust('threatCapLikely', 0.92, 0, 1);
+      adjust('threatCapMax', 0.9, 0, 1);
+      adjust('vulnMin', 0.88, 0.01, 1);
+      adjust('vulnLikely', 0.82, 0.01, 1);
+      adjust('vulnMax', 0.78, 0.01, 1);
+      notes.push('Exposure has been reduced to reflect better containment and lower successful attack opportunity.');
+    }
+    if (/less financial|lower loss|cheaper|reduce cost|lower disruption|resilience|faster recovery/.test(request)) {
+      ['biMin','biLikely','biMax'].forEach((key, idx) => adjust(key, [0.75,0.7,0.68][idx], 0, null));
+      ['irMin','irLikely','irMax'].forEach((key, idx) => adjust(key, [0.9,0.88,0.86][idx], 0, null));
+      ['rcMin','rcLikely','rcMax'].forEach((key, idx) => adjust(key, [0.92,0.88,0.85][idx], 0, null));
+      notes.push('Financial and disruption losses have been reduced to reflect faster containment, better resilience, or lower downstream harm.');
+    }
+    if (/less frequent|lower frequency|rarer|harder to happen|prevent/.test(request)) {
+      ['tefMin','tefLikely','tefMax'].forEach((key, idx) => adjust(key, [0.85,0.78,0.72][idx], 0.1, null));
+      notes.push('Event frequency has been reduced to reflect lower likelihood under the improved future state.');
+    }
+    if (!notes.length) {
+      adjust('controlStrLikely', 1.08, 0, 0.99);
+      adjust('tefLikely', 0.9, 0.1, null);
+      adjust('biLikely', 0.9, 0, null);
+      notes.push('The future-state case assumes moderately stronger controls, lower event success, and better operational containment.');
+    }
+    return {
+      summary: 'The future-state case adjusts the baseline to reflect the improvement described by the user.',
+      changesSummary: notes.join(' '),
+      workflowGuidance: [
+        'Review the adjusted values and make sure they reflect a credible future state rather than an ideal one.',
+        'Focus on the one or two assumptions that would realistically improve first, then rerun the model.',
+        'Use the comparison view to judge whether the improvement meaningfully changes tolerance position.'
+      ],
+      benchmarkBasis: 'The adjusted values represent a future-state comparison case. They should reflect plausible control or resilience improvements, not best-case assumptions.',
+      inputRationale: {
+        tef: 'Frequency was reduced only where the requested improvement would plausibly lower how often the scenario succeeds.',
+        vulnerability: 'Exposure was reduced where stronger controls, better identity protection, or tighter containment were implied by the request.',
+        lossComponents: 'Loss values were reduced where the request suggests faster recovery, lower disruption, or less downstream financial impact.'
+      },
+      suggestedInputs: {
+        TEF: { min: next.tefMin, likely: next.tefLikely, max: next.tefMax },
+        controlStrength: { min: next.controlStrMin, likely: next.controlStrLikely, max: next.controlStrMax },
+        threatCapability: { min: next.threatCapMin, likely: next.threatCapLikely, max: next.threatCapMax },
+        lossComponents: {
+          incidentResponse: { min: next.irMin, likely: next.irLikely, max: next.irMax },
+          businessInterruption: { min: next.biMin, likely: next.biLikely, max: next.biMax },
+          dataBreachRemediation: { min: next.dbMin, likely: next.dbLikely, max: next.dbMax },
+          regulatoryLegal: { min: next.rlMin, likely: next.rlLikely, max: next.rlMax },
+          thirdPartyLiability: { min: next.tpMin, likely: next.tpLikely, max: next.tpMax },
+          reputationContract: { min: next.rcMin, likely: next.rcLikely, max: next.rcMax }
+        }
+      },
+      citations: input.citations || []
+    };
+  }
+
+  async function suggestTreatmentImprovement(input = {}) {
+    const stub = _buildTreatmentImprovementStub(input);
+    await new Promise(r => setTimeout(r, 900 + Math.random() * 400));
+    if (_compassApiKey || !_isDirectCompassUrl(_compassApiUrl)) {
+      try {
+        const systemPrompt = `You are a senior FAIR analyst helping a user model an improved future state. Return JSON only with this schema:
+{
+  "summary": "string",
+  "changesSummary": "string",
+  "workflowGuidance": ["string"],
+  "benchmarkBasis": "string",
+  "inputRationale": {
+    "tef": "string",
+    "vulnerability": "string",
+    "lossComponents": "string"
+  },
+  "suggestedInputs": {
+    "TEF": { "min": number, "likely": number, "max": number },
+    "controlStrength": { "min": number, "likely": number, "max": number },
+    "threatCapability": { "min": number, "likely": number, "max": number },
+    "lossComponents": {
+      "incidentResponse": { "min": number, "likely": number, "max": number },
+      "businessInterruption": { "min": number, "likely": number, "max": number },
+      "dataBreachRemediation": { "min": number, "likely": number, "max": number },
+      "regulatoryLegal": { "min": number, "likely": number, "max": number },
+      "thirdPartyLiability": { "min": number, "likely": number, "max": number },
+      "reputationContract": { "min": number, "likely": number, "max": number }
+    }
+  }
+}`;
+        const userPrompt = `Baseline scenario title: ${input.baselineAssessment?.scenarioTitle || 'Untitled scenario'}
+Baseline narrative: ${input.baselineAssessment?.enhancedNarrative || input.baselineAssessment?.narrative || ''}
+Business unit: ${input.businessUnit?.name || 'Unknown'}
+Geography: ${input.baselineAssessment?.geography || input.businessUnit?.geography || 'Unknown'}
+User improvement request: ${input.improvementRequest || '(none)'}
+Current FAIR inputs:
+${JSON.stringify(input.baselineAssessment?.fairParams || input.baselineAssessment?.results?.inputs || {}, null, 2)}
+Relevant citations:
+${(input.citations || []).map(c => `- ${c.title}: ${c.excerpt}`).join('\n')}
+Instructions:
+- treat this as a future-state comparison case, not a rewrite of the original scenario
+- adjust only the FAIR inputs that are plausibly improved by the user's request
+- keep changes credible and proportionate
+- explain what you changed in plain language
+- prefer stronger controls, lower event frequency, lower vulnerability, or lower loss only when justified by the user's request`;
+        const raw = await _callLLM(systemPrompt, userPrompt);
+        if (raw) {
+          const parsed = JSON.parse(String(raw).replace(/```json\n?|```/g, '').trim());
+          const ensureRange = (value, fallbackRange) => ({
+            min: value?.min ?? fallbackRange?.min ?? 0,
+            likely: value?.likely ?? fallbackRange?.likely ?? 0,
+            max: value?.max ?? fallbackRange?.max ?? 0,
+          });
+          return {
+            summary: _cleanUserFacingText(parsed.summary || stub.summary || '', { maxSentences: 2 }),
+            changesSummary: _cleanUserFacingText(parsed.changesSummary || stub.changesSummary || '', { maxSentences: 3 }),
+            workflowGuidance: _normaliseGuidance(parsed.workflowGuidance?.length ? parsed.workflowGuidance : stub.workflowGuidance),
+            benchmarkBasis: _normaliseBenchmarkBasis(parsed.benchmarkBasis || stub.benchmarkBasis || ''),
+            inputRationale: _normaliseInputRationale({ ...stub.inputRationale, ...(parsed.inputRationale || {}) }),
+            suggestedInputs: {
+              TEF: ensureRange(parsed?.suggestedInputs?.TEF, stub.suggestedInputs.TEF),
+              controlStrength: ensureRange(parsed?.suggestedInputs?.controlStrength, stub.suggestedInputs.controlStrength),
+              threatCapability: ensureRange(parsed?.suggestedInputs?.threatCapability, stub.suggestedInputs.threatCapability),
+              lossComponents: {
+                incidentResponse: ensureRange(parsed?.suggestedInputs?.lossComponents?.incidentResponse, stub.suggestedInputs.lossComponents.incidentResponse),
+                businessInterruption: ensureRange(parsed?.suggestedInputs?.lossComponents?.businessInterruption, stub.suggestedInputs.lossComponents.businessInterruption),
+                dataBreachRemediation: ensureRange(parsed?.suggestedInputs?.lossComponents?.dataBreachRemediation, stub.suggestedInputs.lossComponents.dataBreachRemediation),
+                regulatoryLegal: ensureRange(parsed?.suggestedInputs?.lossComponents?.regulatoryLegal, stub.suggestedInputs.lossComponents.regulatoryLegal),
+                thirdPartyLiability: ensureRange(parsed?.suggestedInputs?.lossComponents?.thirdPartyLiability, stub.suggestedInputs.lossComponents.thirdPartyLiability),
+                reputationContract: ensureRange(parsed?.suggestedInputs?.lossComponents?.reputationContract, stub.suggestedInputs.lossComponents.reputationContract)
+              }
+            },
+            citations: input.citations || []
+          };
+        }
+      } catch (error) {
+        console.warn('suggestTreatmentImprovement fallback:', error.message);
+      }
+    }
+    return stub;
+  }
+
   async function testCompassConnection() {
     if (_isDirectCompassUrl(_compassApiUrl) && !_compassApiKey) {
       throw new Error('No Compass API key configured for this session.');
@@ -1012,6 +1174,7 @@ Instructions:
     buildCompanyContext,
     buildEntityContext,
     buildUserPreferenceAssist,
+    suggestTreatmentImprovement,
     testCompassConnection,
     setCompassAPIKey,
     setCompassConfig,
