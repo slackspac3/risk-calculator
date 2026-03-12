@@ -62,6 +62,10 @@ const ExportService = (() => {
       : [];
     const recommendations = Array.isArray(assessment.recommendations) ? assessment.recommendations : [];
     const technicalInputs = r.inputs || assessment.fairParams || {};
+    const intelligence = assessment.assessmentIntelligence || null;
+    const confidence = intelligence?.confidence || null;
+    const drivers = intelligence?.drivers || null;
+    const assumptions = Array.isArray(intelligence?.assumptions) ? intelligence.assumptions : [];
 
     const html = `<!DOCTYPE html>
 <html lang="en">
@@ -123,6 +127,11 @@ const ExportService = (() => {
   .priority-title { font-family: 'Syne', sans-serif; font-size: 16px; color: #10203b; }
   .priority-copy { font-size: 13px; color: #4b5565; line-height: 1.7; margin-top: 8px; }
   .priority-impact { margin-top: 10px; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: #047857; }
+  .driver-block + .driver-block { margin-top: 14px; padding-top: 14px; border-top: 1px solid #e6ebf2; }
+  .driver-label, .assumption-label { font-size: 11px; text-transform: uppercase; letter-spacing: .12em; color: #7a859d; }
+  .assumptions-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-top: 14px; }
+  .assumption-card { border: 1px solid #d8e0ea; border-radius: 18px; padding: 16px; background: #fff; }
+  .assumption-copy { font-size: 13px; line-height: 1.7; color: #4b5565; margin-top: 8px; }
   .section { margin-top: 30px; }
   .section-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
   .appendix { margin-top: 38px; padding-top: 26px; border-top: 2px solid #d8e0ea; }
@@ -223,6 +232,36 @@ const ExportService = (() => {
           ${regulations.length ? `<div class="chip-row">${regulations.map(tag => `<span class="chip">${tag}</span>`).join('')}</div>` : ''}
         </div>
       </div>
+
+      ${confidence ? `
+      <div class="decision-grid">
+        <div class="card">
+          <div class="section-label">Confidence in this assessment</div>
+          <div class="badge-row" style="margin-top:12px">
+            <span class="badge ${confidence.label === 'High confidence' ? 'success' : confidence.label === 'Low confidence' ? 'danger' : 'warning'}">${confidence.label}</span>
+            <span class="badge neutral">${confidence.score}/100</span>
+          </div>
+          <div class="body-copy">${confidence.summary}</div>
+          ${confidence.reasons?.length ? `<div class="driver-block"><div class="driver-label">Why it scored this way</div><div class="body-copy">${confidence.reasons.map(item => `• ${item}`).join('<br>')}</div></div>` : ''}
+          ${confidence.improvements?.length ? `<div class="driver-block"><div class="driver-label">What would improve confidence</div><div class="body-copy">${confidence.improvements.map(item => `• ${item}`).join('<br>')}</div></div>` : ''}
+        </div>
+        <div class="card">
+          <div class="section-label">What is driving the result</div>
+          ${drivers?.upward?.length ? `<div class="driver-block"><div class="driver-label">Main upward drivers</div><div class="body-copy">${drivers.upward.map(item => `• ${item}`).join('<br>')}</div></div>` : ''}
+          ${drivers?.stabilisers?.length ? `<div class="driver-block"><div class="driver-label">Main stabilisers</div><div class="body-copy">${drivers.stabilisers.map(item => `• ${item}`).join('<br>')}</div></div>` : ''}
+        </div>
+      </div>` : ''}
+
+      ${assumptions.length ? `
+      <div class="section">
+        <div class="section-header">
+          <h2>Key assumptions behind the result</h2>
+          <div class="small">Core modelling assumptions captured for review</div>
+        </div>
+        <div class="assumptions-grid">
+          ${assumptions.map(item => `<div class="assumption-card"><div class="assumption-label">${item.category}</div><div class="assumption-copy">${item.text}</div></div>`).join('')}
+        </div>
+      </div>` : ''}
 
       ${recommendations.length ? `
       <div class="section">

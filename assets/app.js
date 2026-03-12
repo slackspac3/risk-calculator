@@ -3746,6 +3746,166 @@ function collectFairParams() {
   p.distType = p.distType || 'triangular';
 }
 
+function averageRange(min, likely, max) {
+  const values = [min, likely, max].map(Number).filter(Number.isFinite);
+  if (!values.length) return 0;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function calculateRelativeRange(min, likely, max) {
+  const mn = Number(min);
+  const lk = Number(likely);
+  const mx = Number(max);
+  if (![mn, lk, mx].every(Number.isFinite)) return 1;
+  const baseline = Math.max(Math.abs(lk), 1);
+  return Math.max(0, (mx - mn) / baseline);
+}
+
+function buildAssessmentConfidence(draft, results, modelInputs, scenarioMeta) {
+  let score = 58;
+  const citations = Array.isArray(draft.citations) ? draft.citations.length : 0;
+  const selectedRisks = Array.isArray(draft.selectedRisks) ? draft.selectedRisks.length : 0;
+  const hasStructuredScenario = !!draft.structuredScenario;
+  const aiAssisted = !!draft.llmAssisted;
+  const tefRange = calculateRelativeRange(modelInputs.tefMin, modelInputs.tefLikely, modelInputs.tefMax);
+  const lossLikely = ['irLikely','biLikely','dbLikely','rlLikely','tpLikely','rcLikely'].reduce((sum, key) => sum + Number(modelInputs[key] || 0), 0);
+  const lossMin = ['irMin','biMin','dbMin','rlMin','tpMin','rcMin'].reduce((sum, key) => sum + Number(modelInputs[key] || 0), 0);
+  const lossMax = ['irMax','biMax','dbMax','rlMax','tpMax','rcMax'].reduce((sum, key) => sum + Number(modelInputs[key] || 0), 0);
+  const lossRange = calculateRelativeRange(lossMin, lossLikely, lossMax);
+  const reasons = [];
+  const improvements = [];
+
+  if (hasStructuredScenario) { score += 8; reasons.push('The scenario has been structured into asset, threat, attack type, and effect.'); }
+  else improvements.push('Capture a more structured scenario definition so the estimate is anchored to one clear event path.');
+
+  if (citations >= 2) { score += 8; reasons.push('Internal citations or source material are linked to the assessment.'); }
+  else improvements.push('Add internal documents, incident evidence, or control references to strengthen the basis for the numbers.');
+
+  if (selectedRisks >= 2) { score += 4; reasons.push('The scenario scope has been linked to multiple selected risks rather than a single generic risk statement.'); }
+
+  if (aiAssisted) { score -= 4; reasons.push('Some starting values were AI-assisted, so they should still be treated as analyst-reviewed assumptions rather than facts.'); }
+
+  if (tefRange <= 1.5) { score += 8; reasons.push('The event-frequency range is reasonably tight, which improves confidence in the annual view.'); }
+  else { score -= 10; improvements.push('Tighten the event-frequency range using internal incident history or SME input.'); }
+
+  if (lossRange <= 2.5) { score += 8; reasons.push('The loss ranges are not excessively wide, which makes the result more decision-useful.'); }
+  else { score -= 12; improvements.push('Narrow the loss ranges, especially business interruption and response cost, with finance or operations input.'); }
+
+  if (scenarioMeta?.linked) {
+    score -= 4;
+    reasons.push('This is a linked multi-risk scenario, so combined uplift adds more uncertainty than a single isolated scenario.');
+  }
+
+  if (results?.iterations >= 10000) score += 2;
+
+  score = Math.max(18, Math.min(92, score));
+  let label = 'Moderate confidence';
+  if (score >= 75) label = 'High confidence';
+  else if (score <= 44) label = 'Low confidence';
+
+  const summary = label === 'High confidence'
+    ? 'This assessment is well formed for decision support, although it is still based on modelled ranges rather than certainty.'
+    : label === 'Low confidence'
+      ? 'This result is directionally useful, but the ranges and evidence base are still too loose for strong decision-making.'
+      : 'This assessment is useful for management discussion, but some assumptions still need tightening before stronger reliance.';
+
+  return {
+    score,
+    label,
+    summary,
+    reasons: reasons.slice(0, 4),
+    improvements: improvements.slice(0, 3)
+  };
+}
+
+function buildAssessmentAssumptions(draft, results, modelInputs, scenarioMeta) {
+  const assumptions = [];
+  const geography = draft.geography || 'the selected geography';
+  const asset = draft.structuredScenario?.assetService || 'the affected service';
+  const threatCommunity = draft.structuredScenario?.threatCommunity || 'the relevant threat actor set';
+  assumptions.push({ category: 'Scenario', text: `Assumes ${asset} remains the main point of impact across ${geography}.` });
+  assumptions.push({ category: 'Threat', text: `Assumes ${threatCommunity} remains a realistic source of this scenario during the assessment period.` });
+  assumptions.push({ category: 'Frequency', text: `Assumes the event could occur between ${modelInputs.tefMin ?? '—'} and ${modelInputs.tefMax ?? '—'} times per year, with ${modelInputs.tefLikely ?? '—'} as the working case after any linked-scenario uplift.` });
+  if (modelInputs.vulnDirect) assumptions.push({ category: 'Exposure', text: `Assumes direct event success remains within the stated exposure range rather than changing materially because of control drift or attacker capability changes.` });
+  else assumptions.push({ category: 'Exposure', text: `Assumes current control strength and attacker capability are reasonably represented by the selected FAIR ranges.` });
+  assumptions.push({ category: 'Loss', text: `Assumes business interruption, response, legal, data, third-party, and reputation impacts can be represented as per-event ranges rather than one fixed value.` });
+  if (scenarioMeta?.linked) assumptions.push({ category: 'Portfolio', text: 'Assumes the selected linked risks can escalate together and justify the applied scenario uplift in frequency and loss.' });
+  if (Array.isArray(draft.applicableRegulations) && draft.applicableRegulations.length) assumptions.push({ category: 'Regulatory', text: `Assumes the currently selected regulatory set remains the most relevant set for this scenario: ${draft.applicableRegulations.slice(0, 4).join(', ')}${draft.applicableRegulations.length > 4 ? ' and others' : ''}.` });
+  return assumptions.slice(0, 6);
+}
+
+function buildAssessmentDrivers(draft, results, modelInputs) {
+  const upward = [];
+  const stabilisers = [];
+  const lossDrivers = [
+    ['Business interruption', averageRange(modelInputs.biMin, modelInputs.biLikely, modelInputs.biMax)],
+    ['Response and recovery', averageRange(modelInputs.irMin, modelInputs.irLikely, modelInputs.irMax)],
+    ['Reputation and contract', averageRange(modelInputs.rcMin, modelInputs.rcLikely, modelInputs.rcMax)],
+    ['Regulatory and legal', averageRange(modelInputs.rlMin, modelInputs.rlLikely, modelInputs.rlMax)],
+    ['Data remediation', averageRange(modelInputs.dbMin, modelInputs.dbLikely, modelInputs.dbMax)],
+    ['Third-party impact', averageRange(modelInputs.tpMin, modelInputs.tpLikely, modelInputs.tpMax)]
+  ].sort((a, b) => b[1] - a[1]);
+
+  if ((modelInputs.tefLikely || 0) >= 3) upward.push(`Threat frequency is materially lifting annual exposure because the working case assumes about ${modelInputs.tefLikely} events per year.`);
+  if ((modelInputs.controlStrLikely ?? 1) <= 0.55) upward.push('Control strength is a major driver upward because the current controls are not strong enough to suppress event success consistently.');
+  if (lossDrivers[0]?.[1] > 0) upward.push(`${lossDrivers[0][0]} is one of the biggest cost drivers in the current scenario.`);
+  if (lossDrivers[1]?.[1] > 0) upward.push(`${lossDrivers[1][0]} is also materially contributing to the modelled loss range.`);
+  if (modelInputs.secondaryEnabled) upward.push('Secondary loss is enabled, which increases the tail of the loss distribution.');
+  if (results?.portfolioMeta?.linked) upward.push('Linked-risk uplift is increasing both frequency and loss because the scenario is being treated as connected rather than isolated.');
+
+  if ((modelInputs.controlStrLikely ?? 0) >= 0.7) stabilisers.push('Current control strength is helping contain the scenario and reduce success likelihood.');
+  if ((modelInputs.tefLikely || 0) <= 1) stabilisers.push('The working frequency assumption is relatively low, which helps contain annual exposure.');
+  if (!modelInputs.secondaryEnabled) stabilisers.push('Secondary loss is disabled, so the model is not adding a follow-on loss tail beyond the primary event.');
+  if ((modelInputs.rlLikely || 0) < (modelInputs.biLikely || 0)) stabilisers.push('Regulatory and legal costs are not the dominant driver in the current estimate.');
+
+  return {
+    upward: upward.slice(0, 4),
+    stabilisers: stabilisers.slice(0, 3)
+  };
+}
+
+function buildAssessmentIntelligence(draft, results, modelInputs, scenarioMeta) {
+  return {
+    confidence: buildAssessmentConfidence(draft, results, modelInputs, scenarioMeta),
+    assumptions: buildAssessmentAssumptions(draft, results, modelInputs, scenarioMeta),
+    drivers: buildAssessmentDrivers(draft, results, modelInputs)
+  };
+}
+
+function renderAssessmentConfidenceBlock(confidence) {
+  if (!confidence) return '';
+  const badgeClass = confidence.label === 'High confidence' ? 'badge--success' : confidence.label === 'Low confidence' ? 'badge--danger' : 'badge--warning';
+  return `<div class="results-decision-card">
+    <div class="results-section-heading">Confidence in this assessment</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);flex-wrap:wrap">
+      <span class="badge ${badgeClass}">${confidence.label}</span>
+      <strong style="font-family:var(--font-display);font-size:var(--text-lg);color:var(--text-primary)">${confidence.score}/100</strong>
+    </div>
+    <p class="results-decision-copy" style="margin-top:var(--sp-3)">${confidence.summary}</p>
+    ${confidence.reasons?.length ? `<div class="results-decision-row"><span class="results-decision-label">Why it scored this way</span><div class="results-decision-copy">${confidence.reasons.map(item => `• ${item}`).join('<br>')}</div></div>` : ''}
+    ${confidence.improvements?.length ? `<div class="results-decision-row"><span class="results-decision-label">What would improve confidence</span><div class="results-decision-copy">${confidence.improvements.map(item => `• ${item}`).join('<br>')}</div></div>` : ''}
+  </div>`;
+}
+
+function renderAssessmentDriversBlock(drivers) {
+  if (!drivers) return '';
+  return `<div class="results-summary-card">
+    <div class="results-section-heading">What is driving the result</div>
+    ${drivers.upward?.length ? `<div class="results-driver-group"><div class="results-driver-label">Main upward drivers</div><div class="results-summary-copy">${drivers.upward.map(item => `• ${item}`).join('<br>')}</div></div>` : ''}
+    ${drivers.stabilisers?.length ? `<div class="results-driver-group" style="margin-top:var(--sp-4)"><div class="results-driver-label">Main stabilisers</div><div class="results-summary-copy">${drivers.stabilisers.map(item => `• ${item}`).join('<br>')}</div></div>` : ''}
+  </div>`;
+}
+
+function renderAssessmentAssumptionsBlock(assumptions) {
+  if (!assumptions?.length) return '';
+  return `<section class="results-section-stack">
+    <div class="results-section-heading">Key assumptions behind the result</div>
+    <div class="results-assumptions-grid">
+      ${assumptions.map(item => `<div class="results-assumption-card"><div class="results-assumption-label">${item.category}</div><div class="results-assumption-copy">${item.text}</div></div>`).join('')}
+    </div>
+  </section>`;
+}
+
 function validateFairParams() {
   const p = AppState.draft.fairParams;
   const checks = [['tef','TEF'],['ir','IR'],['bi','BI'],['db','DB'],['rl','RL'],['tp','TP'],['rc','RC']];
@@ -3854,6 +4014,7 @@ async function runSimulation() {
       threshold: toleranceThreshold
     };
     const results = RiskEngine.run(ep);
+    results.inputs = { ...ep };
     results.portfolioMeta = scenario;
     results.selectedRiskCount = scenario.riskCount;
     results.applicableRegulations = [...(AppState.draft.applicableRegulations || [])];
@@ -3861,8 +4022,9 @@ async function runSimulation() {
     results.annualReviewThreshold = annualReviewThreshold;
     results.nearTolerance = results.lm.p90 >= warningThreshold && results.lm.p90 < toleranceThreshold;
     results.annualReviewTriggered = results.ale.p90 >= annualReviewThreshold;
+    const assessmentIntelligence = buildAssessmentIntelligence(AppState.draft, results, ep, scenario);
     if (!AppState.draft.id) AppState.draft.id = 'a_' + Date.now();
-    const assessment = { ...AppState.draft, results, completedAt: Date.now() };
+    const assessment = { ...AppState.draft, results, assessmentIntelligence, completedAt: Date.now() };
     saveAssessment(assessment);
     recordLearningFromAssessment(assessment);
     saveDraft();
@@ -3926,6 +4088,7 @@ function renderResults(id, isShared) {
   const completedLabel = new Date(assessment.completedAt || Date.now()).toLocaleDateString('en-AE', { year: 'numeric', month: 'long', day: 'numeric' });
   const scenarioNarrative = assessment.enhancedNarrative || assessment.narrative || assessment.scenarioText || 'No scenario narrative available.';
   const technicalInputs = r.inputs || assessment.fairParams || {};
+  const assessmentIntelligence = assessment.assessmentIntelligence || buildAssessmentIntelligence(assessment, r, technicalInputs, r.portfolioMeta || {});
   const recommendationCards = assessment.recommendations?.length ? `
     <section class="results-section-stack">
       <div class="results-section-heading">Priority actions</div>
@@ -4014,6 +4177,11 @@ function renderResults(id, isShared) {
           <div class="results-section-heading">Scenario in plain language</div>
           <p class="results-summary-copy">${scenarioNarrative}</p>
         </div>
+        ${renderAssessmentDriversBlock(assessmentIntelligence.drivers)}
+      </div>
+
+      <div class="results-decision-grid">
+        ${renderAssessmentConfidenceBlock(assessmentIntelligence.confidence)}
         <div class="results-summary-card">
           <div class="results-section-heading">Scenario scope</div>
           <div class="results-chip-block">
@@ -4022,6 +4190,8 @@ function renderResults(id, isShared) {
           ${(assessment.applicableRegulations?.length ? `<div class="results-chip-block">${assessment.applicableRegulations.map(tag => `<span class="badge badge--neutral">${tag}</span>`).join('')}</div>` : '')}
         </div>
       </div>
+
+      ${renderAssessmentAssumptionsBlock(assessmentIntelligence.assumptions)}
 
       ${recommendationCards}
     </section>`;
