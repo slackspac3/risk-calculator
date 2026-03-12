@@ -1753,23 +1753,43 @@ function parseFlexibleNumber(value) {
 }
 
 function formatGroupedNumber(value) {
-  const numeric = parseFlexibleNumber(value);
-  if (!Number.isFinite(numeric)) return '';
-  const sign = numeric < 0 ? '-' : '';
-  const abs = Math.abs(numeric);
-  const asText = String(abs);
-  const parts = asText.split('.');
-  const whole = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  return sign + (parts[1] ? `${whole}.${parts[1]}` : whole);
+  const raw = String(value == null ? '' : value).replace(/,/g, '').trim();
+  if (!raw) return '';
+
+  const negative = raw.startsWith('-');
+  const unsigned = negative ? raw.slice(1) : raw;
+  const parts = unsigned.split('.');
+  const wholeRaw = (parts[0] || '').replace(/[^0-9]/g, '');
+  const decimalRaw = parts.slice(1).join('').replace(/[^0-9]/g, '');
+  const groupedWhole = wholeRaw ? wholeRaw.replace(/\B(?=(\d{3})+(?!\d))/g, ',') : '0';
+  const hasTrailingDecimal = unsigned.endsWith('.') && !decimalRaw;
+  const decimalPart = hasTrailingDecimal ? '.' : (decimalRaw ? `.${decimalRaw}` : '');
+  return `${negative ? '-' : ''}${groupedWhole}${decimalPart}`;
+}
+
+function positionCaretFromNumericOffset(formatted, numericOffset) {
+  if (numericOffset <= 0) return 0;
+  let seen = 0;
+  for (let index = 0; index < formatted.length; index += 1) {
+    if (/[0-9.-]/.test(formatted[index])) {
+      seen += 1;
+      if (seen >= numericOffset) return index + 1;
+    }
+  }
+  return formatted.length;
 }
 
 function attachFormattedMoneyInputs() {
   document.querySelectorAll('.money-input').forEach(input => {
     if (input.dataset.moneyBound === 'true') return;
     input.dataset.moneyBound = 'true';
-    input.addEventListener('focus', () => {
-      const numeric = parseFlexibleNumber(input.value);
-      input.value = Number.isFinite(numeric) ? String(numeric) : '';
+    input.addEventListener('input', () => {
+      const rawValue = input.value;
+      const selectionStart = input.selectionStart ?? rawValue.length;
+      const numericOffset = rawValue.slice(0, selectionStart).replace(/,/g, '').replace(/[^0-9.-]/g, '').length;
+      input.value = formatGroupedNumber(rawValue);
+      const nextCaret = positionCaretFromNumericOffset(input.value, numericOffset);
+      input.setSelectionRange(nextCaret, nextCaret);
     });
     input.addEventListener('blur', () => {
       input.value = formatGroupedNumber(input.value);
