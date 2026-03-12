@@ -2565,7 +2565,7 @@ function renderLanding() {
 function renderUserDashboard() {
   if (!requireAuth()) return;
   if (AuthService.isAdminAuthenticated()) {
-    Router.navigate('/admin/settings');
+    Router.navigate(getDefaultRouteForCurrentUser());
     return;
   }
 
@@ -4735,9 +4735,22 @@ function renderResults(id, isShared) {
 }
 
 // ─── AUTH & SETTINGS ──────────────────────────────────────────
+const ADMIN_SECTION_STORAGE_KEY = 'rq_admin_active_section';
+
+function getPreferredAdminSection() {
+  const value = String(localStorage.getItem(ADMIN_SECTION_STORAGE_KEY) || '').trim();
+  return ['org', 'company', 'defaults', 'access', 'users', 'audit'].includes(value) ? value : 'org';
+}
+
+function setPreferredAdminSection(section) {
+  const value = ['org', 'company', 'defaults', 'access', 'users', 'audit'].includes(section) ? section : 'org';
+  localStorage.setItem(ADMIN_SECTION_STORAGE_KEY, value);
+  return value;
+}
+
 function getDefaultRouteForCurrentUser() {
   const user = AuthService.getCurrentUser();
-  return user?.role === 'admin' ? '/admin/settings' : '/dashboard';
+  return user?.role === 'admin' ? `/admin/settings/${getPreferredAdminSection()}` : '/dashboard';
 }
 
 function userNeedsOrganisationSelection(user = AuthService.getCurrentUser(), settings = getAdminSettings()) {
@@ -4949,15 +4962,15 @@ function adminLayout(active, content, activeSettingsSection = 'org') {
     <nav class="admin-sidebar">
       <div style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:var(--sp-3)">Admin</div>
       <div style="font-size:.68rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:var(--sp-2)">Setup</div>
-      <a href="#/admin/settings/org" class="admin-nav-link ${active==='settings' && activeSettingsSection==='org' ? 'active' : ''}">🌐 Organisation Setup</a>
-      <a href="#/admin/settings/company" class="admin-nav-link ${active==='settings' && activeSettingsSection==='company' ? 'active' : ''}">🧠 AI Company Builder</a>
-      <a href="#/admin/settings/defaults" class="admin-nav-link ${active==='settings' && activeSettingsSection==='defaults' ? 'active' : ''}">🛡 Platform Defaults</a>
-      <a href="#/admin/settings/access" class="admin-nav-link ${active==='settings' && activeSettingsSection==='access' ? 'active' : ''}">🔐 System Access</a>
-      <a href="#/admin/settings/users" class="admin-nav-link ${active==='settings' && activeSettingsSection==='users' ? 'active' : ''}">👥 User Accounts</a>
-      <a href="#/admin/settings/audit" class="admin-nav-link ${active==='settings' && activeSettingsSection==='audit' ? 'active' : ''}">🧾 Audit Log</a>
+      <button type="button" data-admin-route="/admin/settings/org" class="admin-nav-link ${active==='settings' && activeSettingsSection==='org' ? 'active' : ''}">🌐 Organisation Setup</button>
+      <button type="button" data-admin-route="/admin/settings/company" class="admin-nav-link ${active==='settings' && activeSettingsSection==='company' ? 'active' : ''}">🧠 AI Company Builder</button>
+      <button type="button" data-admin-route="/admin/settings/defaults" class="admin-nav-link ${active==='settings' && activeSettingsSection==='defaults' ? 'active' : ''}">🛡 Platform Defaults</button>
+      <button type="button" data-admin-route="/admin/settings/access" class="admin-nav-link ${active==='settings' && activeSettingsSection==='access' ? 'active' : ''}">🔐 System Access</button>
+      <button type="button" data-admin-route="/admin/settings/users" class="admin-nav-link ${active==='settings' && activeSettingsSection==='users' ? 'active' : ''}">👥 User Accounts</button>
+      <button type="button" data-admin-route="/admin/settings/audit" class="admin-nav-link ${active==='settings' && activeSettingsSection==='audit' ? 'active' : ''}">🧾 Audit Log</button>
       <div style="font-size:.68rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin:var(--sp-4) 0 var(--sp-2)">Libraries</div>
-      <a href="#/admin/bu" class="admin-nav-link ${active==='bu'?'active':''}">🏢 Org Customisation</a>
-      <a href="#/admin/docs" class="admin-nav-link ${active==='docs'?'active':''}">📚 Document Library</a>
+      <button type="button" data-admin-route="/admin/bu" class="admin-nav-link ${active==='bu'?'active':''}">🏢 Org Customisation</button>
+      <button type="button" data-admin-route="/admin/docs" class="admin-nav-link ${active==='docs'?'active':''}">📚 Document Library</button>
       <div style="flex:1"></div>
       <div style="border-top:1px solid var(--border-subtle);padding-top:var(--sp-3)">
         <div class="banner banner--poc" style="font-size:.7rem;padding:8px 10px">⚠ PoC — replace with Entra ID</div>
@@ -4971,7 +4984,7 @@ function adminLayout(active, content, activeSettingsSection = 'org') {
 function renderUserSettings() {
   if (!requireAuth()) return;
   if (AuthService.isAdminAuthenticated()) {
-    Router.navigate('/admin/settings');
+    Router.navigate(getDefaultRouteForCurrentUser());
     return;
   }
 
@@ -5371,7 +5384,7 @@ function bindAutosave(container, callback, { events = ['input', 'change'] } = {}
 function renderUserPreferences(existingSettings = getUserSettings()) {
   if (!requireAuth()) return;
   if (AuthService.isAdminAuthenticated()) {
-    Router.navigate('/admin/settings');
+    Router.navigate(getDefaultRouteForCurrentUser());
     return;
   }
   const globalSettings = getAdminSettings();
@@ -6015,7 +6028,7 @@ function renderAdminSettings(activeSection = 'org') {
     users: { title: 'User Account Control', description: 'Manage shared users, roles, BU assignments, and issued passwords.' },
     audit: { title: 'Audit Log', description: 'Review short-retention PoC audit events and sign-in statistics.' }
   };
-  const currentSettingsSection = settingsSectionMeta[activeSection] ? activeSection : 'org';
+  const currentSettingsSection = setPreferredAdminSection(settingsSectionMeta[activeSection] ? activeSection : getPreferredAdminSection());
   const adminIntroSection = renderSettingsSection({
     title: 'How This Screen Works',
     scope: 'admin-settings',
@@ -6389,6 +6402,16 @@ function renderAdminSettings(activeSection = 'org') {
   bindSettingsSectionState('admin-settings', document);
   restoreSettingsScroll('admin-settings');
 
+  document.querySelectorAll('[data-admin-route]').forEach(button => {
+    button.addEventListener('click', () => {
+      const route = button.dataset.adminRoute || '/admin/settings/org';
+      if (route.startsWith('/admin/settings/')) {
+        const section = route.split('/').pop() || 'org';
+        setPreferredAdminSection(section);
+      }
+      Router.navigate(route);
+    });
+  });
   document.getElementById('btn-admin-logout').addEventListener('click', () => { performLogout(); });
   document.getElementById('btn-refresh-audit-log')?.addEventListener('click', async () => {
     try {
@@ -7493,7 +7516,7 @@ async function init() {
     .on('/results/:id', withAuth(params => renderResults(params.id)))
     .on('/settings', renderUserSettings)
     .on('/admin', renderLogin)
-    .on('/admin/settings', () => renderAdminSettings('org'))
+    .on('/admin/settings', () => renderAdminSettings(getPreferredAdminSection()))
     .on('/admin/settings/org', () => renderAdminSettings('org'))
     .on('/admin/settings/company', () => renderAdminSettings('company'))
     .on('/admin/settings/defaults', () => renderAdminSettings('defaults'))
