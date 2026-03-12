@@ -2039,10 +2039,17 @@ function getAdminLLMConfig() {
 
 function getSessionLLMConfig() {
   try {
-    const config = JSON.parse(sessionStorage.getItem(buildUserStorageKey(SESSION_LLM_STORAGE_PREFIX)) || 'null') || {};
+    const storageKey = buildUserStorageKey(SESSION_LLM_STORAGE_PREFIX);
+    const localConfig = JSON.parse(localStorage.getItem(storageKey) || 'null') || null;
+    const sessionConfig = JSON.parse(sessionStorage.getItem(storageKey) || 'null') || null;
+    const config = localConfig || sessionConfig || {};
+    if (sessionConfig && !localConfig) {
+      localStorage.setItem(storageKey, JSON.stringify(config));
+    }
     if (typeof config.apiUrl === 'string' && config.apiUrl.includes('api.core42.ai/v1/chat/completions')) {
       config.apiUrl = DEFAULT_COMPASS_PROXY_URL;
-      sessionStorage.setItem(buildUserStorageKey(SESSION_LLM_STORAGE_PREFIX), JSON.stringify(config));
+      localStorage.setItem(storageKey, JSON.stringify(config));
+      sessionStorage.setItem(storageKey, JSON.stringify(config));
     }
     return config;
   } catch {
@@ -2051,7 +2058,9 @@ function getSessionLLMConfig() {
 }
 
 function saveSessionLLMConfig(config) {
-  sessionStorage.setItem(buildUserStorageKey(SESSION_LLM_STORAGE_PREFIX), JSON.stringify(config));
+  const storageKey = buildUserStorageKey(SESSION_LLM_STORAGE_PREFIX);
+  localStorage.setItem(storageKey, JSON.stringify(config));
+  sessionStorage.setItem(storageKey, JSON.stringify(config));
 }
 
 function fmtCurrency(usdValue, currency = AppState.currency, fxRate = AppState.fxRate) {

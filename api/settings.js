@@ -2,6 +2,20 @@ const crypto = require('crypto');
 const { appendAuditEvent, verifySessionToken } = require('./_audit');
 
 const SETTINGS_KEY = process.env.SETTINGS_STORE_KEY || 'risk_calculator_settings';
+const DEFAULT_TYPICAL_DEPARTMENTS = [
+  'Information Security',
+  'Technology',
+  'Operations',
+  'Finance',
+  'Procurement',
+  'Legal',
+  'Risk & Compliance',
+  'Human Resources',
+  'Internal Audit',
+  'Data & AI',
+  'Commercial',
+  'Shared Services'
+];
 const ADMIN_API_SECRET = process.env.ADMIN_API_SECRET || '';
 
 function getKvUrl() {
@@ -43,6 +57,8 @@ function getDefaultSettings() {
     companyContextSections: null,
     companyStructure: [],
     entityContextLayers: [],
+    buOverrides: [],
+    docOverrides: [],
     riskAppetiteStatement: 'Moderate. Escalate risks that threaten regulated operations, cross-border data movement, or strategic platforms.',
     applicableRegulations: ['UAE PDPL', 'BIS Export Controls', 'OFAC Sanctions', 'UAE Cybersecurity Council Guidance'],
     aiInstructions: 'Prioritise operational, regulatory, and strategic impact. Use British English.',
@@ -52,7 +68,8 @@ function getDefaultSettings() {
     warningThresholdUsd: 3000000,
     annualReviewThresholdUsd: 12000000,
     adminContextSummary: 'Use this workspace to maintain geography, regulations, thresholds, and AI guidance for the platform.',
-    escalationGuidance: 'Escalate to leadership when the scenario is above tolerance, close to tolerance, or materially affects regulated services.'
+    escalationGuidance: 'Escalate to leadership when the scenario is above tolerance, close to tolerance, or materially affects regulated services.',
+    typicalDepartments: [...DEFAULT_TYPICAL_DEPARTMENTS]
   };
 }
 
@@ -64,7 +81,12 @@ function normaliseSettings(settings = {}) {
     applicableRegulations: Array.isArray(settings.applicableRegulations) ? settings.applicableRegulations : [...defaults.applicableRegulations],
     companyContextSections: settings.companyContextSections && typeof settings.companyContextSections === 'object' ? settings.companyContextSections : null,
     companyStructure: Array.isArray(settings.companyStructure) ? settings.companyStructure : [],
-    entityContextLayers: Array.isArray(settings.entityContextLayers) ? settings.entityContextLayers : []
+    entityContextLayers: Array.isArray(settings.entityContextLayers) ? settings.entityContextLayers : [],
+    buOverrides: Array.isArray(settings.buOverrides) ? settings.buOverrides : [],
+    docOverrides: Array.isArray(settings.docOverrides) ? settings.docOverrides : [],
+    typicalDepartments: Array.isArray(settings.typicalDepartments) && settings.typicalDepartments.length
+      ? settings.typicalDepartments.map(name => String(name || '').trim()).filter(Boolean)
+      : [...defaults.typicalDepartments]
   };
 }
 
@@ -137,6 +159,8 @@ function canBuAdminWriteSettings(currentSettings, proposedSettings, session) {
     'companyWebsiteUrl',
     'companyContextProfile',
     'companyContextSections',
+    'buOverrides',
+    'docOverrides',
     'riskAppetiteStatement',
     'applicableRegulations',
     'aiInstructions',
@@ -146,7 +170,8 @@ function canBuAdminWriteSettings(currentSettings, proposedSettings, session) {
     'warningThresholdUsd',
     'annualReviewThresholdUsd',
     'adminContextSummary',
-    'escalationGuidance'
+    'escalationGuidance',
+    'typicalDepartments'
   ];
 
   for (const key of guardedGlobalKeys) {
