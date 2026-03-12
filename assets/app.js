@@ -6679,7 +6679,7 @@ function renderAdminSettings(activeSection = 'org') {
     });
   }
 
-  document.getElementById('btn-add-org-entity').addEventListener('click', () => openEntityEditor());
+  document.getElementById('btn-add-org-entity')?.addEventListener('click', () => openEntityEditor());
   document.getElementById('btn-add-org-function')?.addEventListener('click', () => openEntityEditor(null, { type: 'Department / function' }));
   bindStructureActionHandlers();
   renderEntityLayerSummary();
@@ -6803,7 +6803,7 @@ function renderAdminSettings(activeSection = 'org') {
     return true;
   }
 
-  document.getElementById('btn-save-settings').addEventListener('click', async () => {
+  document.getElementById('btn-save-settings')?.addEventListener('click', async () => {
     const { warningThresholdUsd, toleranceThresholdUsd, annualReviewThresholdUsd } = buildAdminSettingsPayload();
     if (warningThresholdUsd > toleranceThresholdUsd) {
       UI.toast('Warning trigger must be less than or equal to the tolerance threshold.', 'warning');
@@ -6817,7 +6817,7 @@ function renderAdminSettings(activeSection = 'org') {
     if (!accessSaved) return;
     persistAdminSettings(true);
   });
-  document.getElementById('btn-build-company-context').addEventListener('click', async () => {
+  document.getElementById('btn-build-company-context')?.addEventListener('click', async () => {
     const btn = document.getElementById('btn-build-company-context');
     const websiteUrl = websiteEl.value.trim();
     const llmConfig = {
@@ -6881,13 +6881,13 @@ function renderAdminSettings(activeSection = 'org') {
       btn.textContent = 'Build from Website';
     }
   });
-  document.getElementById('btn-save-session-llm').addEventListener('click', () => {
+  document.getElementById('btn-save-session-llm')?.addEventListener('click', () => {
     const config = getAdminLLMConfig();
     saveSessionLLMConfig(config);
     LLMService.setCompassConfig(config);
     UI.toast(config.apiKey ? 'Compass session key loaded for this session.' : 'Compass proxy/session settings loaded for this session.', 'success');
   });
-  document.getElementById('btn-test-session-llm').addEventListener('click', async () => {
+  document.getElementById('btn-test-session-llm')?.addEventListener('click', async () => {
     const btn = document.getElementById('btn-test-session-llm');
     const config = getAdminLLMConfig();
     btn.disabled = true;
@@ -6903,7 +6903,7 @@ function renderAdminSettings(activeSection = 'org') {
       btn.textContent = 'Test Connection';
     }
   });
-  document.getElementById('btn-clear-session-llm').addEventListener('click', () => {
+  document.getElementById('btn-clear-session-llm')?.addEventListener('click', () => {
     localStorage.removeItem(buildUserStorageKey(SESSION_LLM_STORAGE_PREFIX));
     sessionStorage.removeItem(buildUserStorageKey(SESSION_LLM_STORAGE_PREFIX));
     LLMService.clearCompassConfig();
@@ -7085,7 +7085,7 @@ function renderAdminSettings(activeSection = 'org') {
     }
   });
 
-  document.getElementById('btn-reset-settings').addEventListener('click', async () => {
+  document.getElementById('btn-reset-settings')?.addEventListener('click', async () => {
     if (await UI.confirm('Reset platform settings to defaults?')) {
       localStorage.removeItem(GLOBAL_ADMIN_STORAGE_KEY);
       UI.toast('Settings reset.', 'success');
