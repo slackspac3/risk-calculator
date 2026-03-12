@@ -7098,6 +7098,22 @@ function renderAdminSettings(activeSection = 'org') {
   });
 }
 
+function safeRenderAdminSettings(section = getPreferredAdminSection()) {
+  try {
+    renderAdminSettings(section);
+  } catch (error) {
+    console.error('safeRenderAdminSettings fallback:', error);
+    try {
+      setPreferredAdminSection('org');
+      renderAdminSettings('org');
+      UI.toast('A problem affected the selected admin section, so the page reopened in Organisation Setup.', 'warning', 5000);
+    } catch (fallbackError) {
+      console.error('safeRenderAdminSettings hard failure:', fallbackError);
+      setPage(`<main class="page"><div class="container" style="padding:var(--sp-12)"><div class="card"><h2>Admin Screen Error</h2><p style="margin-top:8px;color:var(--text-muted)">The selected admin screen could not be opened. Return to Organisation Setup and try again.</p><div class="flex items-center gap-3 mt-6"><a class="btn btn--primary" href="#/admin/settings/org">Open Organisation Setup</a><a class="btn btn--ghost" href="#/dashboard">Home</a></div></div></div></main>`);
+    }
+  }
+}
+
 function renderAdminBU() {
   if (!requireAdmin()) return;
   const settings = getAdminSettings();
@@ -7554,13 +7570,13 @@ async function init() {
     .on('/results/:id', withAuth(params => renderResults(params.id)))
     .on('/settings', renderUserSettings)
     .on('/admin', renderLogin)
-    .on('/admin/settings', () => renderAdminSettings(getPreferredAdminSection()))
-    .on('/admin/settings/org', () => renderAdminSettings('org'))
-    .on('/admin/settings/company', () => renderAdminSettings('company'))
-    .on('/admin/settings/defaults', () => renderAdminSettings('defaults'))
-    .on('/admin/settings/access', () => renderAdminSettings('access'))
-    .on('/admin/settings/users', () => renderAdminSettings('users'))
-    .on('/admin/settings/audit', () => renderAdminSettings('audit'))
+    .on('/admin/settings', () => safeRenderAdminSettings(getPreferredAdminSection()))
+    .on('/admin/settings/org', () => safeRenderAdminSettings('org'))
+    .on('/admin/settings/company', () => safeRenderAdminSettings('company'))
+    .on('/admin/settings/defaults', () => safeRenderAdminSettings('defaults'))
+    .on('/admin/settings/access', () => safeRenderAdminSettings('access'))
+    .on('/admin/settings/users', () => safeRenderAdminSettings('users'))
+    .on('/admin/settings/audit', () => safeRenderAdminSettings('audit'))
     .on('/admin/bu', renderAdminBU)
     .on('/admin/docs', renderAdminDocs)
     .notFound(() => {
