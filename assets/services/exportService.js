@@ -89,7 +89,7 @@ const ExportService = (() => {
     return Math.min(max, Math.max(min, Number(value) || 0));
   }
 
-  function _buildExecutiveThresholdModel(results) {
+  function _buildExecutiveThresholdModel(results, fmt) {
     const singleCurrent = Number(results?.lm?.p90 || 0);
     const warning = Number(results?.warningThreshold || results?.threshold || 0);
     const tolerance = Number(results?.threshold || 0);
@@ -97,19 +97,29 @@ const ExportService = (() => {
     const annualReview = Number(results?.annualReviewThreshold || annualCurrent || 0);
     return {
       single: {
+        title: 'Single-event severe view',
         current: singleCurrent,
-        max: Math.max(singleCurrent, warning, tolerance, 1),
-        markers: [
-          { label: 'Warning', value: warning },
-          { label: 'Tolerance', value: tolerance }
-        ]
+        benchmark: tolerance,
+        secondaryBenchmark: warning,
+        status: singleCurrent >= tolerance ? 'Above tolerance' : singleCurrent >= warning ? 'Above warning' : 'Within warning',
+        statusTone: singleCurrent >= tolerance ? 'danger' : singleCurrent >= warning ? 'warning' : 'success',
+        ratio: _clampNumber((singleCurrent / Math.max(tolerance, 1)) * 100, 0, 100),
+        summary: singleCurrent >= tolerance
+          ? `${fmt(singleCurrent - tolerance)} above tolerance. Warning trigger: ${fmt(warning)}.`
+          : singleCurrent >= warning
+            ? `${fmt(tolerance - singleCurrent)} below tolerance, but above warning.`
+            : `${fmt(warning - singleCurrent)} below warning. Tolerance: ${fmt(tolerance)}.`
       },
       annual: {
+        title: 'Annual severe view',
         current: annualCurrent,
-        max: Math.max(annualCurrent, annualReview, 1),
-        markers: [
-          { label: 'Annual review', value: annualReview }
-        ]
+        benchmark: annualReview,
+        status: annualCurrent >= annualReview ? 'Review triggered' : 'Below annual review',
+        statusTone: annualCurrent >= annualReview ? 'warning' : 'success',
+        ratio: _clampNumber((annualCurrent / Math.max(annualReview, 1)) * 100, 0, 100),
+        summary: annualCurrent >= annualReview
+          ? `${fmt(annualCurrent - annualReview)} above the annual review trigger.`
+          : `${fmt(annualReview - annualCurrent)} below the annual review trigger.`
       }
     };
   }
@@ -214,7 +224,7 @@ const ExportService = (() => {
     const confidence = intelligence?.confidence || null;
     const drivers = intelligence?.drivers || null;
     const assumptions = Array.isArray(intelligence?.assumptions) ? intelligence.assumptions : [];
-    const thresholdModel = _buildExecutiveThresholdModel(r);
+    const thresholdModel = _buildExecutiveThresholdModel(r, fmt);
     const impactMix = _buildExecutiveImpactMix(technicalInputs);
 
     const html = `<!DOCTYPE html>
@@ -266,6 +276,9 @@ const ExportService = (() => {
   .track-value, .mix-head strong { font-family: 'Syne', sans-serif; color: #10203b; }
   .track { position: relative; height: 12px; border-radius: 999px; background: rgba(148,163,184,0.18); margin-top: 10px; }
   .track-fill { position: absolute; inset: 0 auto 0 0; border-radius: 999px; background: linear-gradient(90deg, rgba(55,114,230,.9), rgba(127,163,242,.96)); }
+  .track-fill.danger { background: linear-gradient(90deg, rgba(220,38,38,.9), rgba(248,113,113,.96)); }
+  .track-fill.warning { background: linear-gradient(90deg, rgba(217,119,6,.9), rgba(251,191,36,.96)); }
+  .track-fill.success { background: linear-gradient(90deg, rgba(5,150,105,.9), rgba(52,211,153,.96)); }
   .track-marker { position: absolute; top: -6px; transform: translateX(-50%); text-align: center; }
   .track-marker i { display: block; width: 2px; height: 24px; background: rgba(15,23,42,.45); margin: 0 auto; }
   .track-marker small { display: block; margin-top: 4px; font-size: 9px; color: #697487; text-transform: uppercase; letter-spacing: .05em; white-space: nowrap; }
@@ -364,17 +377,19 @@ const ExportService = (() => {
 
       <div class="visual-grid">
         <div class="card">
-          <div class="section-label">Threshold view</div>
+          <div class="section-label">Against governance limits</div>
           <div class="track-grid">
             <div class="track-card">
-              <div class="track-head"><div><div class="section-label">Single-event severe view</div><div class="small">Current view: ${fmt(thresholdModel.single.current)}</div></div><strong class="track-value">${fmt(thresholdModel.single.current)}</strong></div>
-              <div class="track"><div class="track-fill" style="width:${_clampNumber((thresholdModel.single.current / thresholdModel.single.max) * 100)}%"></div>${thresholdModel.single.markers.map(marker => `<span class="track-marker" style="left:${_clampNumber((marker.value / thresholdModel.single.max) * 100)}%"><i></i><small>${marker.label}</small></span>`).join('')}</div>
-              <div class="track-foot">${thresholdModel.single.markers.map(marker => `<span>${marker.label}: <strong>${fmt(marker.value)}</strong></span>`).join('')}</div>
+              <div class="track-head"><div><div class="section-label">${thresholdModel.single.title}</div><div class="small">Current view: ${fmt(thresholdModel.single.current)}</div></div><span class="badge ${thresholdModel.single.statusTone}">${thresholdModel.single.status}</span></div>
+              <div class="track"><div class="track-fill ${thresholdModel.single.statusTone}" style="width:${thresholdModel.single.ratio}%"></div></div>
+              <div class="track-foot"><span>Benchmark: <strong>${fmt(thresholdModel.single.benchmark)}</strong></span><span>Warning: <strong>${fmt(thresholdModel.single.secondaryBenchmark)}</strong></span></div>
+              <div class="small">${thresholdModel.single.summary}</div>
             </div>
             <div class="track-card">
-              <div class="track-head"><div><div class="section-label">Annual severe view</div><div class="small">Current view: ${fmt(thresholdModel.annual.current)}</div></div><strong class="track-value">${fmt(thresholdModel.annual.current)}</strong></div>
-              <div class="track"><div class="track-fill" style="width:${_clampNumber((thresholdModel.annual.current / thresholdModel.annual.max) * 100)}%"></div>${thresholdModel.annual.markers.map(marker => `<span class="track-marker" style="left:${_clampNumber((marker.value / thresholdModel.annual.max) * 100)}%"><i></i><small>${marker.label}</small></span>`).join('')}</div>
-              <div class="track-foot">${thresholdModel.annual.markers.map(marker => `<span>${marker.label}: <strong>${fmt(marker.value)}</strong></span>`).join('')}</div>
+              <div class="track-head"><div><div class="section-label">${thresholdModel.annual.title}</div><div class="small">Current view: ${fmt(thresholdModel.annual.current)}</div></div><span class="badge ${thresholdModel.annual.statusTone}">${thresholdModel.annual.status}</span></div>
+              <div class="track"><div class="track-fill ${thresholdModel.annual.statusTone}" style="width:${thresholdModel.annual.ratio}%"></div></div>
+              <div class="track-foot"><span>Benchmark: <strong>${fmt(thresholdModel.annual.benchmark)}</strong></span></div>
+              <div class="small">${thresholdModel.annual.summary}</div>
             </div>
           </div>
         </div>

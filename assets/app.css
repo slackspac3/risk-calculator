@@ -1316,6 +1316,9 @@ canvas { display: block; width: 100%; }
 .results-track-value { font-family: var(--font-display); font-size: var(--text-lg); color: var(--text-primary); }
 .results-threshold-track { position: relative; height: 14px; border-radius: 999px; background: rgba(148,163,184,0.14); overflow: visible; }
 .results-threshold-fill { position: absolute; inset: 0 auto 0 0; border-radius: 999px; background: linear-gradient(90deg, rgba(60,130,246,.88), rgba(119,165,250,.92)); }
+.results-threshold-fill--danger { background: linear-gradient(90deg, rgba(239,68,68,.88), rgba(248,113,113,.92)); }
+.results-threshold-fill--warning { background: linear-gradient(90deg, rgba(245,158,11,.88), rgba(251,191,36,.92)); }
+.results-threshold-fill--success { background: linear-gradient(90deg, rgba(16,185,129,.88), rgba(52,211,153,.92)); }
 .results-threshold-marker { position: absolute; top: -7px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .results-threshold-marker span { width: 2px; height: 28px; background: rgba(255,255,255,.75); box-shadow: 0 0 0 1px rgba(15,23,42,.22); }
 .results-threshold-marker small { font-size: 10px; letter-spacing: .04em; text-transform: uppercase; color: var(--text-muted); white-space: nowrap; }

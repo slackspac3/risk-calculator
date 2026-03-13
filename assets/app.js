@@ -4679,23 +4679,41 @@ function buildExecutiveThresholdModel(results) {
   const tolerance = Number(results?.threshold || getToleranceThreshold() || 0);
   const annualCurrent = Number(results?.ale?.p90 || 0);
   const annualReview = Number(results?.annualReviewThreshold || getAnnualReviewThreshold() || 0);
-  const maxSingle = Math.max(singleCurrent, warning, tolerance, 1);
-  const maxAnnual = Math.max(annualCurrent, annualReview, 1);
+
+  const singleStatus = singleCurrent >= tolerance
+    ? 'Above tolerance'
+    : singleCurrent >= warning
+      ? 'Above warning'
+      : 'Within warning';
+  const annualStatus = annualCurrent >= annualReview
+    ? 'Review triggered'
+    : 'Below annual review';
+
   return {
     single: {
+      title: 'Single-event severe view',
       current: singleCurrent,
-      max: maxSingle,
-      markers: [
-        { label: 'Warning', value: warning },
-        { label: 'Tolerance', value: tolerance }
-      ]
+      benchmark: tolerance,
+      secondaryBenchmark: warning,
+      status: singleStatus,
+      statusTone: singleCurrent >= tolerance ? 'danger' : singleCurrent >= warning ? 'warning' : 'success',
+      ratio: clampNumber((singleCurrent / Math.max(tolerance, 1)) * 100, 0, 100),
+      summary: singleCurrent >= tolerance
+        ? `${fmtCurrency(singleCurrent - tolerance)} above tolerance. Warning trigger: ${fmtCurrency(warning)}.`
+        : singleCurrent >= warning
+          ? `${fmtCurrency(tolerance - singleCurrent)} below tolerance, but above warning.`
+          : `${fmtCurrency(warning - singleCurrent)} below warning. Tolerance: ${fmtCurrency(tolerance)}.`
     },
     annual: {
+      title: 'Annual severe view',
       current: annualCurrent,
-      max: maxAnnual,
-      markers: [
-        { label: 'Annual review', value: annualReview }
-      ]
+      benchmark: annualReview,
+      status: annualStatus,
+      statusTone: annualCurrent >= annualReview ? 'warning' : 'success',
+      ratio: clampNumber((annualCurrent / Math.max(annualReview, 1)) * 100, 0, 100),
+      summary: annualCurrent >= annualReview
+        ? `${fmtCurrency(annualCurrent - annualReview)} above the annual review trigger.`
+        : `${fmtCurrency(annualReview - annualCurrent)} below the annual review trigger.`
     }
   };
 }
@@ -4720,28 +4738,29 @@ function buildExecutiveImpactMix(inputs = {}) {
 }
 
 function renderExecutiveThresholdTracks(model) {
-  const renderTrack = (title, current, max, markers) => `
+  const renderCard = item => `
     <div class="results-track-card">
       <div class="results-track-head">
         <div>
-          <div class="results-driver-label">${title}</div>
-          <div class="results-comparison-foot">Current view: ${fmtCurrency(current)}</div>
+          <div class="results-driver-label">${item.title}</div>
+          <div class="results-comparison-foot">Current view: ${fmtCurrency(item.current)}</div>
         </div>
-        <strong class="results-track-value">${fmtCurrency(current)}</strong>
+        <span class="badge badge--${item.statusTone}">${item.status}</span>
       </div>
       <div class="results-threshold-track">
-        <div class="results-threshold-fill" style="width:${clampNumber((current / max) * 100)}%"></div>
-        ${markers.map(marker => `<span class="results-threshold-marker" style="left:${clampNumber((marker.value / max) * 100)}%"><span></span><small>${marker.label}</small></span>`).join('')}
+        <div class="results-threshold-fill results-threshold-fill--${item.statusTone}" style="width:${item.ratio}%"></div>
       </div>
       <div class="results-threshold-track-foot">
-        ${markers.map(marker => `<span>${marker.label}: <strong>${fmtCurrency(marker.value)}</strong></span>`).join('')}
+        <span>Benchmark: <strong>${fmtCurrency(item.benchmark)}</strong></span>
+        ${item.secondaryBenchmark ? `<span>Warning: <strong>${fmtCurrency(item.secondaryBenchmark)}</strong></span>` : ''}
       </div>
+      <div class="results-comparison-foot" style="margin-top:var(--sp-3)">${item.summary}</div>
     </div>`;
   return `<div class="results-visual-card results-visual-card--wide">
-    <div class="results-section-heading">Threshold view</div>
+    <div class="results-section-heading">Against governance limits</div>
     <div class="results-track-grid">
-      ${renderTrack('Single-event severe view', model.single.current, model.single.max, model.single.markers)}
-      ${renderTrack('Annual severe view', model.annual.current, model.annual.max, model.annual.markers)}
+      ${renderCard(model.single)}
+      ${renderCard(model.annual)}
     </div>
   </div>`;
 }
