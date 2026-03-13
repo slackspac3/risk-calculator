@@ -47,6 +47,53 @@ function sameHost(url, host) {
   }
 }
 
+function scoreCandidateUrl(url, rootUrl) {
+  try {
+    const target = new URL(url);
+    const root = new URL(rootUrl);
+    const path = target.pathname.toLowerCase();
+    let score = sameHost(url, root.hostname) ? 10 : 0;
+    if (target.toString() === root.toString()) score += 100;
+    if (/about|company|about-us/.test(path)) score += 60;
+    if (/leadership|board|governance|trust|responsible|ethics/.test(path)) score += 55;
+    if (/privacy|policy|security|compliance/.test(path)) score += 50;
+    if (/technology|platform|products|services|solutions|operations|industries|portfolio|business/.test(path)) score += 45;
+    if (/news|newsroom|press|media|announcement/.test(path)) score += 35;
+    if (/sustainab|impact|esg/.test(path)) score += 30;
+    if (/contact|career|jobs/.test(path)) score -= 20;
+    score -= Math.min(20, path.split('/').filter(Boolean).length * 2);
+    return score;
+  } catch {
+    return 0;
+  }
+}
+
+function describeCompanySource(url, rootUrl) {
+  try {
+    const target = new URL(url);
+    const root = new URL(rootUrl);
+    const path = target.pathname.toLowerCase();
+    if (target.toString() === root.toString()) return 'Official company website: primary landing page';
+    if (/about|company|about-us/.test(path)) return 'Official company website: about/company page';
+    if (/leadership|board|governance|trust|responsible|ethics/.test(path)) return 'Official company website: leadership or governance page';
+    if (/privacy|policy|security|compliance/.test(path)) return 'Official company website: policy, privacy, security, or compliance page';
+    if (/technology|platform|products|services|solutions|operations|industries|portfolio|business/.test(path)) return 'Official company website: business, platform, or operating-model page';
+    if (/news|newsroom|press|media|announcement/.test(path)) return 'Official company website: newsroom or announcement page';
+    if (/sustainab|impact|esg/.test(path)) return 'Official company website: sustainability or public-commitment page';
+    return 'Official company website: supporting context page';
+  } catch {
+    return 'Official company website: supporting context page';
+  }
+}
+
+function hostnameOf(url) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return '';
+  }
+}
+
 function deriveCandidateUrls(rootUrl, html) {
   const root = new URL(rootUrl);
   const discovered = extractLinks(html, rootUrl)
@@ -70,7 +117,9 @@ function deriveCandidateUrls(rootUrl, html) {
     new URL('/sustainability', root).toString(),
     new URL('/newsroom', root).toString()
   ];
-  return Array.from(new Set([...defaults, ...discovered])).slice(0, 14);
+  return Array.from(new Set([...defaults, ...discovered]))
+    .sort((a, b) => scoreCandidateUrl(b, rootUrl) - scoreCandidateUrl(a, rootUrl))
+    .slice(0, 16);
 }
 
 function extractCompanySearchTerm(canonicalUrl) {
@@ -209,9 +258,18 @@ function selectNewsCoverage(items = [], aliases = []) {
     'Risk and incident news'
   ];
   const selected = [];
+  const domainCounts = new Map();
   orderedFeeds.forEach(feed => {
     const feedItems = (grouped.get(feed) || []).filter(item => feed !== 'Risk and incident news' || isDirectlyRelevantNews(item, aliases));
-    selected.push(...feedItems.slice(0, caps[feed] || 4));
+    feedItems.forEach((item) => {
+      if (selected.length >= 28) return;
+      const domain = hostnameOf(item.link);
+      const current = domainCounts.get(domain) || 0;
+      if (domain && current >= 2) return;
+      if ((selected.filter(existing => existing.feed === feed).length) >= (caps[feed] || 4)) return;
+      selected.push(item);
+      if (domain) domainCounts.set(domain, current + 1);
+    });
   });
   return selected.slice(0, 28);
 }
@@ -278,7 +336,7 @@ function buildFallbackProfile(canonicalUrl, pages, newsItems = []) {
     aiGuidance: 'Use the public website material as a starting point, then refine the business profile, likely regulations, and technology exposure manually before relying on it in assessments.',
     suggestedGeography: '',
     sources: [
-      ...pages.map(page => ({ url: page.url, note: 'Public website page fetched for context building.' })),
+      ...pages.map(page => ({ url: page.url, note: page.note || 'Official company website page fetched for context building.' })),
       ...newsItems.map(item => ({ url: item.link, note: `${item.feed}: ${item.title}` }))
     ]
   };
@@ -434,6 +492,7 @@ module.exports = async function handler(req, res) {
       .filter(result => result.status === 'fulfilled')
       .map(result => ({
         url: result.value.url,
+        note: describeCompanySource(result.value.url, canonicalUrl),
         content: stripHtml(result.value.html).slice(0, 7000)
       }))
       .filter(page => page.content.length > 200)
@@ -476,8 +535,10 @@ Instructions:
 - infer the company's business model, operating profile, technology reliance, public commitments, likely obligations, data exposure, and likely regulatory posture
 - focus on technology, cyber, operational resilience, third-party, compliance, and data risks
 - use the aliases and the mix of local, regional, and global news to widen the context beyond the company website
+- treat official company pages as the primary evidence base and use news only to supplement, challenge, or extend that picture
 - weigh company pages covering leadership, governance, partnerships, privacy, responsible AI, operations, sustainability, and technology posture when available
 - use the broader source set to infer ownership signals, strategic partnerships, governance posture, and sector-specific dependencies
+- prefer source diversity over repeating the same outlet unless it adds materially different evidence
 - keep the output useful for setting admin context for a risk quantification platform
 - mention that this is based on public website and public news context only
 - prefer concrete, company-specific statements over generic technology-company language

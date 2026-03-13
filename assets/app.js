@@ -1034,6 +1034,10 @@ function resetDraft() {
     workflowGuidance: [],
     benchmarkBasis: '',
     inputRationale: null,
+    confidenceLabel: '',
+    evidenceQuality: '',
+    evidenceSummary: '',
+    missingInformation: [],
     learningNote: '',
     treatmentImprovementRequest: '',
     guidedInput: {
@@ -1106,6 +1110,10 @@ function ensureDraftShape() {
     workflowGuidance: Array.isArray(AppState.draft.workflowGuidance) ? AppState.draft.workflowGuidance : [],
     benchmarkBasis: AppState.draft.benchmarkBasis || '',
     inputRationale: AppState.draft.inputRationale || null,
+    confidenceLabel: AppState.draft.confidenceLabel || '',
+    evidenceQuality: AppState.draft.evidenceQuality || '',
+    evidenceSummary: AppState.draft.evidenceSummary || '',
+    missingInformation: Array.isArray(AppState.draft.missingInformation) ? AppState.draft.missingInformation : [],
     learningNote: AppState.draft.learningNote || '',
     treatmentImprovementRequest: AppState.draft.treatmentImprovementRequest || '',
     guidedInput: {
@@ -3695,6 +3703,10 @@ async function runIntakeAssist() {
     AppState.draft.linkAnalysis = result.linkAnalysis || '';
     AppState.draft.workflowGuidance = Array.isArray(result.workflowGuidance) ? result.workflowGuidance : AppState.draft.workflowGuidance;
     AppState.draft.benchmarkBasis = result.benchmarkBasis || AppState.draft.benchmarkBasis;
+    AppState.draft.confidenceLabel = result.confidenceLabel || AppState.draft.confidenceLabel || '';
+    AppState.draft.evidenceQuality = result.evidenceQuality || AppState.draft.evidenceQuality || '';
+    AppState.draft.evidenceSummary = result.evidenceSummary || AppState.draft.evidenceSummary || '';
+    AppState.draft.missingInformation = Array.isArray(result.missingInformation) ? result.missingInformation : (AppState.draft.missingInformation || []);
     appendRiskCandidates(result.risks || guessRisksFromText(narrative + '\n' + AppState.draft.registerFindings), { selectNew: true });
     AppState.draft.applicableRegulations = Array.from(new Set([...(deriveApplicableRegulations(bu, getSelectedRisks(), getScenarioGeographies()) || []), ...(result.regulations || [])]));
     AppState.draft.citations = normaliseCitations(result.citations || citations);
@@ -3745,6 +3757,10 @@ async function enhanceNarrativeWithAI() {
     AppState.draft.linkAnalysis = result.linkAnalysis || AppState.draft.linkAnalysis;
     AppState.draft.workflowGuidance = Array.isArray(result.workflowGuidance) ? result.workflowGuidance : AppState.draft.workflowGuidance;
     AppState.draft.benchmarkBasis = result.benchmarkBasis || AppState.draft.benchmarkBasis;
+    AppState.draft.confidenceLabel = result.confidenceLabel || AppState.draft.confidenceLabel || '';
+    AppState.draft.evidenceQuality = result.evidenceQuality || AppState.draft.evidenceQuality || '';
+    AppState.draft.evidenceSummary = result.evidenceSummary || AppState.draft.evidenceSummary || '';
+    AppState.draft.missingInformation = Array.isArray(result.missingInformation) ? result.missingInformation : (AppState.draft.missingInformation || []);
     AppState.draft.citations = normaliseCitations(result.citations || citations);
     appendRiskCandidates(result.risks || guessRisksFromText(nextNarrative), { selectNew: true });
     AppState.draft.applicableRegulations = Array.from(new Set([...(deriveApplicableRegulations(bu, getSelectedRisks(), getScenarioGeographies()) || []), ...(result.regulations || [])]));
@@ -3794,6 +3810,10 @@ async function analyseUploadedRegister() {
     AppState.draft.linkAnalysis = result.linkAnalysis || AppState.draft.linkAnalysis;
     AppState.draft.workflowGuidance = Array.isArray(result.workflowGuidance) ? result.workflowGuidance : AppState.draft.workflowGuidance;
     AppState.draft.benchmarkBasis = result.benchmarkBasis || AppState.draft.benchmarkBasis;
+    AppState.draft.confidenceLabel = result.confidenceLabel || AppState.draft.confidenceLabel || '';
+    AppState.draft.evidenceQuality = result.evidenceQuality || AppState.draft.evidenceQuality || '';
+    AppState.draft.evidenceSummary = result.evidenceSummary || AppState.draft.evidenceSummary || '';
+    AppState.draft.missingInformation = Array.isArray(result.missingInformation) ? result.missingInformation : (AppState.draft.missingInformation || []);
     saveDraft();
     renderWizard1();
     UI.toast('Risk register analysed.', 'success');
@@ -3834,6 +3854,7 @@ function renderWizard2() {
             </div>
           </div>
           ${draft.workflowGuidance?.length ? renderWorkflowGuidanceBlock(draft.workflowGuidance, 'What AI recommends you do next') : ''}
+          ${renderEvidenceQualityBlock(draft.confidenceLabel, draft.evidenceQuality, draft.evidenceSummary, draft.missingInformation, 'How strong the AI evidence is')}
           ${selectedRisks.length ? `<div class="card card--elevated anim-fade-in"><div class="context-panel-title">Selected Risks</div><div class="citation-chips">${selectedRisks.map(r => `<span class="badge badge--neutral">${r.title}</span>`).join('')}</div><div class="context-panel-foot">${draft.linkedRisks && selectedRisks.length > 1 ? 'Linked scenario uplift will be applied in the simulation.' : 'Risks will be assessed as a combined scenario without linked uplift.'}</div></div>` : ''}
           ${draft.benchmarkBasis ? `<div class="card anim-fade-in"><div class="context-panel-title">Benchmark Approach</div><p class="context-panel-copy">${draft.benchmarkBasis}</p></div>` : ''}
           <div class="card anim-fade-in">
@@ -3919,6 +3940,10 @@ async function runLLMAssist() {
     AppState.draft.recommendations = result.recommendations || [];
     AppState.draft.workflowGuidance = Array.isArray(result.workflowGuidance) ? result.workflowGuidance : AppState.draft.workflowGuidance;
     AppState.draft.benchmarkBasis = result.benchmarkBasis || AppState.draft.benchmarkBasis;
+    AppState.draft.confidenceLabel = result.confidenceLabel || AppState.draft.confidenceLabel || '';
+    AppState.draft.evidenceQuality = result.evidenceQuality || AppState.draft.evidenceQuality || '';
+    AppState.draft.evidenceSummary = result.evidenceSummary || AppState.draft.evidenceSummary || '';
+    AppState.draft.missingInformation = Array.isArray(result.missingInformation) ? result.missingInformation : (AppState.draft.missingInformation || []);
     AppState.draft.inputRationale = result.inputRationale || AppState.draft.inputRationale;
     const s = result.suggestedInputs;
     if (s) {
@@ -3965,7 +3990,7 @@ async function runLLMAssist() {
         </div>
       </div>
       ${result.structuredScenario?`<div class="grid-2"><div><div class="form-label" style="font-size:.7rem">Threat Community</div><p style="font-size:.85rem;margin-top:4px">${result.structuredScenario.threatCommunity}</p></div><div><div class="form-label" style="font-size:.7rem">Attack Vector</div><p style="font-size:.85rem;margin-top:4px">${result.structuredScenario.attackType}</p></div></div>`:''}
-    </div>${renderWorkflowGuidanceBlock(AppState.draft.workflowGuidance, 'What AI thinks you should do next')}${renderBenchmarkRationaleBlock(AppState.draft.benchmarkBasis, AppState.draft.inputRationale)}${renderCitationBlock(AppState.draft.citations)}`;
+    </div>${renderWorkflowGuidanceBlock(AppState.draft.workflowGuidance, 'What AI thinks you should do next')}${renderEvidenceQualityBlock(AppState.draft.confidenceLabel, AppState.draft.evidenceQuality, AppState.draft.evidenceSummary, AppState.draft.missingInformation, 'How grounded this AI draft is')}${renderBenchmarkRationaleBlock(AppState.draft.benchmarkBasis, AppState.draft.inputRationale)}${renderCitationBlock(AppState.draft.citations)}`;
     attachCitationHandlers();
   } catch(e) {
     output.innerHTML = `<div class="banner banner--danger mt-4"><span class="banner-icon">⚠</span><span class="banner-text">LLM Assist error: ${e.message}</span></div>`;
@@ -4007,6 +4032,18 @@ function renderBenchmarkRationaleBlock(benchmarkBasis, inputRationale) {
     <div class="context-panel-title">Benchmark Logic and Number Rationale</div>
     <div style="display:flex;flex-direction:column;gap:var(--sp-4);margin-top:var(--sp-4)">
       ${rows.map(([label, value]) => `<div style="background:var(--bg-elevated);padding:var(--sp-4);border-radius:var(--radius-lg)"><div style="font-size:.68rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted)">${label}</div><div style="font-size:.85rem;color:var(--text-secondary);margin-top:6px;line-height:1.7">${value}</div></div>`).join('')}
+    </div>
+  </div>`;
+}
+
+function renderEvidenceQualityBlock(confidenceLabel, evidenceQuality, evidenceSummary, missingInformation = [], title = 'AI Evidence Quality') {
+  if (!confidenceLabel && !evidenceQuality && !evidenceSummary && !(missingInformation || []).length) return '';
+  return `<div class="card card--elevated anim-fade-in">
+    <div class="context-panel-title">${title}</div>
+    <div style="display:flex;flex-direction:column;gap:var(--sp-3);margin-top:var(--sp-3)">
+      ${confidenceLabel || evidenceQuality ? `<div class="citation-chips"><span class="badge badge--neutral">${confidenceLabel || 'AI confidence not stated'}</span><span class="badge badge--gold">${evidenceQuality || 'Evidence quality not stated'}</span></div>` : ''}
+      ${evidenceSummary ? `<p class="context-panel-copy">${evidenceSummary}</p>` : ''}
+      ${(missingInformation || []).length ? `<div style="background:var(--bg-elevated);padding:var(--sp-4);border-radius:var(--radius-lg)"><div style="font-size:.68rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted)">What would make this stronger</div><div style="display:flex;flex-direction:column;gap:var(--sp-2);margin-top:var(--sp-3)">${missingInformation.map((item, idx) => `<div style="display:flex;gap:var(--sp-3);align-items:flex-start"><span class="badge badge--neutral" style="min-width:24px;justify-content:center">${idx + 1}</span><div class="context-panel-copy" style="margin:0">${item}</div></div>`).join('')}</div></div>` : ''}
     </div>
   </div>`;
 }
@@ -4120,6 +4157,7 @@ function renderWizard3() {
           ${draft.learningNote ? `<div class="card card--elevated anim-fade-in"><div class="context-panel-title">Template learning</div><p class="context-panel-copy">${draft.learningNote}</p></div>` : ''}
           ${baselineAssessment ? `<div class="card card--elevated anim-fade-in"><div class="context-panel-title">Current assessment baseline</div><p class="context-panel-copy">You are working from <strong>${baselineAssessment.scenarioTitle || 'the original assessment'}</strong>. Adjust the assumptions below to reflect a stronger control position or better resilience, then rerun to compare the new result against the current baseline.</p><div class="form-help" style="margin-top:10px">Baseline completed on ${new Date(baselineAssessment.completedAt || baselineAssessment.createdAt || Date.now()).toLocaleDateString('en-AE', { year: 'numeric', month: 'long', day: 'numeric' })}.</div><div class="citation-chips" style="margin-top:12px"><button type="button" class="chip treatment-prompt-chip" data-treatment-prompt="control-strength">Try stronger controls</button><button type="button" class="chip treatment-prompt-chip" data-treatment-prompt="frequency">Try lower event frequency</button><button type="button" class="chip treatment-prompt-chip" data-treatment-prompt="business-interruption">Try lower disruption cost</button></div><div class="form-group" style="margin-top:16px"><label class="form-label" for="treatment-improvement-request">Describe the better outcome you want to test</label><textarea class="form-textarea" id="treatment-improvement-request" rows="3" placeholder="e.g. stronger identity controls, lower business disruption, less financial loss, better containment">${draft.treatmentImprovementRequest || ''}</textarea><span class="form-help">Describe the improvement in plain language and let AI adjust the copied baseline values before you simulate the new case.</span></div><div class="flex items-center gap-3" style="margin-top:12px;flex-wrap:wrap"><button class="btn btn--secondary" id="btn-treatment-ai-assist" type="button">AI Assist This Better Outcome</button><span class="form-help" id="treatment-improvement-status">These are quick starting points. You can still adjust every number manually before rerunning the analysis.</span></div></div>` : ''}
           ${draft.workflowGuidance?.length ? renderWorkflowGuidanceBlock(draft.workflowGuidance) : ''}
+          ${renderEvidenceQualityBlock(draft.confidenceLabel, draft.evidenceQuality, draft.evidenceSummary, draft.missingInformation)}
           ${renderBenchmarkRationaleBlock(draft.benchmarkBasis, draft.inputRationale)}
           ${renderEstimateExplainerCard(draft, bu, isAdv, cur)}
 
@@ -4301,6 +4339,10 @@ ${request}`, 5);
       AppState.draft.workflowGuidance = Array.isArray(result.workflowGuidance) ? result.workflowGuidance : (AppState.draft.workflowGuidance || []);
       AppState.draft.benchmarkBasis = result.benchmarkBasis || AppState.draft.benchmarkBasis || '';
       AppState.draft.inputRationale = result.inputRationale || AppState.draft.inputRationale || null;
+      AppState.draft.confidenceLabel = result.confidenceLabel || AppState.draft.confidenceLabel || '';
+      AppState.draft.evidenceQuality = result.evidenceQuality || AppState.draft.evidenceQuality || '';
+      AppState.draft.evidenceSummary = result.evidenceSummary || AppState.draft.evidenceSummary || '';
+      AppState.draft.missingInformation = Array.isArray(result.missingInformation) ? result.missingInformation : (AppState.draft.missingInformation || []);
       AppState.draft.citations = normaliseCitations(result.citations || citations);
       AppState.draft.learningNote = result.changesSummary || result.summary || '';
       saveDraft();
@@ -5098,11 +5140,12 @@ function renderResults(id, isShared) {
 
   const technicalTab = `
     <section class="results-technical-view ${activeTab === 'technical' ? '' : 'hidden'}" id="results-tab-technical">
-      ${(assessment.workflowGuidance?.length || assessment.benchmarkBasis || assessment.inputRationale) ? `
+      ${(assessment.workflowGuidance?.length || assessment.benchmarkBasis || assessment.inputRationale || assessment.evidenceSummary || assessment.confidenceLabel) ? `
       <div class="grid-2 mb-6 anim-fade-in">
         ${renderWorkflowGuidanceBlock(assessment.workflowGuidance || [], 'How AI guided this assessment')}
         ${renderBenchmarkRationaleBlock(assessment.benchmarkBasis, assessment.inputRationale)}
-      </div>` : ''}
+      </div>
+      ${renderEvidenceQualityBlock(assessment.confidenceLabel, assessment.evidenceQuality, assessment.evidenceSummary, assessment.missingInformation, 'How grounded the AI inputs were')}` : ''}
 
       <div class="results-decision-grid mb-6 anim-fade-in">
         ${renderAssessmentConfidenceBlock(assessmentIntelligence.confidence)}

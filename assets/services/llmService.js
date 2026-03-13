@@ -227,6 +227,100 @@ const LLMService = (() => {
     ].includes(value);
   }
 
+  function _classifyEvidenceSource(source = {}) {
+    const title = String(source.title || source.note || '').toLowerCase();
+    const excerpt = String(source.excerpt || source.description || '').toLowerCase();
+    const url = String(source.url || source.link || '').toLowerCase();
+    const combined = `${title} ${excerpt} ${url}`;
+    if (/uploaded|internal|register|assessment|workshop|interview|evidence/.test(combined)) return 'internal';
+    if (/company website|official|newsroom|leadership|governance|privacy|responsible ai|trust|about/.test(combined)) return 'official';
+    if (/regulat|policy|guidance|government|ministry|authority|law|pdpl|gdpr|ofac|bis|cybersecurity council/.test(combined)) return 'regulatory';
+    if (/local uae|gcc|regional|thenationalnews|gulfnews|khaleejtimes|zawya|arabianbusiness|gulfbusiness/.test(combined)) return 'regional';
+    if (/bloomberg|reuters|financial times|ft.com|wsj|cnbc|forbes|techcrunch|semafor/.test(combined)) return 'global';
+    return 'external';
+  }
+
+  function _buildEvidenceMeta(options = {}) {
+    const citations = Array.isArray(options.citations) ? options.citations : [];
+    const counts = { official: 0, regulatory: 0, regional: 0, global: 0, internal: 0, external: 0 };
+    citations.forEach((item) => {
+      const kind = _classifyEvidenceSource(item);
+      counts[kind] = (counts[kind] || 0) + 1;
+    });
+    const hasBuContext = Boolean(options.businessUnit?.contextSummary || options.businessUnit?.notes || options.businessUnit?.aiGuidance || options.businessUnit?.criticalServices?.length);
+    const hasOrgContext = Boolean(options.organisationContext || options.businessUnit?.companyStructureContext || options.adminSettings?.companyContextProfile || options.adminSettings?.companyStructureContext);
+    const hasUserContext = Boolean(options.userProfile || options.businessUnit?.userProfileSummary || options.adminSettings?.userProfileSummary);
+    const hasUploadedText = Boolean(String(options.uploadedText || '').trim());
+    const hasRegisterText = Boolean(String(options.registerText || '').trim());
+    const hasGeography = Boolean(String(options.geography || options.businessUnit?.geography || options.adminSettings?.geography || '').trim());
+    const hasRegulations = Boolean((options.businessUnit?.regulatoryTags || options.applicableRegulations || options.adminSettings?.applicableRegulations || []).length);
+
+    let score = 0;
+    score += hasBuContext ? 2 : 0;
+    score += hasOrgContext ? 2 : 0;
+    score += hasUserContext ? 1 : 0;
+    score += hasUploadedText ? 2 : 0;
+    score += hasRegisterText ? 2 : 0;
+    score += hasGeography ? 1 : 0;
+    score += hasRegulations ? 1 : 0;
+    score += Math.min(2, counts.official);
+    score += Math.min(2, counts.regulatory);
+    score += Math.min(1, counts.regional + counts.global + counts.external);
+
+    const missingInformation = [];
+    if (!hasBuContext) missingInformation.push('BU or function context is still thin.');
+    if (!hasGeography) missingInformation.push('Geographic scope is not well defined.');
+    if (!hasRegulations) missingInformation.push('Relevant regulatory references are limited or missing.');
+    if (!hasUploadedText && !hasRegisterText && counts.internal === 0) missingInformation.push('No internal documents or uploaded evidence were provided.');
+    if ((counts.official + counts.regulatory + counts.regional + counts.global + counts.external) === 0) missingInformation.push('No external citations were available to ground the output.');
+
+    const confidenceLabel = score >= 9 ? 'High confidence' : score >= 5 ? 'Moderate confidence' : 'Low confidence';
+    const evidenceQuality = score >= 9 ? 'Strong evidence base' : score >= 5 ? 'Useful but incomplete evidence base' : 'Thin evidence base';
+    const evidenceParts = [];
+    if (hasBuContext) evidenceParts.push('BU/function context');
+    if (hasOrgContext) evidenceParts.push('organisation context');
+    if (hasUserContext) evidenceParts.push('user-role context');
+    if (hasUploadedText) evidenceParts.push('uploaded source material');
+    if (hasRegisterText) evidenceParts.push('risk register content');
+    if (counts.official) evidenceParts.push(`${counts.official} official/company sources`);
+    if (counts.regulatory) evidenceParts.push(`${counts.regulatory} regulatory or policy sources`);
+    if (counts.regional) evidenceParts.push(`${counts.regional} regional news sources`);
+    if (counts.global || counts.external) evidenceParts.push(`${counts.global + counts.external} wider external sources`);
+
+    const summary = evidenceParts.length
+      ? `Evidence used: ${_joinList(evidenceParts)}.`
+      : 'Evidence used: limited contextual inputs only.';
+
+    const promptLines = [
+      `Evidence quality: ${evidenceQuality}.`,
+      `Confidence: ${confidenceLabel}.`,
+      `Available evidence: ${summary}`
+    ];
+    if (missingInformation.length) {
+      promptLines.push(`Missing or weak evidence: ${_joinList(missingInformation.slice(0, 4))}`);
+    }
+
+    return {
+      score,
+      confidenceLabel,
+      evidenceQuality,
+      summary,
+      missingInformation: missingInformation.slice(0, 4),
+      promptBlock: promptLines.join('\n')
+    };
+  }
+
+  function _withEvidenceMeta(result = {}, evidenceMeta = null) {
+    if (!evidenceMeta) return result;
+    return {
+      ...result,
+      confidenceLabel: evidenceMeta.confidenceLabel,
+      evidenceQuality: evidenceMeta.evidenceQuality,
+      evidenceSummary: evidenceMeta.summary,
+      missingInformation: evidenceMeta.missingInformation
+    };
+  }
+
   function _classifyScenario(narrative = '') {
     const n = String(narrative || '').toLowerCase();
     const isRansomware = n.includes('ransomware') || n.includes('encrypt') || n.includes('ransom');
@@ -676,6 +770,7 @@ Respond ONLY with valid JSON matching this exact schema:
   },
   "recommendations": [{ "title": "string", "why": "string", "impact": "string" }]
 }`;
+        const evidenceMeta = _buildEvidenceMeta({ citations: retrievedDocs, businessUnit: buContext, geography: buContext?.geography, applicableRegulations: buContext?.regulatoryTags || [], userProfile: buContext?.userProfileSummary, organisationContext: buContext?.companyStructureContext });
         const userPrompt = `BU: ${buContext?.name || 'Unknown'}
 Data types: ${(buContext?.dataTypes || []).join(', ')}
 Regulatory tags: ${(buContext?.regulatoryTags || []).join(', ')}
@@ -694,7 +789,10 @@ Risk narrative: ${narrative}
 
 Relevant citations:
 ${retrievedDocs.map(d => `- ${d.title}: ${d.excerpt}`).join('\
-')}`;
+')}
+
+Evidence quality context:
+${evidenceMeta.promptBlock}`;
 
         const raw = await _callLLM(systemPrompt, userPrompt);
         if (raw) {
@@ -711,7 +809,7 @@ ${retrievedDocs.map(d => `- ${d.title}: ${d.excerpt}`).join('\
           });
           const cleanedTitle = String(parsed.scenarioTitle || '').trim();
           const keepFallbackClassification = classification.key === 'identity' && /cloud|misconfig/i.test(cleanedTitle);
-          return {
+          return _withEvidenceMeta({
             ...fallback,
             ...parsed,
             scenarioTitle: _cleanUserFacingText(keepFallbackClassification ? fallback.scenarioTitle : (cleanedTitle || fallback.scenarioTitle), { maxSentences: 1, stripTrailingPeriod: true }),
@@ -752,7 +850,7 @@ ${retrievedDocs.map(d => `- ${d.title}: ${d.excerpt}`).join('\
             },
             recommendations: _normaliseRiskCards((parsed.recommendations || fallback.recommendations || []).map((rec) => ({ title: rec.title, category: 'Recommendation', description: rec.why, regulations: [], impact: rec.impact }))).map((rec) => ({ title: rec.title, why: rec.description, impact: rec.impact || '' })),
             citations: retrievedDocs
-          };
+          }, evidenceMeta);
         }
       } catch (e) {
         console.warn('LLM API call failed, falling back to stub:', e.message);
@@ -760,7 +858,7 @@ ${retrievedDocs.map(d => `- ${d.title}: ${d.excerpt}`).join('\
     }
 
     // Fall back to stub
-    return _generateStub(narrative, buContext, retrievedDocs);
+    return _withEvidenceMeta(_generateStub(narrative, buContext, retrievedDocs), _buildEvidenceMeta({ citations: retrievedDocs, businessUnit: buContext, geography: buContext?.geography, applicableRegulations: buContext?.regulatoryTags || [], userProfile: buContext?.userProfileSummary, organisationContext: buContext?.companyStructureContext }));
   }
 
   async function enhanceRiskContext(input) {
@@ -779,6 +877,7 @@ ${retrievedDocs.map(d => `- ${d.title}: ${d.excerpt}`).join('\
   ],
   "regulations": ["string"]
 }`;
+        const evidenceMeta = _buildEvidenceMeta({ citations: input.citations || [], businessUnit: input.businessUnit, geography: input.geography, applicableRegulations: input.applicableRegulations, uploadedText: input.registerText, registerText: input.registerText, userProfile: input.adminSettings?.userProfileSummary, organisationContext: input.adminSettings?.companyStructureContext, adminSettings: input.adminSettings });
         const userPrompt = `Business unit: ${input.businessUnit?.name || 'Unknown'}
 Geography: ${input.geography || 'Unknown'}
 BU context summary: ${input.businessUnit?.contextSummary || input.businessUnit?.notes || '(none)'}
@@ -811,11 +910,14 @@ Instructions:
 - reflect the stated urgency where provided
 - if the scenario involves identity, directory, SSO, or Azure AD/Entra compromise, include plausible knock-on effects such as mailbox compromise, privileged misuse, tenant changes, service disruption, fraud, and data exposure where relevant
 - produce concise but concrete candidate risks that a user can choose from
-- classify the scenario using credible cyber risk taxonomy; do not label identity-control compromise as cloud misconfiguration unless the core failure is genuinely cloud exposure`;
+- classify the scenario using credible cyber risk taxonomy; do not label identity-control compromise as cloud misconfiguration unless the core failure is genuinely cloud exposure
+
+Evidence quality context:
+${evidenceMeta.promptBlock}`;
         const raw = await _callLLM(systemPrompt, userPrompt);
         if (raw) {
           const parsed = JSON.parse(raw.replace(/```json\n?|```/g, '').trim());
-          return {
+          return _withEvidenceMeta({
             ...parsed,
             enhancedStatement: _buildScenarioExpansion({ ...input, riskStatement: input.riskStatement || parsed.enhancedStatement }).scenarioExpansion,
             summary: _cleanUserFacingText(parsed.summary || '', { maxSentences: 3 }),
@@ -825,13 +927,13 @@ Instructions:
             risks: _normaliseRiskCards(parsed.risks),
             regulations: Array.from(new Set((parsed.regulations || []).map(String).filter(Boolean))),
             citations: input.citations || []
-          };
+          }, evidenceMeta);
         }
       } catch (e) {
         console.warn('enhanceRiskContext fallback:', e.message);
       }
     }
-    return _generateRiskBuilderStub(input);
+    return _withEvidenceMeta(_generateRiskBuilderStub(input), _buildEvidenceMeta({ citations: input.citations || [], businessUnit: input.businessUnit, geography: input.geography, applicableRegulations: input.applicableRegulations, uploadedText: input.registerText, registerText: input.registerText, userProfile: input.adminSettings?.userProfileSummary, organisationContext: input.adminSettings?.companyStructureContext, adminSettings: input.adminSettings }));
   }
 
   async function analyseRiskRegister(input) {
@@ -876,11 +978,14 @@ Instructions:
 - produce concise risk titles suitable for selection cards
 - preserve important contextual detail in the descriptions
 - extract up to 15 material risks if the register supports them
-- include workflow guidance that tells a non-risk practitioner what to do after extraction`;
+- include workflow guidance that tells a non-risk practitioner what to do after extraction
+
+Evidence quality context:
+${evidenceMeta.promptBlock}`;
         const raw = await _callLLM(systemPrompt, userPrompt);
         if (raw) {
           const parsed = JSON.parse(raw.replace(/```json\n?|```/g, '').trim());
-          return {
+          return _withEvidenceMeta({
             summary: _cleanUserFacingText(parsed.summary || '', { maxSentences: 3 }),
             linkAnalysis: _cleanUserFacingText(parsed.linkAnalysis || '', { maxSentences: 3 }),
             workflowGuidance: _normaliseGuidance(parsed.workflowGuidance),
@@ -893,7 +998,7 @@ Instructions:
               source: risk.source || 'register',
               regulations: risk.regulations || []
             }))
-          };
+          }, evidenceMeta);
         }
       } catch (e) {
         console.warn('analyseRiskRegister fallback:', e.message);
@@ -916,7 +1021,7 @@ Instructions:
         'Ask AI assist to translate the selected scope into FAIR inputs with GCC-first benchmark logic.'
       ];
     }
-    return stub;
+    return _withEvidenceMeta(stub, _buildEvidenceMeta({ citations: input.citations || [], businessUnit: input.businessUnit, geography: input.geography, applicableRegulations: input.applicableRegulations, uploadedText: input.registerText, registerText: input.registerText, organisationContext: input.adminSettings?.companyStructureContext, adminSettings: input.adminSettings }));
   }
 
   async function buildCompanyContext(websiteUrl) {
@@ -989,6 +1094,7 @@ Instructions:
   "aiInstructions": "string",
   "benchmarkStrategy": "string"
 }`;
+      const evidenceMeta = _buildEvidenceMeta({ citations: [], businessUnit: input.parentEntity, geography: input.adminSettings?.geography || input.parentLayer?.geography, applicableRegulations: input.parentLayer?.applicableRegulations || input.adminSettings?.applicableRegulations, organisationContext: input.parentLayer?.contextSummary || input.parentEntity?.profile, adminSettings: input.adminSettings });
       const userPrompt = `Build retained context for this organisation node.
 
 Entity:
@@ -1019,21 +1125,24 @@ Instructions:
 - do not restate the full parent or group profile; only carry forward what is directly relevant to the function remit
 - avoid generic corporate language and avoid inventing unsupported facts
 - keep the context practical for future risk assessments and AI assistance
-- include relevant regulations only when supported by the inherited context or the admin baseline`;
+- include relevant regulations only when supported by the inherited context or the admin baseline
+
+Evidence quality context:
+${evidenceMeta.promptBlock}`;
       const raw = await _callLLM(systemPrompt, userPrompt);
-      if (!raw) return stub;
+      if (!raw) return _withEvidenceMeta(stub, evidenceMeta);
       const parsed = JSON.parse(String(raw).replace(/```json\n?|```/g, '').trim());
-      return {
+      return _withEvidenceMeta({
         geography: String(parsed.geography || stub.geography || '').trim(),
         contextSummary: _cleanUserFacingText(parsed.contextSummary || stub.contextSummary || '', { maxSentences: isDepartment ? 4 : 5 }),
         riskAppetiteStatement: _cleanUserFacingText(parsed.riskAppetiteStatement || stub.riskAppetiteStatement || '', { maxSentences: 2 }),
         applicableRegulations: Array.isArray(parsed.applicableRegulations) ? parsed.applicableRegulations.map(String).filter(Boolean) : stub.applicableRegulations,
         aiInstructions: _cleanUserFacingText(parsed.aiInstructions || stub.aiInstructions || '', { maxSentences: 3 }),
         benchmarkStrategy: _cleanUserFacingText(parsed.benchmarkStrategy || stub.benchmarkStrategy || '', { maxSentences: 2 })
-      };
+      }, evidenceMeta);
     } catch (error) {
       console.warn('buildEntityContext fallback:', error.message);
-      return stub;
+      return _withEvidenceMeta(stub, _buildEvidenceMeta({ uploadedText: '', businessUnit: input.parentEntity, geography: input.adminSettings?.geography || input.parentLayer?.geography, applicableRegulations: input.parentLayer?.applicableRegulations || input.adminSettings?.applicableRegulations, organisationContext: input.parentLayer?.contextSummary || input.parentEntity?.profile, adminSettings: input.adminSettings }));
     }
   }
 
@@ -1062,6 +1171,7 @@ Instructions:
   "aiInstructions": "string",
   "adminContextSummary": "string"
 }`;
+      const evidenceMeta = _buildEvidenceMeta({ uploadedText: input.uploadedText, userProfile: input.userProfile, geography: input.organisationContext?.geography || input.currentSettings?.primaryGeography, applicableRegulations: input.currentSettings?.applicableRegulations, organisationContext: input.organisationContext, adminSettings: input.currentSettings, citations: [] });
       const userPrompt = `Create concise personalised settings for this user.
 
 User profile:
@@ -1084,19 +1194,22 @@ Instructions:
 - workingContext should explain the user's likely operating context in 2-4 sentences
 - preferredOutputs should describe how answers should be formatted for this user
 - aiInstructions should be a compact set of standing instructions for future AI responses
-- adminContextSummary should be a short personal context summary suitable for defaults`;
+- adminContextSummary should be a short personal context summary suitable for defaults
+
+Evidence quality context:
+${evidenceMeta.promptBlock}`;
       const raw = await _callLLM(systemPrompt, userPrompt);
-      if (!raw) return stub;
+      if (!raw) return _withEvidenceMeta(stub, evidenceMeta);
       const parsed = JSON.parse(String(raw).replace(/```json\n?|```/g, '').trim());
-      return {
+      return _withEvidenceMeta({
         workingContext: _cleanUserFacingText(parsed.workingContext || stub.workingContext || '', { maxSentences: 4 }),
         preferredOutputs: _cleanUserFacingText(parsed.preferredOutputs || stub.preferredOutputs || '', { maxSentences: 3 }),
         aiInstructions: _cleanUserFacingText(parsed.aiInstructions || stub.aiInstructions || '', { maxSentences: 3 }),
         adminContextSummary: _cleanUserFacingText(parsed.adminContextSummary || stub.adminContextSummary || '', { maxSentences: 3 })
-      };
+      }, evidenceMeta);
     } catch (error) {
       console.warn('buildUserPreferenceAssist fallback:', error.message);
-      return stub;
+      return _withEvidenceMeta(stub, _buildEvidenceMeta({ uploadedText: input.uploadedText, userProfile: input.userProfile, geography: input.organisationContext?.geography || input.currentSettings?.primaryGeography, applicableRegulations: input.currentSettings?.applicableRegulations, organisationContext: input.organisationContext, adminSettings: input.currentSettings, citations: [] }));
     }
   }
 
@@ -1210,6 +1323,7 @@ Instructions:
     }
   }
 }`;
+        const evidenceMeta = _buildEvidenceMeta({ citations: input.citations || [], businessUnit: input.businessUnit, geography: input.baselineAssessment?.geography || input.businessUnit?.geography, applicableRegulations: input.baselineAssessment?.applicableRegulations, organisationContext: input.baselineAssessment?.narrative, uploadedText: input.improvementRequest });
         const userPrompt = `Baseline scenario title: ${input.baselineAssessment?.scenarioTitle || 'Untitled scenario'}
 Baseline narrative: ${input.baselineAssessment?.enhancedNarrative || input.baselineAssessment?.narrative || ''}
 Business unit: ${input.businessUnit?.name || 'Unknown'}
@@ -1224,7 +1338,10 @@ Instructions:
 - adjust only the FAIR inputs that are plausibly improved by the user's request
 - keep changes credible and proportionate
 - explain what you changed in plain language
-- prefer stronger controls, lower event frequency, lower vulnerability, or lower loss only when justified by the user's request`;
+- prefer stronger controls, lower event frequency, lower vulnerability, or lower loss only when justified by the user's request
+
+Evidence quality context:
+${evidenceMeta.promptBlock}`;
         const raw = await _callLLM(systemPrompt, userPrompt);
         if (raw) {
           const parsed = JSON.parse(String(raw).replace(/```json\n?|```/g, '').trim());
@@ -1233,7 +1350,7 @@ Instructions:
             likely: value?.likely ?? fallbackRange?.likely ?? 0,
             max: value?.max ?? fallbackRange?.max ?? 0,
           });
-          return {
+          return _withEvidenceMeta({
             summary: _cleanUserFacingText(parsed.summary || stub.summary || '', { maxSentences: 2 }),
             changesSummary: _cleanUserFacingText(parsed.changesSummary || stub.changesSummary || '', { maxSentences: 3 }),
             workflowGuidance: _normaliseGuidance(parsed.workflowGuidance?.length ? parsed.workflowGuidance : stub.workflowGuidance),
@@ -1253,13 +1370,13 @@ Instructions:
               }
             },
             citations: input.citations || []
-          };
+          }, evidenceMeta);
         }
       } catch (error) {
         console.warn('suggestTreatmentImprovement fallback:', error.message);
       }
     }
-    return stub;
+    return _withEvidenceMeta(stub, _buildEvidenceMeta({ citations: input.citations || [], businessUnit: input.businessUnit, geography: input.baselineAssessment?.geography || input.businessUnit?.geography, applicableRegulations: input.baselineAssessment?.applicableRegulations, organisationContext: input.baselineAssessment?.narrative, uploadedText: input.improvementRequest }));
   }
 
   async function testCompassConnection() {
