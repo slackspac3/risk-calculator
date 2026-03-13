@@ -4669,8 +4669,119 @@ function formatComparisonDelta(currentValue, baselineValue, formatter = fmtCurre
   };
 }
 
+function clampNumber(value, min = 0, max = 100) {
+  return Math.min(max, Math.max(min, Number(value) || 0));
+}
+
+function buildExecutiveThresholdModel(results) {
+  const singleCurrent = Number(results?.lm?.p90 || 0);
+  const warning = Number(results?.warningThreshold || getWarningThreshold() || 0);
+  const tolerance = Number(results?.threshold || getToleranceThreshold() || 0);
+  const annualCurrent = Number(results?.ale?.p90 || 0);
+  const annualReview = Number(results?.annualReviewThreshold || getAnnualReviewThreshold() || 0);
+  const maxSingle = Math.max(singleCurrent, warning, tolerance, 1);
+  const maxAnnual = Math.max(annualCurrent, annualReview, 1);
+  return {
+    single: {
+      current: singleCurrent,
+      max: maxSingle,
+      markers: [
+        { label: 'Warning', value: warning },
+        { label: 'Tolerance', value: tolerance }
+      ]
+    },
+    annual: {
+      current: annualCurrent,
+      max: maxAnnual,
+      markers: [
+        { label: 'Annual review', value: annualReview }
+      ]
+    }
+  };
+}
+
+function buildExecutiveImpactMix(inputs = {}) {
+  const catalog = [
+    ['Business interruption', Number(inputs.biLikely || 0)],
+    ['Incident response', Number(inputs.irLikely || 0)],
+    ['Reputation and contracts', Number(inputs.rcLikely || 0)],
+    ['Regulatory and legal', Number(inputs.rlLikely || 0)],
+    ['Data remediation', Number(inputs.dbLikely || 0)],
+    ['Third-party liability', Number(inputs.tpLikely || 0)]
+  ].filter(([, value]) => value > 0)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 4);
+  const max = Math.max(...catalog.map(([, value]) => value), 1);
+  return catalog.map(([label, value]) => ({
+    label,
+    value,
+    width: clampNumber((value / max) * 100)
+  }));
+}
+
+function renderExecutiveThresholdTracks(model) {
+  const renderTrack = (title, current, max, markers) => `
+    <div class="results-track-card">
+      <div class="results-track-head">
+        <div>
+          <div class="results-driver-label">${title}</div>
+          <div class="results-comparison-foot">Current view: ${fmtCurrency(current)}</div>
+        </div>
+        <strong class="results-track-value">${fmtCurrency(current)}</strong>
+      </div>
+      <div class="results-threshold-track">
+        <div class="results-threshold-fill" style="width:${clampNumber((current / max) * 100)}%"></div>
+        ${markers.map(marker => `<span class="results-threshold-marker" style="left:${clampNumber((marker.value / max) * 100)}%"><span></span><small>${marker.label}</small></span>`).join('')}
+      </div>
+      <div class="results-threshold-track-foot">
+        ${markers.map(marker => `<span>${marker.label}: <strong>${fmtCurrency(marker.value)}</strong></span>`).join('')}
+      </div>
+    </div>`;
+  return `<div class="results-visual-card results-visual-card--wide">
+    <div class="results-section-heading">Threshold view</div>
+    <div class="results-track-grid">
+      ${renderTrack('Single-event severe view', model.single.current, model.single.max, model.single.markers)}
+      ${renderTrack('Annual severe view', model.annual.current, model.annual.max, model.annual.markers)}
+    </div>
+  </div>`;
+}
+
+function renderExecutiveImpactMix(mix) {
+  if (!mix.length) return `<div class="results-visual-card">
+    <div class="results-section-heading">What is driving the cost</div>
+    <div class="results-comparison-foot">No meaningful loss-component mix is available for this scenario yet.</div>
+  </div>`;
+  return `<div class="results-visual-card">
+    <div class="results-section-heading">What is driving the cost</div>
+    <div class="results-impact-mix">
+      ${mix.map(item => `<div class="results-impact-mix-row"><div class="results-impact-mix-head"><span>${item.label}</span><strong>${fmtCurrency(item.value)}</strong></div><div class="results-impact-mix-bar"><span style="width:${item.width}%"></span></div></div>`).join('')}
+    </div>
+  </div>`;
+}
+
+function renderExecutiveSignalCard(results) {
+  const breach = clampNumber((Number(results?.toleranceDetail?.lmExceedProb || 0) * 100), 0, 100);
+  const annualStress = clampNumber(((Number(results?.ale?.p90 || 0) / Math.max(Number(results?.annualReviewThreshold || getAnnualReviewThreshold() || 1), 1)) * 100), 0, 180);
+  return `<div class="results-visual-card">
+    <div class="results-section-heading">Risk signal at a glance</div>
+    <div class="results-signal-stack">
+      <div class="results-signal-metric">
+        <div class="results-driver-label">Tolerance breach likelihood</div>
+        <div class="results-signal-bar"><span style="width:${breach}%"></span></div>
+        <div class="results-comparison-foot">${breach.toFixed(1)}% chance of breaching tolerance in the model</div>
+      </div>
+      <div class="results-signal-metric">
+        <div class="results-driver-label">Annual stress versus review trigger</div>
+        <div class="results-signal-bar warning"><span style="width:${Math.min(annualStress, 100)}%"></span></div>
+        <div class="results-comparison-foot">${annualStress >= 100 ? 'At or above' : 'Below'} the annual review trigger</div>
+      </div>
+    </div>
+  </div>`;
+}
+
 function buildAssessmentComparison(currentAssessment, baselineAssessment) {
   if (!currentAssessment?.results || !baselineAssessment?.results) return null;
+
   const current = currentAssessment.results;
   const baseline = baselineAssessment.results;
   const severeEvent = formatComparisonDelta(current.lm?.p90, baseline.lm?.p90);
@@ -5020,6 +5131,8 @@ function renderResults(id, isShared) {
   const technicalInputs = r.inputs || assessment.fairParams || {};
   const assessmentIntelligence = assessment.assessmentIntelligence || buildAssessmentIntelligence(assessment, r, technicalInputs, r.portfolioMeta || {});
   const executiveDecision = buildExecutiveDecisionSupport(assessment, r, assessmentIntelligence);
+  const thresholdModel = buildExecutiveThresholdModel(r);
+  const impactMix = buildExecutiveImpactMix(technicalInputs);
   const comparisonOptions = getAssessments()
     .filter(item => !item?.archivedAt && item.id !== assessment.id && item.results)
     .sort((a, b) => new Date(b.completedAt || b.createdAt || 0).getTime() - new Date(a.completedAt || a.createdAt || 0).getTime())
@@ -5085,6 +5198,12 @@ function renderResults(id, isShared) {
           <div class="results-impact-value warning">${fmtCurrency(r.ale.p90)}</div>
           <div class="results-impact-copy">Severe yearly view</div>
         </div>
+      </div>
+
+      <div class="results-visual-grid">
+        ${renderExecutiveThresholdTracks(thresholdModel)}
+        ${renderExecutiveSignalCard(r)}
+        ${renderExecutiveImpactMix(impactMix)}
       </div>
 
       <div class="results-decision-grid">

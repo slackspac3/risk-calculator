@@ -84,6 +84,55 @@ const ExportService = (() => {
   }
 
 
+
+  function _clampNumber(value, min = 0, max = 100) {
+    return Math.min(max, Math.max(min, Number(value) || 0));
+  }
+
+  function _buildExecutiveThresholdModel(results) {
+    const singleCurrent = Number(results?.lm?.p90 || 0);
+    const warning = Number(results?.warningThreshold || results?.threshold || 0);
+    const tolerance = Number(results?.threshold || 0);
+    const annualCurrent = Number(results?.ale?.p90 || 0);
+    const annualReview = Number(results?.annualReviewThreshold || annualCurrent || 0);
+    return {
+      single: {
+        current: singleCurrent,
+        max: Math.max(singleCurrent, warning, tolerance, 1),
+        markers: [
+          { label: 'Warning', value: warning },
+          { label: 'Tolerance', value: tolerance }
+        ]
+      },
+      annual: {
+        current: annualCurrent,
+        max: Math.max(annualCurrent, annualReview, 1),
+        markers: [
+          { label: 'Annual review', value: annualReview }
+        ]
+      }
+    };
+  }
+
+  function _buildExecutiveImpactMix(inputs = {}) {
+    const catalog = [
+      ['Business interruption', Number(inputs.biLikely || 0)],
+      ['Incident response', Number(inputs.irLikely || 0)],
+      ['Reputation and contracts', Number(inputs.rcLikely || 0)],
+      ['Regulatory and legal', Number(inputs.rlLikely || 0)],
+      ['Data remediation', Number(inputs.dbLikely || 0)],
+      ['Third-party liability', Number(inputs.tpLikely || 0)]
+    ].filter(([, value]) => value > 0)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 4);
+    const max = Math.max(...catalog.map(([, value]) => value), 1);
+    return catalog.map(([label, value]) => ({
+      label,
+      value,
+      width: _clampNumber((value / max) * 100)
+    }));
+  }
+
   function _buildExecutiveDecisionSupport(assessment, results, intelligence) {
     const confidence = intelligence?.confidence || null;
     const drivers = intelligence?.drivers || { upward: [], stabilisers: [] };
@@ -165,6 +214,8 @@ const ExportService = (() => {
     const confidence = intelligence?.confidence || null;
     const drivers = intelligence?.drivers || null;
     const assumptions = Array.isArray(intelligence?.assumptions) ? intelligence.assumptions : [];
+    const thresholdModel = _buildExecutiveThresholdModel(r);
+    const impactMix = _buildExecutiveImpactMix(technicalInputs);
 
     const html = `<!DOCTYPE html>
 <html lang="en">
@@ -203,11 +254,27 @@ const ExportService = (() => {
   .signal-ring.within { box-shadow: 0 0 0 16px rgba(5, 150, 105, 0.08), inset 0 0 0 1px rgba(5, 150, 105, 0.24); }
   .signal-inner { width: 86px; height: 86px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: #ffffff; font-size: 36px; }
   .signal-copy { font-size: 13px; color: #53607a; line-height: 1.6; max-width: 18ch; }
-  .metric-grid, .decision-grid, .summary-grid, .appendix-grid { display: grid; gap: 16px; margin-top: 22px; }
+  .metric-grid, .visual-grid, .decision-grid, .summary-grid, .appendix-grid { display: grid; gap: 16px; margin-top: 22px; }
   .metric-grid { grid-template-columns: repeat(3, 1fr); }
+  .visual-grid { grid-template-columns: 1.35fr 1fr 1fr; }
   .decision-grid, .summary-grid { grid-template-columns: repeat(2, 1fr); }
   .appendix-grid { grid-template-columns: repeat(3, 1fr); }
   .card { background: #ffffff; border: 1px solid #d8e0ea; border-radius: 18px; padding: 18px 20px; }
+  .track-grid { display: flex; flex-direction: column; gap: 14px; margin-top: 12px; }
+  .track-card { background: #f8fbff; border-radius: 14px; padding: 14px; }
+  .track-head, .mix-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .track-value, .mix-head strong { font-family: 'Syne', sans-serif; color: #10203b; }
+  .track { position: relative; height: 12px; border-radius: 999px; background: rgba(148,163,184,0.18); margin-top: 10px; }
+  .track-fill { position: absolute; inset: 0 auto 0 0; border-radius: 999px; background: linear-gradient(90deg, rgba(55,114,230,.9), rgba(127,163,242,.96)); }
+  .track-marker { position: absolute; top: -6px; transform: translateX(-50%); text-align: center; }
+  .track-marker i { display: block; width: 2px; height: 24px; background: rgba(15,23,42,.45); margin: 0 auto; }
+  .track-marker small { display: block; margin-top: 4px; font-size: 9px; color: #697487; text-transform: uppercase; letter-spacing: .05em; white-space: nowrap; }
+  .track-foot { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 12px; font-size: 11px; color: #5b667d; }
+  .signal-stack, .mix-stack { display: flex; flex-direction: column; gap: 14px; margin-top: 12px; }
+  .signal-bar, .mix-bar { height: 10px; border-radius: 999px; background: rgba(148,163,184,0.18); overflow: hidden; margin-top: 8px; }
+  .signal-bar span { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, rgba(220,38,38,.9), rgba(248,113,113,.96)); }
+  .signal-bar.warning span { background: linear-gradient(90deg, rgba(217,119,6,.9), rgba(251,191,36,.96)); }
+  .mix-bar span { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, rgba(180,138,70,.9), rgba(214,175,106,.96)); }
   .metric-label, .section-label { font-size: 11px; text-transform: uppercase; letter-spacing: .12em; color: #7a859d; }
   .metric-value { font-family: 'Syne', sans-serif; font-size: 30px; line-height: 1; color: #10203b; margin-top: 10px; }
   .metric-value.warning { color: #b45309; }
@@ -292,6 +359,45 @@ const ExportService = (() => {
           <div class="metric-label">High-stress impact over a year</div>
           <div class="metric-value warning">${fmt(r.ale.p90)}</div>
           <div class="metric-copy">Use this as the more severe yearly view for resilience, capital, and escalation discussions.</div>
+        </div>
+      </div>
+
+      <div class="visual-grid">
+        <div class="card">
+          <div class="section-label">Threshold view</div>
+          <div class="track-grid">
+            <div class="track-card">
+              <div class="track-head"><div><div class="section-label">Single-event severe view</div><div class="small">Current view: ${fmt(thresholdModel.single.current)}</div></div><strong class="track-value">${fmt(thresholdModel.single.current)}</strong></div>
+              <div class="track"><div class="track-fill" style="width:${_clampNumber((thresholdModel.single.current / thresholdModel.single.max) * 100)}%"></div>${thresholdModel.single.markers.map(marker => `<span class="track-marker" style="left:${_clampNumber((marker.value / thresholdModel.single.max) * 100)}%"><i></i><small>${marker.label}</small></span>`).join('')}</div>
+              <div class="track-foot">${thresholdModel.single.markers.map(marker => `<span>${marker.label}: <strong>${fmt(marker.value)}</strong></span>`).join('')}</div>
+            </div>
+            <div class="track-card">
+              <div class="track-head"><div><div class="section-label">Annual severe view</div><div class="small">Current view: ${fmt(thresholdModel.annual.current)}</div></div><strong class="track-value">${fmt(thresholdModel.annual.current)}</strong></div>
+              <div class="track"><div class="track-fill" style="width:${_clampNumber((thresholdModel.annual.current / thresholdModel.annual.max) * 100)}%"></div>${thresholdModel.annual.markers.map(marker => `<span class="track-marker" style="left:${_clampNumber((marker.value / thresholdModel.annual.max) * 100)}%"><i></i><small>${marker.label}</small></span>`).join('')}</div>
+              <div class="track-foot">${thresholdModel.annual.markers.map(marker => `<span>${marker.label}: <strong>${fmt(marker.value)}</strong></span>`).join('')}</div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="section-label">Risk signal at a glance</div>
+          <div class="signal-stack">
+            <div>
+              <div class="section-label">Tolerance breach likelihood</div>
+              <div class="signal-bar"><span style="width:${_clampNumber((Number(r.toleranceDetail?.lmExceedProb || 0) * 100))}%"></span></div>
+              <div class="small">${exceedancePct}% chance of breaching tolerance in the model</div>
+            </div>
+            <div>
+              <div class="section-label">Annual stress versus review trigger</div>
+              <div class="signal-bar warning"><span style="width:${Math.min(_clampNumber((Number(r.ale.p90 || 0) / Math.max(Number(r.annualReviewThreshold || r.ale.p90 || 1), 1)) * 100), 100)}%"></span></div>
+              <div class="small">${Number(r.ale.p90 || 0) >= Number(r.annualReviewThreshold || 0) ? 'At or above' : 'Below'} the annual review trigger</div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="section-label">What is driving the cost</div>
+          <div class="mix-stack">
+            ${impactMix.length ? impactMix.map(item => `<div><div class="mix-head"><span>${item.label}</span><strong>${fmt(item.value)}</strong></div><div class="mix-bar"><span style="width:${item.width}%"></span></div></div>`).join('') : '<div class="small">No meaningful loss-component mix is available.</div>'}
+          </div>
         </div>
       </div>
 
