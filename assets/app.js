@@ -1981,7 +1981,7 @@ function openOrgEntityEditor({ structure = [], existingNode = null, seed = {}, o
         const parentEntity = getEntityById(structure, parentId);
         const parentLayer = parentEntity?.id ? getEntityLayerById(settings, parentEntity.id) : null;
         const uploaded = await loadContextSupportSource('org-context-source-file', 'org-context-source-help');
-        const result = await LLMService.refineEntityContext({
+        const refineInput = {
           entity: {
             id: node.id || '',
             name: nameEl.value.trim() || defaultDepartmentHint || 'New function',
@@ -2018,13 +2018,17 @@ function openOrgEntityEditor({ structure = [], existingNode = null, seed = {}, o
           userPrompt: prompt,
           uploadedText: uploaded.text,
           uploadedDocumentName: uploaded.name
-        });
+        };
+        const result = await Promise.race([
+          LLMService.refineEntityContext(refineInput),
+          new Promise(resolve => setTimeout(() => resolve(LLMService.buildLocalEntityContextRefinement(refineInput)), 8000))
+        ]);
         if (result.contextSummary) profileEl.value = result.contextSummary;
         contextRefinementHistory.push({ role: 'assistant', text: result.responseMessage || 'I refined the function context based on your latest prompt.' });
       } else {
         const settings = getAdminSettings();
         const uploaded = await loadContextSupportSource('org-context-source-file', 'org-context-source-help');
-        const result = await LLMService.refineCompanyContext({
+        const refineInput = {
           websiteUrl: websiteEl?.value.trim() || '',
           currentSections: getCurrentOrgCompanySections(),
           currentAiGuidance: settings.aiInstructions || '',
@@ -2034,7 +2038,11 @@ function openOrgEntityEditor({ structure = [], existingNode = null, seed = {}, o
           userPrompt: prompt,
           uploadedText: uploaded.text,
           uploadedDocumentName: uploaded.name
-        });
+        };
+        const result = await Promise.race([
+          LLMService.refineCompanyContext(refineInput),
+          new Promise(resolve => setTimeout(() => resolve(LLMService.buildLocalCompanyContextRefinement(refineInput)), 8000))
+        ]);
         applyOrgCompanyContextResult(result);
         contextRefinementHistory.push({ role: 'assistant', text: result.responseMessage || 'I refined the company context based on your latest prompt.' });
       }
@@ -2315,14 +2323,18 @@ function openEntityContextLayerEditor({ entity, settings = getAdminSettings(), o
         apiKey: llmConfig.apiKey || ''
       });
       const uploaded = await loadContextSupportSource('entity-layer-source-file', 'entity-layer-source-help');
-      const result = await LLMService.refineEntityContext({
+      const refineInput = {
         ...contextRequest,
         currentContext: getCurrentContextDraft(),
         history: refinementHistory,
         userPrompt: prompt,
         uploadedText: uploaded.text,
         uploadedDocumentName: uploaded.name
-      });
+      };
+      const result = await Promise.race([
+        LLMService.refineEntityContext(refineInput),
+        new Promise(resolve => setTimeout(() => resolve(LLMService.buildLocalEntityContextRefinement(refineInput)), 8000))
+      ]);
       applyContextResult(result);
       refinementHistory.push({ role: 'assistant', text: result.responseMessage || 'I refined the context based on your latest prompt.' });
       renderRefinementHistory();
@@ -4178,7 +4190,7 @@ ${topItems}${impactAssessment.impacts.length > 3 ? `\n- +${impactAssessment.impa
     try {
       LLMService.setCompassConfig(llmConfig);
       const uploaded = await loadContextSupportSource('admin-company-source-file', 'admin-company-source-help');
-      const result = await LLMService.refineCompanyContext({
+      const refineInput = {
         websiteUrl,
         currentSections: getCurrentAdminCompanySections(),
         currentAiGuidance: document.getElementById('admin-ai-instructions')?.value.trim() || '',
@@ -4188,7 +4200,11 @@ ${topItems}${impactAssessment.impacts.length > 3 ? `\n- +${impactAssessment.impa
         userPrompt: prompt,
         uploadedText: uploaded.text,
         uploadedDocumentName: uploaded.name
-      });
+      };
+      const result = await Promise.race([
+        LLMService.refineCompanyContext(refineInput),
+        new Promise(resolve => setTimeout(() => resolve(LLMService.buildLocalCompanyContextRefinement(refineInput)), 8000))
+      ]);
       applyAdminCompanyContextResult(result);
       adminCompanyRefinementHistory.push({ role: 'assistant', text: result.responseMessage || 'I refined the company context based on your latest prompt.' });
       renderAdminCompanyRefinementHistory();

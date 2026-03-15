@@ -649,7 +649,7 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
     try {
       LLMService.setCompassConfig(llmConfig);
       const uploaded = await loadContextSupportSource('user-company-source-file', 'user-company-source-help');
-      const result = await LLMService.refineCompanyContext({
+      const refineInput = {
         websiteUrl,
         currentSections: getCurrentUserCompanySections(),
         currentAiGuidance: document.getElementById('user-ai-instructions').value.trim(),
@@ -659,7 +659,11 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
         userPrompt: prompt,
         uploadedText: uploaded.text,
         uploadedDocumentName: uploaded.name
-      });
+      };
+      const result = await Promise.race([
+        LLMService.refineCompanyContext(refineInput),
+        new Promise(resolve => setTimeout(() => resolve(LLMService.buildLocalCompanyContextRefinement(refineInput)), 8000))
+      ]);
       applyUserCompanyContextResult(result);
       companyRefinementHistory.push({ role: 'assistant', text: result.responseMessage || 'I refined the company context based on your latest prompt.' });
       renderUserCompanyRefinementHistory();

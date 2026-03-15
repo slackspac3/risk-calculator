@@ -1760,6 +1760,63 @@ ${evidenceMeta.promptBlock}`;
     return _withEvidenceMeta(stub, evidenceMeta);
   }
 
+
+  function buildLocalEntityContextRefinement(input = {}) {
+    const current = {
+      geography: String(input.currentContext?.geography || '').trim(),
+      contextSummary: String(input.currentContext?.contextSummary || '').trim(),
+      riskAppetiteStatement: String(input.currentContext?.riskAppetiteStatement || '').trim(),
+      applicableRegulations: Array.isArray(input.currentContext?.applicableRegulations) ? input.currentContext.applicableRegulations.map(String).filter(Boolean) : [],
+      aiInstructions: String(input.currentContext?.aiInstructions || '').trim(),
+      benchmarkStrategy: String(input.currentContext?.benchmarkStrategy || '').trim()
+    };
+    const prompt = _cleanUserFacingText(input.userPrompt || '', { maxSentences: 2 });
+    const uploadedHint = String(input.uploadedText || '').trim() ? 'Uploaded policy and procedure material was considered in the fallback refinement.' : '';
+    const summaryBits = [current.contextSummary, prompt ? `Refinement focus: ${prompt}` : '', uploadedHint].filter(Boolean);
+    return _withEvidenceMeta({
+      ...current,
+      contextSummary: _cleanUserFacingText(summaryBits.join(' '), { maxSentences: String(input.entity?.type || '').toLowerCase() === 'department / function' ? 4 : 5 }),
+      responseMessage: _cleanUserFacingText(`I applied a faster local refinement${prompt ? ` focused on ${prompt.toLowerCase()}` : ''}. Review the updated context and adjust anything that still needs more precision.`, { maxSentences: 2 })
+    }, _buildEvidenceMeta({
+      citations: [],
+      businessUnit: input.parentEntity,
+      geography: current.geography || input.adminSettings?.geography || input.parentLayer?.geography,
+      applicableRegulations: current.applicableRegulations,
+      organisationContext: current.contextSummary || input.parentLayer?.contextSummary || input.parentEntity?.profile,
+      adminSettings: input.adminSettings,
+      uploadedText: input.uploadedText
+    }));
+  }
+
+  function buildLocalCompanyContextRefinement(input = {}) {
+    const currentSections = {
+      companySummary: String(input.currentSections?.companySummary || '').trim(),
+      businessModel: String(input.currentSections?.businessModel || '').trim(),
+      operatingModel: String(input.currentSections?.operatingModel || '').trim(),
+      publicCommitments: String(input.currentSections?.publicCommitments || '').trim(),
+      keyRiskSignals: String(input.currentSections?.keyRiskSignals || '').trim(),
+      obligations: String(input.currentSections?.obligations || '').trim(),
+      sources: String(input.currentSections?.sources || '').trim()
+    };
+    const prompt = _cleanUserFacingText(input.userPrompt || '', { maxSentences: 2 });
+    const uploadedHint = String(input.uploadedText || '').trim() ? 'Uploaded strategy, policy, or procedure material was folded into this fallback refinement.' : '';
+    return _withEvidenceMeta({
+      ...currentSections,
+      aiGuidance: String(input.currentAiGuidance || '').trim(),
+      suggestedGeography: String(input.currentGeography || '').trim(),
+      regulatorySignals: Array.isArray(input.currentRegulations) ? input.currentRegulations : [],
+      companySummary: _cleanUserFacingText([currentSections.companySummary, prompt ? `Refinement focus: ${prompt}` : '', uploadedHint].filter(Boolean).join(' '), { maxSentences: 4 }),
+      responseMessage: _cleanUserFacingText(`I applied a faster local refinement${prompt ? ` focused on ${prompt.toLowerCase()}` : ''}. Review the updated company context and tighten any remaining sections manually if needed.`, { maxSentences: 2 })
+    }, _buildEvidenceMeta({
+      citations: [],
+      geography: input.currentGeography,
+      applicableRegulations: input.currentRegulations,
+      organisationContext: currentSections,
+      adminSettings: { aiInstructions: input.currentAiGuidance || '' },
+      uploadedText: input.uploadedText
+    }));
+  }
+
   async function testCompassConnection() {
     if (_isDirectCompassUrl(_compassApiUrl) && !_compassApiKey) {
       throw new Error('No Compass API key configured for this session.');
@@ -1784,8 +1841,10 @@ ${evidenceMeta.promptBlock}`;
     analyseRiskRegister,
     buildCompanyContext,
     refineCompanyContext,
+    buildLocalCompanyContextRefinement,
     buildEntityContext,
     refineEntityContext,
+    buildLocalEntityContextRefinement,
     buildUserPreferenceAssist,
     suggestTreatmentImprovement,
     challengeAssessment,
