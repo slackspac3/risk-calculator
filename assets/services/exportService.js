@@ -224,6 +224,7 @@ const ExportService = (() => {
     const confidence = intelligence?.confidence || null;
     const drivers = intelligence?.drivers || null;
     const assumptions = Array.isArray(intelligence?.assumptions) ? intelligence.assumptions : [];
+    const challenge = assessment.assessmentChallenge || null;
     const thresholdModel = _buildExecutiveThresholdModel(r, fmt);
     const impactMix = _buildExecutiveImpactMix(technicalInputs);
 
@@ -469,6 +470,31 @@ const ExportService = (() => {
           <div class="section-label">What is pushing the result up or down</div>
           ${drivers?.upward?.length ? `<div class="driver-block"><div class="driver-label">Main upward drivers</div><div class="body-copy">${drivers.upward.map(item => `• ${item}`).join('<br>')}</div></div>` : ''}
           ${drivers?.stabilisers?.length ? `<div class="driver-block"><div class="driver-label">Main stabilisers</div><div class="body-copy">${drivers.stabilisers.map(item => `• ${item}`).join('<br>')}</div></div>` : ''}
+        </div>
+      </div>` : ''}
+
+      ${challenge ? `
+      <div class="section">
+        <div class="section-header">
+          <h2>Challenge and validate this assessment</h2>
+          <div class="small">AI-assisted challenge review</div>
+        </div>
+        <div class="decision-grid">
+          <div class="card">
+            <div class="section-label">Challenge summary</div>
+            <div class="badge-row" style="margin-top:12px">
+              <span class="badge warning">${challenge.challengeLevel || 'Challenge review'}</span>
+              ${challenge.evidenceQuality ? `<span class="badge neutral">${challenge.evidenceQuality}</span>` : ''}
+            </div>
+            ${challenge.summary ? `<div class="body-copy">${challenge.summary}</div>` : ''}
+            ${challenge.weakestAssumptions?.length ? `<div class="driver-block"><div class="driver-label">Weakest assumptions</div><div class="body-copy">${challenge.weakestAssumptions.map(item => `• ${item}`).join('<br>')}</div></div>` : ''}
+            ${challenge.committeeQuestions?.length ? `<div class="driver-block"><div class="driver-label">What a risk committee would ask</div><div class="body-copy">${challenge.committeeQuestions.map(item => `• ${item}`).join('<br>')}</div></div>` : ''}
+          </div>
+          <div class="card">
+            <div class="section-label">Evidence to strengthen the result</div>
+            ${challenge.evidenceToGather?.length ? `<div class="body-copy">${challenge.evidenceToGather.map(item => `• ${item}`).join('<br>')}</div>` : '<div class="body-copy">No additional evidence guidance captured.</div>'}
+            ${challenge.reviewerGuidance?.length ? `<div class="driver-block"><div class="driver-label">Reviewer guidance</div><div class="body-copy">${challenge.reviewerGuidance.map(item => `• ${item}`).join('<br>')}</div></div>` : ''}
+          </div>
         </div>
       </div>` : ''}
 

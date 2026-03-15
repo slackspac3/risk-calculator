@@ -1379,6 +1379,107 @@ ${evidenceMeta.promptBlock}`;
     return _withEvidenceMeta(stub, _buildEvidenceMeta({ citations: input.citations || [], businessUnit: input.businessUnit, geography: input.baselineAssessment?.geography || input.businessUnit?.geography, applicableRegulations: input.baselineAssessment?.applicableRegulations, organisationContext: input.baselineAssessment?.narrative, uploadedText: input.improvementRequest }));
   }
 
+  function _buildAssessmentChallengeStub(input = {}) {
+    const confidence = input.confidence || {};
+    const assumptions = Array.isArray(input.assumptions) ? input.assumptions : [];
+    const drivers = input.drivers || { upward: [], stabilisers: [] };
+    const weakestAssumptions = assumptions.slice(0, 3).map(item => `${item.category}: ${item.text}`);
+    const committeeQuestions = [];
+    if (drivers.upward?.[0]) committeeQuestions.push(`What evidence supports the conclusion that ${drivers.upward[0].charAt(0).toLowerCase()}${drivers.upward[0].slice(1)}`);
+    if (confidence.label === 'Low confidence') committeeQuestions.push('Which ranges are still too uncertain for strong decision-making and why are they still broad?');
+    if ((input.missingInformation || []).length) committeeQuestions.push(`What missing evidence would change the assessment most: ${(input.missingInformation || []).slice(0, 2).join(' and ')}?`);
+    if (!committeeQuestions.length) committeeQuestions.push('Which one or two assumptions would most change the tolerance position if they proved wrong?');
+    const evidenceToGather = [];
+    if ((input.missingInformation || []).length) evidenceToGather.push(...input.missingInformation.slice(0, 3));
+    if (!evidenceToGather.length) {
+      evidenceToGather.push('Internal incident history or loss data for similar scenarios.');
+      evidenceToGather.push('Control evidence showing how consistently the key controls operate in practice.');
+      evidenceToGather.push('Finance or operational data to validate the biggest cost assumptions.');
+    }
+    const challengeLevel = confidence.label === 'Low confidence' ? 'High challenge needed' : confidence.label === 'High confidence' ? 'Moderate challenge still warranted' : 'Targeted challenge recommended';
+    return {
+      summary: confidence.label === 'Low confidence'
+        ? 'The assessment is directionally useful, but a risk committee should challenge the broadest assumptions before relying on it for strong decisions.'
+        : 'The assessment is decision-useful, but a risk committee should still test the assumptions that are driving the result most.' ,
+      challengeLevel,
+      weakestAssumptions,
+      committeeQuestions,
+      evidenceToGather,
+      reviewerGuidance: [
+        'Focus first on the assumptions most likely to move the tolerance position.',
+        'Challenge whether the cost and frequency assumptions are supported by internal evidence rather than only judgement.',
+        'Confirm that the selected regulatory and business scope still matches the scenario being discussed.'
+      ]
+    };
+  }
+
+  async function challengeAssessment(input = {}) {
+    const stub = _buildAssessmentChallengeStub(input);
+    await new Promise(r => setTimeout(r, 700 + Math.random() * 300));
+    const evidenceMeta = _buildEvidenceMeta({
+      citations: input.citations || [],
+      businessUnit: input.businessUnit,
+      geography: input.geography,
+      applicableRegulations: input.applicableRegulations,
+      organisationContext: input.narrative,
+      uploadedText: (Array.isArray(input.assumptions) ? input.assumptions.map(item => item.text).join('\n') : '')
+    });
+    if (_compassApiKey || !_isDirectCompassUrl(_compassApiUrl)) {
+      try {
+        const systemPrompt = `You are a senior risk committee reviewer. Return JSON only with this schema:
+{
+  "summary": "string",
+  "challengeLevel": "string",
+  "weakestAssumptions": ["string"],
+  "committeeQuestions": ["string"],
+  "evidenceToGather": ["string"],
+  "reviewerGuidance": ["string"]
+}`;
+        const userPrompt = `Assessment title: ${input.scenarioTitle || 'Untitled assessment'}
+Business unit: ${input.businessUnit?.name || input.businessUnitName || 'Unknown'}
+Geography: ${input.geography || 'Unknown'}
+Scenario narrative: ${input.narrative || ''}
+Confidence summary: ${input.confidence?.summary || ''}
+Confidence label: ${input.confidence?.label || ''}
+Main upward drivers:
+${(input.drivers?.upward || []).map(item => `- ${item}`).join('\n')}
+Main stabilisers:
+${(input.drivers?.stabilisers || []).map(item => `- ${item}`).join('\n')}
+Assumptions:
+${(input.assumptions || []).map(item => `- ${item.category}: ${item.text}`).join('\n')}
+Missing information:
+${(input.missingInformation || []).map(item => `- ${item}`).join('\n')}
+Relevant citations:
+${(input.citations || []).map(c => `- ${c.title}: ${c.excerpt}`).join('\n')}
+Instructions:
+- act like a risk committee or challenge session reviewer
+- do not restate the full scenario
+- identify the assumptions most worth challenging
+- propose the questions a committee would ask
+- suggest the evidence that would most improve confidence
+- keep the tone practical, concise, and decision-oriented
+
+Evidence quality context:
+${evidenceMeta.promptBlock}`;
+        const raw = await _callLLM(systemPrompt, userPrompt);
+        if (raw) {
+          const parsed = JSON.parse(String(raw).replace(/```json\n?|```/g, '').trim());
+          return _withEvidenceMeta({
+            summary: _cleanUserFacingText(parsed.summary || stub.summary || '', { maxSentences: 3 }),
+            challengeLevel: _cleanUserFacingText(parsed.challengeLevel || stub.challengeLevel || '', { maxSentences: 1 }),
+            weakestAssumptions: (Array.isArray(parsed.weakestAssumptions) ? parsed.weakestAssumptions : stub.weakestAssumptions).slice(0, 4).map(item => _cleanUserFacingText(item || '', { maxSentences: 1 })),
+            committeeQuestions: (Array.isArray(parsed.committeeQuestions) ? parsed.committeeQuestions : stub.committeeQuestions).slice(0, 4).map(item => _cleanUserFacingText(item || '', { maxSentences: 1 })),
+            evidenceToGather: (Array.isArray(parsed.evidenceToGather) ? parsed.evidenceToGather : stub.evidenceToGather).slice(0, 4).map(item => _cleanUserFacingText(item || '', { maxSentences: 1 })),
+            reviewerGuidance: _normaliseGuidance(Array.isArray(parsed.reviewerGuidance) && parsed.reviewerGuidance.length ? parsed.reviewerGuidance : stub.reviewerGuidance)
+          }, evidenceMeta);
+        }
+      } catch (error) {
+        console.warn('challengeAssessment fallback:', error.message);
+      }
+    }
+    return _withEvidenceMeta(stub, evidenceMeta);
+  }
+
   async function testCompassConnection() {
     if (_isDirectCompassUrl(_compassApiUrl) && !_compassApiKey) {
       throw new Error('No Compass API key configured for this session.');
@@ -1405,6 +1506,7 @@ ${evidenceMeta.promptBlock}`;
     buildEntityContext,
     buildUserPreferenceAssist,
     suggestTreatmentImprovement,
+    challengeAssessment,
     testCompassConnection,
     setCompassAPIKey,
     setCompassConfig,

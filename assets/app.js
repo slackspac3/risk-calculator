@@ -4577,6 +4577,23 @@ function renderExecutiveDriversSummary(drivers, assessment) {
   </div>`;
 }
 
+function renderAssessmentChallengeBlock(challenge) {
+  if (!challenge) return '';
+  return `<div class="results-summary-card">
+    <div class="results-section-heading">Challenge and validate this assessment</div>
+    <div class="results-chip-block">
+      <span class="badge badge--warning">${challenge.challengeLevel || 'Challenge review'}</span>
+      ${challenge.confidenceLabel ? `<span class="badge badge--neutral">${challenge.confidenceLabel}</span>` : ''}
+      ${challenge.evidenceQuality ? `<span class="badge badge--gold">${challenge.evidenceQuality}</span>` : ''}
+    </div>
+    ${challenge.summary ? `<p class="results-summary-copy" style="margin-top:var(--sp-3)">${challenge.summary}</p>` : ''}
+    ${challenge.weakestAssumptions?.length ? `<div class="results-driver-group"><div class="results-driver-label">Weakest assumptions</div><div class="results-summary-copy">${challenge.weakestAssumptions.map(item => `• ${item}`).join('<br>')}</div></div>` : ''}
+    ${challenge.committeeQuestions?.length ? `<div class="results-driver-group" style="margin-top:var(--sp-4)"><div class="results-driver-label">What a risk committee would ask</div><div class="results-summary-copy">${challenge.committeeQuestions.map(item => `• ${item}`).join('<br>')}</div></div>` : ''}
+    ${challenge.evidenceToGather?.length ? `<div class="results-driver-group" style="margin-top:var(--sp-4)"><div class="results-driver-label">Evidence to gather next</div><div class="results-summary-copy">${challenge.evidenceToGather.map(item => `• ${item}`).join('<br>')}</div></div>` : ''}
+    ${challenge.reviewerGuidance?.length ? `<div class="results-driver-group" style="margin-top:var(--sp-4)"><div class="results-driver-label">Reviewer guidance</div><div class="results-summary-copy">${challenge.reviewerGuidance.map(item => `• ${item}`).join('<br>')}</div></div>` : ''}
+  </div>`;
+}
+
 function cleanExecutiveNarrativeText(value) {
   return String(value || '')
     .replace(/\s+/g, ' ')
@@ -5166,6 +5183,7 @@ function renderResults(id, isShared) {
   const scenarioNarrative = buildExecutiveScenarioSummary(assessment) || 'No scenario narrative available.';
   const technicalInputs = r.inputs || assessment.fairParams || {};
   const assessmentIntelligence = assessment.assessmentIntelligence || buildAssessmentIntelligence(assessment, r, technicalInputs, r.portfolioMeta || {});
+  const assessmentChallenge = assessment.assessmentChallenge || null;
   const executiveDecision = buildExecutiveDecisionSupport(assessment, r, assessmentIntelligence);
   const thresholdModel = buildExecutiveThresholdModel(r);
   const impactMix = buildExecutiveImpactMix(technicalInputs);
@@ -5301,6 +5319,19 @@ function renderResults(id, isShared) {
         ${renderAssessmentDriversBlock(assessmentIntelligence.drivers)}
       </div>
 
+      <div class="card mb-6 anim-fade-in">
+        <div class="flex items-center justify-between" style="gap:var(--sp-4);flex-wrap:wrap">
+          <div>
+            <h3 style="font-size:var(--text-base);margin:0">Challenge this assessment</h3>
+            <div class="form-help" style="margin-top:6px">Ask AI to review the weakest assumptions, likely committee questions, and the evidence that would strengthen this result.</div>
+          </div>
+          <button class="btn btn--secondary btn--sm" id="btn-challenge-assessment" type="button">AI Challenge This Assessment</button>
+        </div>
+        <div id="assessment-challenge-status" class="form-help" style="margin-top:12px">${assessmentChallenge ? 'Latest challenge review saved with this assessment.' : 'No challenge review has been generated yet.'}</div>
+      </div>
+
+      ${assessmentChallenge ? renderAssessmentChallengeBlock(assessmentChallenge) : ''}
+
       ${renderAssessmentComparisonBlock(comparisonOptions, activeComparisonId, comparison)}
 
       ${renderAssessmentAssumptionsBlock(assessmentIntelligence.assumptions)}
@@ -5435,6 +5466,36 @@ function renderResults(id, isShared) {
     renderResults(id, isShared || assessment._shared);
   });
   document.getElementById('btn-export-pdf').addEventListener('click', () => ExportService.exportPDF(assessment, AppState.currency, AppState.fxRate));
+  const challengeButton = document.getElementById('btn-challenge-assessment');
+  if (challengeButton) challengeButton.addEventListener('click', async () => {
+    const status = document.getElementById('assessment-challenge-status');
+    challengeButton.disabled = true;
+    if (status) status.textContent = 'Reviewing the assessment challenge points...';
+    try {
+      const result = await LLMService.challengeAssessment({
+        scenarioTitle: assessment.scenarioTitle,
+        narrative: assessment.enhancedNarrative || assessment.narrative || '',
+        geography: assessment.geography,
+        businessUnitName: assessment.buName,
+        businessUnit: getBusinessUnitById(assessment.buId),
+        confidence: assessmentIntelligence.confidence,
+        drivers: assessmentIntelligence.drivers,
+        assumptions: assessmentIntelligence.assumptions,
+        missingInformation: assessment.missingInformation || [],
+        applicableRegulations: assessment.applicableRegulations || [],
+        citations: assessment.citations || []
+      });
+      const next = updateAssessmentRecord(assessment.id, current => ({ ...current, assessmentChallenge: { ...result, createdAt: Date.now(), confidenceLabel: assessment.confidenceLabel || '', evidenceQuality: assessment.evidenceQuality || '' } }));
+      if (!next) throw new Error('Could not update the saved assessment.');
+      UI.toast('Assessment challenge review updated.', 'success');
+      renderResults(assessment.id, isShared || assessment._shared);
+    } catch (error) {
+      if (status) status.textContent = 'Challenge review could not be generated.';
+      UI.toast('Challenge review failed: ' + error.message, 'danger');
+    } finally {
+      challengeButton.disabled = false;
+    }
+  });
   document.getElementById('btn-export-pptx').addEventListener('click', () => { ExportService.exportPPTXSpec(assessment, AppState.currency, AppState.fxRate); UI.toast('PPTX spec exported as JSON. See README.','info',5000); });
   document.getElementById('btn-create-treatment-case').addEventListener('click', () => {
     createTreatmentDraftFromAssessment(assessment);
