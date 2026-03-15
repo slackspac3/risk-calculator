@@ -197,6 +197,22 @@ const LLMService = (() => {
     return `${values.slice(0, -1).join(', ')}, and ${values[values.length - 1]}`;
   }
 
+
+  function _truncateText(value = '', maxChars = 600) {
+    const text = String(value || '').replace(/\s+/g, ' ').trim();
+    if (text.length <= maxChars) return text;
+    return `${text.slice(0, Math.max(0, maxChars - 1)).trim()}...`;
+  }
+
+  function _compactHistory(history = [], limit = 4) {
+    return (Array.isArray(history) ? history : [])
+      .slice(-limit)
+      .map((entry) => ({
+        role: entry?.role === 'assistant' ? 'assistant' : 'user',
+        text: _truncateText(entry?.text || '', 280)
+      }));
+  }
+
   function _stripScenarioLeadIns(value = '') {
     let text = String(value || '').replace(/\s+/g, ' ').trim();
     if (!text) return '';
@@ -1229,8 +1245,8 @@ ${JSON.stringify(currentContext, null, 2)}
 Parent layer:
 ${JSON.stringify(input.parentLayer || {}, null, 2)}
 
-Conversation so far:
-${JSON.stringify(Array.isArray(input.history) ? input.history : [], null, 2)}
+Recent conversation:
+${JSON.stringify(_compactHistory(input.history), null, 2)}
 
 Latest user instruction:
 ${String(input.userPrompt || '').trim()}
@@ -1339,8 +1355,8 @@ ${String(input.currentGeography || '').trim()}
 Current regulation tags:
 ${JSON.stringify(Array.isArray(input.currentRegulations) ? input.currentRegulations : [], null, 2)}
 
-Conversation so far:
-${JSON.stringify(Array.isArray(input.history) ? input.history : [], null, 2)}
+Recent conversation:
+${JSON.stringify(_compactHistory(input.history), null, 2)}
 
 Latest user instruction:
 ${String(input.userPrompt || '').trim()}
