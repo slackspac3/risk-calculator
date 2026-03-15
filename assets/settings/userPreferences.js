@@ -1,3 +1,25 @@
+
+function buildLocalUserCompanyContextFallback(refineInput = {}) {
+  const current = refineInput.currentSections || {};
+  const prompt = String(refineInput.userPrompt || '').trim();
+  const uploadedHint = String(refineInput.uploadedText || '').trim()
+    ? 'Uploaded strategy or policy material was considered in this fallback refinement.'
+    : '';
+  return {
+    ...current,
+    companySummary: [String(current.companySummary || '').trim(), prompt ? `Refinement focus: ${prompt}` : '', uploadedHint]
+      .filter(Boolean)
+      .join(' ')
+      .trim(),
+    aiGuidance: String(refineInput.currentAiGuidance || '').trim(),
+    suggestedGeography: String(refineInput.currentGeography || '').trim(),
+    regulatorySignals: Array.isArray(refineInput.currentRegulations) ? refineInput.currentRegulations : [],
+    responseMessage: prompt
+      ? `I applied a local refinement focused on ${prompt.toLowerCase()}. Review the updated company context and tighten any remaining sections manually if needed.`
+      : 'I applied a local refinement to keep the company context moving. Review the updated sections and tighten anything else manually if needed.'
+  };
+}
+
 function renderUserPreferences(existingSettings = getUserSettings()) {
   if (!requireAuth()) return;
   if (AuthService.isAdminAuthenticated()) {
@@ -662,7 +684,7 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
       };
       const result = await Promise.race([
         LLMService.refineCompanyContext(refineInput),
-        new Promise(resolve => setTimeout(() => resolve(LLMService.buildLocalCompanyContextRefinement(refineInput)), 8000))
+        new Promise(resolve => setTimeout(() => resolve(buildLocalUserCompanyContextFallback(refineInput)), 8000))
       ]);
       applyUserCompanyContextResult(result);
       companyRefinementHistory.push({ role: 'assistant', text: result.responseMessage || 'I refined the company context based on your latest prompt.' });

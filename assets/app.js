@@ -2021,7 +2021,7 @@ function openOrgEntityEditor({ structure = [], existingNode = null, seed = {}, o
         };
         const result = await Promise.race([
           LLMService.refineEntityContext(refineInput),
-          new Promise(resolve => setTimeout(() => resolve(LLMService.buildLocalEntityContextRefinement(refineInput)), 8000))
+          new Promise(resolve => setTimeout(() => resolve(buildLocalEntityContextFallback(refineInput)), 8000))
         ]);
         if (result.contextSummary) profileEl.value = result.contextSummary;
         contextRefinementHistory.push({ role: 'assistant', text: result.responseMessage || 'I refined the function context based on your latest prompt.' });
@@ -2041,7 +2041,7 @@ function openOrgEntityEditor({ structure = [], existingNode = null, seed = {}, o
         };
         const result = await Promise.race([
           LLMService.refineCompanyContext(refineInput),
-          new Promise(resolve => setTimeout(() => resolve(LLMService.buildLocalCompanyContextRefinement(refineInput)), 8000))
+          new Promise(resolve => setTimeout(() => resolve(buildLocalCompanyContextFallback(refineInput)), 8000))
         ]);
         applyOrgCompanyContextResult(result);
         contextRefinementHistory.push({ role: 'assistant', text: result.responseMessage || 'I refined the company context based on your latest prompt.' });
@@ -2333,7 +2333,7 @@ function openEntityContextLayerEditor({ entity, settings = getAdminSettings(), o
       };
       const result = await Promise.race([
         LLMService.refineEntityContext(refineInput),
-        new Promise(resolve => setTimeout(() => resolve(LLMService.buildLocalEntityContextRefinement(refineInput)), 8000))
+        new Promise(resolve => setTimeout(() => resolve(buildLocalEntityContextFallback(refineInput)), 8000))
       ]);
       applyContextResult(result);
       refinementHistory.push({ role: 'assistant', text: result.responseMessage || 'I refined the context based on your latest prompt.' });
@@ -2362,6 +2362,51 @@ function openEntityContextLayerEditor({ entity, settings = getAdminSettings(), o
     }, modal);
   });
   return modal;
+}
+
+
+function buildLocalEntityContextFallback(refineInput = {}) {
+  const current = refineInput.currentContext || {};
+  const prompt = String(refineInput.userPrompt || '').trim();
+  const uploadedHint = String(refineInput.uploadedText || '').trim()
+    ? 'Uploaded strategy or policy material was considered in this fallback refinement.'
+    : '';
+  const summary = [String(current.contextSummary || '').trim(), prompt ? `Refinement focus: ${prompt}` : '', uploadedHint]
+    .filter(Boolean)
+    .join(' ')
+    .trim();
+  return {
+    geography: String(current.geography || '').trim(),
+    contextSummary: summary || String(current.contextSummary || '').trim(),
+    riskAppetiteStatement: String(current.riskAppetiteStatement || '').trim(),
+    applicableRegulations: Array.isArray(current.applicableRegulations) ? current.applicableRegulations : [],
+    aiInstructions: String(current.aiInstructions || '').trim(),
+    benchmarkStrategy: String(current.benchmarkStrategy || '').trim(),
+    responseMessage: prompt
+      ? `I applied a local refinement focused on ${prompt.toLowerCase()}. Review the updated context and tighten anything else manually if needed.`
+      : 'I applied a local refinement to keep the context moving. Review the updated text and adjust anything else manually if needed.'
+  };
+}
+
+function buildLocalCompanyContextFallback(refineInput = {}) {
+  const current = refineInput.currentSections || {};
+  const prompt = String(refineInput.userPrompt || '').trim();
+  const uploadedHint = String(refineInput.uploadedText || '').trim()
+    ? 'Uploaded strategy or policy material was considered in this fallback refinement.'
+    : '';
+  return {
+    ...current,
+    companySummary: [String(current.companySummary || '').trim(), prompt ? `Refinement focus: ${prompt}` : '', uploadedHint]
+      .filter(Boolean)
+      .join(' ')
+      .trim(),
+    aiGuidance: String(refineInput.currentAiGuidance || '').trim(),
+    suggestedGeography: String(refineInput.currentGeography || '').trim(),
+    regulatorySignals: Array.isArray(refineInput.currentRegulations) ? refineInput.currentRegulations : [],
+    responseMessage: prompt
+      ? `I applied a local refinement focused on ${prompt.toLowerCase()}. Review the updated company context and tighten any remaining sections manually if needed.`
+      : 'I applied a local refinement to keep the company context moving. Review the updated sections and tighten anything else manually if needed.'
+  };
 }
 
 function getAdminLLMConfig() {
@@ -4203,7 +4248,7 @@ ${topItems}${impactAssessment.impacts.length > 3 ? `\n- +${impactAssessment.impa
       };
       const result = await Promise.race([
         LLMService.refineCompanyContext(refineInput),
-        new Promise(resolve => setTimeout(() => resolve(LLMService.buildLocalCompanyContextRefinement(refineInput)), 8000))
+        new Promise(resolve => setTimeout(() => resolve(buildLocalCompanyContextFallback(refineInput)), 8000))
       ]);
       applyAdminCompanyContextResult(result);
       adminCompanyRefinementHistory.push({ role: 'assistant', text: result.responseMessage || 'I refined the company context based on your latest prompt.' });
