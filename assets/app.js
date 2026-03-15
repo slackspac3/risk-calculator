@@ -50,6 +50,22 @@ const DEFAULT_ADMIN_SETTINGS = {
 };
 
 
+function normaliseAdminSettings(settings = {}) {
+  return {
+    ...DEFAULT_ADMIN_SETTINGS,
+    ...settings,
+    applicableRegulations: Array.isArray(settings.applicableRegulations) ? settings.applicableRegulations : [...DEFAULT_ADMIN_SETTINGS.applicableRegulations],
+    companyContextSections: settings.companyContextSections && typeof settings.companyContextSections === 'object' ? settings.companyContextSections : null,
+    companyStructure: Array.isArray(settings.companyStructure) ? settings.companyStructure : [],
+    entityContextLayers: Array.isArray(settings.entityContextLayers) ? settings.entityContextLayers : [],
+    buOverrides: Array.isArray(settings.buOverrides) ? settings.buOverrides : [],
+    docOverrides: Array.isArray(settings.docOverrides) ? settings.docOverrides : [],
+    typicalDepartments: Array.isArray(settings.typicalDepartments) && settings.typicalDepartments.length
+      ? settings.typicalDepartments.map(name => String(name || '').trim()).filter(Boolean)
+      : [...(DEFAULT_ADMIN_SETTINGS.typicalDepartments || [])]
+  };
+}
+
 function resolveCompassProxyUrl() {
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   if (origin && origin.includes('vercel.app')) return `${origin}/api/compass`;
@@ -131,12 +147,13 @@ async function loadSharedAdminSettings() {
         entityContextLayers: sharedHasLayers ? sharedSettings.entityContextLayers : (localHasLayers ? localSaved.entityContextLayers : sharedSettings.entityContextLayers),
         companyContextSections: sharedSettings.companyContextSections || localSaved?.companyContextSections || null
       };
-      AppState.adminSettingsCache = merged;
-      localStorage.setItem(GLOBAL_ADMIN_STORAGE_KEY, JSON.stringify(merged));
+      const normalisedMerged = normaliseAdminSettings(merged);
+      AppState.adminSettingsCache = normalisedMerged;
+      localStorage.setItem(GLOBAL_ADMIN_STORAGE_KEY, JSON.stringify(normalisedMerged));
       if ((!sharedHasStructure && localHasStructure) || (!sharedHasLayers && localHasLayers)) {
-        syncSharedAdminSettings(merged, { category: 'settings', eventType: 'shared_settings_rehydrated', target: 'global_settings', details: { reason: 'local_backup_richer_than_shared' } }).catch(error => console.warn('shared settings rehydrate failed:', error.message));
+        syncSharedAdminSettings(normalisedMerged, { category: 'settings', eventType: 'shared_settings_rehydrated', target: 'global_settings', details: { reason: 'local_backup_richer_than_shared' } }).catch(error => console.warn('shared settings rehydrate failed:', error.message));
       }
-      return merged;
+      return normalisedMerged;
     }
   } catch (error) {
     console.warn('loadSharedAdminSettings fallback:', error.message);
@@ -145,7 +162,7 @@ async function loadSharedAdminSettings() {
 }
 
 function syncSharedAdminSettings(settings, audit = null) {
-  return requestSharedSettings('PUT', { settings, audit }, { includeAdminSecret: true });
+  return requestSharedSettings('PUT', { settings: normaliseAdminSettings(settings), audit }, { includeAdminSecret: true });
 }
 
 function getAuditApiUrl() {
@@ -1177,23 +1194,15 @@ function saveDocList(list) {
 
 function getAdminSettings() {
   if (AppState.adminSettingsCache) {
-    return {
-      ...DEFAULT_ADMIN_SETTINGS,
-      ...AppState.adminSettingsCache,
-      applicableRegulations: Array.isArray(AppState.adminSettingsCache.applicableRegulations) ? AppState.adminSettingsCache.applicableRegulations : [...DEFAULT_ADMIN_SETTINGS.applicableRegulations]
-    };
+    return normaliseAdminSettings(AppState.adminSettingsCache);
   }
   try {
     const saved = JSON.parse(localStorage.getItem(GLOBAL_ADMIN_STORAGE_KEY) || 'null') || {};
-    const merged = {
-      ...DEFAULT_ADMIN_SETTINGS,
-      ...saved,
-      applicableRegulations: Array.isArray(saved.applicableRegulations) ? saved.applicableRegulations : [...DEFAULT_ADMIN_SETTINGS.applicableRegulations]
-    };
+    const merged = normaliseAdminSettings(saved);
     AppState.adminSettingsCache = merged;
     return merged;
   } catch {
-    return { ...DEFAULT_ADMIN_SETTINGS, applicableRegulations: [...DEFAULT_ADMIN_SETTINGS.applicableRegulations] };
+    return normaliseAdminSettings();
   }
 }
 
@@ -1218,14 +1227,7 @@ function applyManagedAccountAssignmentToSettings(account, updates = {}, baseSett
 }
 
 function saveAdminSettings(settings, options = {}) {
-  const merged = {
-    ...DEFAULT_ADMIN_SETTINGS,
-    ...settings,
-    applicableRegulations: Array.isArray(settings.applicableRegulations) ? settings.applicableRegulations : [...DEFAULT_ADMIN_SETTINGS.applicableRegulations],
-    companyContextSections: settings.companyContextSections && typeof settings.companyContextSections === 'object' ? settings.companyContextSections : null,
-    companyStructure: Array.isArray(settings.companyStructure) ? settings.companyStructure : [],
-    entityContextLayers: Array.isArray(settings.entityContextLayers) ? settings.entityContextLayers : []
-  };
+  const merged = normaliseAdminSettings(settings);
   AppState.adminSettingsCache = merged;
   localStorage.setItem(GLOBAL_ADMIN_STORAGE_KEY, JSON.stringify(merged));
   if (AuthService.getAdminApiSecret() || AuthService.getApiSessionToken()) {
@@ -4595,99 +4597,15 @@ function renderAssessmentChallengeBlock(challenge) {
 }
 
 function cleanExecutiveNarrativeText(value) {
-  return String(value || '')
-    .replace(/\s+/g, ' ')
-    .replace(/\.\./g, '.')
-    .replace(/\bIn [^,]+(?:, [^,]+)*, [^,]+ faces a material [^.]+ scenario in which\s*/gi, '')
-    .replace(/\bThe main asset, service, or team affected is\s*/gi, 'The scenario centres on ')
-    .replace(/\bThe likely trigger or threat driver is\s*/gi, 'It is most likely triggered by ')
-    .replace(/\bThe expected business, operational, or regulatory impact is\s*/gi, 'The main consequence is ')
-    .replace(/\bGiven the stated urgency, this should be treated as\s*/gi, 'This should be treated as ')
-    .replace(/\bA likely progression is\s*/gi, 'The most likely path is ')
-    .trim();
+  return ReportPresentation.cleanExecutiveNarrativeText(value);
 }
 
 function buildExecutiveScenarioSummary(assessment) {
-  const structured = assessment.structuredScenario || {};
-  const entity = assessment.buName || 'the organisation';
-  const geographies = assessment.geography || 'the selected geographies';
-  const asset = structured.assetService || assessment.guidedInput?.asset || '';
-  const attack = structured.attackType || assessment.guidedInput?.cause || '';
-  const effect = structured.effect || assessment.guidedInput?.impact || '';
-  const rawNarrative = cleanExecutiveNarrativeText(assessment.enhancedNarrative || assessment.narrative || assessment.scenarioText || '');
-
-  const openingParts = [];
-  if (entity) openingParts.push(`${entity}`);
-  openingParts.push('is assessing an identity and access scenario');
-  if (asset) openingParts.push(`centred on ${asset}`);
-  let opening = openingParts.join(' ');
-  if (!opening.endsWith('.')) opening += '.';
-
-  const sentencePool = [];
-  if (attack) sentencePool.push(`The most likely trigger is ${attack.toLowerCase()}.`);
-  if (effect) sentencePool.push(`The main business consequence is ${String(effect).replace(/\.$/, '').toLowerCase()}.`);
-  if (rawNarrative) {
-    const cleanedSentences = rawNarrative
-      .split(/(?<=[.!?])\s+/)
-      .map(s => s.trim())
-      .filter(Boolean)
-      .filter(s => !/^the main consequence is /i.test(s))
-      .filter(s => !/^it is most likely triggered by /i.test(s))
-      .filter(s => !/^the scenario centres on /i.test(s));
-    sentencePool.push(...cleanedSentences);
-  }
-
-  const deduped = [];
-  const seen = new Set();
-  for (const sentence of sentencePool) {
-    const normalised = sentence.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-    if (!normalised || seen.has(normalised)) continue;
-    seen.add(normalised);
-    deduped.push(sentence.replace(/^([a-z])/, (_, c) => c.toUpperCase()));
-    if (deduped.length >= 3) break;
-  }
-
-  const geographySentence = geographies ? `This assessment is being considered across ${geographies}.` : '';
-  return [opening, ...deduped, geographySentence]
-    .filter(Boolean)
-    .join(' ')
-    .replace(/\s+/g, ' ')
-    .replace(/\.\s*\./g, '.')
-    .trim();
+  return ReportPresentation.buildExecutiveScenarioSummary(assessment);
 }
 
 function buildExecutiveDecisionSupport(assessment, results, intelligence) {
-  const confidence = intelligence?.confidence || null;
-  const drivers = intelligence?.drivers || { upward: [], stabilisers: [] };
-  const strongestUpward = drivers.upward?.[0] || '';
-  const strongestStabiliser = drivers.stabilisers?.[0] || '';
-
-  if (results.toleranceBreached) {
-    return {
-      decision: 'Escalate and reduce now',
-      rationale: 'The scenario is already above tolerance on a severe single-event basis, so leadership should treat it as an active risk reduction decision rather than a monitoring case.',
-      priority: strongestUpward || 'The severe-event loss estimate is above tolerance and needs direct treatment focus.',
-      managementFocus: strongestStabiliser
-        ? `Preserve the controls that are currently helping, but focus immediate action on the main upward driver. ${strongestStabiliser}`
-        : 'Focus the next management discussion on the biggest upward driver and the fastest credible reduction lever.'
-    };
-  }
-  if (results.nearTolerance || results.annualReviewTriggered) {
-    return {
-      decision: 'Actively reduce and review',
-      rationale: 'The scenario is not yet above tolerance, but it is close enough to justify named actions, management review, and a clear reduction plan before exposure worsens.',
-      priority: strongestUpward || 'The current estimate is being pushed up by one or two material assumptions that should be challenged and improved.',
-      managementFocus: confidence?.label === 'Low confidence'
-        ? 'Reduce the exposure, but also improve the evidence behind the estimate before relying on it for long-term decisions.'
-        : (strongestStabiliser || 'Use the current control position as the baseline and test which action would move the result down fastest.')
-    };
-  }
-  return {
-    decision: 'Monitor and improve selectively',
-    rationale: 'The scenario is currently within tolerance, so the priority is to preserve the stabilisers, watch for change, and improve the most material weak point before it becomes urgent.',
-    priority: strongestUpward || 'Use this as a monitored scenario and challenge the assumptions that could move it upward fastest.',
-    managementFocus: strongestStabiliser || 'Keep the strongest current control in place and refresh the assessment if the threat picture, geography, or business dependence changes.'
-  };
+  return ReportPresentation.buildExecutiveDecisionSupport(assessment, results, intelligence);
 }
 
 function formatComparisonDelta(currentValue, baselineValue, formatter = fmtCurrency) {
@@ -4703,74 +4621,6 @@ function formatComparisonDelta(currentValue, baselineValue, formatter = fmtCurre
   };
 }
 
-function clampNumber(value, min = 0, max = 100) {
-  return Math.min(max, Math.max(min, Number(value) || 0));
-}
-
-function buildExecutiveThresholdModel(results) {
-  const singleCurrent = Number(results?.lm?.p90 || 0);
-  const warning = Number(results?.warningThreshold || getWarningThreshold() || 0);
-  const tolerance = Number(results?.threshold || getToleranceThreshold() || 0);
-  const annualCurrent = Number(results?.ale?.p90 || 0);
-  const annualReview = Number(results?.annualReviewThreshold || getAnnualReviewThreshold() || 0);
-
-  const singleStatus = singleCurrent >= tolerance
-    ? 'Above tolerance'
-    : singleCurrent >= warning
-      ? 'Above warning'
-      : 'Within warning';
-  const annualStatus = annualCurrent >= annualReview
-    ? 'Review triggered'
-    : 'Below annual review';
-
-  return {
-    single: {
-      title: 'Single-event severe view',
-      current: singleCurrent,
-      benchmark: tolerance,
-      secondaryBenchmark: warning,
-      status: singleStatus,
-      statusTone: singleCurrent >= tolerance ? 'danger' : singleCurrent >= warning ? 'warning' : 'success',
-      ratio: clampNumber((singleCurrent / Math.max(tolerance, 1)) * 100, 0, 100),
-      summary: singleCurrent >= tolerance
-        ? `${fmtCurrency(singleCurrent - tolerance)} above tolerance. Warning trigger: ${fmtCurrency(warning)}.`
-        : singleCurrent >= warning
-          ? `${fmtCurrency(tolerance - singleCurrent)} below tolerance, but above warning.`
-          : `${fmtCurrency(warning - singleCurrent)} below warning. Tolerance: ${fmtCurrency(tolerance)}.`
-    },
-    annual: {
-      title: 'Annual severe view',
-      current: annualCurrent,
-      benchmark: annualReview,
-      status: annualStatus,
-      statusTone: annualCurrent >= annualReview ? 'warning' : 'success',
-      ratio: clampNumber((annualCurrent / Math.max(annualReview, 1)) * 100, 0, 100),
-      summary: annualCurrent >= annualReview
-        ? `${fmtCurrency(annualCurrent - annualReview)} above the annual review trigger.`
-        : `${fmtCurrency(annualReview - annualCurrent)} below the annual review trigger.`
-    }
-  };
-}
-
-function buildExecutiveImpactMix(inputs = {}) {
-  const catalog = [
-    ['Business interruption', Number(inputs.biLikely || 0)],
-    ['Incident response', Number(inputs.irLikely || 0)],
-    ['Reputation and contracts', Number(inputs.rcLikely || 0)],
-    ['Regulatory and legal', Number(inputs.rlLikely || 0)],
-    ['Data remediation', Number(inputs.dbLikely || 0)],
-    ['Third-party liability', Number(inputs.tpLikely || 0)]
-  ].filter(([, value]) => value > 0)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 4);
-  const max = Math.max(...catalog.map(([, value]) => value), 1);
-  return catalog.map(([label, value]) => ({
-    label,
-    value,
-    width: clampNumber((value / max) * 100)
-  }));
-}
-
 function renderExecutiveThresholdTracks(model) {
   const renderCard = item => `
     <div class="results-track-card">
@@ -4782,7 +4632,7 @@ function renderExecutiveThresholdTracks(model) {
         <span class="badge badge--${item.statusTone}">${item.status}</span>
       </div>
       <div class="results-threshold-track">
-        <div class="results-threshold-fill results-threshold-fill--${item.statusTone}" style="width:${item.ratio}%"></div>
+        <div class="results-threshold-fill results-threshold-fill--${item.statusTone}" style="width:${ReportPresentation.clampNumber(item.ratio)}%"></div>
       </div>
       <div class="results-threshold-track-foot">
         <span>Benchmark: <strong>${fmtCurrency(item.benchmark)}</strong></span>
@@ -5180,13 +5030,13 @@ function renderResults(id, isShared) {
     : `${r.selectedRiskCount || assessment.selectedRisks?.length || 1} risks are being assessed together without linked uplift.`;
   const exceedancePct = ((r.toleranceDetail?.lmExceedProb || 0) * 100).toFixed(1);
   const completedLabel = new Date(assessment.completedAt || Date.now()).toLocaleDateString('en-AE', { year: 'numeric', month: 'long', day: 'numeric' });
-  const scenarioNarrative = buildExecutiveScenarioSummary(assessment) || 'No scenario narrative available.';
+  const scenarioNarrative = ReportPresentation.buildExecutiveScenarioSummary(assessment) || 'No scenario narrative available.';
   const technicalInputs = r.inputs || assessment.fairParams || {};
   const assessmentIntelligence = assessment.assessmentIntelligence || buildAssessmentIntelligence(assessment, r, technicalInputs, r.portfolioMeta || {});
   const assessmentChallenge = assessment.assessmentChallenge || null;
-  const executiveDecision = buildExecutiveDecisionSupport(assessment, r, assessmentIntelligence);
-  const thresholdModel = buildExecutiveThresholdModel(r);
-  const impactMix = buildExecutiveImpactMix(technicalInputs);
+  const executiveDecision = ReportPresentation.buildExecutiveDecisionSupport(assessment, r, assessmentIntelligence);
+  const thresholdModel = ReportPresentation.buildExecutiveThresholdModel(r, fmtCurrency);
+  const impactMix = ReportPresentation.buildExecutiveImpactMix(technicalInputs);
   const comparisonOptions = getAssessments()
     .filter(item => !item?.archivedAt && item.id !== assessment.id && item.results)
     .sort((a, b) => new Date(b.completedAt || b.createdAt || 0).getTime() - new Date(a.completedAt || a.createdAt || 0).getTime())
@@ -7180,6 +7030,11 @@ function renderAdminSettings(activeSection = 'org') {
   bindSettingsSectionState('admin-settings', document);
   restoreSettingsScroll('admin-settings');
 
+  function rerenderCurrentAdminSection() {
+    rememberSettingsScroll('admin-settings');
+    safeRenderAdminSettings(currentSettingsSection);
+  }
+
   document.querySelectorAll('[data-admin-route]').forEach(button => {
     button.addEventListener('click', event => {
       event.preventDefault();
@@ -7196,16 +7051,14 @@ function renderAdminSettings(activeSection = 'org') {
     document.getElementById('btn-refresh-audit-log')?.addEventListener('click', async () => {
       try {
         await loadAuditLog();
-        rememberSettingsScroll('admin-settings');
-        safeRenderAdminSettings(currentSettingsSection);
+        rerenderCurrentAdminSection();
       } catch (error) {
         UI.toast(`Audit log refresh failed: ${error instanceof Error ? error.message : String(error)}`, 'warning');
       }
     });
     if (!AppState.auditLogCache.loaded && !AppState.auditLogCache.loading) {
       loadAuditLog().then(() => {
-        rememberSettingsScroll('admin-settings');
-        safeRenderAdminSettings(currentSettingsSection);
+        rerenderCurrentAdminSection();
       }).catch(() => {});
     }
   }
@@ -7684,8 +7537,7 @@ ${topItems}${impactAssessment.impacts.length > 3 ? `\n- +${impactAssessment.impa
     localStorage.removeItem(buildUserStorageKey(SESSION_LLM_STORAGE_PREFIX));
     sessionStorage.removeItem(buildUserStorageKey(SESSION_LLM_STORAGE_PREFIX));
     LLMService.clearCompassConfig();
-    rememberSettingsScroll('admin-settings');
-      safeRenderAdminSettings(currentSettingsSection);
+    rerenderCurrentAdminSection();
     UI.toast('Compass browser key cleared.', 'success');
   });
 
@@ -7696,8 +7548,7 @@ ${topItems}${impactAssessment.impacts.length > 3 ? `\n- +${impactAssessment.impa
       if (!await UI.confirm(`Reset ${displayName} to a first-time user state? This will clear their stored context, memory, assessments, and session settings in this browser.`)) return;
       clearUserPersistentState(username);
       UI.toast(`${displayName} was reset.`, 'success');
-      rememberSettingsScroll('admin-settings');
-      safeRenderAdminSettings(currentSettingsSection);
+      rerenderCurrentAdminSection();
     });
   });
   if (currentSettingsSection === 'users') document.querySelectorAll('.btn-reset-user-password').forEach(button => {
@@ -7710,8 +7561,7 @@ ${topItems}${impactAssessment.impacts.length > 3 ? `\n- +${impactAssessment.impa
         AppState.adminVisiblePasswords[username] = result.password || '';
         AppState.adminNewUserStatus = `Password reset for ${displayName}: username ${username} / password ${result.password}`;
         UI.toast(`Password reset for ${username}.`, 'success');
-        rememberSettingsScroll('admin-settings');
-      safeRenderAdminSettings(currentSettingsSection);
+        rerenderCurrentAdminSection();
       } catch (error) {
         AppState.adminNewUserStatus = `Password reset failed: ${error instanceof Error ? error.message : String(error)}`;
         document.getElementById('admin-new-user-result').textContent = AppState.adminNewUserStatus;
@@ -7725,8 +7575,7 @@ ${topItems}${impactAssessment.impacts.length > 3 ? `\n- +${impactAssessment.impa
       const ok = await applyManagedAccountAccess(button);
       if (!ok) return;
       UI.toast(`Updated access for ${button.dataset.displayName || button.dataset.username || 'user'}.`, 'success');
-      rememberSettingsScroll('admin-settings');
-      safeRenderAdminSettings(currentSettingsSection);
+      rerenderCurrentAdminSection();
     });
   });
   function renderAdminNewUserDepartments() {
@@ -7851,8 +7700,7 @@ ${topItems}${impactAssessment.impacts.length > 3 ? `\n- +${impactAssessment.impa
         AppState.adminVisiblePasswords[account.username] = account.password || '';
         AppState.adminNewUserStatus = `Created ${account.displayName}: username ${account.username} / password ${account.password}`;
         UI.toast(`Created ${account.username}.`, 'success');
-        rememberSettingsScroll('admin-settings');
-        safeRenderAdminSettings(currentSettingsSection);
+        rerenderCurrentAdminSection();
       } catch (error) {
         AppState.adminNewUserStatus = `User creation failed: ${error instanceof Error ? error.message : String(error)}`;
         resultEl.textContent = AppState.adminNewUserStatus;
@@ -7870,8 +7718,7 @@ ${topItems}${impactAssessment.impacts.length > 3 ? `\n- +${impactAssessment.impa
       if (!AppState.draft.geography) AppState.draft.geography = resetSettings.geography;
       saveDraft();
       UI.toast('Settings reset.', 'success');
-      rememberSettingsScroll('admin-settings');
-      safeRenderAdminSettings(currentSettingsSection);
+      rerenderCurrentAdminSection();
     }
   });
 }

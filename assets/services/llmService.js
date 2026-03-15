@@ -311,14 +311,19 @@ const LLMService = (() => {
   }
 
   function _withEvidenceMeta(result = {}, evidenceMeta = null) {
-    if (!evidenceMeta) return result;
-    return {
+    const meta = evidenceMeta || {};
+    const normalised = {
       ...result,
-      confidenceLabel: evidenceMeta.confidenceLabel,
-      evidenceQuality: evidenceMeta.evidenceQuality,
-      evidenceSummary: evidenceMeta.summary,
-      missingInformation: evidenceMeta.missingInformation
+      confidenceLabel: String(result.confidenceLabel || meta.confidenceLabel || 'Moderate confidence'),
+      evidenceQuality: String(result.evidenceQuality || meta.evidenceQuality || 'Useful but incomplete evidence base'),
+      evidenceSummary: String(result.evidenceSummary || meta.summary || 'Evidence used: limited contextual inputs only.'),
+      missingInformation: Array.isArray(result.missingInformation)
+        ? result.missingInformation.filter(Boolean).slice(0, 4)
+        : (Array.isArray(meta.missingInformation) ? meta.missingInformation.filter(Boolean).slice(0, 4) : []),
+      workflowGuidance: Array.isArray(result.workflowGuidance) ? result.workflowGuidance.filter(Boolean) : [],
+      citations: Array.isArray(result.citations) ? result.citations.filter(Boolean) : []
     };
+    return normalised;
   }
 
   function _classifyScenario(narrative = '') {
