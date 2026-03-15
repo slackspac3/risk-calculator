@@ -141,6 +141,19 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
       <div class="flex items-center gap-3 mt-4" style="flex-wrap:wrap">
         <button class="btn btn--secondary" id="btn-build-user-context">Build from Website</button>
         <span class="form-help">Builds a personal context draft for this account only.</span>
+      </div>
+      <div class="card mt-4" style="padding:var(--sp-4);background:var(--bg-elevated)">
+        <div class="context-panel-title">Refine This Context With AI</div>
+        <p class="form-help" style="margin-top:6px">Use follow-up prompts to reshape the company context until it reflects the framing you want for this account.</p>
+        <div id="user-company-refinement-history" style="display:flex;flex-direction:column;gap:10px;margin-top:12px"></div>
+        <div class="form-group mt-4">
+          <label class="form-label" for="user-company-followup">Follow-up prompt</label>
+          <textarea class="form-textarea" id="user-company-followup" rows="3" placeholder="Tell the AI what to change, emphasise, shorten, or make more specific."></textarea>
+        </div>
+        <div class="flex items-center gap-3 mt-3" style="flex-wrap:wrap">
+          <button class="btn btn--secondary" id="btn-refine-user-context" type="button">Refine Context with AI</button>
+          <span class="form-help" id="user-company-refine-status">The fields above will be updated in place each time you refine the context.</span>
+        </div>
       </div>`
   });
   const roleManagementSection = `${businessOwner ? renderSettingsSection({
@@ -285,8 +298,63 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
   const websiteEl = document.getElementById('user-company-url');
   const businessUnitEl = document.getElementById('user-business-unit');
   const departmentEl = document.getElementById('user-department');
+  const companyRefinementHistory = [];
+  const companyRefinementHistoryEl = document.getElementById('user-company-refinement-history');
+  const companyFollowupEl = document.getElementById('user-company-followup');
+  const companyRefineStatusEl = document.getElementById('user-company-refine-status');
   let userAiSourceText = '';
   let userAiSourceName = '';
+
+  function getCurrentUserCompanySections() {
+    return {
+      companySummary: document.getElementById('user-company-section-summary')?.value.trim() || '',
+      businessModel: document.getElementById('user-company-section-business-model')?.value.trim() || '',
+      operatingModel: document.getElementById('user-company-section-operating-model')?.value.trim() || '',
+      publicCommitments: document.getElementById('user-company-section-commitments')?.value.trim() || '',
+      keyRiskSignals: document.getElementById('user-company-section-risks')?.value.trim() || '',
+      obligations: document.getElementById('user-company-section-obligations')?.value.trim() || '',
+      sources: document.getElementById('user-company-section-sources')?.value.trim() || ''
+    };
+  }
+
+  function applyUserCompanyContextResult(result) {
+    const sections = buildCompanyContextSections(result);
+    const profileText = serialiseCompanyContextSections(sections);
+    profileEl.value = profileText;
+    document.getElementById('user-company-section-summary').value = sections.companySummary || '';
+    document.getElementById('user-company-section-business-model').value = sections.businessModel || '';
+    document.getElementById('user-company-section-operating-model').value = sections.operatingModel || '';
+    document.getElementById('user-company-section-commitments').value = sections.publicCommitments || '';
+    document.getElementById('user-company-section-risks').value = sections.keyRiskSignals || '';
+    document.getElementById('user-company-section-obligations').value = sections.obligations || '';
+    document.getElementById('user-company-section-sources').value = sections.sources || '';
+    if (!document.getElementById('user-context-summary').value.trim() && result.companySummary) {
+      document.getElementById('user-context-summary').value = result.companySummary;
+    }
+    if (result.aiGuidance) {
+      document.getElementById('user-ai-instructions').value = result.aiGuidance;
+    }
+    const userGeoPrimaryEl = document.getElementById('user-geo-primary');
+    if (result.suggestedGeography && userGeoPrimaryEl && !userGeoPrimaryEl.value.trim()) {
+      userGeoPrimaryEl.value = result.suggestedGeography;
+    }
+    if (Array.isArray(result.regulatorySignals) && result.regulatorySignals.length) {
+      regsInput.setTags(Array.from(new Set([...(regsInput.getTags() || []), ...result.regulatorySignals])));
+    }
+  }
+
+  function renderUserCompanyRefinementHistory() {
+    if (!companyRefinementHistoryEl) return;
+    if (!companyRefinementHistory.length) {
+      companyRefinementHistoryEl.innerHTML = '<div class="form-help">No follow-up prompts yet. Build the first draft, then iterate here until the context feels right.</div>';
+      return;
+    }
+    companyRefinementHistoryEl.innerHTML = companyRefinementHistory.map(entry => `
+      <div class="card" style="padding:var(--sp-3);background:${entry.role === 'user' ? 'var(--bg-canvas)' : 'rgba(244,193,90,.08)'};border-color:${entry.role === 'user' ? 'var(--border-subtle)' : 'rgba(244,193,90,.18)'}">
+        <div style="font-size:.68rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted)">${entry.role === 'user' ? 'Your prompt' : 'AI update'}</div>
+        <div class="context-panel-copy" style="margin-top:6px">${entry.text}</div>
+      </div>`).join('');
+  }
 
   function renderUserDepartmentOptions() {
     const departments = getDepartmentEntities(companyStructure, businessUnitEl.value);
@@ -299,6 +367,7 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
   }
   businessUnitEl.addEventListener('change', renderUserDepartmentOptions);
   renderUserDepartmentOptions();
+  renderUserCompanyRefinementHistory();
 
   document.querySelectorAll('.user-focus-chip').forEach(button => {
     button.addEventListener('click', () => {
@@ -526,34 +595,60 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
     try {
       LLMService.setCompassConfig(llmConfig);
       const result = await LLMService.buildCompanyContext(websiteUrl);
-      const sections = buildCompanyContextSections(result);
-      const profileText = serialiseCompanyContextSections(sections);
-      profileEl.value = profileText;
-      document.getElementById('user-company-section-summary').value = sections.companySummary || '';
-      document.getElementById('user-company-section-business-model').value = sections.businessModel || '';
-      document.getElementById('user-company-section-operating-model').value = sections.operatingModel || '';
-      document.getElementById('user-company-section-commitments').value = sections.publicCommitments || '';
-      document.getElementById('user-company-section-risks').value = sections.keyRiskSignals || '';
-      document.getElementById('user-company-section-obligations').value = sections.obligations || '';
-      document.getElementById('user-company-section-sources').value = sections.sources || '';
-      if (!document.getElementById('user-context-summary').value.trim()) {
-        document.getElementById('user-context-summary').value = result.companySummary || '';
-      }
-      if (result.aiGuidance) {
-        document.getElementById('user-ai-instructions').value = result.aiGuidance;
-      }
-      if (result.suggestedGeography && !document.getElementById('user-geo').value.trim()) {
-        document.getElementById('user-geo').value = result.suggestedGeography;
-      }
-      if (Array.isArray(result.regulatorySignals) && result.regulatorySignals.length) {
-        regsInput.setTags(Array.from(new Set([...regsInput.getTags(), ...result.regulatorySignals])));
-      }
+      applyUserCompanyContextResult(result);
+      companyRefinementHistory.push({ role: 'assistant', text: 'Initial company context draft created. Use follow-up prompts below if you want to reshape it further.' });
+      renderUserCompanyRefinementHistory();
+      if (companyRefineStatusEl) companyRefineStatusEl.textContent = 'Initial AI draft applied. Use the follow-up prompt box below to keep refining it.';
       UI.toast('Personal company context built from public sources.', 'success', 5000);
     } catch (error) {
       UI.toast('Company context build failed: ' + error.message, 'danger', 6000);
     } finally {
       btn.disabled = false;
       btn.textContent = 'Build from Website';
+    }
+  });
+
+  document.getElementById('btn-refine-user-context').addEventListener('click', async () => {
+    const prompt = companyFollowupEl.value.trim();
+    const websiteUrl = websiteEl.value.trim();
+    const llmConfig = getSessionLLMConfig();
+    if (!websiteUrl) {
+      UI.toast('Enter a company website URL first.', 'warning');
+      return;
+    }
+    if (!prompt) {
+      UI.toast('Enter a follow-up prompt first.', 'warning');
+      return;
+    }
+    const btn = document.getElementById('btn-refine-user-context');
+    btn.disabled = true;
+    btn.textContent = 'Refining…';
+    if (companyRefineStatusEl) companyRefineStatusEl.textContent = 'Refining the company context using your latest instruction…';
+    companyRefinementHistory.push({ role: 'user', text: prompt });
+    renderUserCompanyRefinementHistory();
+    try {
+      LLMService.setCompassConfig(llmConfig);
+      const result = await LLMService.refineCompanyContext({
+        websiteUrl,
+        currentSections: getCurrentUserCompanySections(),
+        currentAiGuidance: document.getElementById('user-ai-instructions').value.trim(),
+        currentGeography: document.getElementById('user-geo-primary').value.trim(),
+        currentRegulations: regsInput.getTags(),
+        history: companyRefinementHistory,
+        userPrompt: prompt
+      });
+      applyUserCompanyContextResult(result);
+      companyRefinementHistory.push({ role: 'assistant', text: result.responseMessage || 'I refined the company context based on your latest prompt.' });
+      renderUserCompanyRefinementHistory();
+      companyFollowupEl.value = '';
+      if (companyRefineStatusEl) companyRefineStatusEl.textContent = 'Latest refinement applied. Keep iterating until the context feels right.';
+      UI.toast('Personal company context refined.', 'success', 5000);
+    } catch (error) {
+      UI.toast('Company context refinement failed: ' + error.message, 'danger', 6000);
+      if (companyRefineStatusEl) companyRefineStatusEl.textContent = `Company context refinement failed: ${error.message}`;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Refine Context with AI';
     }
   });
 

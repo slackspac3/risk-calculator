@@ -1265,6 +1265,126 @@ ${evidenceMeta.promptBlock}`;
     }
   }
 
+  async function refineCompanyContext(input = {}) {
+    const currentSections = {
+      companySummary: String(input.currentSections?.companySummary || '').trim(),
+      businessModel: String(input.currentSections?.businessModel || '').trim(),
+      operatingModel: String(input.currentSections?.operatingModel || '').trim(),
+      publicCommitments: String(input.currentSections?.publicCommitments || '').trim(),
+      keyRiskSignals: String(input.currentSections?.keyRiskSignals || '').trim(),
+      obligations: String(input.currentSections?.obligations || '').trim(),
+      sources: String(input.currentSections?.sources || '').trim()
+    };
+    const fallbackMessage = 'I refined the company context using your latest instruction. Review the updated sections before saving.';
+    if (_isDirectCompassUrl(_compassApiUrl) && !_compassApiKey) {
+      return {
+        ...currentSections,
+        responseMessage: fallbackMessage,
+        confidenceLabel: 'Local fallback',
+        evidenceQuality: 'No live model',
+        evidenceSummary: 'A live AI model was not available, so the current company context was kept as the working draft.',
+        missingInformation: ['Connect a live AI model if you want iterative refinement from follow-up prompts.'],
+        regulatorySignals: input.currentRegulations || [],
+        aiGuidance: input.currentAiGuidance || '',
+        suggestedGeography: input.currentGeography || ''
+      };
+    }
+    try {
+      const systemPrompt = `You are a senior enterprise risk and company-context analyst. Refine an existing company context based on user follow-up prompts. Return JSON only with this schema:
+{
+  "companySummary": "string",
+  "businessModel": "string",
+  "operatingModel": "string",
+  "publicCommitments": "string",
+  "keyRiskSignals": "string",
+  "obligations": "string",
+  "sources": "string",
+  "aiGuidance": "string",
+  "suggestedGeography": "string",
+  "regulatorySignals": ["string"],
+  "responseMessage": "string"
+}`;
+      const evidenceMeta = _buildEvidenceMeta({
+        citations: [],
+        geography: input.currentGeography,
+        applicableRegulations: input.currentRegulations,
+        organisationContext: currentSections,
+        adminSettings: { aiInstructions: input.currentAiGuidance || '' }
+      });
+      const userPrompt = `Refine the current company context based on the latest instruction.
+
+Website URL:
+${String(input.websiteUrl || '').trim()}
+
+Current context sections:
+${JSON.stringify(currentSections, null, 2)}
+
+Current AI guidance:
+${String(input.currentAiGuidance || '').trim()}
+
+Current geography:
+${String(input.currentGeography || '').trim()}
+
+Current regulation tags:
+${JSON.stringify(Array.isArray(input.currentRegulations) ? input.currentRegulations : [], null, 2)}
+
+Conversation so far:
+${JSON.stringify(Array.isArray(input.history) ? input.history : [], null, 2)}
+
+Latest user instruction:
+${String(input.userPrompt || '').trim()}
+
+Instructions:
+- refine the current sections instead of starting over
+- preserve good existing detail unless the latest prompt clearly changes it
+- keep the output grounded, specific, and useful for future risk assessments
+- avoid generic filler and avoid inventing unsupported facts
+- explain what changed in responseMessage in plain language
+
+Evidence quality context:
+${evidenceMeta.promptBlock}`;
+      const raw = await _callLLM(systemPrompt, userPrompt);
+      if (!raw) {
+        return _withEvidenceMeta({
+          ...currentSections,
+          aiGuidance: String(input.currentAiGuidance || '').trim(),
+          suggestedGeography: String(input.currentGeography || '').trim(),
+          regulatorySignals: Array.isArray(input.currentRegulations) ? input.currentRegulations : [],
+          responseMessage: fallbackMessage
+        }, evidenceMeta);
+      }
+      const parsed = JSON.parse(String(raw).replace(/```json\n?|```/g, '').trim());
+      return _withEvidenceMeta({
+        companySummary: _cleanUserFacingText(parsed.companySummary || currentSections.companySummary || '', { maxSentences: 4 }),
+        businessModel: _cleanUserFacingText(parsed.businessModel || currentSections.businessModel || '', { maxSentences: 4 }),
+        operatingModel: _cleanUserFacingText(parsed.operatingModel || currentSections.operatingModel || '', { maxSentences: 4 }),
+        publicCommitments: _cleanUserFacingText(parsed.publicCommitments || currentSections.publicCommitments || '', { maxSentences: 5 }),
+        keyRiskSignals: _cleanUserFacingText(parsed.keyRiskSignals || currentSections.keyRiskSignals || '', { maxSentences: 5 }),
+        obligations: _cleanUserFacingText(parsed.obligations || currentSections.obligations || '', { maxSentences: 5 }),
+        sources: _cleanUserFacingText(parsed.sources || currentSections.sources || '', { maxSentences: 6 }),
+        aiGuidance: _cleanUserFacingText(parsed.aiGuidance || input.currentAiGuidance || '', { maxSentences: 3 }),
+        suggestedGeography: String(parsed.suggestedGeography || input.currentGeography || '').trim(),
+        regulatorySignals: Array.isArray(parsed.regulatorySignals) ? parsed.regulatorySignals.map(String).filter(Boolean) : (Array.isArray(input.currentRegulations) ? input.currentRegulations : []),
+        responseMessage: _cleanUserFacingText(parsed.responseMessage || fallbackMessage, { maxSentences: 3 })
+      }, evidenceMeta);
+    } catch (error) {
+      console.warn('refineCompanyContext fallback:', error.message);
+      return _withEvidenceMeta({
+        ...currentSections,
+        aiGuidance: String(input.currentAiGuidance || '').trim(),
+        suggestedGeography: String(input.currentGeography || '').trim(),
+        regulatorySignals: Array.isArray(input.currentRegulations) ? input.currentRegulations : [],
+        responseMessage: fallbackMessage
+      }, _buildEvidenceMeta({
+        citations: [],
+        geography: input.currentGeography,
+        applicableRegulations: input.currentRegulations,
+        organisationContext: currentSections,
+        adminSettings: { aiInstructions: input.currentAiGuidance || '' }
+      }));
+    }
+  }
+
   async function buildUserPreferenceAssist(input = {}) {
     const stub = _buildUserPreferenceAssistStub(input);
     if (_isDirectCompassUrl(_compassApiUrl) && !_compassApiKey) return stub;
@@ -1608,6 +1728,7 @@ ${evidenceMeta.promptBlock}`;
     enhanceRiskContext,
     analyseRiskRegister,
     buildCompanyContext,
+    refineCompanyContext,
     buildEntityContext,
     refineEntityContext,
     buildUserPreferenceAssist,

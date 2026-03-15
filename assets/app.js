@@ -3551,6 +3551,19 @@ function renderAdminSettings(activeSection = 'org') {
     <div class="flex items-center gap-3 mt-4" style="flex-wrap:wrap">
       <button class="btn btn--secondary" id="btn-build-company-context">Build from Website</button>
       <span class="form-help">This opens a review step so you can decide where the entity sits in the group.</span>
+    </div>
+    <div class="card mt-4" style="padding:var(--sp-4);background:var(--bg-elevated)">
+      <div class="context-panel-title">Refine This Context With AI</div>
+      <p class="form-help" style="margin-top:6px">Use follow-up prompts to reshape the company context until it is ready for the admin baseline or organisation tree.</p>
+      <div id="admin-company-refinement-history" style="display:flex;flex-direction:column;gap:10px;margin-top:12px"></div>
+      <div class="form-group mt-4">
+        <label class="form-label" for="admin-company-followup">Follow-up prompt</label>
+        <textarea class="form-textarea" id="admin-company-followup" rows="3" placeholder="Tell the AI what to change, emphasise, shorten, or make more specific."></textarea>
+      </div>
+      <div class="flex items-center gap-3 mt-3" style="flex-wrap:wrap">
+        <button class="btn btn--secondary" id="btn-refine-admin-company-context" type="button">Refine Context with AI</button>
+        <span class="form-help" id="admin-company-refine-status">The fields above will be updated in place each time you refine the context.</span>
+      </div>
     </div>`
   });
   const platformDefaultsSection = AdminPlatformDefaultsSection.renderSection({ settings });
@@ -3658,6 +3671,10 @@ function renderAdminSettings(activeSection = 'org') {
   const layerSummaryEl = currentSettingsSection === 'org' ? document.getElementById('admin-layer-summary-list') : null;
   const profileEl = currentSettingsSection === 'company' ? document.getElementById('admin-company-profile') : null;
   const websiteEl = currentSettingsSection === 'company' ? document.getElementById('admin-company-url') : null;
+  const adminCompanyRefinementHistory = [];
+  const adminCompanyRefinementHistoryEl = currentSettingsSection === 'company' ? document.getElementById('admin-company-refinement-history') : null;
+  const adminCompanyFollowupEl = currentSettingsSection === 'company' ? document.getElementById('admin-company-followup') : null;
+  const adminCompanyRefineStatusEl = currentSettingsSection === 'company' ? document.getElementById('admin-company-refine-status') : null;
 
   AdminOrgSetupSection.configure({
     companyStructure,
@@ -3668,6 +3685,69 @@ function renderAdminSettings(activeSection = 'org') {
     structureSummaryEl,
     layerSummaryEl
   });
+
+  function getCurrentAdminCompanySections() {
+    return {
+      companySummary: document.getElementById('admin-company-section-summary')?.value.trim() || '',
+      businessModel: document.getElementById('admin-company-section-business-model')?.value.trim() || '',
+      operatingModel: document.getElementById('admin-company-section-operating-model')?.value.trim() || '',
+      publicCommitments: document.getElementById('admin-company-section-commitments')?.value.trim() || '',
+      keyRiskSignals: document.getElementById('admin-company-section-risks')?.value.trim() || '',
+      obligations: document.getElementById('admin-company-section-obligations')?.value.trim() || '',
+      sources: document.getElementById('admin-company-section-sources')?.value.trim() || ''
+    };
+  }
+
+  function applyAdminCompanyContextResult(result = {}) {
+    const sections = buildCompanyContextSections(result);
+    const profileText = serialiseCompanyContextSections(sections);
+    if (profileEl) profileEl.value = profileText;
+    const adminCompanySummaryEl = document.getElementById('admin-company-section-summary');
+    const adminBusinessModelEl = document.getElementById('admin-company-section-business-model');
+    const adminOperatingModelEl = document.getElementById('admin-company-section-operating-model');
+    const adminCommitmentsEl = document.getElementById('admin-company-section-commitments');
+    const adminRisksEl = document.getElementById('admin-company-section-risks');
+    const adminObligationsEl = document.getElementById('admin-company-section-obligations');
+    const adminSourcesEl = document.getElementById('admin-company-section-sources');
+    if (adminCompanySummaryEl) adminCompanySummaryEl.value = sections.companySummary || '';
+    if (adminBusinessModelEl) adminBusinessModelEl.value = sections.businessModel || '';
+    if (adminOperatingModelEl) adminOperatingModelEl.value = sections.operatingModel || '';
+    if (adminCommitmentsEl) adminCommitmentsEl.value = sections.publicCommitments || '';
+    if (adminRisksEl) adminRisksEl.value = sections.keyRiskSignals || '';
+    if (adminObligationsEl) adminObligationsEl.value = sections.obligations || '';
+    if (adminSourcesEl) adminSourcesEl.value = sections.sources || '';
+    const adminContextSummaryEl = document.getElementById('admin-context-summary');
+    if (result.companySummary && adminContextSummaryEl && !adminContextSummaryEl.value.trim()) {
+      adminContextSummaryEl.value = result.companySummary;
+    }
+    const adminAiInstructionsEl = document.getElementById('admin-ai-instructions');
+    if (result.aiGuidance && adminAiInstructionsEl) {
+      adminAiInstructionsEl.value = result.aiGuidance;
+    }
+    const adminGeoEl = document.getElementById('admin-geo');
+    if (result.suggestedGeography && adminGeoEl && !adminGeoEl.value.trim()) {
+      adminGeoEl.value = result.suggestedGeography;
+    }
+    if (Array.isArray(result.regulatorySignals) && result.regulatorySignals.length && regsInput?.setTags) {
+      regsInput.setTags(Array.from(new Set([...(regsInput.getTags() || []), ...result.regulatorySignals])));
+    }
+    return { sections, profileText };
+  }
+
+  function renderAdminCompanyRefinementHistory() {
+    if (!adminCompanyRefinementHistoryEl) return;
+    if (!adminCompanyRefinementHistory.length) {
+      adminCompanyRefinementHistoryEl.innerHTML = '<div class="form-help">No follow-up prompts yet. Build the initial context, then iterate here until the summary feels right.</div>';
+      return;
+    }
+    adminCompanyRefinementHistoryEl.innerHTML = adminCompanyRefinementHistory.map(entry => `
+      <div class="card" style="padding:var(--sp-3);background:var(--bg-canvas)">
+        <div class="context-panel-title" style="font-size:.82rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted)">${entry.role === 'user' ? 'Your prompt' : 'AI update'}</div>
+        <div style="margin-top:6px;color:var(--text-primary);line-height:1.55">${escapeHtml(entry.text || '')}</div>
+      </div>`).join('');
+  }
+
+  renderAdminCompanyRefinementHistory();
 
   function buildAdminSettingsPayload() {
     const currentSettings = getAdminSettings();
@@ -3774,9 +3854,9 @@ ${topItems}${impactAssessment.impacts.length > 3 ? `\n- +${impactAssessment.impa
     const btn = document.getElementById('btn-build-company-context');
     const websiteUrl = websiteEl.value.trim();
     const llmConfig = {
-      apiUrl: document.getElementById('admin-compass-url').value.trim() || DEFAULT_COMPASS_PROXY_URL,
-      model: document.getElementById('admin-compass-model').value.trim() || 'gpt-5.1',
-      apiKey: document.getElementById('admin-compass-key').value.trim()
+      apiUrl: document.getElementById('admin-compass-url')?.value.trim() || DEFAULT_COMPASS_PROXY_URL,
+      model: document.getElementById('admin-compass-model')?.value.trim() || 'gpt-5.1',
+      apiKey: document.getElementById('admin-compass-key')?.value.trim() || ''
     };
     if (!websiteUrl) {
       UI.toast('Enter a company website URL first.', 'warning');
@@ -3787,38 +3867,11 @@ ${topItems}${impactAssessment.impacts.length > 3 ? `\n- +${impactAssessment.impa
     try {
       LLMService.setCompassConfig(llmConfig);
       const result = await LLMService.buildCompanyContext(websiteUrl);
-      const sections = buildCompanyContextSections(result);
-      const profileText = serialiseCompanyContextSections(sections);
-      if (profileEl) profileEl.value = profileText;
-      const adminCompanySummaryEl = document.getElementById('admin-company-section-summary');
-      const adminBusinessModelEl = document.getElementById('admin-company-section-business-model');
-      const adminOperatingModelEl = document.getElementById('admin-company-section-operating-model');
-      const adminCommitmentsEl = document.getElementById('admin-company-section-commitments');
-      const adminRisksEl = document.getElementById('admin-company-section-risks');
-      const adminObligationsEl = document.getElementById('admin-company-section-obligations');
-      const adminSourcesEl = document.getElementById('admin-company-section-sources');
-      if (adminCompanySummaryEl) adminCompanySummaryEl.value = sections.companySummary || '';
-      if (adminBusinessModelEl) adminBusinessModelEl.value = sections.businessModel || '';
-      if (adminOperatingModelEl) adminOperatingModelEl.value = sections.operatingModel || '';
-      if (adminCommitmentsEl) adminCommitmentsEl.value = sections.publicCommitments || '';
-      if (adminRisksEl) adminRisksEl.value = sections.keyRiskSignals || '';
-      if (adminObligationsEl) adminObligationsEl.value = sections.obligations || '';
-      if (adminSourcesEl) adminSourcesEl.value = sections.sources || '';
-      const adminContextSummaryEl = document.getElementById('admin-context-summary');
-      if (adminContextSummaryEl && !adminContextSummaryEl.value.trim()) {
-        adminContextSummaryEl.value = result.companySummary || '';
-      }
-      const adminAiInstructionsEl = document.getElementById('admin-ai-instructions');
-      if (result.aiGuidance && adminAiInstructionsEl) {
-        adminAiInstructionsEl.value = result.aiGuidance;
-      }
-      const adminGeoEl = document.getElementById('admin-geo');
-      if (result.suggestedGeography && adminGeoEl && !adminGeoEl.value.trim()) {
-        adminGeoEl.value = result.suggestedGeography;
-      }
-      if (Array.isArray(result.regulatorySignals) && result.regulatorySignals.length && regsInput?.setTags) {
-        regsInput.setTags(Array.from(new Set([...(regsInput.getTags() || []), ...result.regulatorySignals])));
-      }
+      const { sections, profileText } = applyAdminCompanyContextResult(result);
+      adminCompanyRefinementHistory.length = 0;
+      adminCompanyRefinementHistory.push({ role: 'assistant', text: 'Initial company context draft created. Use follow-up prompts below if you want to reshape it further.' });
+      renderAdminCompanyRefinementHistory();
+      if (adminCompanyRefineStatusEl) adminCompanyRefineStatusEl.textContent = 'Initial AI draft applied. Use the follow-up prompt box below to keep refining it.';
       AdminOrgSetupSection.openEntityEditor(null, {
         name: inferCompanyNameFromUrl(websiteUrl),
         websiteUrl,
@@ -3829,9 +3882,57 @@ ${topItems}${impactAssessment.impacts.length > 3 ? `\n- +${impactAssessment.impa
       UI.toast('Company context built from public sources. Review the entity and place it into the organisation tree.', 'success', 5000);
     } catch (error) {
       UI.toast('Company context build failed: ' + error.message, 'danger', 6000);
+      if (adminCompanyRefineStatusEl) adminCompanyRefineStatusEl.textContent = `Company context build failed: ${error.message}`;
     } finally {
       btn.disabled = false;
       btn.textContent = 'Build from Website';
+    }
+  });
+  if (currentSettingsSection === 'company') document.getElementById('btn-refine-admin-company-context')?.addEventListener('click', async () => {
+    const prompt = adminCompanyFollowupEl?.value.trim() || '';
+    const websiteUrl = websiteEl?.value.trim() || '';
+    const llmConfig = {
+      apiUrl: document.getElementById('admin-compass-url')?.value.trim() || DEFAULT_COMPASS_PROXY_URL,
+      model: document.getElementById('admin-compass-model')?.value.trim() || 'gpt-5.1',
+      apiKey: document.getElementById('admin-compass-key')?.value.trim() || ''
+    };
+    if (!websiteUrl) {
+      UI.toast('Enter a company website URL first.', 'warning');
+      return;
+    }
+    if (!prompt) {
+      UI.toast('Enter a follow-up prompt first.', 'warning');
+      return;
+    }
+    const btn = document.getElementById('btn-refine-admin-company-context');
+    btn.disabled = true;
+    btn.textContent = 'Refining…';
+    if (adminCompanyRefineStatusEl) adminCompanyRefineStatusEl.textContent = 'Refining the company context using your latest instruction…';
+    adminCompanyRefinementHistory.push({ role: 'user', text: prompt });
+    renderAdminCompanyRefinementHistory();
+    try {
+      LLMService.setCompassConfig(llmConfig);
+      const result = await LLMService.refineCompanyContext({
+        websiteUrl,
+        currentSections: getCurrentAdminCompanySections(),
+        currentAiGuidance: document.getElementById('admin-ai-instructions')?.value.trim() || '',
+        currentGeography: document.getElementById('admin-geo')?.value.trim() || '',
+        currentRegulations: regsInput?.getTags ? regsInput.getTags() : [],
+        history: adminCompanyRefinementHistory,
+        userPrompt: prompt
+      });
+      applyAdminCompanyContextResult(result);
+      adminCompanyRefinementHistory.push({ role: 'assistant', text: result.responseMessage || 'I refined the company context based on your latest prompt.' });
+      renderAdminCompanyRefinementHistory();
+      if (adminCompanyFollowupEl) adminCompanyFollowupEl.value = '';
+      if (adminCompanyRefineStatusEl) adminCompanyRefineStatusEl.textContent = 'Latest refinement applied. Keep iterating until the context feels right.';
+      UI.toast('Admin company context refined.', 'success', 5000);
+    } catch (error) {
+      UI.toast('Company context refinement failed: ' + error.message, 'danger', 6000);
+      if (adminCompanyRefineStatusEl) adminCompanyRefineStatusEl.textContent = `Company context refinement failed: ${error.message}`;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Refine Context with AI';
     }
   });
   if (currentSettingsSection === 'access') {
