@@ -2,20 +2,20 @@
 function buildLocalUserCompanyContextFallback(refineInput = {}) {
   const current = refineInput.currentSections || {};
   const prompt = String(refineInput.userPrompt || '').trim();
-  const uploadedHint = String(refineInput.uploadedText || '').trim()
-    ? 'Uploaded strategy or policy material was considered in this fallback refinement.'
-    : '';
   return {
     ...current,
-    companySummary: [String(current.companySummary || '').trim(), prompt ? `Refinement focus: ${prompt}` : '', uploadedHint]
-      .filter(Boolean)
-      .join(' ')
-      .trim(),
+    companySummary: applyLocalRefinementToText(String(current.companySummary || '').trim(), prompt),
+    businessModel: applyLocalRefinementToText(String(current.businessModel || '').trim(), prompt),
+    operatingModel: applyLocalRefinementToText(String(current.operatingModel || '').trim(), prompt),
+    publicCommitments: applyLocalRefinementToText(String(current.publicCommitments || '').trim(), prompt),
+    keyRiskSignals: applyLocalRefinementToText(String(current.keyRiskSignals || '').trim(), prompt),
+    obligations: applyLocalRefinementToText(String(current.obligations || '').trim(), prompt),
+    sources: String(current.sources || '').trim(),
     aiGuidance: String(refineInput.currentAiGuidance || '').trim(),
     suggestedGeography: String(refineInput.currentGeography || '').trim(),
     regulatorySignals: Array.isArray(refineInput.currentRegulations) ? refineInput.currentRegulations : [],
     responseMessage: prompt
-      ? `I applied a local refinement focused on ${prompt.toLowerCase()}. Review the updated company context and tighten any remaining sections manually if needed.`
+      ? 'I reworked the existing company context locally using your latest instruction. Review the updated sections and tighten any remaining wording manually if needed.'
       : 'I applied a local refinement to keep the company context moving. Review the updated sections and tighten anything else manually if needed.'
   };
 }

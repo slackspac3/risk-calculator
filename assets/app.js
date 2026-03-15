@@ -2362,25 +2362,51 @@ function openEntityContextLayerEditor({ entity, settings = getAdminSettings(), o
 }
 
 
+function getLocalRefinementDirectives(prompt = '') {
+  const lower = String(prompt || '').toLowerCase();
+  return {
+    excludePrivacy: /(does not|doesn't|not|without|exclude|remove).{0,30}(data privacy|privacy|personal data|pii)/i.test(lower),
+    excludeHealth: /(does not|doesn't|not|without|exclude|remove).{0,30}(health data|medical data|patient data|phi|health information)/i.test(lower),
+    emphasise: ((lower.match(/(?:focus on|emphasise|emphasize|highlight)\s+([^.;]+)/i) || [])[1] || '').trim()
+  };
+}
+
+function applyLocalRefinementToText(text = '', prompt = '') {
+  const source = String(text || '').trim();
+  if (!source) return '';
+  const directives = getLocalRefinementDirectives(prompt);
+  let sentences = source.split(/(?<=[.!?])\s+/).map((sentence) => sentence.trim()).filter(Boolean);
+  if (directives.excludePrivacy) {
+    sentences = sentences.filter((sentence) => !/(privacy|personal data|data protection|pii|gdpr|pdpl)/i.test(sentence));
+  }
+  if (directives.excludeHealth) {
+    sentences = sentences.filter((sentence) => !/(health data|medical data|patient data|clinical|hospital|phi|health information)/i.test(sentence));
+  }
+  let result = sentences.join(' ').trim();
+  if (!result) result = source;
+  const clarifiers = [];
+  if (directives.excludePrivacy) clarifiers.push('This context should not be framed as a primary data-privacy scenario.');
+  if (directives.excludeHealth) clarifiers.push('This context should not be framed as handling health or patient data.');
+  if (directives.emphasise) clarifiers.push(`Keep the emphasis on ${directives.emphasise}.`);
+  if (clarifiers.length) {
+    result = [result.replace(/\s+/g, ' ').trim(), ...clarifiers].filter(Boolean).join(' ').trim();
+  }
+  return result;
+}
+
 function buildLocalEntityContextFallback(refineInput = {}) {
   const current = refineInput.currentContext || {};
   const prompt = String(refineInput.userPrompt || '').trim();
-  const uploadedHint = String(refineInput.uploadedText || '').trim()
-    ? 'Uploaded strategy or policy material was considered in this fallback refinement.'
-    : '';
-  const summary = [String(current.contextSummary || '').trim(), prompt ? `Refinement focus: ${prompt}` : '', uploadedHint]
-    .filter(Boolean)
-    .join(' ')
-    .trim();
+  const updatedSummary = applyLocalRefinementToText(String(current.contextSummary || '').trim(), prompt);
   return {
     geography: String(current.geography || '').trim(),
-    contextSummary: summary || String(current.contextSummary || '').trim(),
+    contextSummary: updatedSummary || String(current.contextSummary || '').trim(),
     riskAppetiteStatement: String(current.riskAppetiteStatement || '').trim(),
     applicableRegulations: Array.isArray(current.applicableRegulations) ? current.applicableRegulations : [],
     aiInstructions: String(current.aiInstructions || '').trim(),
     benchmarkStrategy: String(current.benchmarkStrategy || '').trim(),
     responseMessage: prompt
-      ? `I applied a local refinement focused on ${prompt.toLowerCase()}. Review the updated context and tighten anything else manually if needed.`
+      ? 'I reworked the existing context locally using your latest instruction. Review the wording and tighten anything that still needs adjustment.'
       : 'I applied a local refinement to keep the context moving. Review the updated text and adjust anything else manually if needed.'
   };
 }
@@ -2388,20 +2414,20 @@ function buildLocalEntityContextFallback(refineInput = {}) {
 function buildLocalCompanyContextFallback(refineInput = {}) {
   const current = refineInput.currentSections || {};
   const prompt = String(refineInput.userPrompt || '').trim();
-  const uploadedHint = String(refineInput.uploadedText || '').trim()
-    ? 'Uploaded strategy or policy material was considered in this fallback refinement.'
-    : '';
   return {
     ...current,
-    companySummary: [String(current.companySummary || '').trim(), prompt ? `Refinement focus: ${prompt}` : '', uploadedHint]
-      .filter(Boolean)
-      .join(' ')
-      .trim(),
+    companySummary: applyLocalRefinementToText(String(current.companySummary || '').trim(), prompt),
+    businessModel: applyLocalRefinementToText(String(current.businessModel || '').trim(), prompt),
+    operatingModel: applyLocalRefinementToText(String(current.operatingModel || '').trim(), prompt),
+    publicCommitments: applyLocalRefinementToText(String(current.publicCommitments || '').trim(), prompt),
+    keyRiskSignals: applyLocalRefinementToText(String(current.keyRiskSignals || '').trim(), prompt),
+    obligations: applyLocalRefinementToText(String(current.obligations || '').trim(), prompt),
+    sources: String(current.sources || '').trim(),
     aiGuidance: String(refineInput.currentAiGuidance || '').trim(),
     suggestedGeography: String(refineInput.currentGeography || '').trim(),
     regulatorySignals: Array.isArray(refineInput.currentRegulations) ? refineInput.currentRegulations : [],
     responseMessage: prompt
-      ? `I applied a local refinement focused on ${prompt.toLowerCase()}. Review the updated company context and tighten any remaining sections manually if needed.`
+      ? 'I reworked the existing company context locally using your latest instruction. Review the updated sections and tighten any remaining wording manually if needed.'
       : 'I applied a local refinement to keep the company context moving. Review the updated sections and tighten anything else manually if needed.'
   };
 }
