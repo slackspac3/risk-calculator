@@ -4560,6 +4560,23 @@ function renderAssessmentDriversBlock(drivers) {
   </div>`;
 }
 
+function renderExecutiveDriversSummary(drivers, assessment) {
+  const upward = Array.isArray(drivers?.upward) ? drivers.upward.slice(0, 3) : [];
+  const stabilisers = Array.isArray(drivers?.stabilisers) ? drivers.stabilisers.slice(0, 2) : [];
+  const risks = Array.isArray(assessment?.selectedRisks) ? assessment.selectedRisks : [];
+  const regulations = Array.isArray(assessment?.applicableRegulations) ? assessment.applicableRegulations.slice(0, 4) : [];
+  return `<div class="results-summary-card">
+    <div class="results-section-heading">What changed the result most</div>
+    ${upward.length ? `<div class="results-driver-group"><div class="results-driver-label">Main upward drivers</div><div class="results-summary-copy">${upward.map(item => `• ${item}`).join('<br>')}</div></div>` : ''}
+    ${stabilisers.length ? `<div class="results-driver-group" style="margin-top:var(--sp-4)"><div class="results-driver-label">Main stabilisers</div><div class="results-summary-copy">${stabilisers.map(item => `• ${item}`).join('<br>')}</div></div>` : ''}
+    <div class="results-driver-group" style="margin-top:var(--sp-4)">
+      <div class="results-driver-label">Scenario scope</div>
+      <div class="results-chip-block">${risks.length ? risks.map(risk => `<span class="badge badge--gold">${risk.title}</span>`).join('') : '<span class="badge badge--neutral">No linked risks selected</span>'}</div>
+      ${regulations.length ? `<div class="results-chip-block">${regulations.map(tag => `<span class="badge badge--neutral">${tag}</span>`).join('')}</div>` : ''}
+    </div>
+  </div>`;
+}
+
 function cleanExecutiveNarrativeText(value) {
   return String(value || '')
     .replace(/\s+/g, ' ')
@@ -5264,13 +5281,7 @@ function renderResults(id, isShared) {
           <div class="results-section-heading">What this scenario means in practice</div>
           <p class="results-summary-copy">${scenarioNarrative}</p>
         </div>
-        <div class="results-summary-card">
-          <div class="results-section-heading">Scenario scope</div>
-          <div class="results-chip-block">
-            ${(assessment.selectedRisks?.length ? assessment.selectedRisks.map(risk => `<span class="badge badge--gold">${risk.title}</span>`).join('') : '<span class="badge badge--neutral">No linked risks selected</span>')}
-          </div>
-          ${(assessment.applicableRegulations?.length ? `<div class="results-chip-block">${assessment.applicableRegulations.map(tag => `<span class="badge badge--neutral">${tag}</span>`).join('')}</div>` : '')}
-        </div>
+        ${renderExecutiveDriversSummary(assessmentIntelligence.drivers, assessment)}
       </div>
 
       ${recommendationCards}

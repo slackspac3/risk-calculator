@@ -442,9 +442,14 @@ const ExportService = (() => {
           <div class="body-copy">${narrative}</div>
         </div>
         <div class="card">
-          <div class="section-label">Scenario scope</div>
-          <div class="chip-row">${risks.length ? risks.map(risk => `<span class="chip gold">${risk.title}</span>`).join('') : '<span class="chip">No linked risks selected</span>'}</div>
-          ${regulations.length ? `<div class="chip-row">${regulations.map(tag => `<span class="chip">${tag}</span>`).join('')}</div>` : ''}
+          <div class="section-label">What changed the result most</div>
+          ${drivers?.upward?.length ? `<div class="driver-block"><div class="driver-label">Main upward drivers</div><div class="body-copy">${drivers.upward.slice(0, 3).map(item => `• ${item}`).join('<br>')}</div></div>` : ''}
+          ${drivers?.stabilisers?.length ? `<div class="driver-block"><div class="driver-label">Main stabilisers</div><div class="body-copy">${drivers.stabilisers.slice(0, 2).map(item => `• ${item}`).join('<br>')}</div></div>` : ''}
+          <div class="driver-block">
+            <div class="driver-label">Scenario scope</div>
+            <div class="chip-row">${risks.length ? risks.map(risk => `<span class="chip gold">${risk.title}</span>`).join('') : '<span class="chip">No linked risks selected</span>'}</div>
+            ${regulations.length ? `<div class="chip-row">${regulations.map(tag => `<span class="chip">${tag}</span>`).join('')}</div>` : ''}
+          </div>
         </div>
       </div>
 
