@@ -1709,6 +1709,11 @@ function openOrgEntityEditor({ structure = [], existingNode = null, seed = {}, o
       <p class="form-help" id="org-context-refinement-help" style="margin-top:6px">Use follow-up prompts to keep shaping the context until it is ready to save.</p>
       <div id="org-context-refinement-history" style="display:flex;flex-direction:column;gap:10px;margin-top:12px"></div>
       <div class="form-group mt-4">
+        <label class="form-label" for="org-context-source-file">Upload supporting documents</label>
+        <input class="form-input" id="org-context-source-file" type="file" accept=".txt,.csv,.json,.md,.tsv,.xlsx,.xls,.doc,.docx,.pdf">
+        <div class="form-help" id="org-context-source-help">Recommended: upload strategy, policy, procedure, or operating-model documents to ground the AI context.</div>
+      </div>
+      <div class="form-group mt-4">
         <label class="form-label" for="org-context-followup">Follow-up prompt</label>
         <textarea class="form-textarea" id="org-context-followup" rows="3" placeholder="Tell the AI what to change, emphasise, shorten, or make more specific."></textarea>
       </div>
@@ -1838,7 +1843,7 @@ function openOrgEntityEditor({ structure = [], existingNode = null, seed = {}, o
     }
   });
   document.getElementById('org-cancel').addEventListener('click', () => modal.close());
-  async function buildDepartmentContextFromParent() {
+  async function buildDepartmentContextFromParent(uploaded = { text: '', name: '' }) {
     const parentId = parentEl.value || node.parentId || seed.parentId || '';
     if (!parentId) {
       UI.toast('Choose the parent business before using AI assist for a function.', 'warning');
@@ -1878,7 +1883,9 @@ function openOrgEntityEditor({ structure = [], existingNode = null, seed = {}, o
         aiInstructions: settings.aiInstructions || '',
         benchmarkStrategy: settings.benchmarkStrategy || '',
         riskAppetiteStatement: settings.riskAppetiteStatement || ''
-      }
+      },
+      uploadedText: uploaded.text,
+      uploadedDocumentName: uploaded.name
     });
     if (result.contextSummary) profileEl.value = result.contextSummary;
   }
@@ -1891,9 +1898,10 @@ function openOrgEntityEditor({ structure = [], existingNode = null, seed = {}, o
       btn.disabled = true;
       btn.textContent = 'Building context…';
       try {
-        await buildDepartmentContextFromParent();
+        const uploaded = await loadContextSupportSource('org-context-source-file', 'org-context-source-help');
+        await buildDepartmentContextFromParent(uploaded);
         contextRefinementHistory.length = 0;
-        contextRefinementHistory.push({ role: 'assistant', text: 'Initial function context draft created. Use follow-up prompts below if you want to reshape it further.' });
+        contextRefinementHistory.push({ role: 'assistant', text: uploaded.text ? 'Initial function context draft created and refined using the uploaded source material. Use follow-up prompts below if you want to reshape it further.' : 'Initial function context draft created. Use follow-up prompts below if you want to reshape it further.' });
         renderOrgContextRefinementHistory();
         if (contextRefineStatusEl) contextRefineStatusEl.textContent = 'Initial AI draft applied. Use the follow-up prompt box below to keep refining it.';
         UI.toast('Function context drafted from the parent business context.', 'success', 5000);
@@ -1917,13 +1925,28 @@ function openOrgEntityEditor({ structure = [], existingNode = null, seed = {}, o
       btn.textContent = 'Building context…';
       try {
         LLMService.setCompassConfig(llmConfig);
-        const result = await LLMService.buildCompanyContext(targetUrl);
+        const uploaded = await loadContextSupportSource('org-context-source-file', 'org-context-source-help');
+        let result = await LLMService.buildCompanyContext(targetUrl);
         applyOrgCompanyContextResult(result);
+        if (uploaded.text) {
+          result = await LLMService.refineCompanyContext({
+            websiteUrl: targetUrl,
+            currentSections: getCurrentOrgCompanySections(),
+            currentAiGuidance: getAdminSettings().aiInstructions || '',
+            currentGeography: getAdminSettings().geography || '',
+            currentRegulations: Array.isArray(getAdminSettings().applicableRegulations) ? getAdminSettings().applicableRegulations : [],
+            history: [],
+            userPrompt: 'Incorporate the uploaded strategy, policy, procedure, and operating-model material into this company context draft while keeping it concise and grounded.',
+            uploadedText: uploaded.text,
+            uploadedDocumentName: uploaded.name
+          });
+          applyOrgCompanyContextResult(result);
+        }
         if (!nameEl.value.trim()) {
           nameEl.value = inferCompanyNameFromUrl(targetUrl);
         }
         contextRefinementHistory.length = 0;
-        contextRefinementHistory.push({ role: 'assistant', text: 'Initial company context draft created. Use follow-up prompts below if you want to reshape it further.' });
+        contextRefinementHistory.push({ role: 'assistant', text: uploaded.text ? 'Initial company context draft created and refined using the uploaded source material. Use follow-up prompts below if you want to reshape it further.' : 'Initial company context draft created. Use follow-up prompts below if you want to reshape it further.' });
         renderOrgContextRefinementHistory();
         if (contextRefineStatusEl) contextRefineStatusEl.textContent = 'Initial AI draft applied. Use the follow-up prompt box below to keep refining it.';
         UI.toast('Company context built. Review the entity details and save it into the organisation tree.', 'success', 5000);
@@ -1957,6 +1980,7 @@ function openOrgEntityEditor({ structure = [], existingNode = null, seed = {}, o
         const parentId = parentEl.value || node.parentId || seed.parentId || '';
         const parentEntity = getEntityById(structure, parentId);
         const parentLayer = parentEntity?.id ? getEntityLayerById(settings, parentEntity.id) : null;
+        const uploaded = await loadContextSupportSource('org-context-source-file', 'org-context-source-help');
         const result = await LLMService.refineEntityContext({
           entity: {
             id: node.id || '',
@@ -1991,12 +2015,15 @@ function openOrgEntityEditor({ structure = [], existingNode = null, seed = {}, o
             riskAppetiteStatement: settings.riskAppetiteStatement || ''
           },
           history: contextRefinementHistory,
-          userPrompt: prompt
+          userPrompt: prompt,
+          uploadedText: uploaded.text,
+          uploadedDocumentName: uploaded.name
         });
         if (result.contextSummary) profileEl.value = result.contextSummary;
         contextRefinementHistory.push({ role: 'assistant', text: result.responseMessage || 'I refined the function context based on your latest prompt.' });
       } else {
         const settings = getAdminSettings();
+        const uploaded = await loadContextSupportSource('org-context-source-file', 'org-context-source-help');
         const result = await LLMService.refineCompanyContext({
           websiteUrl: websiteEl?.value.trim() || '',
           currentSections: getCurrentOrgCompanySections(),
@@ -2004,7 +2031,9 @@ function openOrgEntityEditor({ structure = [], existingNode = null, seed = {}, o
           currentGeography: settings.geography || '',
           currentRegulations: Array.isArray(settings.applicableRegulations) ? settings.applicableRegulations : [],
           history: contextRefinementHistory,
-          userPrompt: prompt
+          userPrompt: prompt,
+          uploadedText: uploaded.text,
+          uploadedDocumentName: uploaded.name
         });
         applyOrgCompanyContextResult(result);
         contextRefinementHistory.push({ role: 'assistant', text: result.responseMessage || 'I refined the company context based on your latest prompt.' });
@@ -2171,6 +2200,11 @@ function openEntityContextLayerEditor({ entity, settings = getAdminSettings(), o
         <p class="form-help" style="margin-top:6px">Ask follow-up questions or give directions like “make this more specific to data residency”, “tighten the summary for a COO”, or “focus more on vendor dependencies”.</p>
         <div id="entity-layer-refinement-history" style="display:flex;flex-direction:column;gap:10px;margin-top:12px"></div>
         <div class="form-group mt-4">
+          <label class="form-label" for="entity-layer-source-file">Upload supporting documents</label>
+          <input class="form-input" id="entity-layer-source-file" type="file" accept=".txt,.csv,.json,.md,.tsv,.xlsx,.xls,.doc,.docx,.pdf">
+          <div class="form-help" id="entity-layer-source-help">Recommended: upload strategy, policy, procedure, or operating-model documents to ground the AI context.</div>
+        </div>
+        <div class="form-group mt-4">
           <label class="form-label" for="entity-layer-followup">Follow-up prompt</label>
           <textarea class="form-textarea" id="entity-layer-followup" rows="3" placeholder="Tell the AI how you want to improve or reshape this context."></textarea>
         </div>
@@ -2243,9 +2277,14 @@ function openEntityContextLayerEditor({ entity, settings = getAdminSettings(), o
         model: llmConfig.model || 'gpt-5.1',
         apiKey: llmConfig.apiKey || ''
       });
-      const result = await LLMService.buildEntityContext(contextRequest);
+      const uploaded = await loadContextSupportSource('entity-layer-source-file', 'entity-layer-source-help');
+      const result = await LLMService.buildEntityContext({
+        ...contextRequest,
+        uploadedText: uploaded.text,
+        uploadedDocumentName: uploaded.name
+      });
       applyContextResult(result, { onlyEmptyGeography: true });
-      refinementHistory.push({ role: 'assistant', text: `Initial context draft created for ${entity.name}. Review it or use follow-up prompts below to shape it further.` });
+      refinementHistory.push({ role: 'assistant', text: uploaded.text ? `Initial context draft created for ${entity.name} and grounded with the uploaded source material. Review it or use follow-up prompts below to shape it further.` : `Initial context draft created for ${entity.name}. Review it or use follow-up prompts below to shape it further.` });
       renderRefinementHistory();
       if (refineStatusEl) refineStatusEl.textContent = 'Initial AI draft applied. Use a follow-up prompt below if you want to reshape it further.';
       UI.toast(`Context built for ${entity.name}. Review and save it.`, 'success', 5000);
@@ -2275,11 +2314,14 @@ function openEntityContextLayerEditor({ entity, settings = getAdminSettings(), o
         model: llmConfig.model || 'gpt-5.1',
         apiKey: llmConfig.apiKey || ''
       });
+      const uploaded = await loadContextSupportSource('entity-layer-source-file', 'entity-layer-source-help');
       const result = await LLMService.refineEntityContext({
         ...contextRequest,
         currentContext: getCurrentContextDraft(),
         history: refinementHistory,
-        userPrompt: prompt
+        userPrompt: prompt,
+        uploadedText: uploaded.text,
+        uploadedDocumentName: uploaded.name
       });
       applyContextResult(result);
       refinementHistory.push({ role: 'assistant', text: result.responseMessage || 'I refined the context based on your latest prompt.' });
@@ -2922,6 +2964,22 @@ async function parseRegisterFile(file) {
       sheets: [{ sheetName: file.name, rowCount: parseRegisterText(text).length }]
     }
   };
+}
+
+async function loadContextSupportSource(fileInputId, helpId) {
+  const file = document.getElementById(fileInputId)?.files?.[0] || null;
+  const helpEl = helpId ? document.getElementById(helpId) : null;
+  if (!file) {
+    if (helpEl) helpEl.textContent = 'Recommended: upload strategy, policy, procedure, or operating-model documents to ground the AI context.';
+    return { text: '', name: '' };
+  }
+  const parsed = await parseRegisterFile(file);
+  const ext = getFileExtension(file.name);
+  if (looksLikeBinaryRegister(parsed.text) && !['xlsx', 'xls', 'pdf', 'doc', 'docx'].includes(ext)) {
+    throw new Error('The uploaded file appears unreadable. Use PDF, DOC, DOCX, Excel, TXT, CSV, TSV, JSON, or Markdown.');
+  }
+  if (helpEl) helpEl.textContent = `Loaded ${file.name}. The AI will use it to build and refine this context.`;
+  return { text: parsed.text || '', name: file.name };
 }
 
 function composeGuidedNarrative(guidedInput = {}) {
@@ -3744,6 +3802,11 @@ function renderAdminSettings(activeSection = 'org') {
       <p class="form-help" style="margin-top:6px">Use follow-up prompts to reshape the company context until it is ready for the admin baseline or organisation tree.</p>
       <div id="admin-company-refinement-history" style="display:flex;flex-direction:column;gap:10px;margin-top:12px"></div>
       <div class="form-group mt-4">
+        <label class="form-label" for="admin-company-source-file">Upload supporting documents</label>
+        <input class="form-input" id="admin-company-source-file" type="file" accept=".txt,.csv,.json,.md,.tsv,.xlsx,.xls,.doc,.docx,.pdf">
+        <div class="form-help" id="admin-company-source-help">Recommended: upload strategy, policy, procedure, or operating-model documents to ground the AI context.</div>
+      </div>
+      <div class="form-group mt-4">
         <label class="form-label" for="admin-company-followup">Follow-up prompt</label>
         <textarea class="form-textarea" id="admin-company-followup" rows="3" placeholder="Tell the AI what to change, emphasise, shorten, or make more specific."></textarea>
       </div>
@@ -4053,10 +4116,25 @@ ${topItems}${impactAssessment.impacts.length > 3 ? `\n- +${impactAssessment.impa
     btn.textContent = 'Building context…';
     try {
       LLMService.setCompassConfig(llmConfig);
-      const result = await LLMService.buildCompanyContext(websiteUrl);
-      const { sections, profileText } = applyAdminCompanyContextResult(result);
+      const uploaded = await loadContextSupportSource('admin-company-source-file', 'admin-company-source-help');
+      let result = await LLMService.buildCompanyContext(websiteUrl);
+      let { sections, profileText } = applyAdminCompanyContextResult(result);
+      if (uploaded.text) {
+        result = await LLMService.refineCompanyContext({
+          websiteUrl,
+          currentSections: getCurrentAdminCompanySections(),
+          currentAiGuidance: document.getElementById('admin-ai-instructions')?.value.trim() || '',
+          currentGeography: document.getElementById('admin-geo')?.value.trim() || '',
+          currentRegulations: regsInput?.getTags ? regsInput.getTags() : [],
+          history: [],
+          userPrompt: 'Incorporate the uploaded strategy, policy, procedure, and operating-model material into this company context draft while keeping it concise and grounded.',
+          uploadedText: uploaded.text,
+          uploadedDocumentName: uploaded.name
+        });
+        ({ sections, profileText } = applyAdminCompanyContextResult(result));
+      }
       adminCompanyRefinementHistory.length = 0;
-      adminCompanyRefinementHistory.push({ role: 'assistant', text: 'Initial company context draft created. Use follow-up prompts below if you want to reshape it further.' });
+      adminCompanyRefinementHistory.push({ role: 'assistant', text: uploaded.text ? 'Initial company context draft created and refined using the uploaded source material. Use follow-up prompts below if you want to reshape it further.' : 'Initial company context draft created. Use follow-up prompts below if you want to reshape it further.' });
       renderAdminCompanyRefinementHistory();
       if (adminCompanyRefineStatusEl) adminCompanyRefineStatusEl.textContent = 'Initial AI draft applied. Use the follow-up prompt box below to keep refining it.';
       AdminOrgSetupSection.openEntityEditor(null, {
@@ -4099,6 +4177,7 @@ ${topItems}${impactAssessment.impacts.length > 3 ? `\n- +${impactAssessment.impa
     renderAdminCompanyRefinementHistory();
     try {
       LLMService.setCompassConfig(llmConfig);
+      const uploaded = await loadContextSupportSource('admin-company-source-file', 'admin-company-source-help');
       const result = await LLMService.refineCompanyContext({
         websiteUrl,
         currentSections: getCurrentAdminCompanySections(),
@@ -4106,7 +4185,9 @@ ${topItems}${impactAssessment.impacts.length > 3 ? `\n- +${impactAssessment.impa
         currentGeography: document.getElementById('admin-geo')?.value.trim() || '',
         currentRegulations: regsInput?.getTags ? regsInput.getTags() : [],
         history: adminCompanyRefinementHistory,
-        userPrompt: prompt
+        userPrompt: prompt,
+        uploadedText: uploaded.text,
+        uploadedDocumentName: uploaded.name
       });
       applyAdminCompanyContextResult(result);
       adminCompanyRefinementHistory.push({ role: 'assistant', text: result.responseMessage || 'I refined the company context based on your latest prompt.' });

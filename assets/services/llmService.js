@@ -213,6 +213,14 @@ const LLMService = (() => {
       }));
   }
 
+
+  function _buildUploadedDocumentBlock(input = {}) {
+    const uploadedText = _truncateText(input.uploadedText || '', 2400);
+    if (!uploadedText) return 'Uploaded supporting documents\n(none)';
+    const label = String(input.uploadedDocumentName || 'source material').trim() || 'source material';
+    return `Uploaded supporting documents (${label}):\n${uploadedText}`;
+  }
+
   function _stripScenarioLeadIns(value = '') {
     let text = String(value || '').replace(/\s+/g, ' ').trim();
     if (!text) return '';
@@ -1126,7 +1134,7 @@ ${evidenceMeta.promptBlock}`;
   "aiInstructions": "string",
   "benchmarkStrategy": "string"
 }`;
-      const evidenceMeta = _buildEvidenceMeta({ citations: [], businessUnit: input.parentEntity, geography: input.adminSettings?.geography || input.parentLayer?.geography, applicableRegulations: input.parentLayer?.applicableRegulations || input.adminSettings?.applicableRegulations, organisationContext: input.parentLayer?.contextSummary || input.parentEntity?.profile, adminSettings: input.adminSettings });
+      const evidenceMeta = _buildEvidenceMeta({ citations: [], businessUnit: input.parentEntity, geography: input.adminSettings?.geography || input.parentLayer?.geography, applicableRegulations: input.parentLayer?.applicableRegulations || input.adminSettings?.applicableRegulations, organisationContext: input.parentLayer?.contextSummary || input.parentEntity?.profile, adminSettings: input.adminSettings, uploadedText: input.uploadedText });
       const userPrompt = `Build retained context for this organisation node.
 
 Entity:
@@ -1149,6 +1157,8 @@ ${JSON.stringify({
         benchmarkStrategy: input.adminSettings?.benchmarkStrategy || '',
         riskAppetiteStatement: input.adminSettings?.riskAppetiteStatement || ''
       }, null, 2)}
+
+${_buildUploadedDocumentBlock(input)}
 
 Instructions:
 - derive the context from the entity metadata, any existing remit text, and the parent business unit context
@@ -1174,7 +1184,7 @@ ${evidenceMeta.promptBlock}`;
       }, evidenceMeta);
     } catch (error) {
       console.warn('buildEntityContext fallback:', error.message);
-      return _withEvidenceMeta(stub, _buildEvidenceMeta({ uploadedText: '', businessUnit: input.parentEntity, geography: input.adminSettings?.geography || input.parentLayer?.geography, applicableRegulations: input.parentLayer?.applicableRegulations || input.adminSettings?.applicableRegulations, organisationContext: input.parentLayer?.contextSummary || input.parentEntity?.profile, adminSettings: input.adminSettings }));
+      return _withEvidenceMeta(stub, _buildEvidenceMeta({ uploadedText: input.uploadedText || '', businessUnit: input.parentEntity, geography: input.adminSettings?.geography || input.parentLayer?.geography, applicableRegulations: input.parentLayer?.applicableRegulations || input.adminSettings?.applicableRegulations, organisationContext: input.parentLayer?.contextSummary || input.parentEntity?.profile, adminSettings: input.adminSettings }));
     }
   }
 
@@ -1229,7 +1239,8 @@ ${evidenceMeta.promptBlock}`;
         geography: currentContext.geography || input.adminSettings?.geography || input.parentLayer?.geography,
         applicableRegulations: currentContext.applicableRegulations.length ? currentContext.applicableRegulations : (input.parentLayer?.applicableRegulations || input.adminSettings?.applicableRegulations),
         organisationContext: currentContext.contextSummary || input.parentLayer?.contextSummary || input.parentEntity?.profile,
-        adminSettings: input.adminSettings
+        adminSettings: input.adminSettings,
+        uploadedText: input.uploadedText
       });
       const userPrompt = `Refine the retained context for this organisation node based on the latest user instruction.
 
@@ -1244,6 +1255,8 @@ ${JSON.stringify(currentContext, null, 2)}
 
 Parent layer:
 ${JSON.stringify(input.parentLayer || {}, null, 2)}
+
+${_buildUploadedDocumentBlock(input)}
 
 Recent conversation:
 ${JSON.stringify(_compactHistory(input.history), null, 2)}
@@ -1287,7 +1300,8 @@ ${evidenceMeta.promptBlock}`;
         geography: currentContext.geography || input.adminSettings?.geography || input.parentLayer?.geography,
         applicableRegulations: currentContext.applicableRegulations.length ? currentContext.applicableRegulations : (input.parentLayer?.applicableRegulations || input.adminSettings?.applicableRegulations),
         organisationContext: currentContext.contextSummary || input.parentLayer?.contextSummary || input.parentEntity?.profile,
-        adminSettings: input.adminSettings
+        adminSettings: input.adminSettings,
+        uploadedText: input.uploadedText
       }));
     }
   }
@@ -1336,7 +1350,8 @@ ${evidenceMeta.promptBlock}`;
         geography: input.currentGeography,
         applicableRegulations: input.currentRegulations,
         organisationContext: currentSections,
-        adminSettings: { aiInstructions: input.currentAiGuidance || '' }
+        adminSettings: { aiInstructions: input.currentAiGuidance || '' },
+        uploadedText: input.uploadedText
       });
       const userPrompt = `Refine the current company context based on the latest instruction.
 
@@ -1354,6 +1369,8 @@ ${String(input.currentGeography || '').trim()}
 
 Current regulation tags:
 ${JSON.stringify(Array.isArray(input.currentRegulations) ? input.currentRegulations : [], null, 2)}
+
+${_buildUploadedDocumentBlock(input)}
 
 Recent conversation:
 ${JSON.stringify(_compactHistory(input.history), null, 2)}
@@ -1407,7 +1424,8 @@ ${evidenceMeta.promptBlock}`;
         geography: input.currentGeography,
         applicableRegulations: input.currentRegulations,
         organisationContext: currentSections,
-        adminSettings: { aiInstructions: input.currentAiGuidance || '' }
+        adminSettings: { aiInstructions: input.currentAiGuidance || '' },
+        uploadedText: input.uploadedText
       }));
     }
   }

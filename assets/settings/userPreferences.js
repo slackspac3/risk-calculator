@@ -147,6 +147,11 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
         <p class="form-help" style="margin-top:6px">Use follow-up prompts to reshape the company context until it reflects the framing you want for this account.</p>
         <div id="user-company-refinement-history" style="display:flex;flex-direction:column;gap:10px;margin-top:12px"></div>
         <div class="form-group mt-4">
+          <label class="form-label" for="user-company-source-file">Upload supporting documents</label>
+          <input class="form-input" id="user-company-source-file" type="file" accept=".txt,.csv,.json,.md,.tsv,.xlsx,.xls,.doc,.docx,.pdf">
+          <div class="form-help" id="user-company-source-help">Recommended: upload strategy, policy, procedure, or operating-model documents to ground the AI context.</div>
+        </div>
+        <div class="form-group mt-4">
           <label class="form-label" for="user-company-followup">Follow-up prompt</label>
           <textarea class="form-textarea" id="user-company-followup" rows="3" placeholder="Tell the AI what to change, emphasise, shorten, or make more specific."></textarea>
         </div>
@@ -594,9 +599,24 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
     btn.textContent = 'Building context…';
     try {
       LLMService.setCompassConfig(llmConfig);
-      const result = await LLMService.buildCompanyContext(websiteUrl);
+      const uploaded = await loadContextSupportSource('user-company-source-file', 'user-company-source-help');
+      let result = await LLMService.buildCompanyContext(websiteUrl);
       applyUserCompanyContextResult(result);
-      companyRefinementHistory.push({ role: 'assistant', text: 'Initial company context draft created. Use follow-up prompts below if you want to reshape it further.' });
+      if (uploaded.text) {
+        result = await LLMService.refineCompanyContext({
+          websiteUrl,
+          currentSections: getCurrentUserCompanySections(),
+          currentAiGuidance: document.getElementById('user-ai-instructions').value.trim(),
+          currentGeography: document.getElementById('user-geo-primary').value.trim(),
+          currentRegulations: regsInput.getTags(),
+          history: [],
+          userPrompt: 'Incorporate the uploaded strategy, policy, procedure, and operating-model material into this company context draft while keeping it concise and grounded.',
+          uploadedText: uploaded.text,
+          uploadedDocumentName: uploaded.name
+        });
+        applyUserCompanyContextResult(result);
+      }
+      companyRefinementHistory.push({ role: 'assistant', text: uploaded.text ? 'Initial company context draft created and refined using the uploaded source material. Use follow-up prompts below if you want to reshape it further.' : 'Initial company context draft created. Use follow-up prompts below if you want to reshape it further.' });
       renderUserCompanyRefinementHistory();
       if (companyRefineStatusEl) companyRefineStatusEl.textContent = 'Initial AI draft applied. Use the follow-up prompt box below to keep refining it.';
       UI.toast('Personal company context built from public sources.', 'success', 5000);
@@ -628,6 +648,7 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
     renderUserCompanyRefinementHistory();
     try {
       LLMService.setCompassConfig(llmConfig);
+      const uploaded = await loadContextSupportSource('user-company-source-file', 'user-company-source-help');
       const result = await LLMService.refineCompanyContext({
         websiteUrl,
         currentSections: getCurrentUserCompanySections(),
@@ -635,7 +656,9 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
         currentGeography: document.getElementById('user-geo-primary').value.trim(),
         currentRegulations: regsInput.getTags(),
         history: companyRefinementHistory,
-        userPrompt: prompt
+        userPrompt: prompt,
+        uploadedText: uploaded.text,
+        uploadedDocumentName: uploaded.name
       });
       applyUserCompanyContextResult(result);
       companyRefinementHistory.push({ role: 'assistant', text: result.responseMessage || 'I refined the company context based on your latest prompt.' });
