@@ -50,6 +50,15 @@ const DEFAULT_ADMIN_SETTINGS = {
 };
 
 
+function escapeHtml(value = '') {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function normaliseAdminSettings(settings = {}) {
   return {
     ...DEFAULT_ADMIN_SETTINGS,
