@@ -357,21 +357,24 @@ const LLMService = (() => {
 
 
   function _buildCitationPromptBlock(citations = [], limit = 8) {
+    const labelMap = {
+      official: 'Official/company source',
+      regulatory: 'Regulatory/policy source',
+      regional: 'Regional news source',
+      global: 'Global news source',
+      internal: 'Internal source',
+      external: 'External source'
+    };
     const items = (Array.isArray(citations) ? citations : [])
+      .slice()
+      .sort((a, b) => Number(b?.score || 0) - Number(a?.score || 0))
       .map((item) => {
         const kind = _classifyEvidenceSource(item);
-        const labelMap = {
-          official: 'Official/company source',
-          regulatory: 'Regulatory/policy source',
-          regional: 'Regional news source',
-          global: 'Global news source',
-          internal: 'Internal source',
-          external: 'External source'
-        };
         const title = String(item?.title || item?.note || 'Untitled source').trim();
         const excerpt = _truncateText(item?.excerpt || item?.description || item?.note || '', 220);
         const url = String(item?.url || item?.link || '').trim();
-        return `- ${labelMap[kind] || 'Source'}: ${title}${excerpt ? ` | ${excerpt}` : ''}${url ? ` | ${url}` : ''}`;
+        const reason = String(item?.relevanceReason || '').trim();
+        return `- ${labelMap[kind] || 'Source'}: ${title}${reason ? ` | Why used: ${reason}` : ''}${excerpt ? ` | ${excerpt}` : ''}${url ? ` | ${url}` : ''}`;
       })
       .filter(Boolean)
       .slice(0, limit);

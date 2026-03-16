@@ -55,8 +55,10 @@ const UI = (() => {
       body: `
         <div style="margin-bottom:12px">
           <span class="badge badge--neutral">${doc.lastUpdated || 'Unknown date'}</span>
+          ${doc.sourceType ? `<span class="badge badge--gold" style="margin-left:4px">${doc.sourceType}</span>` : ''}
           ${(doc.tags || []).map(t => `<span class="badge badge--primary" style="margin-left:4px">${t}</span>`).join('')}
         </div>
+        ${doc.relevanceReason ? `<div class="form-help" style="margin-bottom:12px">Why this source was used: ${doc.relevanceReason}</div>` : ''}
         <p style="line-height:1.8; font-size:0.9rem; color: var(--text-secondary)">${doc.excerpt || doc.contentExcerpt || 'No excerpt available.'}</p>
         ${doc.url && doc.url !== '#/admin/docs' ? `<div style="margin-top:16px"><a href="${doc.url}" target="_blank" class="btn btn--secondary btn--sm">Open document</a></div>` : ''}
       `

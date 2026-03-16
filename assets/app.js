@@ -8,7 +8,7 @@
 const TOLERANCE_THRESHOLD = 5_000_000;
 const DEFAULT_FX_RATE = 3.6725;
 const DEFAULT_COMPASS_PROXY_URL = resolveCompassProxyUrl();
-const APP_ASSET_VERSION = '20260312bh';
+const APP_ASSET_VERSION = '20260312bi';
 const GLOBAL_ADMIN_STORAGE_KEY = 'rq_admin_settings';
 const USER_SETTINGS_STORAGE_PREFIX = 'rq_user_settings';
 const ASSESSMENTS_STORAGE_PREFIX = 'rq_assessments';
@@ -2739,7 +2739,7 @@ function deriveApplicableRegulations(bu, selectedRisks = [], geographies = getSc
 function normaliseCitations(citations) {
   const list = Array.isArray(citations) ? citations : [];
   const seen = new Set();
-  return list.filter((citation) => {
+  const unique = list.filter((citation) => {
     const key = [citation?.docId || '', citation?.title || '', citation?.url || '', citation?.excerpt || '']
       .join('|')
       .trim()
@@ -2747,6 +2747,20 @@ function normaliseCitations(citations) {
     if (!key || seen.has(key)) return false;
     seen.add(key);
     return true;
+  });
+  const sourcePriority = (citation) => {
+    const type = String(citation?.sourceType || '').toLowerCase();
+    if (type.includes('standard') || type.includes('regulatory')) return 0;
+    if (type.includes('internal')) return 1;
+    if (type.includes('reference')) return 2;
+    return 3;
+  };
+  return unique.sort((a, b) => {
+    const scoreDiff = Number(b?.score || 0) - Number(a?.score || 0);
+    if (scoreDiff) return scoreDiff;
+    const sourceDiff = sourcePriority(a) - sourcePriority(b);
+    if (sourceDiff) return sourceDiff;
+    return new Date(b?.lastUpdated || 0).getTime() - new Date(a?.lastUpdated || 0).getTime();
   });
 }
 
@@ -3364,11 +3378,20 @@ function loadTemplate(tmpl) {
 function renderCitationBlock(citations) {
   const unique = normaliseCitations(citations);
   if (!unique.length) return '';
+  const primary = unique.slice(0, 4);
+  const remaining = unique.length - primary.length;
   return `<div class="card mt-4 anim-fade-in">
-    <div class="context-panel-title">📚 Citations — Internal Documents</div>
-    <div class="citation-chips">
-      ${unique.map(c=>`<button class="citation-chip" data-doc-id="${c.docId || ''}" data-doc-title="${escapeHtml(c.title || '')}" data-doc-url="${escapeHtml(c.url || '')}"><span class="citation-chip-icon">📄</span>${c.title}</button>`).join('')}
+    <div class="context-panel-title">Key references used</div>
+    <div class="form-help" style="margin-top:6px">Most relevant sources are shown first so it is easier to see what grounded the AI output.</div>
+    <div style="display:flex;flex-direction:column;gap:12px;margin-top:var(--sp-4)">
+      ${primary.map(c => `<button class="citation-chip" style="justify-content:space-between;align-items:flex-start;padding:var(--sp-4);width:100%;text-align:left" data-doc-id="${c.docId || ''}" data-doc-title="${escapeHtml(c.title || '')}" data-doc-url="${escapeHtml(c.url || '')}">
+        <span style="display:flex;flex-direction:column;gap:6px;min-width:0">
+          <span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="citation-chip-icon">📄</span><span style="font-weight:600;color:var(--text-primary)">${escapeHtml(c.title || 'Untitled source')}</span><span class="badge badge--neutral">${escapeHtml(c.sourceType || 'Source')}</span></span>
+          ${c.relevanceReason ? `<span style="font-size:.8rem;color:var(--text-secondary)">Why used: ${escapeHtml(c.relevanceReason)}</span>` : ''}
+        </span>
+      </button>`).join('')}
     </div>
+    ${remaining > 0 ? `<div class="form-help" style="margin-top:12px">${remaining} additional source${remaining === 1 ? '' : 's'} are also attached to this assessment.</div>` : ''}
   </div>`;
 }
 
