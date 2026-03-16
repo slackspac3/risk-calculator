@@ -5,6 +5,7 @@ function renderUserOnboarding(existingSettings = getUserSettings(), startStep = 
   const companyStructure = Array.isArray(globalSettings.companyStructure) ? globalSettings.companyStructure : [];
   const companies = getCompanyEntities(companyStructure);
   const profile = normaliseUserProfile(existingSettings.userProfile || settings.userProfile);
+  const capability = getNonAdminCapabilityState(AppState.currentUser, settings, globalSettings);
   const draftSettings = {
     ...settings,
     ...existingSettings,
@@ -257,8 +258,12 @@ function renderUserOnboarding(existingSettings = getUserSettings(), startStep = 
         draftSettings.userProfile.jobTitle = document.getElementById('onboard-title').value.trim();
       }
       if (currentStep === 1) {
-        const businessUnitEntityId = document.getElementById('onboard-bu').value.trim();
-        const departmentEntityId = document.getElementById('onboard-department').value.trim();
+        const businessUnitEntityId = capability.canManageBusinessUnit || capability.canManageDepartment
+          ? document.getElementById('onboard-bu').value.trim()
+          : (capability.selection.businessUnitEntityId || '');
+        const departmentEntityId = capability.canManageDepartment
+          ? document.getElementById('onboard-department').value.trim()
+          : (capability.selection.departmentEntityId || '');
         const businessEntity = getEntityById(companyStructure, businessUnitEntityId);
         const departmentEntity = getEntityById(companyStructure, departmentEntityId);
         draftSettings.userProfile.businessUnitEntityId = businessUnitEntityId;

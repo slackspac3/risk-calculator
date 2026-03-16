@@ -32,11 +32,11 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
   const companyStructure = Array.isArray(globalSettings.companyStructure) ? globalSettings.companyStructure : [];
   const companyOptions = getCompanyEntities(companyStructure);
   const capability = getNonAdminCapabilityState(AppState.currentUser, settings, globalSettings);
-  const selectedBusinessId = capability.managedBusinessId || profile.businessUnitEntityId || capability.selection.businessUnitEntityId;
+  const selectedBusinessId = capability.canManageBusinessUnit || capability.canManageDepartment ? (capability.managedBusinessId || profile.businessUnitEntityId || capability.selection.businessUnitEntityId) : capability.selection.businessUnitEntityId;
   const selectedBusinessEntity = getEntityById(companyStructure, selectedBusinessId);
   const selectedBusinessDepartments = getDepartmentEntities(companyStructure, selectedBusinessId);
   const businessOwner = !!capability.canManageBusinessUnit && (!!capability.managedBusinessId ? capability.managedBusinessId === selectedBusinessId : true);
-  const selectedDepartment = getEntityById(companyStructure, capability.managedDepartmentId || profile.departmentEntityId || capability.selection.departmentEntityId);
+  const selectedDepartment = getEntityById(companyStructure, capability.canManageDepartment ? (capability.managedDepartmentId || profile.departmentEntityId || capability.selection.departmentEntityId) : capability.selection.departmentEntityId);
   const departmentOwner = !!capability.canManageDepartment;
   const companyContextSections = settings.companyContextSections || buildCompanyContextSections({
     companySummary: settings.adminContextSummary || '',
@@ -454,8 +454,11 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
   }
 
   function buildUserSettingsPayload() {
-    const businessUnitEntityId = businessUnitEl.value.trim();
-    const departmentEntityId = departmentEl.value.trim();
+    const selectedBusinessUnitEntityId = businessUnitEl.value.trim();
+    const selectedDepartmentEntityId = departmentEl.value.trim();
+    const canSelectOrg = capability.canManageBusinessUnit || capability.canManageDepartment;
+    const businessUnitEntityId = canSelectOrg ? selectedBusinessUnitEntityId : (capability.selection.businessUnitEntityId || '');
+    const departmentEntityId = canSelectOrg ? selectedDepartmentEntityId : (capability.selection.departmentEntityId || '');
     const businessEntity = getEntityById(companyStructure, businessUnitEntityId);
     const departmentEntity = getEntityById(companyStructure, departmentEntityId);
     return {
@@ -505,6 +508,7 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
       departmentEntityId: departmentEntity?.id || ''
     };
   }
+
 
   function persistUserSettings(showToast = false) {
     const { payload, businessUnitEntityId, departmentEntityId } = buildUserSettingsPayload();
