@@ -67,7 +67,14 @@ function attachCitationHandlers() {
   document.querySelectorAll('.citation-chip').forEach(btn => {
     btn.addEventListener('click', () => {
       const docId = btn.dataset.docId;
-      const doc = getDocList().find(d => d.id === docId) || AppState.draft.citations?.find(c => c.docId === docId);
+      const docTitle = btn.dataset.docTitle || '';
+      const docUrl = btn.dataset.docUrl || '';
+      const doc = getDocList().find(d => d.id === docId)
+        || AppState.draft.citations?.find(c => c.docId === docId)
+        || getDocList().find(d => String(d.title || '').trim() === docTitle)
+        || AppState.draft.citations?.find(c => String(c.title || '').trim() === docTitle)
+        || getDocList().find(d => String(d.url || '').trim() === docUrl)
+        || AppState.draft.citations?.find(c => String(c.url || '').trim() === docUrl);
       if (doc) UI.citationModal({ title: doc.title, excerpt: doc.contentExcerpt || doc.excerpt, tags: doc.tags||[], lastUpdated: doc.lastUpdated, url: doc.url });
     });
   });

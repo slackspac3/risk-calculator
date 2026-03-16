@@ -48,7 +48,7 @@ const AdminSystemAccessSection = (() => {
         const result = await LLMService.testCompassConnection();
         UI.toast(result.message || 'Compass connection successful.', 'success', 5000);
       } catch (error) {
-        UI.toast('Compass test failed: ' + error.message, 'danger', 6000);
+        UI.toast('Compass connection could not be confirmed right now.', 'danger', 6000);
       } finally {
         btn.disabled = false;
         btn.textContent = 'Test Connection';

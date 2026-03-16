@@ -5,7 +5,7 @@ const AdminUserAccountsSection = (() => {
     return renderSettingsSection({
       title: 'User Account Control',
       scope: 'admin-settings',
-      description: 'Create PoC users, assign them to a BU and function, and verify whether the shared user store is live.',
+      description: 'Create users, assign them to a BU and function, and check that account changes are available across the platform.',
       meta: `${managedAccounts.length} managed accounts`,
       body: `<div class="card" style="padding:var(--sp-4);background:var(--bg-canvas)">
         <div class="context-panel-title">Shared User Store</div>
@@ -19,8 +19,8 @@ const AdminUserAccountsSection = (() => {
         <div class="flex items-center gap-3 mt-3" style="flex-wrap:wrap">
           <button class="btn btn--secondary" id="btn-save-admin-secret" type="button">Save Admin Secret</button>
           <button class="btn btn--ghost" id="btn-clear-admin-secret" type="button">Clear Admin Secret</button>
-          <button class="btn btn--secondary" id="btn-test-users-store" type="button">Test Shared User Store</button>
-          <span class="form-help" id="admin-users-store-status">Checks whether the Vercel user store is reachable from this browser.</span>
+          <button class="btn btn--secondary" id="btn-test-users-store" type="button">Check Account Sync</button>
+          <span class="form-help" id="admin-users-store-status">Checks whether account changes are available for this admin session.</span>
         </div>
       </div>
       <div class="card mt-4" style="padding:var(--sp-4);background:var(--bg-canvas)">
@@ -303,23 +303,23 @@ const AdminUserAccountsSection = (() => {
       const statusEl = document.getElementById('admin-users-store-status');
       if (!btn || !statusEl) return;
       btn.disabled = true;
-      btn.textContent = 'Testing…';
-      statusEl.textContent = 'Checking shared user store…';
+      btn.textContent = 'Checking…';
+      statusEl.textContent = 'Checking account sync…';
       const result = await AuthService.testUsersStoreHealth();
       if (result.ok) {
         if (result.writable) {
-          statusEl.textContent = `Connected to shared user store · writable · ${result.accountCount} account(s) available.`;
-          UI.toast('Shared user store is reachable and writable.', 'success');
+          statusEl.textContent = 'Account changes are available and can be saved.';
+          UI.toast('Account sync is available.', 'success');
         } else {
-          statusEl.textContent = `Shared user store is reachable, but it is running in ${result.mode} mode.`;
-          UI.toast('Shared user store is reachable but not writable.', 'warning');
+          statusEl.textContent = 'Account lookup is available, but changes cannot be saved right now.';
+          UI.toast('Account sync is reachable but not writable.', 'warning');
         }
       } else {
-        statusEl.textContent = `Shared user store check failed: ${result.error}`;
-        UI.toast('Shared user store check failed.', 'warning');
+        statusEl.textContent = 'Account sync check failed. Try again in a moment.';
+        UI.toast('Account sync check failed.', 'warning');
       }
       btn.disabled = false;
-      btn.textContent = 'Test Shared User Store';
+      btn.textContent = 'Check Account Sync';
     });
 
     document.getElementById('btn-admin-add-user')?.addEventListener('click', async () => {

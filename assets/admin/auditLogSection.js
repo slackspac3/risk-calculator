@@ -34,7 +34,7 @@ const AdminAuditLogSection = (() => {
         await loadAuditLog();
         rerenderCurrentAdminSection();
       } catch (error) {
-        UI.toast(`Audit log refresh failed: ${error instanceof Error ? error.message : String(error)}`, 'warning');
+        UI.toast('Audit log could not be refreshed right now.', 'warning');
       }
     });
     if (!AppState.auditLogCache.loaded && !AppState.auditLogCache.loading) {

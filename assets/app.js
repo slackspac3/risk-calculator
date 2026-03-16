@@ -8,7 +8,7 @@
 const TOLERANCE_THRESHOLD = 5_000_000;
 const DEFAULT_FX_RATE = 3.6725;
 const DEFAULT_COMPASS_PROXY_URL = resolveCompassProxyUrl();
-const APP_ASSET_VERSION = '20260312bg';
+const APP_ASSET_VERSION = '20260312bh';
 const GLOBAL_ADMIN_STORAGE_KEY = 'rq_admin_settings';
 const USER_SETTINGS_STORAGE_PREFIX = 'rq_user_settings';
 const ASSESSMENTS_STORAGE_PREFIX = 'rq_assessments';
@@ -3367,7 +3367,7 @@ function renderCitationBlock(citations) {
   return `<div class="card mt-4 anim-fade-in">
     <div class="context-panel-title">📚 Citations — Internal Documents</div>
     <div class="citation-chips">
-      ${unique.map(c=>`<button class="citation-chip" data-doc-id="${c.docId}"><span class="citation-chip-icon">📄</span>${c.title}</button>`).join('')}
+      ${unique.map(c=>`<button class="citation-chip" data-doc-id="${c.docId || ''}" data-doc-title="${escapeHtml(c.title || '')}" data-doc-url="${escapeHtml(c.url || '')}"><span class="citation-chip-icon">📄</span>${c.title}</button>`).join('')}
     </div>
   </div>`;
 }
