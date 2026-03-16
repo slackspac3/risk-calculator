@@ -12,12 +12,61 @@ const RAGService = (() => {
   let _docs = [];
   let _buData = [];
 
+  const TOPIC_RULES = [
+    {
+      key: 'privacy',
+      patterns: ['privacy', 'personal data', 'pii', 'phi', 'data protection', 'gdpr', 'pdpl', 'data subject', 'biometric', 'health data'],
+      docTags: ['privacy', 'data-protection', 'pims'],
+      docIds: ['doc-iso27018-18', 'doc-iso27701-19', 'doc-data-05', 'doc-gdpr-06', 'doc-cls-07']
+    },
+    {
+      key: 'business-continuity',
+      patterns: ['business continuity', 'continuity', 'resilience', 'disruption', 'downtime', 'outage', 'disaster recovery', 'recovery'],
+      docTags: ['business-continuity', 'resilience', 'bcp', 'dr'],
+      docIds: ['doc-iso22301-20', 'doc-iso22313-21', 'doc-bcp-10']
+    },
+    {
+      key: 'supply-chain',
+      patterns: ['supplier', 'third-party', 'third party', 'vendor', 'supply chain', 'fourth party', 'outsourcing'],
+      docTags: ['supply-chain', 'third-party', 'supplier', 'vendor'],
+      docIds: ['doc-iso27036-22', 'doc-iso28000-23', 'doc-3p-08']
+    },
+    {
+      key: 'risk-management',
+      patterns: ['risk management', 'risk appetite', 'risk assessment', 'governance', 'rmf', 'nist', 'control baseline', 'enterprise risk'],
+      docTags: ['risk-management', 'enterprise-risk', 'governance', 'controls', 'rmf', 'nist'],
+      docIds: ['doc-nist-rmf-14', 'doc-nist-80053-13', 'doc-iso31000-24', 'doc-iso27005-16', 'doc-iso-02']
+    },
+    {
+      key: 'cloud',
+      patterns: ['cloud', 'tenant', 'saas', 'iac', 'public cloud', 'configuration drift'],
+      docTags: ['cloud'],
+      docIds: ['doc-cloud-04', 'doc-iso27017-17', 'doc-iso27018-18']
+    }
+  ];
+
   function init(docs, buData) {
     _docs = docs;
     _buData = buData;
   }
 
-  // Simple TF-IDF-like keyword scoring
+  function _queryIncludesAny(query, patterns = []) {
+    const q = String(query || '').toLowerCase();
+    return patterns.some(pattern => q.includes(String(pattern || '').toLowerCase()));
+  }
+
+  function _topicBoost(doc, query) {
+    const tags = Array.isArray(doc.tags) ? doc.tags.map(tag => String(tag || '').toLowerCase()) : [];
+    let boost = 0;
+    TOPIC_RULES.forEach(rule => {
+      if (!_queryIncludesAny(query, rule.patterns)) return;
+      if ((rule.docIds || []).includes(doc.id)) boost += 8;
+      if ((rule.docTags || []).some(tag => tags.includes(tag))) boost += 5;
+    });
+    return boost;
+  }
+
+  // Simple TF-IDF-like keyword scoring with topic-aware standard boosts
   function scoreDoc(doc, query, buId) {
     let score = 0;
     const q = query.toLowerCase();
@@ -40,12 +89,17 @@ const RAGService = (() => {
     // Tag matches
     const riskKeywords = ['breach', 'ransomware', 'phishing', 'attack', 'malware',
       'data', 'loss', 'incident', 'vulnerability', 'access', 'cloud', 'payment',
-      'regulatory', 'compliance', 'third-party', 'insider', 'supply'];
+      'regulatory', 'compliance', 'third-party', 'insider', 'supply', 'privacy', 'continuity', 'resilience', 'risk'];
     riskKeywords.forEach(kw => {
       if (q.includes(kw) && doc.tags.some(t => t.includes(kw.split('-')[0]))) {
         score += 3;
       }
     });
+
+    score += _topicBoost(doc, query);
+
+    if ((doc.tags || []).includes('all-bu')) score += 0.75;
+    if ((doc.tags || []).includes('nist') || (doc.tags || []).includes('iso')) score += 0.5;
 
     // Recency boost (newer docs slightly preferred)
     const daysSince = (Date.now() - new Date(doc.lastUpdated).getTime()) / 86400000;
@@ -67,10 +121,10 @@ const RAGService = (() => {
     }));
 
     scored.sort((a, b) => b._score - a._score);
-    const results = scored.slice(0, topK).filter(d => d._score > 0);
+    const results = scored.filter(d => d._score > 0).slice(0, Math.max(topK, 6));
 
     // Return as citation objects
-    return results.map(d => ({
+    return results.slice(0, topK).map(d => ({
       docId: d.id,
       title: d.title,
       url: d.url,
