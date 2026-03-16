@@ -287,9 +287,7 @@ function resolveApiUrl(path) {
       action: 'self-update',
       username: String(username || '').trim().toLowerCase(),
       updates: {
-        displayName: typeof updates.displayName === 'string' ? updates.displayName.trim() : undefined,
-        businessUnitEntityId: typeof updates.businessUnitEntityId === 'string' ? updates.businessUnitEntityId.trim() : undefined,
-        departmentEntityId: typeof updates.departmentEntityId === 'string' ? updates.departmentEntityId.trim() : undefined
+        displayName: typeof updates.displayName === 'string' ? updates.displayName.trim() : undefined
       }
     });
     if (Array.isArray(data?.accounts)) saveCache(data.accounts);

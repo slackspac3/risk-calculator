@@ -39,18 +39,19 @@ function renderUserOnboarding(existingSettings = getUserSettings(), startStep = 
       },
       {
         title: 'Where do you sit in the organisation?',
-        prompt: 'This helps the platform interpret scenarios using the right business context.',
+        prompt: 'This confirms the business context the platform should use for your work.',
         body: `
           <div class="form-group">
             <label class="form-label" for="onboard-bu">Business unit or entity</label>
-            <select class="form-select" id="onboard-bu">
+            <select class="form-select" id="onboard-bu" disabled>
               <option value="">Choose your business unit</option>
               ${companies.map(entity => `<option value="${entity.id}" ${entity.id === draftSettings.userProfile.businessUnitEntityId ? 'selected' : ''}>${entity.name}</option>`).join('')}
             </select>
           </div>
           <div class="form-group mt-4">
             <label class="form-label" for="onboard-department">Department or function</label>
-            <select class="form-select" id="onboard-department"></select>
+            <select class="form-select" id="onboard-department" ${capability.canManageBusinessUnit && !capability.canManageDepartment ? '' : 'disabled'}></select>
+            <span class="form-help">${capability.canManageBusinessUnit && !capability.canManageDepartment ? 'You can choose a function context within your assigned business unit.' : 'Your organisation assignment is set by your current admin-managed role.'}</span>
           </div>`
       },
       {
@@ -178,13 +179,8 @@ function renderUserOnboarding(existingSettings = getUserSettings(), startStep = 
         deptEl.innerHTML = departments.length
           ? departments.map(entity => `<option value="${entity.id}" ${entity.id === selectedDepartmentId ? 'selected' : ''}>${entity.name}</option>`).join('')
           : '<option value="">No functions configured yet</option>';
-        deptEl.disabled = !departments.length;
+        deptEl.disabled = !departments.length || !(capability.canManageBusinessUnit && !capability.canManageDepartment);
       };
-      buEl.addEventListener('change', () => {
-        draftSettings.userProfile.businessUnitEntityId = buEl.value;
-        draftSettings.userProfile.departmentEntityId = '';
-        renderDepartmentOptions();
-      });
       renderDepartmentOptions();
     }
     if (currentStep === 3) {
@@ -258,12 +254,10 @@ function renderUserOnboarding(existingSettings = getUserSettings(), startStep = 
         draftSettings.userProfile.jobTitle = document.getElementById('onboard-title').value.trim();
       }
       if (currentStep === 1) {
-        const businessUnitEntityId = capability.canManageBusinessUnit || capability.canManageDepartment
-          ? document.getElementById('onboard-bu').value.trim()
-          : (capability.selection.businessUnitEntityId || '');
-        const departmentEntityId = capability.canManageDepartment
+        const businessUnitEntityId = capability.managedBusinessId || capability.selection.businessUnitEntityId || '';
+        const departmentEntityId = capability.canManageBusinessUnit && !capability.canManageDepartment
           ? document.getElementById('onboard-department').value.trim()
-          : (capability.selection.departmentEntityId || '');
+          : (capability.managedDepartmentId || capability.selection.departmentEntityId || '');
         const businessEntity = getEntityById(companyStructure, businessUnitEntityId);
         const departmentEntity = getEntityById(companyStructure, departmentEntityId);
         draftSettings.userProfile.businessUnitEntityId = businessUnitEntityId;

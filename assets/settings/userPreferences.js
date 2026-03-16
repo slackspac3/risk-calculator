@@ -32,11 +32,11 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
   const companyStructure = Array.isArray(globalSettings.companyStructure) ? globalSettings.companyStructure : [];
   const companyOptions = getCompanyEntities(companyStructure);
   const capability = getNonAdminCapabilityState(AppState.currentUser, settings, globalSettings);
-  const selectedBusinessId = capability.canManageBusinessUnit || capability.canManageDepartment ? (capability.managedBusinessId || profile.businessUnitEntityId || capability.selection.businessUnitEntityId) : capability.selection.businessUnitEntityId;
+  const selectedBusinessId = capability.managedBusinessId || capability.selection.businessUnitEntityId || profile.businessUnitEntityId;
   const selectedBusinessEntity = getEntityById(companyStructure, selectedBusinessId);
   const selectedBusinessDepartments = getDepartmentEntities(companyStructure, selectedBusinessId);
   const businessOwner = !!capability.canManageBusinessUnit && (!!capability.managedBusinessId ? capability.managedBusinessId === selectedBusinessId : true);
-  const selectedDepartment = getEntityById(companyStructure, capability.canManageDepartment ? (capability.managedDepartmentId || profile.departmentEntityId || capability.selection.departmentEntityId) : capability.selection.departmentEntityId);
+  const selectedDepartment = getEntityById(companyStructure, capability.managedDepartmentId || capability.selection.departmentEntityId || profile.departmentEntityId);
   const departmentOwner = !!capability.canManageDepartment;
   const companyContextSections = settings.companyContextSections || buildCompanyContextSections({
     companySummary: settings.adminContextSummary || '',
@@ -61,14 +61,15 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
       <div class="grid-2 mt-4">
         <div class="form-group">
           <label class="form-label" for="user-business-unit">Business unit or entity</label>
-          <select class="form-select" id="user-business-unit">
+          <select class="form-select" id="user-business-unit" disabled>
             <option value="">Choose your business unit</option>
             ${companyOptions.map(entity => `<option value="${entity.id}" ${entity.id === selectedBusinessId ? 'selected' : ''}>${entity.name}</option>`).join('')}
           </select>
         </div>
         <div class="form-group">
           <label class="form-label" for="user-department">Department or function</label>
-          <select class="form-select" id="user-department"></select>
+          <select class="form-select" id="user-department" ${capability.canManageBusinessUnit && !capability.canManageDepartment ? '' : 'disabled'}></select>
+          <span class="form-help">${capability.canManageBusinessUnit && !capability.canManageDepartment ? 'You can choose the function context you want to work within inside your assigned business unit.' : 'Your business-unit and function assignment is controlled by your current role.'}</span>
         </div>
       </div>
       <div class="form-group mt-4">
@@ -395,9 +396,9 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
     departmentEl.innerHTML = departments.length
       ? departments.map(entity => `<option value="${entity.id}" ${entity.id === fallbackDepartmentId ? 'selected' : ''}>${entity.name}</option>`).join('')
       : '<option value="">No functions configured yet</option>';
-    departmentEl.disabled = !departments.length;
+    departmentEl.disabled = !departments.length || !(capability.canManageBusinessUnit && !capability.canManageDepartment);
   }
-  businessUnitEl.addEventListener('change', renderUserDepartmentOptions);
+  if (capability.canManageBusinessUnit && !capability.canManageDepartment) businessUnitEl.addEventListener('change', renderUserDepartmentOptions);
   renderUserDepartmentOptions();
   renderUserCompanyRefinementHistory();
 
@@ -456,9 +457,9 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
   function buildUserSettingsPayload() {
     const selectedBusinessUnitEntityId = businessUnitEl.value.trim();
     const selectedDepartmentEntityId = departmentEl.value.trim();
-    const canSelectOrg = capability.canManageBusinessUnit || capability.canManageDepartment;
-    const businessUnitEntityId = canSelectOrg ? selectedBusinessUnitEntityId : (capability.selection.businessUnitEntityId || '');
-    const departmentEntityId = canSelectOrg ? selectedDepartmentEntityId : (capability.selection.departmentEntityId || '');
+    const canSelectDepartment = capability.canManageBusinessUnit && !capability.canManageDepartment;
+    const businessUnitEntityId = capability.managedBusinessId || capability.selection.businessUnitEntityId || '';
+    const departmentEntityId = canSelectDepartment ? selectedDepartmentEntityId : (capability.managedDepartmentId || capability.selection.departmentEntityId || '');
     const businessEntity = getEntityById(companyStructure, businessUnitEntityId);
     const departmentEntity = getEntityById(companyStructure, departmentEntityId);
     return {

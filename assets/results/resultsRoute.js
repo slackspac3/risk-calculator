@@ -787,6 +787,8 @@ function renderLoginOrganisationSelection(currentUser, existingSettings = getUse
     return;
   }
   const selection = resolveUserOrganisationSelection(currentUser, existingSettings, adminSettings);
+  const capability = getNonAdminCapabilityState(currentUser, existingSettings, adminSettings);
+  const canChooseDepartment = !!capability.canManageBusinessUnit;
   let selectedBusinessId = selection.businessUnitEntityId || companies[0]?.id || '';
   const ownedDefault = getDefaultOrgAssignmentForUser(currentUser.username, adminSettings);
   if (!selectedBusinessId && ownedDefault.businessUnitEntityId) {
@@ -810,22 +812,22 @@ function renderLoginOrganisationSelection(currentUser, existingSettings = getUse
         <div class="container container--narrow" style="padding:var(--sp-16) var(--sp-6);max-width:760px">
           <div class="card card--elevated">
             <div class="landing-badge">Sign In</div>
-            <h2 style="margin-top:var(--sp-4)">Choose where you sit in the organisation</h2>
-            <p style="margin-top:8px;color:var(--text-muted)">This sets your default business-unit and department context for this session. You can refine it later from Settings.</p>
+            <h2 style="margin-top:var(--sp-4)">Confirm your organisation context</h2>
+            <p style="margin-top:8px;color:var(--text-muted)">This confirms the business context used for this session. Admin-assigned scope stays fixed unless your ownership allows a department choice.</p>
             <div class="form-group mt-6">
               <label class="form-label" for="login-business-unit">Business unit / company</label>
-              <select class="form-select" id="login-business-unit">
+              <select class="form-select" id="login-business-unit" disabled>
                 ${companies.map(entity => `<option value="${entity.id}" ${entity.id === selectedBusinessId ? 'selected' : ''}>${entity.name}</option>`).join('')}
               </select>
             </div>
             <div class="form-group mt-4">
               <label class="form-label" for="login-department">Function / department</label>
-              <select class="form-select" id="login-department" ${departmentOptions.length ? '' : 'disabled'}>
+              <select class="form-select" id="login-department" ${departmentOptions.length && canChooseDepartment ? '' : 'disabled'}>
                 ${departmentOptions.length
                   ? departmentOptions.map(entity => `<option value="${entity.id}" ${entity.id === selectedDepartmentId ? 'selected' : ''}>${entity.name}${entity.ownerUsername === currentUser.username ? ' · your department' : ''}</option>`).join('')
                   : '<option value="">No functions configured yet</option>'}
               </select>
-              <span class="form-help">${departmentOptions.length ? 'Choose the function you work within. Department owners can maintain this context from Settings.' : 'No function has been configured beneath this business yet. Ask an admin or BU admin to add one before continuing.'}</span>
+              <span class="form-help">${departmentOptions.length ? (canChooseDepartment ? 'Choose the function context you want to work within for this session.' : 'Your function context is fixed by your current assignment.') : 'No function has been configured beneath this business yet. Ask an admin or BU admin to add one before continuing.'}</span>
             </div>
             <div class="flex items-center justify-between mt-6" style="gap:var(--sp-4);flex-wrap:wrap">
               <button class="btn btn--ghost" id="btn-login-switch-account">Switch Account</button>
@@ -835,17 +837,12 @@ function renderLoginOrganisationSelection(currentUser, existingSettings = getUse
         </div>
       </main>`);
 
-    document.getElementById('login-business-unit').addEventListener('change', event => {
-      selectedBusinessId = event.target.value;
-      settings.userProfile.businessUnitEntityId = selectedBusinessId;
-      renderSelectionStep();
-    });
     document.getElementById('btn-login-switch-account').addEventListener('click', () => {
       performLogout({ renderLoginScreen: true });
     });
     document.getElementById('btn-login-context-continue').addEventListener('click', async () => {
-      const businessUnitEntityId = document.getElementById('login-business-unit').value;
-      const departmentEntityId = document.getElementById('login-department').value;
+      const businessUnitEntityId = selectedBusinessId;
+      const departmentEntityId = canChooseDepartment ? document.getElementById('login-department').value : selectedDepartmentId;
       const businessEntity = getEntityById(companyStructure, businessUnitEntityId);
       const departmentEntity = getEntityById(companyStructure, departmentEntityId);
       const availableDepartments = getDepartmentEntities(companyStructure, businessUnitEntityId);

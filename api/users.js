@@ -299,13 +299,18 @@ module.exports = async function handler(req, res) {
           res.status(403).json({ error: 'You are not allowed to modify this account.' });
           return;
         }
-        accounts[index] = normaliseAccount({
-          ...accounts[index],
-          businessUnitEntityId: typeof updates.businessUnitEntityId === 'string' ? updates.businessUnitEntityId : accounts[index].businessUnitEntityId,
-          departmentEntityId: typeof updates.departmentEntityId === 'string' ? updates.departmentEntityId : accounts[index].departmentEntityId
-        });
-        await writeAccounts(accounts);
-        await appendAuditEvent({ category: 'profile', eventType: 'self_assignment_updated', actorUsername: accounts[index].username, actorRole: accounts[index].role, target: accounts[index].username, status: 'success', source: 'server', details: { businessUnitEntityId: accounts[index].businessUnitEntityId, departmentEntityId: accounts[index].departmentEntityId } });
+        if (typeof updates.businessUnitEntityId === 'string' || typeof updates.departmentEntityId === 'string') {
+          res.status(403).json({ error: 'Organisation assignment can only be changed by an admin.' });
+          return;
+        }
+        if (typeof updates.displayName === 'string' && updates.displayName.trim()) {
+          accounts[index] = normaliseAccount({
+            ...accounts[index],
+            displayName: updates.displayName.trim()
+          });
+          await writeAccounts(accounts);
+          await appendAuditEvent({ category: 'profile', eventType: 'self_profile_updated', actorUsername: accounts[index].username, actorRole: accounts[index].role, target: accounts[index].username, status: 'success', source: 'server', details: { displayName: accounts[index].displayName } });
+        }
         res.status(200).json({ accounts: accounts.map(sanitiseAccount) });
         return;
       }
