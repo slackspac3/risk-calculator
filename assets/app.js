@@ -441,6 +441,7 @@ async function performLogout({ renderLoginScreen = false } = {}) {
     await logAuditEvent({ category: 'auth', eventType: 'logout', target: currentUser.username, status: 'success', source: 'client' });
   }
   AuthService.logout();
+  AppState.adminVisiblePasswords = {};
   activateAuthenticatedState();
   if (renderLoginScreen) renderLogin();
   else Router.navigate('/login');
@@ -1158,6 +1159,7 @@ function resetDraft() {
 function activateAuthenticatedState() {
   AppState.currentUser = AuthService.getCurrentUser();
   if (!AppState.currentUser) {
+    AppState.userStateCache = { username: '', userSettings: null, assessments: [], learningStore: { templates: {} }, draft: null, _meta: { revision: 0, updatedAt: 0 } };
     AppState.draft = {};
     LLMService.clearCompassConfig();
     renderAppBar();
