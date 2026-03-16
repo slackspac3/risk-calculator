@@ -100,13 +100,23 @@ function resolveApiUrl(path) {
     return parsed || {};
   }
 
+  async function refreshManagedAccounts() {
+    const data = await requestUsers('GET');
+    if (Array.isArray(data?.accounts)) {
+      saveCache(data.accounts);
+    } else {
+      saveCache([]);
+    }
+    return accountsCache;
+  }
+
   async function init() {
     readCachedAccounts();
+    if (!isAdminAuthenticated()) {
+      return accountsCache;
+    }
     try {
-      const data = await requestUsers('GET');
-      if (Array.isArray(data?.accounts) && data.accounts.length) {
-        saveCache(data.accounts);
-      }
+      await refreshManagedAccounts();
     } catch (error) {
       console.warn('AuthService.init fallback:', error.message);
     }
@@ -190,6 +200,13 @@ function resolveApiUrl(path) {
       const knownAccounts = readCachedAccounts().filter(account => account.username !== data.user.username);
       saveCache([...knownAccounts, data.user]);
       writeSession({ ...data.user, apiSessionToken: data.sessionToken || '' });
+      if (data.user.role === 'admin') {
+        try {
+          await refreshManagedAccounts();
+        } catch (refreshError) {
+          console.warn('AuthService.login admin refresh failed:', refreshError.message);
+        }
+      }
       return { success: true, user: sanitiseAccount(data.user) };
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : 'Invalid username or password' };
@@ -198,6 +215,8 @@ function resolveApiUrl(path) {
 
   function logout() {
     sessionStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem(ACCOUNTS_CACHE_KEY);
+    accountsCache = [];
 
   }
 
@@ -236,13 +255,14 @@ function resolveApiUrl(path) {
 
 
   function getManagedAccounts() {
+    if (!isAdminAuthenticated()) return [];
     return readCachedAccounts()
       .filter(account => account.role !== 'admin')
       .map(account => sanitiseAccount(account));
   }
 
   async function createManagedAccount({ displayName, businessUnitEntityId = '', departmentEntityId = '', role = 'user' } = {}) {
-    const accounts = readCachedAccounts();
+    const accounts = await refreshManagedAccounts().catch(() => readCachedAccounts());
     const username = buildUsername(displayName, accounts);
     const password = generatePassword(accounts);
     const account = normaliseAccount({
@@ -291,6 +311,7 @@ function resolveApiUrl(path) {
       }
     }, { includeAdminSecret: true });
     if (Array.isArray(data?.accounts)) saveCache(data.accounts);
+    else await refreshManagedAccounts().catch(() => {});
     const updated = readCachedAccounts().find(account => account.username === String(username || '').trim().toLowerCase()) || null;
     return updated ? sanitiseAccount(updated) : null;
   }
@@ -301,6 +322,7 @@ function resolveApiUrl(path) {
       username: String(username || '').trim().toLowerCase()
     }, { includeAdminSecret: true });
     if (Array.isArray(data?.accounts)) saveCache(data.accounts);
+    else await refreshManagedAccounts().catch(() => {});
     return {
       account: data?.account ? sanitiseAccount(data.account) : null,
       password: data?.password || ''
@@ -313,6 +335,7 @@ function resolveApiUrl(path) {
       username: String(username || '').trim().toLowerCase()
     }, { includeAdminSecret: true });
     if (Array.isArray(data?.accounts)) saveCache(data.accounts);
+    else await refreshManagedAccounts().catch(() => {});
     return true;
   }
 

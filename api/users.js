@@ -211,12 +211,16 @@ module.exports = async function handler(req, res) {
 
   try {
     if (req.method === 'GET') {
+      if (!isAdminRequest(req)) {
+        res.status(403).json({ error: 'Not authorised.' });
+        return;
+      }
       const accounts = await readAccounts();
       res.status(200).json({
         accounts: accounts.map(sanitiseAccount),
         storage: {
           writable: hasWritableKv(),
-          mode: hasWritableKv() ? 'shared-kv' : 'fallback-defaults'
+          mode: hasWritableKv() ? 'shared-kv' : (accounts.length ? 'bootstrap-fallback' : 'empty')
         }
       });
       return;
