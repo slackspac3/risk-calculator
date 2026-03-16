@@ -99,6 +99,7 @@ const AdminUserAccountsSection = (() => {
                   <button class="btn btn--secondary btn--sm btn-apply-user-access" data-username="${account.username}" data-display-name="${account.displayName}" type="button">Apply Access</button>
                   <button class="btn btn--ghost btn--sm btn-reset-user-account" data-username="${account.username}" data-display-name="${account.displayName}" type="button">Reset User</button>
                   <button class="btn btn--secondary btn--sm btn-reset-user-password" data-username="${account.username}" data-display-name="${account.displayName}" type="button">Reset Password</button>
+                  <button class="btn btn--ghost btn--sm btn-delete-user-account" data-username="${account.username}" data-display-name="${account.displayName}" type="button">Delete User</button>
                 </td>
               </tr>`;
             }).join('')}
@@ -250,6 +251,28 @@ const AdminUserAccountsSection = (() => {
         if (!ok) return;
         UI.toast(`Updated access for ${button.dataset.displayName || button.dataset.username || 'user'}.`, 'success');
         rerenderCurrentAdminSection();
+      });
+    });
+
+    document.querySelectorAll('.btn-delete-user-account').forEach(button => {
+      button.addEventListener('click', async () => {
+        const username = button.dataset.username || '';
+        const displayName = button.dataset.displayName || username;
+        if (!await UI.confirm(`Delete ${displayName}? This removes their account, saved state, and any BU or function ownership assigned to them.`)) return;
+        try {
+          const currentSettings = getAdminSettings();
+          const clearedSettings = {
+            ...currentSettings,
+            companyStructure: (Array.isArray(currentSettings.companyStructure) ? currentSettings.companyStructure : []).map(node => node.ownerUsername === username ? { ...node, ownerUsername: '' } : node)
+          };
+          await AuthService.deleteManagedAccount(username);
+          saveAdminSettings(clearedSettings);
+          clearUserPersistentState(username);
+          UI.toast(`${displayName} deleted.`, 'success');
+          rerenderCurrentAdminSection();
+        } catch (error) {
+          UI.toast(`Delete failed: ${error instanceof Error ? error.message : String(error)}`, 'danger');
+        }
       });
     });
 

@@ -306,6 +306,13 @@ module.exports = async function handler(req, res) {
         });
         return;
       }
+      if (body.action === 'delete-user') {
+        const removed = accounts.splice(index, 1)[0];
+        await writeAccounts(accounts);
+        await appendAuditEvent({ category: 'user_admin', eventType: 'user_deleted', actorUsername: 'admin', actorRole: 'admin', target: removed.username, status: 'success', source: 'server' });
+        res.status(200).json({ accounts: accounts.map(sanitiseAccount) });
+        return;
+      }
       accounts[index] = normaliseAccount({
         ...accounts[index],
         displayName: typeof updates.displayName === 'string' && updates.displayName.trim() ? updates.displayName.trim() : accounts[index].displayName,

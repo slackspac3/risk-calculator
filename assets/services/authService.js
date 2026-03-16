@@ -314,6 +314,14 @@ function resolveApiUrl(path) {
     };
   }
 
+  async function deleteManagedAccount(username) {
+    const data = await requestUsers('PATCH', {
+      action: 'delete-user',
+      username: String(username || '').trim().toLowerCase()
+    }, { includeAdminSecret: true });
+    if (Array.isArray(data?.accounts)) saveCache(data.accounts);
+    return true;
+  }
 
   return {
     init,
@@ -330,6 +338,7 @@ function resolveApiUrl(path) {
     updateManagedAccount,
     adminUpdateManagedAccount,
     resetManagedPassword,
+    deleteManagedAccount,
     getAdminApiSecret,
     setAdminApiSecret
   };
