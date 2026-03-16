@@ -134,7 +134,7 @@ Browser-local by design for this PoC:
 ## How To Run Locally
 
 ```bash
-cd /Users/bhavuk.arora/Documents/GitHub/risk-calculator
+cd risk-calculator
 python3 -m http.server 8080
 ```
 
