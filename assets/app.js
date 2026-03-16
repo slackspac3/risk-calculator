@@ -3635,7 +3635,7 @@ function renderLogin() {
         <div class="card card--elevated">
           <h2 style="margin-bottom:var(--sp-2)">Sign In</h2>
           <p style="margin-bottom:var(--sp-6);color:var(--text-muted)">Each user keeps their own draft state, saved assessments, and assigned BU/function context. Ask the global admin for your username and password.</p>
-          <div>
+          <form id="login-form">
             <div class="form-group mb-4">
               <label class="form-label" for="login-user">Username</label>
               <input class="form-input" id="login-user" type="text" placeholder="Enter username" autocomplete="username">
@@ -3645,8 +3645,8 @@ function renderLogin() {
               <input class="form-input" id="login-pass" type="password" placeholder="Enter password" autocomplete="current-password">
               <span class="form-error hidden" id="login-err">⚠ Invalid username or password</span>
             </div>
-            <button class="btn btn--primary w-full" id="btn-login" style="justify-content:center">Sign In</button>
-          </div>
+            <button class="btn btn--primary w-full" id="btn-login" type="submit" style="justify-content:center">Sign In</button>
+          </form>
         </div>
       </div>
     </main>`);
@@ -3673,9 +3673,14 @@ function renderLogin() {
     }
   };
 
-  document.getElementById('btn-login').addEventListener('click', login);
-  document.getElementById('login-pass').addEventListener('keydown', e => { if (e.key==='Enter') login(); });
-  document.getElementById('login-user').addEventListener('keydown', e => { if (e.key==='Enter') login(); });
+  document.getElementById('login-form').addEventListener('submit', event => {
+    event.preventDefault();
+    login();
+  });
+  document.getElementById('btn-login').addEventListener('click', event => {
+    event.preventDefault();
+    login();
+  });
 }
 
 function requireAdmin() {
