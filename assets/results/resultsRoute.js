@@ -323,6 +323,7 @@ function renderWizard4() {
 }
 
 async function runSimulation() {
+  const yieldToUI = () => new Promise(resolve => setTimeout(resolve, 0));
   document.getElementById('run-area').classList.add('hidden');
   document.getElementById('sim-progress').classList.remove('hidden');
   await new Promise(r => setTimeout(r, 80));
@@ -356,12 +357,18 @@ async function runSimulation() {
       secMagMin: toUSD(p.secMagMin) * scenario.lossMultiplier, secMagLikely: toUSD(p.secMagLikely) * scenario.lossMultiplier, secMagMax: toUSD(p.secMagMax) * scenario.lossMultiplier,
       threshold: toleranceThreshold
     };
-    const results = await RiskEngine.runAsync(ep, {
-      yieldEvery: 500,
-      onProgress: (ratio, completed, total) => {
-        if (progressText) progressText.textContent = `Computing ${completed.toLocaleString()} of ${total.toLocaleString()} Monte Carlo iterations…`;
-      }
-    });
+    const results = await Promise.race([
+      RiskEngine.runAsync(ep, {
+        yieldEvery: 500,
+        onProgress: (ratio, completed, total) => {
+          if (progressText) progressText.textContent = `Computing ${completed.toLocaleString()} of ${total.toLocaleString()} Monte Carlo iterations…`;
+        }
+      }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Simulation timed out during computation.')), 20000))
+    ]);
+    if (progressText) progressText.textContent = 'Finalising the simulation results…';
+    await yieldToUI();
+    await new Promise(requestAnimationFrame);
     results.inputs = { ...ep };
     results.portfolioMeta = scenario;
     results.selectedRiskCount = scenario.riskCount;
@@ -371,8 +378,12 @@ async function runSimulation() {
     results.nearTolerance = results.lm.p90 >= warningThreshold && results.lm.p90 < toleranceThreshold;
     results.annualReviewTriggered = results.ale.p90 >= annualReviewThreshold;
     const assessmentIntelligence = buildAssessmentIntelligence(AppState.draft, results, ep, scenario);
+    await yieldToUI();
     if (!AppState.draft.id) AppState.draft.id = 'a_' + Date.now();
     const assessment = { ...AppState.draft, results, assessmentIntelligence, completedAt: Date.now() };
+    if (progressText) progressText.textContent = 'Saving the assessment and opening results…';
+    await yieldToUI();
+    await new Promise(requestAnimationFrame);
     saveAssessment(assessment);
     recordLearningFromAssessment(assessment);
     saveDraft();
@@ -380,7 +391,7 @@ async function runSimulation() {
   } catch(e) {
     document.getElementById('sim-progress').classList.add('hidden');
     document.getElementById('run-area').classList.remove('hidden');
-    UI.toast('The simulation could not be completed right now. Try again in a moment.', 'danger');
+    UI.toast(e?.message === 'Simulation timed out during computation.' ? 'The simulation took too long and was stopped. Reduce the iteration count and try again.' : 'The simulation could not be completed right now. Try again in a moment.', 'danger');
     console.error(e);
   }
 }
