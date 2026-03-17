@@ -178,10 +178,10 @@ const UI = (() => {
 
   function wizardInputSection({ title, description = '', body, className = 'card anim-fade-in', headerExtras = '' }) {
     return `<div class="${className}">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:var(--sp-3);flex-wrap:wrap;margin-bottom:var(--sp-2)">
-        <div style="flex:1 1 320px">
-          <h3 style="margin-bottom:${description ? 'var(--sp-2)' : '0'};font-size:var(--text-base)">${title}</h3>
-          ${description ? `<p style="font-size:.78rem;color:var(--text-muted)">${description}</p>` : ''}
+      <div class="wizard-section-head">
+        <div class="wizard-section-copy">
+          <h3 class="wizard-section-title" style="margin-bottom:${description ? 'var(--sp-2)' : '0'}">${title}</h3>
+          ${description ? `<p class="wizard-section-description">${description}</p>` : ''}
         </div>
         ${headerExtras}
       </div>

@@ -631,6 +631,37 @@ input[type="range"]::-webkit-slider-thumb {
 }
 [data-tooltip]:hover::after { opacity: 1; }
 
+.wizard-section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--sp-2);
+}
+.wizard-section-copy {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+.wizard-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: var(--text-base);
+  line-height: 1.35;
+}
+.wizard-section-title [data-tooltip] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+}
+.wizard-section-description {
+  font-size: .78rem;
+  color: var(--text-muted);
+}
+
 /* ── Modal ───────────────────────────────────────────────────── */
 .modal-backdrop {
   position: fixed;
