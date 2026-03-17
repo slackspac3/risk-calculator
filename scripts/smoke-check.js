@@ -73,7 +73,7 @@ expect(!authServiceJs.includes('businessUnitEntityId: payload.businessUnitEntity
 expect(!authServiceJs.includes('departmentEntityId: payload.departmentEntityId'), 'authService self-update still sends departmentEntityId');
 
 expect(resultsRouteJs.includes('Confirm your organisation context'), 'results route is missing the updated organisation-context copy');
-expect(resultsRouteJs.includes('const canChooseDepartment = !!capability.canManageBusinessUnit;'), 'results route is missing BU-admin department chooser guard');
+expect(resultsRouteJs.includes('const canChooseDepartment = capability.canManageBusinessUnit && !capability.canManageDepartment;'), 'results route is missing the aligned BU-admin-only department chooser guard');
 
 expect(userPreferencesJs.includes('Your business-unit and function assignment is controlled by your current role.'), 'user preferences role guidance is missing');
 expect(userOnboardingJs.includes('Your organisation assignment is set by your current admin-managed role.'), 'user onboarding role guidance is missing');

@@ -810,7 +810,7 @@ function renderLoginOrganisationSelection(currentUser, existingSettings = getUse
   }
   const selection = resolveUserOrganisationSelection(currentUser, existingSettings, adminSettings);
   const capability = getNonAdminCapabilityState(currentUser, existingSettings, adminSettings);
-  const canChooseDepartment = !!capability.canManageBusinessUnit;
+  const canChooseDepartment = capability.canManageBusinessUnit && !capability.canManageDepartment;
   let selectedBusinessId = selection.businessUnitEntityId || companies[0]?.id || '';
   const ownedDefault = getDefaultOrgAssignmentForUser(currentUser.username, adminSettings);
   if (!selectedBusinessId && ownedDefault.businessUnitEntityId) {
