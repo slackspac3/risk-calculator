@@ -411,13 +411,26 @@ function renderResults(id, isShared) {
     return;
   }
 
+  try {
   const sharedBanner = (isShared || assessment._shared) ? `
     <div class="banner banner--info mb-6" style="font-size:.82rem">
       <span class="banner-icon">🔗</span>
       <span class="banner-text"><strong>Shared view.</strong> This assessment was shared with you. <a href="#/" style="color:var(--color-accent-300)">Start your own →</a></span>
     </div>` : '';
 
-  const r = assessment.results;
+  const rawResults = assessment.results || {};
+  const r = {
+    ...rawResults,
+    lm: rawResults.lm || { mean: 0, p50: 0, p90: 0, p95: 0, min: 0, max: 0 },
+    ale: rawResults.ale || { mean: 0, p50: 0, p90: 0, p95: 0, min: 0, max: 0 },
+    toleranceDetail: rawResults.toleranceDetail || { lmExceedProb: 0, aleExceedProb: 0, lmP90: 0, aleP90: 0 },
+    histogram: Array.isArray(rawResults.histogram) ? rawResults.histogram : [],
+    lec: Array.isArray(rawResults.lec) ? rawResults.lec : [],
+    warningThreshold: Number(rawResults.warningThreshold || getWarningThreshold() || 0),
+    threshold: Number(rawResults.threshold || getToleranceThreshold() || 0),
+    annualReviewThreshold: Number(rawResults.annualReviewThreshold || getAnnualReviewThreshold() || 0),
+    iterations: Number(rawResults.iterations || assessment.fairParams?.iterations || 0)
+  };
   const activeTab = String(AppState.resultsTab || 'executive');
   const statusClass = r.toleranceBreached ? 'above' : r.nearTolerance ? 'warning' : 'within';
   const statusIcon = r.toleranceBreached ? '🔴' : r.nearTolerance ? '🟠' : '🟢';
@@ -775,6 +788,23 @@ function renderResults(id, isShared) {
     Router.navigate('/wizard/3');
   });
   document.getElementById('btn-new-assess').addEventListener('click', () => { resetDraft(); Router.navigate('/wizard/1'); });
+  } catch (error) {
+    console.error('renderResults failed:', error);
+    setPage(`
+      <main class="page">
+        <div class="container container--narrow" style="padding:var(--sp-12) var(--sp-6)">
+          <div class="card">
+            <h2 style="margin-bottom:var(--sp-3)">This result could not be opened cleanly</h2>
+            <p style="color:var(--text-muted);margin-bottom:var(--sp-5)">The saved assessment data is missing something the results page expected. The assessment is still stored, but this view needed a safer fallback.</p>
+            <div class="flex items-center gap-3" style="flex-wrap:wrap">
+              <a href="#/" class="btn btn--primary">Go to dashboard</a>
+              <button class="btn btn--secondary" id="btn-results-retry" type="button">Try again</button>
+            </div>
+          </div>
+        </div>
+      </main>`);
+    document.getElementById('btn-results-retry')?.addEventListener('click', () => renderResults(id, isShared));
+  }
 }
 
 // ─── AUTH & SETTINGS ──────────────────────────────────────────
