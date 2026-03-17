@@ -19,16 +19,14 @@ const AdminAuditLogSection = (() => {
         <button class="btn btn--secondary" id="btn-refresh-audit-log" type="button">${auditCache.loading ? 'Refreshing…' : 'Refresh Activity'}</button>
         <span class="form-help" id="audit-log-status">${auditCache.error || `Shows up to ${auditSummary.retainedCapacity || 200} recent events. Older activity rolls off automatically.`}</span>
       </div>
-      <div class="card mt-4" style="padding:var(--sp-5);background:var(--bg-canvas)">
-        <div class="context-panel-title">Recent activity</div>
-        <div class="form-help" style="margin-top:6px">Use this view to confirm sign-ins, user changes, and shared-setting updates.</div>
-        <div class="table-wrap mt-4">
-        <table class="data-table">
+      ${UI.adminTableCard({
+        title: 'Recent activity',
+        description: 'Use this view to confirm sign-ins, user changes, and shared-setting updates.',
+        table: `<table class="data-table">
           <thead><tr><th>Time</th><th>User</th><th>Role</th><th>Activity</th><th>Target</th><th>Outcome</th><th>Details</th></tr></thead>
           <tbody>${auditEntries.length ? auditEntries.map(entry => `<tr><td>${new Date(entry.ts).toLocaleString()}</td><td>${entry.actorUsername || 'system'}</td><td>${entry.actorRole || 'system'}</td><td>${entry.eventType || 'event'}</td><td>${entry.target || '—'}</td><td>${entry.status || 'success'}</td><td>${formatAuditDetails(entry.details) || '—'}</td></tr>`).join('') : '<tr><td colspan="7">No activity has been loaded yet.</td></tr>'}</tbody>
-        </table>
-      </div>
-      </div>`
+        </table>`
+      })}`
     });
   }
 

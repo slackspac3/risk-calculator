@@ -55,11 +55,10 @@ const AdminUserAccountsSection = (() => {
           <span class="form-help" id="admin-new-user-result">${AppState.adminNewUserStatus || 'A username and password are generated automatically. New or reset passwords are shown only in this admin session.'}</span>
         </div>
       </div>
-      <div class="card mt-4" style="padding:var(--sp-5);background:var(--bg-canvas)">
-        <div class="context-panel-title">Current users</div>
-        <div class="form-help" style="margin-top:6px">Review assigned role, business unit, and function before applying access changes.</div>
-        <div class="table-wrap mt-4">
-        <table class="data-table">
+      ${UI.adminTableCard({
+        title: 'Current users',
+        description: 'Review assigned role, business unit, and function before applying access changes.',
+        table: `<table class="data-table">
           <thead>
             <tr>
               <th>User</th>
@@ -107,9 +106,8 @@ const AdminUserAccountsSection = (() => {
               </tr>`;
             }).join('')}
           </tbody>
-        </table>
-      </div>
-      </div>
+        </table>`
+      })}
       <div class="form-help mt-3">Reset clears this user's saved working state and returns them to a first-time setup experience.</div>`
     });
   }

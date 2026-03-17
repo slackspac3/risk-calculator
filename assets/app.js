@@ -4790,17 +4790,11 @@ function renderAdminDocs() {
   if (!requireAdmin()) return;
   const docList = getDocList();
   setPage(adminLayout('docs', `
-    <div class="admin-section-head mb-6">
-      <div>
-        <h2>Document Library</h2>
-        <p style="margin-top:6px">Maintain the internal references used for AI retrieval, citation chips, and richer scenario grounding.</p>
-      </div>
-      <div class="flex gap-3" style="flex-wrap:wrap">
-        <button class="btn btn--ghost btn--sm" id="btn-reset-docs">Reset Defaults</button>
-        <button class="btn btn--secondary btn--sm" id="btn-reindex">Re-index Library</button>
-        <button class="btn btn--primary" id="btn-add-doc">Add Document</button>
-      </div>
-    </div>
+    ${UI.adminSectionHeader({
+      title: 'Document Library',
+      description: 'Maintain the internal references used for AI retrieval, citation chips, and richer scenario grounding.',
+      actions: `<button class="btn btn--ghost btn--sm" id="btn-reset-docs">Reset Defaults</button><button class="btn btn--secondary btn--sm" id="btn-reindex">Re-index Library</button><button class="btn btn--primary" id="btn-add-doc">Add Document</button>`
+    })}
     <div class="admin-overview-grid mb-6">
       <div class="admin-overview-card">
         <div class="admin-overview-label">Indexed documents</div>
@@ -4818,11 +4812,10 @@ function renderAdminDocs() {
         <div class="admin-overview-foot">Used in scenario drafting, citations, and richer context generation.</div>
       </div>
     </div>
-    <div class="card card--elevated" style="padding:var(--sp-6)">
-      <div class="context-panel-title">Documents in the library</div>
-      <div class="form-help" style="margin-top:6px">Keep titles, tags, and update dates current so the AI can choose better supporting references.</div>
-      <div class="table-wrap mt-4" style="overflow-x:auto">
-        <table class="data-table">
+    ${UI.adminTableCard({
+      title: 'Documents in the library',
+      description: 'Keep titles, tags, and update dates current so the AI can choose better supporting references.',
+      table: `<table class="data-table">
           <thead><tr><th>Document</th><th>Tags</th><th>Updated</th><th>Actions</th></tr></thead>
           <tbody>${docList.map(doc=>`<tr>
             <td><strong style="color:var(--text-primary);font-size:.875rem">${doc.title}</strong><br><span style="font-size:.68rem;color:var(--text-muted)">${doc.id}</span></td>
@@ -4830,9 +4823,8 @@ function renderAdminDocs() {
             <td style="font-size:.8rem;white-space:nowrap">${doc.lastUpdated||'—'}</td>
             <td><button class="btn btn--ghost btn--sm" data-id="${doc.id}" id="edit-doc-${doc.id}">Edit</button> <button class="btn btn--ghost btn--sm" data-id="${doc.id}" id="del-doc-${doc.id}" style="color:var(--color-danger-400)">Delete</button></td>
           </tr>`).join('')}</tbody>
-        </table>
-      </div>
-    </div>`));
+        </table>`
+    })}`));
 
   document.getElementById('btn-admin-logout').addEventListener('click', () => { performLogout(); });
   document.getElementById('btn-reindex').addEventListener('click', () => { RAGService.init(getDocList(), getBUList()); UI.toast('Index rebuilt.','success'); });

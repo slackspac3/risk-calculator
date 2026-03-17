@@ -104,6 +104,25 @@ const UI = (() => {
     </div>`;
   }
 
+
+  function adminSectionHeader({ title, description = '', actions = '' }) {
+    return `<div class="admin-section-head mb-6">
+      <div>
+        <h2>${title}</h2>
+        ${description ? `<p style="margin-top:6px">${description}</p>` : ''}
+      </div>
+      ${actions ? `<div class="flex gap-3" style="flex-wrap:wrap">${actions}</div>` : ''}
+    </div>`;
+  }
+
+  function adminTableCard({ title, description = '', table }) {
+    return `<div class="card card--elevated" style="padding:var(--sp-6)">
+      <div class="context-panel-title">${title}</div>
+      ${description ? `<div class="form-help" style="margin-top:6px">${description}</div>` : ''}
+      <div class="table-wrap mt-4" style="overflow-x:auto">${table}</div>
+    </div>`;
+  }
+
   // ─── Tag Input ────────────────────────────────────────────
   function tagInput(containerId, initialTags = [], onChange = null) {
     const wrap = document.getElementById(containerId);
@@ -372,5 +391,5 @@ const UI = (() => {
     return `${_getCurrencyPrefix(currency)}${displayValue.toLocaleString(currency === 'AED' ? 'en-AE' : 'en-US')}`;
   }
 
-  return { toast, modal, citationModal, renderStepper, skeletonBlock, skeletonCard, tagInput, confirm, drawHistogram, drawLEC };
+  return { toast, modal, citationModal, renderStepper, skeletonBlock, skeletonCard, adminSectionHeader, adminTableCard, tagInput, confirm, drawHistogram, drawLEC };
 })();
