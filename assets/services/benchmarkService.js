@@ -11,6 +11,7 @@ const BenchmarkService = (() => {
 
   function _detectScenarioType(query = '') {
     const q = _normalise(query);
+    if (/gpu export|export control|export licence|export license|entity list|ear|bis|semiconductor equipment|china restrictions|sanctions breach/.test(q)) return 'export-control';
     if (/azure ad|entra|identity|credential|account takeover|sso|directory|mailbox compromise|session hijack/.test(q)) return 'identity';
     if (/ransom|encrypt|extortion/.test(q)) return 'ransomware';
     if (/cloud|storage bucket|misconfig|tenant|saas|public exposure/.test(q)) return 'cloud';
@@ -30,6 +31,7 @@ const BenchmarkService = (() => {
     ].filter(Boolean).join(' '));
     if (/health|patient|hospital|clinical|medical|phi/.test(text)) return 'healthcare';
     if (/bank|finance|payment|treasury|trading|fintech/.test(text)) return 'financial services';
+    if (/semiconductor|gpu|chip|chips|foundry|eda|wafer|fab|export control/.test(text)) return 'semiconductor';
     if (/manufacturing|plant|factory|ot|ics/.test(text)) return 'manufacturing';
     return 'cross-sector';
   }

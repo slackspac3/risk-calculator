@@ -1043,5 +1043,287 @@
         }
       }
     }
+  },
+  {
+    "id": "bm-industrial-ibm-2024",
+    "title": "Global industrial-sector breach profile",
+    "scenarioType": "data-breach",
+    "geographies": [
+      "Global",
+      "United Arab Emirates",
+      "GCC"
+    ],
+    "industries": [
+      "manufacturing",
+      "industrial",
+      "critical infrastructure"
+    ],
+    "scope": "industry",
+    "sourceType": "Industry benchmark",
+    "sourceTitle": "IBM Cost of a Data Breach 2024: Industrial sector",
+    "sourceUrl": "https://www.ibm.com/think/insights/cost-of-a-data-breach-industrial-sector",
+    "lastUpdated": "2024-10-25",
+    "summary": "IBM reports average total breach cost of USD 5.56M for industrial organizations, with high sensitivity to downtime and operational disruption.",
+    "suggestedInputs": {
+      "TEF": {
+        "min": 0.35,
+        "likely": 1.0,
+        "max": 2.6
+      },
+      "controlStrength": {
+        "min": 0.44,
+        "likely": 0.61,
+        "max": 0.79
+      },
+      "threatCapability": {
+        "min": 0.5,
+        "likely": 0.69,
+        "max": 0.85
+      },
+      "lossComponents": {
+        "incidentResponse": {
+          "min": 240000,
+          "likely": 720000,
+          "max": 2000000
+        },
+        "businessInterruption": {
+          "min": 500000,
+          "likely": 1650000,
+          "max": 4500000
+        },
+        "dataBreachRemediation": {
+          "min": 140000,
+          "likely": 430000,
+          "max": 1250000
+        },
+        "regulatoryLegal": {
+          "min": 70000,
+          "likely": 240000,
+          "max": 980000
+        },
+        "thirdPartyLiability": {
+          "min": 25000,
+          "likely": 110000,
+          "max": 520000
+        },
+        "reputationContract": {
+          "min": 140000,
+          "likely": 520000,
+          "max": 1800000
+        }
+      }
+    }
+  },
+  {
+    "id": "bm-india-ibm-2025",
+    "title": "India regional breach profile",
+    "scenarioType": "data-breach",
+    "geographies": [
+      "India",
+      "APAC",
+      "Global"
+    ],
+    "industries": [
+      "cross-sector",
+      "technology",
+      "industrial"
+    ],
+    "scope": "regional",
+    "sourceType": "Regional benchmark",
+    "sourceTitle": "IBM India Cost of a Data Breach 2025",
+    "sourceUrl": "https://in.newsroom.ibm.com/2025-08-07-India-Records-Highest-Average-Cost-of-a-Data-Breach-IBM",
+    "lastUpdated": "2025-08-07",
+    "summary": "IBM reports average breach cost in India of INR 220M in 2025, with phishing and third-party compromise among the top initial attack vectors.",
+    "suggestedInputs": {
+      "TEF": {
+        "min": 0.4,
+        "likely": 1.3,
+        "max": 3.1
+      },
+      "controlStrength": {
+        "min": 0.43,
+        "likely": 0.6,
+        "max": 0.78
+      },
+      "threatCapability": {
+        "min": 0.52,
+        "likely": 0.71,
+        "max": 0.87
+      },
+      "lossComponents": {
+        "incidentResponse": {
+          "min": 180000,
+          "likely": 620000,
+          "max": 1700000
+        },
+        "businessInterruption": {
+          "min": 260000,
+          "likely": 980000,
+          "max": 2800000
+        },
+        "dataBreachRemediation": {
+          "min": 140000,
+          "likely": 500000,
+          "max": 1450000
+        },
+        "regulatoryLegal": {
+          "min": 50000,
+          "likely": 190000,
+          "max": 850000
+        },
+        "thirdPartyLiability": {
+          "min": 25000,
+          "likely": 120000,
+          "max": 520000
+        },
+        "reputationContract": {
+          "min": 120000,
+          "likely": 460000,
+          "max": 1500000
+        }
+      }
+    }
+  },
+  {
+    "id": "bm-exportcontrol-bis-framework-2025",
+    "title": "U.S. export-control penalty framework profile",
+    "scenarioType": "export-control",
+    "geographies": [
+      "United States",
+      "Global",
+      "United Arab Emirates",
+      "GCC"
+    ],
+    "industries": [
+      "semiconductor",
+      "technology",
+      "industrial",
+      "cross-sector"
+    ],
+    "scope": "regulatory",
+    "sourceType": "Official enforcement framework",
+    "sourceTitle": "BIS Enforcement Penalties (2025)",
+    "sourceUrl": "https://www.bis.gov/enforcement/penalties",
+    "lastUpdated": "2025-01-15",
+    "summary": "BIS states EAR administrative penalties can reach USD 374,474 per violation or twice the value of the transaction, whichever is greater, with denial of export privileges also possible.",
+    "suggestedInputs": {
+      "TEF": {
+        "min": 0.05,
+        "likely": 0.2,
+        "max": 0.8
+      },
+      "controlStrength": {
+        "min": 0.35,
+        "likely": 0.58,
+        "max": 0.82
+      },
+      "threatCapability": {
+        "min": 0.4,
+        "likely": 0.62,
+        "max": 0.8
+      },
+      "lossComponents": {
+        "incidentResponse": {
+          "min": 250000,
+          "likely": 1200000,
+          "max": 5000000
+        },
+        "businessInterruption": {
+          "min": 500000,
+          "likely": 2500000,
+          "max": 15000000
+        },
+        "dataBreachRemediation": {
+          "min": 0,
+          "likely": 0,
+          "max": 0
+        },
+        "regulatoryLegal": {
+          "min": 374474,
+          "likely": 3300000,
+          "max": 95000000
+        },
+        "thirdPartyLiability": {
+          "min": 0,
+          "likely": 500000,
+          "max": 5000000
+        },
+        "reputationContract": {
+          "min": 500000,
+          "likely": 2500000,
+          "max": 12000000
+        }
+      }
+    }
+  },
+  {
+    "id": "bm-exportcontrol-semiconductor-bis-2026",
+    "title": "Semiconductor export-control enforcement profile",
+    "scenarioType": "export-control",
+    "geographies": [
+      "United States",
+      "Global",
+      "United Arab Emirates",
+      "GCC"
+    ],
+    "industries": [
+      "semiconductor",
+      "technology"
+    ],
+    "scope": "industry",
+    "sourceType": "Official enforcement cases",
+    "sourceTitle": "BIS enforcement actions against Applied Materials, Cadence, and GlobalFoundries",
+    "sourceUrl": "https://www.bis.gov/press-release/applied-materials-pay-252-million-penalty-bis-illegally-exporting-semiconductor-manufacturing-equipment",
+    "lastUpdated": "2026-02-12",
+    "summary": "Recent BIS semiconductor-related cases include USD 252M against Applied Materials, USD 95M against Cadence, and USD 500K mitigated against GlobalFoundries, showing how large semiconductor export-control exposure can become.",
+    "suggestedInputs": {
+      "TEF": {
+        "min": 0.03,
+        "likely": 0.15,
+        "max": 0.6
+      },
+      "controlStrength": {
+        "min": 0.3,
+        "likely": 0.52,
+        "max": 0.78
+      },
+      "threatCapability": {
+        "min": 0.45,
+        "likely": 0.68,
+        "max": 0.86
+      },
+      "lossComponents": {
+        "incidentResponse": {
+          "min": 500000,
+          "likely": 2500000,
+          "max": 10000000
+        },
+        "businessInterruption": {
+          "min": 1000000,
+          "likely": 5000000,
+          "max": 30000000
+        },
+        "dataBreachRemediation": {
+          "min": 0,
+          "likely": 0,
+          "max": 0
+        },
+        "regulatoryLegal": {
+          "min": 500000,
+          "likely": 95000000,
+          "max": 252000000
+        },
+        "thirdPartyLiability": {
+          "min": 250000,
+          "likely": 3000000,
+          "max": 15000000
+        },
+        "reputationContract": {
+          "min": 1000000,
+          "likely": 8000000,
+          "max": 40000000
+        }
+      }
+    }
   }
 ]

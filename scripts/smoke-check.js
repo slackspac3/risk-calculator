@@ -59,6 +59,9 @@ expect(benchmarkServiceJs.includes('deriveSuggestedInputs'), 'benchmark service 
 expect(benchmarkData.includes('bm-databreach-global-ibm-2025'), 'benchmark dataset is missing global IBM 2025 breach profile');
 expect(benchmarkData.includes('bm-ransomware-sophos-2024'), 'benchmark dataset is missing Sophos ransomware benchmark profile');
 expect(benchmarkData.includes('bm-thirdparty-verizon-2025'), 'benchmark dataset is missing Verizon third-party benchmark profile');
+expect(benchmarkData.includes('bm-exportcontrol-semiconductor-bis-2026'), 'benchmark dataset is missing semiconductor export-control benchmark profile');
+expect(benchmarkData.includes('bm-industrial-ibm-2024'), 'benchmark dataset is missing industrial IBM benchmark profile');
+expect(benchmarkServiceJs.includes("return 'export-control'"), 'benchmark service is missing export-control scenario detection');
 
 expect(assessmentStateJs.includes('primaryGrounding'), 'assessmentState is not persisting primaryGrounding');
 expect(assessmentStateJs.includes('supportingReferences'), 'assessmentState is not persisting supportingReferences');
