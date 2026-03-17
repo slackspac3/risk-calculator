@@ -27,7 +27,7 @@ function renderWizard1() {
       saveDraft();
     }
   }
-  const selectedRisks = syncRiskSelection(true);
+  const selectedRisks = syncRiskSelection(!Array.isArray(draft.selectedRiskIds));
   const riskCandidates = getRiskCandidates();
   const scenarioGeographies = getScenarioGeographies();
   const regs = deriveApplicableRegulations(buList.find(b => b.id === draft.buId), selectedRisks, scenarioGeographies);
