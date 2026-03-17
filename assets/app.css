@@ -1487,6 +1487,75 @@ canvas { display: block; width: 100%; }
 .results-threshold-row strong { font-family: var(--font-display); font-size: var(--text-lg); color: var(--text-primary); }
 .results-threshold-foot { margin-top: var(--sp-3); font-size: var(--text-xs); line-height: 1.7; color: var(--text-muted); }
 .results-summary-card { padding: var(--sp-5) var(--sp-6); }
+
+.dashboard-at-a-glance .metric-card,
+.dashboard-at-a-glance > * {
+  box-shadow: none;
+}
+.dashboard-context-card {
+  background: linear-gradient(180deg, rgba(15,23,35,0.72), rgba(12,18,28,0.62));
+}
+.dashboard-disclosure {
+  padding: var(--sp-5) var(--sp-6);
+}
+.dashboard-disclosure summary,
+.results-detail-disclosure summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  color: var(--text-primary);
+}
+.dashboard-disclosure summary::-webkit-details-marker,
+.results-detail-disclosure summary::-webkit-details-marker {
+  display: none;
+}
+.dashboard-disclosure-copy {
+  margin-top: var(--sp-2);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+}
+.dashboard-disclosure-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  margin-top: var(--sp-4);
+}
+.results-detail-disclosure {
+  margin-bottom: var(--sp-6);
+  padding: var(--sp-4) var(--sp-5);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xl);
+  background: rgba(255,255,255,0.02);
+}
+.results-detail-disclosure[open] {
+  background: rgba(255,255,255,0.03);
+}
+.results-decision-card {
+  border-top: 3px solid rgba(244,193,90,0.18);
+}
+.results-summary-card {
+  background: linear-gradient(180deg, rgba(14,22,33,0.84), rgba(10,17,26,0.78));
+}
+.results-section-heading {
+  color: rgba(226,236,246,0.72);
+}
+.results-decision-copy,
+.results-summary-copy,
+.results-comparison-foot,
+.results-comparison-sub,
+.results-comparison-empty {
+  color: rgba(219,230,240,0.82);
+}
+.results-impact-label,
+.results-brief-label {
+  color: rgba(211,223,235,0.62);
+}
 @media (max-width: 1100px) {
   .results-executive-brief, .results-exec-metrics, .results-visual-grid, .results-decision-grid, .results-summary-grid {
     grid-template-columns: 1fr;

@@ -93,7 +93,7 @@ function renderUserDashboard() {
           </div>
         </section>
 
-        <section class="admin-overview-grid" style="margin-top:var(--sp-8)">
+        <section class="admin-overview-grid dashboard-at-a-glance" style="margin-top:var(--sp-8)">
           ${UI.dashboardOverviewCard({
             label: 'Open work',
             value: openAssessmentRows.length,
@@ -154,8 +154,8 @@ function renderUserDashboard() {
           <div class="dashboard-column">
             ${renderNonAdminHowToGuide(capability)}
 
-            <div class="card card--elevated dashboard-section-card">
-              <div class="context-panel-title">Your saved context</div>
+            <div class="card card--elevated dashboard-section-card dashboard-context-card">
+              <div class="results-section-heading">Saved context</div>
               <div class="context-panel-copy" style="margin-top:10px">${profile.jobTitle || 'Role not yet set'} · ${profile.businessUnit || user?.businessUnit || 'Business unit not yet set'}${profile.department || user?.department ? ` · ${profile.department || user?.department}` : ''}</div>
               <div class="form-help" style="margin-top:12px">${focusAreas.length ? `Focus areas: ${focusAreas.join(', ')}` : 'No focus areas saved yet.'}</div>
               <div class="form-help" style="margin-top:8px">${profile.workingContext ? 'Working context is saved and will be reused in AI-assisted steps.' : 'Add working context in Personal Settings to improve AI-assisted outputs.'}</div>
@@ -164,11 +164,10 @@ function renderUserDashboard() {
               </div>
             </div>
 
-            ${UI.dashboardSectionCard({
-              title: 'Archived items',
-              description: 'Stored out of the way, but still available if you need them again.',
-              badge: archivedAssessments.length,
-              body: archivedAssessments.length ? archivedAssessments.map(assessment => UI.dashboardAssessmentRow({
+            <details class="dashboard-disclosure card card--elevated dashboard-section-card" ${archivedAssessments.length ? '' : ''}>
+              <summary>Archived items <span class="badge badge--neutral">${archivedAssessments.length}</span></summary>
+              <div class="dashboard-disclosure-copy">Stored out of the way, but still available if you need them again.</div>
+              <div class="dashboard-disclosure-body">${archivedAssessments.length ? archivedAssessments.map(assessment => UI.dashboardAssessmentRow({
                 title: assessment.scenarioTitle || 'Untitled scenario',
                 detail: `Archived ${new Date(assessment.archivedAt || assessment.completedAt || assessment.createdAt || Date.now()).toLocaleDateString('en-AE', { year: 'numeric', month: 'short', day: 'numeric' })}${assessment.results ? ' · Completed assessment' : ' · Draft snapshot'}`,
                 badgeClass: 'badge--neutral',
@@ -178,8 +177,8 @@ function renderUserDashboard() {
                   ${assessment.results ? `<button type="button" class="btn btn--ghost btn--sm dashboard-open-action" data-assessment-id="${assessment.id}">Open Result</button>` : ''}
                   <button type="button" class="btn btn--ghost btn--sm dashboard-delete-assessment" data-assessment-id="${assessment.id}">Delete</button>
                 `
-              })).join('') : `<div class="empty-state">Nothing is archived right now. Items you archive will stay available here for restore or deletion.</div>`
-            })}
+              })).join('') : `<div class="empty-state">Nothing is archived right now. Items you archive will stay available here for restore or deletion.</div>`}</div>
+            </details>
           </div>
         </section>
       </div>

@@ -541,11 +541,14 @@ function renderResults(id, isShared) {
         </div>
       </div>
 
-      <div class="results-visual-grid">
-        ${renderExecutiveThresholdTracks(thresholdModel)}
-        ${renderExecutiveSignalCard(r)}
-        ${renderExecutiveImpactMix(impactMix)}
-      </div>
+      <details class="results-detail-disclosure">
+        <summary>Show deeper benchmark and threshold signals</summary>
+        <div class="results-visual-grid">
+          ${renderExecutiveThresholdTracks(thresholdModel)}
+          ${renderExecutiveSignalCard(r)}
+          ${renderExecutiveImpactMix(impactMix)}
+        </div>
+      </details>
 
       <div class="results-decision-grid">
         <div class="results-decision-card">
