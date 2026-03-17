@@ -3756,26 +3756,29 @@ function withAuth(renderer) {
 }
 
 function adminLayout(active, content, activeSettingsSection = 'org') {
-  return `<div style="display:flex;min-height:calc(100vh - 60px)">
+  return `<div class="admin-shell">
     <nav class="admin-sidebar">
-      <div style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:var(--sp-3)">Admin</div>
-      <div style="font-size:.68rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:var(--sp-2)">Setup</div>
+      <div class="admin-sidebar-head">
+        <div class="admin-sidebar-kicker">Admin</div>
+        <div class="admin-sidebar-title">Platform control</div>
+      </div>
+      <div class="admin-nav-group-label">Setup</div>
       <a href="#/admin/settings/org" data-admin-route="/admin/settings/org" class="admin-nav-link ${active==='settings' && activeSettingsSection==='org' ? 'active' : ''}">🌐 Organisation Setup</a>
       <a href="#/admin/settings/company" data-admin-route="/admin/settings/company" class="admin-nav-link ${active==='settings' && activeSettingsSection==='company' ? 'active' : ''}">🧠 AI Company Builder</a>
       <a href="#/admin/settings/defaults" data-admin-route="/admin/settings/defaults" class="admin-nav-link ${active==='settings' && activeSettingsSection==='defaults' ? 'active' : ''}">🛡 Platform Defaults</a>
       <a href="#/admin/settings/access" data-admin-route="/admin/settings/access" class="admin-nav-link ${active==='settings' && activeSettingsSection==='access' ? 'active' : ''}">🔐 System Access</a>
       <a href="#/admin/settings/users" data-admin-route="/admin/settings/users" class="admin-nav-link ${active==='settings' && activeSettingsSection==='users' ? 'active' : ''}">👥 User Accounts</a>
       <a href="#/admin/settings/audit" data-admin-route="/admin/settings/audit" class="admin-nav-link ${active==='settings' && activeSettingsSection==='audit' ? 'active' : ''}">🧾 Audit Log</a>
-      <div style="font-size:.68rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin:var(--sp-4) 0 var(--sp-2)">Libraries</div>
+      <div class="admin-nav-group-label">Libraries</div>
       <a href="#/admin/bu" data-admin-route="/admin/bu" class="admin-nav-link ${active==='bu'?'active':''}">🏢 Org Customisation</a>
       <a href="#/admin/docs" data-admin-route="/admin/docs" class="admin-nav-link ${active==='docs'?'active':''}">📚 Document Library</a>
-      <div style="flex:1"></div>
-      <div style="border-top:1px solid var(--border-subtle);padding-top:var(--sp-3)">
-        <div class="banner banner--poc" style="font-size:.7rem;padding:8px 10px">⚠ PoC — replace with Entra ID</div>
-        <button class="btn btn--ghost btn--sm" id="btn-admin-logout" style="margin-top:8px;width:100%;justify-content:center">Sign Out</button>
+      <div class="admin-sidebar-spacer"></div>
+      <div class="admin-sidebar-foot">
+        <div class="banner banner--poc admin-sidebar-banner">⚠ PoC — replace with Entra ID</div>
+        <button class="btn btn--ghost btn--sm admin-logout-btn" id="btn-admin-logout">Sign Out</button>
       </div>
     </nav>
-    <div style="flex:1;padding:var(--sp-8);overflow-y:auto">${content}</div>
+    <div class="admin-content-shell">${content}</div>
   </div>`;
 }
 
