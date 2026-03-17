@@ -90,6 +90,76 @@ function renderInlineEstimateExamples(currency) {
   };
 }
 
+function getEstimatePresetLibrary() {
+  return {
+    phishing: {
+      label: 'Phishing / BEC example',
+      summary: 'Higher frequency, moderate disruption, stronger focus on response and third-party loss.',
+      values: {
+        tefMin: 2, tefLikely: 6, tefMax: 18,
+        threatCapMin: 0.4, threatCapLikely: 0.58, threatCapMax: 0.78,
+        controlStrMin: 0.45, controlStrLikely: 0.62, controlStrMax: 0.8,
+        irMin: 25000, irLikely: 90000, irMax: 280000,
+        biMin: 30000, biLikely: 120000, biMax: 450000,
+        dbMin: 10000, dbLikely: 40000, dbMax: 150000,
+        rlMin: 0, rlLikely: 20000, rlMax: 150000,
+        tpMin: 10000, tpLikely: 50000, tpMax: 250000,
+        rcMin: 15000, rcLikely: 70000, rcMax: 250000
+      }
+    },
+    ransomware: {
+      label: 'Ransomware / outage example',
+      summary: 'Lower frequency than phishing, but heavier business disruption and recovery effort.',
+      values: {
+        tefMin: 0.5, tefLikely: 1.5, tefMax: 4,
+        threatCapMin: 0.55, threatCapLikely: 0.72, threatCapMax: 0.9,
+        controlStrMin: 0.35, controlStrLikely: 0.55, controlStrMax: 0.75,
+        irMin: 80000, irLikely: 250000, irMax: 900000,
+        biMin: 150000, biLikely: 700000, biMax: 3500000,
+        dbMin: 25000, dbLikely: 90000, dbMax: 300000,
+        rlMin: 0, rlLikely: 50000, rlMax: 350000,
+        tpMin: 0, tpLikely: 40000, tpMax: 250000,
+        rcMin: 50000, rcLikely: 180000, rcMax: 950000
+      }
+    },
+    dataBreach: {
+      label: 'Data privacy / breach example',
+      summary: 'Moderate frequency, stronger remediation and regulatory/legal cost pattern.',
+      values: {
+        tefMin: 0.3, tefLikely: 1, tefMax: 3,
+        threatCapMin: 0.45, threatCapLikely: 0.65, threatCapMax: 0.82,
+        controlStrMin: 0.4, controlStrLikely: 0.58, controlStrMax: 0.78,
+        irMin: 50000, irLikely: 160000, irMax: 500000,
+        biMin: 50000, biLikely: 220000, biMax: 900000,
+        dbMin: 80000, dbLikely: 250000, dbMax: 1000000,
+        rlMin: 20000, rlLikely: 120000, rlMax: 950000,
+        tpMin: 10000, tpLikely: 50000, tpMax: 250000,
+        rcMin: 40000, rcLikely: 160000, rcMax: 700000
+      }
+    }
+  };
+}
+
+function renderEstimatePresetCard() {
+  const presets = getEstimatePresetLibrary();
+  const buttons = Object.entries(presets).map(([key, preset]) => `<button type="button" class="chip estimate-preset-chip" data-estimate-preset="${key}" title="${preset.summary}">${preset.label}</button>`).join('');
+  return `<div class="card card--elevated anim-fade-in">
+    <div class="context-panel-title">Quick start examples</div>
+    <p class="context-panel-copy" style="margin-top:var(--sp-2)">Use one of these only if you want a fast starting pattern. They do not replace the AI suggestions or your own evidence.</p>
+    <div class="citation-chips" style="margin-top:12px">${buttons}</div>
+  </div>`;
+}
+
+function applyEstimatePreset(presetKey) {
+  const preset = getEstimatePresetLibrary()[presetKey];
+  if (!preset) return false;
+  const fairParams = AppState.draft.fairParams || (AppState.draft.fairParams = {});
+  Object.entries(preset.values).forEach(([key, value]) => {
+    fairParams[key] = value;
+  });
+  return true;
+}
+
 function attachCitationHandlers() {
   document.querySelectorAll('.citation-chip').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -166,6 +236,7 @@ function renderWizard3() {
           </div>
 
           ${renderRangeCalibrationCard(sym)}
+          ${renderEstimatePresetCard()}
 
           <div class="card anim-fade-in">
             <h3 style="margin-bottom:var(--sp-2);font-size:var(--text-base)">How often could this happen? <span data-tooltip="How many times per year this type of event could realistically occur." style="cursor:help;color:var(--color-accent-300);font-size:.8rem">ⓘ</span></h3>
@@ -300,6 +371,15 @@ function renderWizard3() {
       applyTreatmentPrompt(button.dataset.treatmentPrompt);
       renderWizard3();
       UI.toast('Treatment prompt applied. Review the numbers and rerun the scenario.', 'success');
+    });
+  });
+
+  document.querySelectorAll('.estimate-preset-chip').forEach(button => {
+    button.addEventListener('click', () => {
+      if (!applyEstimatePreset(button.dataset.estimatePreset)) return;
+      saveDraft();
+      renderWizard3();
+      UI.toast('Example preset applied. Review and adjust the numbers to fit your case.', 'success');
     });
   });
   document.getElementById('btn-treatment-ai-assist')?.addEventListener('click', async () => {
