@@ -262,6 +262,54 @@ test('authenticated admin shell renders without crashing', async ({ page }) => {
 });
 
 
+
+test('wizard step 1 clear all keeps manually added risks unselected after rerender', async ({ page }) => {
+  const seededUserSettings = {
+    userProfile: {
+      fullName: 'Alex Trafton',
+      jobTitle: 'Risk Manager',
+      businessUnit: 'G42',
+      department: 'Security',
+      focusAreas: ['Resilience'],
+      preferredOutputs: 'Executive summaries',
+      workingContext: 'Support regulated services.'
+    },
+    onboardedAt: '2026-03-17T00:00:00.000Z',
+    _overrideKeys: []
+  };
+  await seedAuthenticatedUser(page, { userSettings: seededUserSettings });
+  await mockSharedApis(page, {
+    settings: {
+      geography: 'United Arab Emirates',
+      applicableRegulations: ['UAE PDPL'],
+      entityContextLayers: [],
+      companyStructure: [],
+      aiInstructions: 'Use British English.',
+      benchmarkStrategy: 'Prefer GCC and UAE benchmark references.',
+      typicalDepartments: ['Security']
+    },
+    userState: {
+      userSettings: seededUserSettings,
+      assessments: [],
+      learningStore: { templates: {} },
+      draft: null,
+      _meta: { revision: 1, updatedAt: Date.now() }
+    }
+  });
+
+  await expectNoClientCrashOnRoute(page, '/#/wizard/1', async () => {
+    const manualInput = page.getByRole('textbox', { name: 'Add Risk Manually' });
+    await manualInput.fill('Cloud storage exposure');
+    await page.getByRole('button', { name: /^Add$/ }).click();
+    await manualInput.fill('Privileged access misuse');
+    await page.getByRole('button', { name: /^Add$/ }).click();
+    await expect(page.getByRole('button', { name: /^Clear All$/ })).toBeVisible();
+    await expect(page.locator('.risk-select-checkbox:checked')).toHaveCount(2);
+    await page.getByRole('button', { name: /^Clear All$/ }).click();
+    await expect(page.locator('.risk-select-checkbox:checked')).toHaveCount(0);
+  });
+});
+
 test('dashboard archive and restore flow works through the real confirm modal', async ({ page }) => {
   const seededUserSettings = {
     userProfile: {
