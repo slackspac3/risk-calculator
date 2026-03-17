@@ -41,10 +41,24 @@ const AdminAuditLogSection = (() => {
 
   function bind({ rerenderCurrentAdminSection }) {
     document.getElementById('btn-refresh-audit-log')?.addEventListener('click', async () => {
+      const btn = document.getElementById('btn-refresh-audit-log');
+      const status = document.getElementById('audit-log-status');
+      const originalText = btn?.textContent || 'Refresh Activity';
+      const originalStatus = status?.textContent || '';
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Refreshing…';
+      }
+      if (status) status.textContent = 'Refreshing recent activity…';
       try {
         await loadAuditLog();
         rerenderCurrentAdminSection();
       } catch (error) {
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = originalText;
+        }
+        if (status) status.textContent = originalStatus;
         UI.toast('Audit log could not be refreshed right now.', 'warning');
       }
     });

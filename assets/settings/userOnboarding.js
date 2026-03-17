@@ -295,16 +295,29 @@ function renderUserOnboarding(existingSettings = getUserSettings(), startStep = 
     });
 
     document.getElementById('btn-onboard-finish')?.addEventListener('click', async () => {
-      captureStepValues();
-      saveUserSettings({
-        ...draftSettings,
-        onboardedAt: new Date().toISOString(),
-        adminContextSummary: draftSettings.userProfile.workingContext || draftSettings.adminContextSummary || globalSettings.adminContextSummary
-      });
-      if (!AppState.draft.geography) AppState.draft.geography = draftSettings.geography || globalSettings.geography;
-      saveDraft();
-      UI.toast('Personal setup complete.', 'success');
-      Router.navigate('/dashboard');
+      const btn = document.getElementById('btn-onboard-finish');
+      const originalText = btn?.textContent || 'Finish Setup';
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Finishing…';
+      }
+      try {
+        captureStepValues();
+        saveUserSettings({
+          ...draftSettings,
+          onboardedAt: new Date().toISOString(),
+          adminContextSummary: draftSettings.userProfile.workingContext || draftSettings.adminContextSummary || globalSettings.adminContextSummary
+        });
+        if (!AppState.draft.geography) AppState.draft.geography = draftSettings.geography || globalSettings.geography;
+        saveDraft();
+        UI.toast('Personal setup complete.', 'success');
+        Router.navigate('/dashboard');
+      } finally {
+        if (btn && !String(window.location.hash || '').endsWith('/dashboard')) {
+          btn.disabled = false;
+          btn.textContent = originalText;
+        }
+      }
     });
   }
 

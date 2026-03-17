@@ -520,8 +520,21 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
   bindAutosave(userSettingsRoot, () => persistUserSettings(false));
 
   document.getElementById('btn-save-user-settings').addEventListener('click', async () => {
-    persistUserSettings(true);
-    await logAuditEvent({ category: 'profile', eventType: 'personal_settings_saved', target: AuthService.getCurrentUser()?.username || '', status: 'success', source: 'client' });
+    const btn = document.getElementById('btn-save-user-settings');
+    const originalText = btn?.textContent || 'Save Personal Settings';
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Saving…';
+    }
+    try {
+      persistUserSettings(true);
+      await logAuditEvent({ category: 'profile', eventType: 'personal_settings_saved', target: AuthService.getCurrentUser()?.username || '', status: 'success', source: 'client' });
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = originalText;
+      }
+    }
   });
 
   document.getElementById('btn-user-add-department')?.addEventListener('click', () => {
