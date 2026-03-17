@@ -140,13 +140,38 @@ function getEstimatePresetLibrary() {
   };
 }
 
-function renderEstimatePresetCard() {
+function recommendEstimatePreset(draft) {
+  const text = [
+    draft.scenarioTitle,
+    draft.enhancedNarrative,
+    draft.narrative,
+    draft.structuredScenario?.attackType,
+    draft.structuredScenario?.threatCommunity,
+    ...(getSelectedRisks().map(r => r.title || ''))
+  ].join(' ').toLowerCase();
+  if (/(phish|bec|email compromise|business email|invoice fraud)/.test(text)) return 'phishing';
+  if (/(ransom|encrypt|extortion|outage|business interruption|recovery)/.test(text)) return 'ransomware';
+  if (/(privacy|breach|exfiltrat|data leak|personal data|pii|phi)/.test(text)) return 'dataBreach';
+  return '';
+}
+
+function renderEstimatePresetCard(draft) {
   const presets = getEstimatePresetLibrary();
-  const buttons = Object.entries(presets).map(([key, preset]) => `<button type="button" class="chip estimate-preset-chip" data-estimate-preset="${key}" title="${preset.summary}">${preset.label}</button>`).join('');
+  const recommendedKey = recommendEstimatePreset(draft);
+  const buttons = Object.entries(presets).map(([key, preset]) => {
+    const isRecommended = key === recommendedKey;
+    const recommendedLabel = isRecommended ? ' <span class="badge badge--neutral" style="margin-left:6px">Recommended</span>' : '';
+    const style = isRecommended ? ' style="border-color:var(--color-primary-400);background:rgba(77,163,255,.12);color:var(--text-primary)"' : '';
+    return `<button type="button" class="chip estimate-preset-chip" data-estimate-preset="${key}" title="${preset.summary}"${style}>${preset.label}${recommendedLabel}</button>`;
+  }).join('');
+  const summary = recommendedKey
+    ? `<div class="context-panel-foot" style="margin-top:12px">Best fit for this scenario: <strong>${presets[recommendedKey].label}</strong>. Use it only if the pattern looks close to your case.</div>`
+    : '<div class="context-panel-foot" style="margin-top:12px">Pick a quick start only if one looks close to your scenario. Otherwise keep the AI values or enter your own evidence-based ranges.</div>';
   return `<div class="card card--elevated anim-fade-in">
     <div class="context-panel-title">Quick start examples</div>
     <p class="context-panel-copy" style="margin-top:var(--sp-2)">Use one of these only if you want a fast starting pattern. They do not replace the AI suggestions or your own evidence.</p>
     <div class="citation-chips" style="margin-top:12px">${buttons}</div>
+    ${summary}
   </div>`;
 }
 
@@ -236,7 +261,7 @@ function renderWizard3() {
           </div>
 
           ${renderRangeCalibrationCard(sym)}
-          ${renderEstimatePresetCard()}
+          ${renderEstimatePresetCard(draft)}
 
           <div class="card anim-fade-in">
             <h3 style="margin-bottom:var(--sp-2);font-size:var(--text-base)">How often could this happen? <span data-tooltip="How many times per year this type of event could realistically occur." style="cursor:help;color:var(--color-accent-300);font-size:.8rem">ⓘ</span></h3>
