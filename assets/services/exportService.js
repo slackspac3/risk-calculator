@@ -434,7 +434,7 @@ const ExportService = (() => {
         <div class="section">
           <h3>Simulation context</h3>
           <div class="summary-grid">
-            <div class="card"><div class="section-label">TEF</div><div class="body-copy">${technicalInputs.tefMin ?? '—'} – ${technicalInputs.tefLikely ?? '—'} – ${technicalInputs.tefMax ?? '—'} events/year</div></div>
+            <div class="card"><div class="section-label">Event frequency</div><div class="body-copy">${technicalInputs.tefMin ?? '—'} – ${technicalInputs.tefLikely ?? '—'} – ${technicalInputs.tefMax ?? '—'} times per year</div></div>
             <div class="card"><div class="section-label">Threat capability</div><div class="body-copy">${technicalInputs.threatCapMin ?? '—'} – ${technicalInputs.threatCapLikely ?? '—'} – ${technicalInputs.threatCapMax ?? '—'}</div></div>
             <div class="card"><div class="section-label">Control strength</div><div class="body-copy">${technicalInputs.controlStrMin ?? '—'} – ${technicalInputs.controlStrLikely ?? '—'} – ${technicalInputs.controlStrMax ?? '—'}</div></div>
             <div class="card"><div class="section-label">Iterations</div><div class="body-copy">${r.iterations.toLocaleString()}</div></div>

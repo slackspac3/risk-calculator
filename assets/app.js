@@ -3413,7 +3413,7 @@ function renderBenchmarkRationaleBlock(benchmarkBasis, inputRationale, benchmark
   if (!benchmarkBasis && !inputRationale && !benchmarkReferences?.length) return '';
   const rows = [
     ['Benchmark basis', benchmarkBasis],
-    ['Why TEF looks like this', inputRationale?.tef],
+    ['Why the frequency looks like this', inputRationale?.tef],
     ['Why vulnerability looks like this', inputRationale?.vulnerability],
     ['Why the loss ranges look like this', inputRationale?.lossComponents]
   ].filter(([, value]) => value);

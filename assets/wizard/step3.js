@@ -15,7 +15,7 @@ function buildEstimateExplainer(draft, bu, isAdv, currency) {
   const p = draft.fairParams || {};
   const hasAI = !!draft.llmAssisted;
   const tef = [p.tefMin, p.tefLikely, p.tefMax].every(v => v != null)
-    ? `AI is currently assuming this could happen between ${p.tefMin} and ${p.tefMax} times per year, with ${p.tefLikely} as the most realistic planning case.`
+    ? `AI is currently assuming this could happen between ${p.tefMin} and ${p.tefMax} times in a year, with ${p.tefLikely} as the most realistic planning case.`
     : 'Use the range to describe how often this could happen in a quiet year, a typical year, and a severe but still plausible year.';
   const exposure = isAdv && p.vulnDirect
     ? ([p.vulnMin, p.vulnLikely, p.vulnMax].every(v => v != null)
@@ -139,7 +139,7 @@ function renderWizard3() {
           <div class="card anim-fade-in">
             <h3 style="margin-bottom:var(--sp-2);font-size:var(--text-base)">How often could this happen? <span data-tooltip="How many times per year this type of event could realistically occur." style="cursor:help;color:var(--color-accent-300);font-size:.8rem">ⓘ</span></h3>
             <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:12px">Enter the number of events you think could happen in a year. Use a cautious low case, your expected case, and a severe but plausible high case.</p>
-            ${tripleInput('tef','Threat Event Frequency', v('tefMin',da.TEF?.min||0.5), v('tefLikely',da.TEF?.likely||2), v('tefMax',da.TEF?.max||8), { minLabel: 'Low case', likelyLabel: 'Expected case', maxLabel: 'High case' })}
+            ${tripleInput('tef','How often this could happen in a year', v('tefMin',da.TEF?.min||0.5), v('tefLikely',da.TEF?.likely||2), v('tefMax',da.TEF?.max||8), { minLabel: 'Low case', likelyLabel: 'Expected case', maxLabel: 'High case' })}
           </div>
 
           <div class="card anim-fade-in anim-delay-1">
