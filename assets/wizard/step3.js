@@ -224,6 +224,68 @@ function markFairInputSource(inputKey, sourceKind) {
   draft.fairParamOrigins = { ...(draft.fairParamOrigins || {}), [inputKey]: sourceKind };
 }
 
+function _hasMeaningfulFairInputs(draft) {
+  const p = draft?.fairParams || {};
+  const keys = ['tefLikely', 'threatCapLikely', 'controlStrLikely', 'irLikely', 'biLikely', 'dbLikely'];
+  return keys.some(key => Number.isFinite(Number(p[key])) && Number(p[key]) > 0);
+}
+
+function _ensureDraftFairParamsSeeded(draft) {
+  if (!draft || _hasMeaningfulFairInputs(draft)) return;
+  const businessUnit = getBUList().find(bu => bu.id === draft.buId) || null;
+  const defaults = businessUnit?.defaultAssumptions || {};
+  const selectedRisks = getSelectedRisks();
+  const query = [
+    draft.scenarioTitle,
+    draft.enhancedNarrative,
+    draft.narrative,
+    draft.structuredScenario?.attackType,
+    draft.structuredScenario?.threatCommunity,
+    draft.structuredScenario?.effect,
+    ...selectedRisks.map(risk => risk.title || '')
+  ].filter(Boolean).join(' ');
+  const benchmarkCandidates = BenchmarkService.retrieveRelevantBenchmarks({
+    query,
+    geography: formatScenarioGeographies(getScenarioGeographies()),
+    businessUnit,
+    topK: 3
+  });
+  const suggested = BenchmarkService.deriveSuggestedInputs(benchmarkCandidates) || {};
+  const loss = suggested.lossComponents || {};
+  const p = draft.fairParams || (draft.fairParams = {});
+  const assignRange = (prefix, suggestedRange, defaultRange, hardDefault) => {
+    const currentValues = [p[`${prefix}Min`], p[`${prefix}Likely`], p[`${prefix}Max`]].map(value => Number(value));
+    const hasCurrent = currentValues.some(value => Number.isFinite(value) && value > 0);
+    if (hasCurrent) return;
+    const source = suggestedRange || defaultRange || hardDefault;
+    if (!source) return;
+    const min = Number(source.min ?? hardDefault?.min ?? 0);
+    const likely = Number(source.likely ?? hardDefault?.likely ?? min);
+    const max = Number(source.max ?? hardDefault?.max ?? likely);
+    const ordered = [min, likely, max].sort((a, b) => a - b);
+    p[`${prefix}Min`] = ordered[0];
+    p[`${prefix}Likely`] = ordered[1];
+    p[`${prefix}Max`] = ordered[2];
+  };
+
+  assignRange('tef', suggested.TEF, defaults.TEF, { min: 0.5, likely: 2, max: 8 });
+  assignRange('threatCap', suggested.threatCapability, defaults.threatCapability, { min: 0.45, likely: 0.62, max: 0.82 });
+  assignRange('controlStr', suggested.controlStrength, defaults.controlStrength, { min: 0.5, likely: 0.68, max: 0.85 });
+  assignRange('ir', loss.incidentResponse, defaults.incidentResponse, { min: 50000, likely: 180000, max: 600000 });
+  assignRange('bi', loss.businessInterruption, defaults.businessInterruption, { min: 100000, likely: 450000, max: 2500000 });
+  assignRange('db', loss.dataBreachRemediation, defaults.dataBreachRemediation, { min: 30000, likely: 120000, max: 500000 });
+  assignRange('rl', loss.regulatoryLegal, defaults.regulatoryLegal, { min: 0, likely: 80000, max: 800000 });
+  assignRange('tp', loss.thirdPartyLiability, defaults.thirdPartyLiability, { min: 0, likely: 50000, max: 400000 });
+  assignRange('rc', loss.reputationContract, defaults.reputationContract, { min: 50000, likely: 200000, max: 1200000 });
+
+  if ((!draft.benchmarkReferences || !draft.benchmarkReferences.length) && benchmarkCandidates.length) {
+    draft.benchmarkReferences = BenchmarkService.buildReferenceList(benchmarkCandidates);
+  }
+  if ((!draft.inputProvenance || !draft.inputProvenance.length) && benchmarkCandidates.length) {
+    draft.inputProvenance = BenchmarkService.buildInputProvenance(benchmarkCandidates);
+  }
+}
+
 function renderEstimateBackgroundDetails(draft, bu, isAdv, cur, sym) {
   const guidance = draft.workflowGuidance?.length ? renderWorkflowGuidanceBlock(draft.workflowGuidance) : '';
   const evidence = renderEvidenceQualityBlock(draft.confidenceLabel, draft.evidenceQuality, draft.evidenceSummary, draft.missingInformation, 'AI Evidence Quality', { primaryGrounding: draft.primaryGrounding, supportingReferences: draft.supportingReferences, inferredAssumptions: draft.inferredAssumptions });
@@ -262,6 +324,7 @@ function renderEstimateOptionalHelpDetails(draft, sym) {
 
 function renderWizard3() {
   const draft = AppState.draft;
+  _ensureDraftFairParamsSeeded(draft);
   const p = draft.fairParams || {};
   const bu = getBUList().find(b => b.id === draft.buId);
   const da = bu?.defaultAssumptions || {};
