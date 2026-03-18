@@ -359,31 +359,109 @@ function renderWizard1() {
   bindRiskCardActions();
 }
 
-function scoreRiskForCurrentAssessment(risk, narrative, selectedIds) {
-  let score = 0;
-  if (selectedIds.has(risk.id)) score += 5;
-  if (risk.source === 'manual') score += 3;
-  if (risk.source === 'ai+register' || risk.source === 'register') score += 2;
-  const haystack = `${risk.title || ''} ${risk.description || ''} ${risk.category || ''}`.toLowerCase();
-  const tokens = String(narrative || '').toLowerCase().split(/[^a-z0-9]+/).filter(token => token.length > 3);
-  const uniqueTokens = Array.from(new Set(tokens)).slice(0, 12);
-  uniqueTokens.forEach(token => {
-    if (haystack.includes(token)) score += 1;
-  });
-  return score;
+function normaliseAssessmentTokens(text) {
+  return Array.from(new Set(
+    String(text || '')
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter(token => token.length > 2 && !['the', 'and', 'for', 'with', 'from', 'into', 'this', 'that', 'your', 'have', 'will', 'risk'].includes(token))
+  ));
 }
 
-function explainRiskFit(score, selected) {
+function buildStep1AssessmentSignals(narrative) {
+  const guidedInput = AppState.draft?.guidedInput || {};
+  return {
+    eventTokens: normaliseAssessmentTokens(guidedInput.event || narrative).slice(0, 14),
+    assetTokens: normaliseAssessmentTokens(guidedInput.asset).slice(0, 10),
+    causeTokens: normaliseAssessmentTokens(guidedInput.cause).slice(0, 10),
+    impactTokens: normaliseAssessmentTokens(guidedInput.impact).slice(0, 10),
+    narrativeTokens: normaliseAssessmentTokens([
+      narrative,
+      guidedInput.event,
+      guidedInput.asset,
+      guidedInput.cause,
+      guidedInput.impact
+    ].filter(Boolean).join(' ')).slice(0, 18)
+  };
+}
+
+function getRiskAssessmentHaystack(risk) {
+  return `${risk.title || ''} ${risk.description || ''} ${risk.category || ''}`.toLowerCase();
+}
+
+function countAssessmentMatches(tokens, haystack) {
+  if (!Array.isArray(tokens) || !tokens.length) return 0;
+  return tokens.reduce((count, token) => count + (haystack.includes(token) ? 1 : 0), 0);
+}
+
+function scoreRiskForCurrentAssessment(risk, assessmentSignals, selectedIds) {
+  let score = 0;
+  const reasons = [];
+  const haystack = getRiskAssessmentHaystack(risk);
+  if (selectedIds.has(risk.id)) {
+    score += 8;
+    reasons.push('Already part of the current shortlist.');
+  }
+  if (risk.source === 'manual') {
+    score += 3;
+    reasons.push('Added directly for this assessment.');
+  }
+  if (risk.source === 'ai+register' || risk.source === 'register') {
+    score += 2;
+  }
+
+  const eventMatches = countAssessmentMatches(assessmentSignals.eventTokens, haystack);
+  const assetMatches = countAssessmentMatches(assessmentSignals.assetTokens, haystack);
+  const causeMatches = countAssessmentMatches(assessmentSignals.causeTokens, haystack);
+  const impactMatches = countAssessmentMatches(assessmentSignals.impactTokens, haystack);
+  const narrativeMatches = countAssessmentMatches(assessmentSignals.narrativeTokens, haystack);
+
+  if (assetMatches) {
+    score += 4 + Math.min(assetMatches, 2);
+    reasons.push('Matches the same affected asset or service.');
+  }
+  if (causeMatches) {
+    score += 4 + Math.min(causeMatches, 2);
+    reasons.push('Matches the same likely cause or attack path.');
+  }
+  if (impactMatches) {
+    score += 3 + Math.min(impactMatches, 2);
+    reasons.push('Matches the same business or regulatory impact.');
+  }
+  if (eventMatches) {
+    score += 2 + Math.min(eventMatches, 2);
+  }
+  if (narrativeMatches >= 2) {
+    score += 2;
+    reasons.push('Shares the same event wording as the current scenario draft.');
+  }
+
+  const fit = selectedIds.has(risk.id)
+    ? 'selected'
+    : score >= 8
+      ? 'strong'
+      : score >= 4
+        ? 'possible'
+        : 'weak';
+  return {
+    score,
+    fit,
+    reasons: Array.from(new Set(reasons)).slice(0, 2)
+  };
+}
+
+function explainRiskFit(match, selected) {
   if (selected) return 'Already included in this assessment.';
-  if (score >= 5) return 'Good fit because it closely matches the current scenario wording or source material.';
-  if (score >= 3) return 'Possibly in scope, but review whether it shares the same event and business impact.';
+  if (match?.reasons?.length) return match.reasons.join(' ');
+  if (match?.fit === 'strong') return 'Good fit because it closely matches the current scenario draft.';
+  if (match?.fit === 'possible') return 'Possibly in scope, but review whether it shares the same event and business impact.';
   return 'Likely separate or lower-confidence. Include it only if it clearly belongs in the same assessment.';
 }
 
 function renderRiskSelectionSection(title, subtitle, risks, selectedIds, regulations, sectionClass = '') {
   if (!risks.length) return '';
   const sourceLabel = risk => risk.source === 'manual' ? 'Manual' : risk.source === 'register' || risk.source === 'ai+register' ? 'Upload' : 'AI generated';
-  return `<div class="${sectionClass}" style="display:flex;flex-direction:column;gap:var(--sp-4)"><div><div class="context-panel-title">${title}</div><div class="context-panel-copy" style="margin-top:6px">${subtitle}</div></div><div class="risk-selection-grid">${risks.map(({ risk, score }) => `<div class="risk-pick-card"><div class="risk-pick-head" style="align-items:flex-start"><label style="display:flex;gap:12px;align-items:flex-start;flex:1;cursor:pointer"><input type="checkbox" class="risk-select-checkbox" data-risk-id="${risk.id}" ${selectedIds.has(risk.id) ? 'checked' : ''} style="margin-top:4px"><div><div class="risk-pick-title">${risk.title}</div><div class="risk-pick-badges"><span class="risk-pick-badge">${risk.category}</span><span class="risk-pick-badge risk-pick-badge--source">${sourceLabel(risk)}</span></div></div></label><button class="btn btn--ghost btn--sm btn-remove-risk" data-risk-id="${risk.id}" type="button">Remove</button></div>${risk.description ? `<p class="risk-pick-desc">${risk.description}</p>` : ''}<div class="form-help" style="margin-bottom:10px">${explainRiskFit(score, selectedIds.has(risk.id))}</div><div class="citation-chips">${(risk.regulations || []).length ? risk.regulations.slice(0, 4).map(tag => `<span class="badge badge--neutral">${tag}</span>`).join('') : regulations.slice(0, 2).map(tag => `<span class="badge badge--neutral">${tag}</span>`).join('')}</div></div>`).join('')}</div></div>`;
+  return `<div class="${sectionClass}" style="display:flex;flex-direction:column;gap:var(--sp-4)"><div><div class="context-panel-title">${title}</div><div class="context-panel-copy" style="margin-top:6px">${subtitle}</div></div><div class="risk-selection-grid">${risks.map(({ risk, match }) => `<div class="risk-pick-card"><div class="risk-pick-head" style="align-items:flex-start"><label style="display:flex;gap:12px;align-items:flex-start;flex:1;cursor:pointer"><input type="checkbox" class="risk-select-checkbox" data-risk-id="${risk.id}" ${selectedIds.has(risk.id) ? 'checked' : ''} style="margin-top:4px"><div><div class="risk-pick-title">${risk.title}</div><div class="risk-pick-badges"><span class="risk-pick-badge">${risk.category}</span><span class="risk-pick-badge risk-pick-badge--source">${sourceLabel(risk)}</span></div></div></label><button class="btn btn--ghost btn--sm btn-remove-risk" data-risk-id="${risk.id}" type="button">Remove</button></div>${risk.description ? `<p class="risk-pick-desc">${risk.description}</p>` : ''}<div class="form-help" style="margin-bottom:10px">${explainRiskFit(match, selectedIds.has(risk.id))}</div><div class="citation-chips">${(risk.regulations || []).length ? risk.regulations.slice(0, 4).map(tag => `<span class="badge badge--neutral">${tag}</span>`).join('') : regulations.slice(0, 2).map(tag => `<span class="badge badge--neutral">${tag}</span>`).join('')}</div></div>`).join('')}</div></div>`;
 }
 
 function renderSelectedRiskCards(riskCandidates, selectedRisks, regulations) {
@@ -394,10 +472,14 @@ function renderSelectedRiskCards(riskCandidates, selectedRisks, regulations) {
   }
   const linkedRecommendations = getLinkedRiskRecommendations(selectedRisks || []);
   const narrative = AppState.draft.enhancedNarrative || AppState.draft.narrative || AppState.draft.sourceNarrative || composeGuidedNarrative(AppState.draft.guidedInput) || '';
+  const assessmentSignals = buildStep1AssessmentSignals(narrative);
   const ranked = cleanedRisks
-    .map(risk => ({ risk, score: scoreRiskForCurrentAssessment(risk, narrative, selectedIds) }))
+    .map(risk => {
+      const match = scoreRiskForCurrentAssessment(risk, assessmentSignals, selectedIds);
+      return { risk, match, score: match.score };
+    })
     .sort((a, b) => b.score - a.score || String(a.risk.title || '').localeCompare(String(b.risk.title || '')));
-  const recommended = ranked.filter(item => selectedIds.has(item.risk.id) || item.score >= 3);
+  const recommended = ranked.filter(item => selectedIds.has(item.risk.id) || item.match.fit === 'strong' || item.score >= 4);
   const extras = ranked.filter(item => !recommended.includes(item));
   const selectedCount = selectedRisks.length;
   const scopeHint = selectedCount > 4
@@ -412,7 +494,7 @@ function renderSelectedRiskCards(riskCandidates, selectedRisks, regulations) {
     <span class="badge badge--neutral">${selectedCount} selected</span>
     <span class="form-help">${scopeHint}</span>
   </div>
-  ${renderRiskSelectionSection('Recommended for this assessment', 'These are the strongest candidates based on your current scenario wording and selected scope.', recommended, selectedIds, regulations)}
+  ${renderRiskSelectionSection('Recommended for this assessment', 'These are the strongest candidates based on the current event, asset, cause, and impact you described.', recommended, selectedIds, regulations)}
   ${extras.length ? `<details class="wizard-disclosure"><summary>Show additional possible risks <span class="badge badge--neutral">${extras.length}</span></summary><div class="wizard-disclosure-body">${renderRiskSelectionSection('Available but likely out of scope', 'Keep these only if they clearly belong in the same event path or business outcome.', extras, selectedIds, regulations)}</div></details>` : ''}`;
 }
 
