@@ -206,6 +206,33 @@ function renderEstimateModeNote(isAdv) {
   return `<div class="card card--elevated anim-fade-in"><div class="context-panel-title">Basic mode</div><p class="context-panel-copy" style="margin-top:var(--sp-2)">This is the recommended path for most users. Estimate frequency, attacker strength, control strength, and cost ranges only. Switch to Advanced only if you need extra modelling controls.</p></div>`;
 }
 
+function renderEstimateQuickStartBlock(draft, recommendedPresetKey) {
+  const nextAction = renderEstimateActionCard(draft, recommendedPresetKey);
+  const directStart = `<div class="card card--elevated anim-fade-in"><div class="context-panel-title">Start here</div><p class="context-panel-copy" style="margin-top:var(--sp-2)">Go straight to the three sections below: frequency, exposure, and cost. If the AI values look broadly right, change only the numbers you want to challenge.</p></div>`;
+  return `${nextAction}${directStart}`;
+}
+
+function renderEstimateBackgroundDetails(draft, bu, isAdv, cur, sym) {
+  const guidance = draft.workflowGuidance?.length ? renderWorkflowGuidanceBlock(draft.workflowGuidance) : '';
+  const evidence = renderEvidenceQualityBlock(draft.confidenceLabel, draft.evidenceQuality, draft.evidenceSummary, draft.missingInformation, 'AI Evidence Quality', { primaryGrounding: draft.primaryGrounding, supportingReferences: draft.supportingReferences, inferredAssumptions: draft.inferredAssumptions });
+  const benchmark = renderBenchmarkRationaleBlock(draft.benchmarkBasis, draft.inputRationale, draft.benchmarkReferences);
+  const provenance = renderInputProvenanceBlock(draft.inputProvenance);
+  const explainer = renderEstimateExplainerCard(draft, bu, isAdv, cur);
+  return `<details class="wizard-disclosure card card--elevated anim-fade-in"><summary>Why these starting numbers look like this</summary><div class="wizard-disclosure-body">${guidance}${evidence}${benchmark}${provenance}${explainer}</div></details>`;
+}
+
+function renderEstimateOptionalHelpDetails(draft, sym) {
+  return `<details class="wizard-disclosure card card--elevated anim-fade-in"><summary>Show examples and optional help</summary><div class="wizard-disclosure-body">${UI.contextInfoGrid({
+    title: 'How to complete this step',
+    className: 'card card--elevated wizard-nested-card',
+    panels: [
+      UI.contextInfoPanel({ title: '1. Start with the AI values', copy: 'If the AI suggestions look broadly right, adjust only the values you have evidence for.' }),
+      UI.contextInfoPanel({ title: '2. Think in ranges, not exact numbers', copy: 'Use a low, expected, and severe case. You do not need one perfect number.' }),
+      UI.contextInfoPanel({ title: '3. Use Advanced only when needed', copy: 'Advanced mode is only for direct exposure, follow-on impact, and simulation tuning. Most users should stay in Basic.' })
+    ]
+  })}${renderRangeCalibrationCard(sym)}${renderEstimatePresetCard(draft)}</div></details>`;
+}
+
 function renderWizard3() {
   const draft = AppState.draft;
   const p = draft.fairParams || {};
@@ -241,29 +268,8 @@ function renderWizard3() {
         <div class="wizard-body">
           ${draft.learningNote ? `<div class="card card--elevated anim-fade-in"><div class="context-panel-title">Template learning</div><p class="context-panel-copy">${draft.learningNote}</p></div>` : ''}
           ${baselineAssessment ? `<div class="card card--elevated anim-fade-in"><div class="context-panel-title">Current assessment baseline</div><p class="context-panel-copy">You are working from <strong>${baselineAssessment.scenarioTitle || 'the original assessment'}</strong>. Adjust the assumptions below to reflect a stronger control position or better resilience, then rerun to compare the new result against the current baseline.</p><div class="form-help" style="margin-top:10px">Baseline completed on ${new Date(baselineAssessment.completedAt || baselineAssessment.createdAt || Date.now()).toLocaleDateString('en-AE', { year: 'numeric', month: 'long', day: 'numeric' })}.</div><div class="citation-chips" style="margin-top:12px"><button type="button" class="chip treatment-prompt-chip" data-treatment-prompt="control-strength">Try stronger controls</button><button type="button" class="chip treatment-prompt-chip" data-treatment-prompt="frequency">Try lower event frequency</button><button type="button" class="chip treatment-prompt-chip" data-treatment-prompt="business-interruption">Try lower disruption cost</button></div><div class="form-group" style="margin-top:16px"><label class="form-label" for="treatment-improvement-request">Describe the better outcome you want to test</label><textarea class="form-textarea" id="treatment-improvement-request" rows="3" placeholder="e.g. stronger identity controls, lower business disruption, less financial loss, better containment">${draft.treatmentImprovementRequest || ''}</textarea><span class="form-help">Describe the improvement in plain language and let AI adjust the copied baseline values before you simulate the new case.</span></div><div class="flex items-center gap-3" style="margin-top:12px;flex-wrap:wrap"><button class="btn btn--secondary" id="btn-treatment-ai-assist" type="button">AI Assist This Better Outcome</button><span class="form-help" id="treatment-improvement-status">These are quick starting points. You can still adjust every number manually before rerunning the analysis.</span></div></div>` : ''}
-          ${draft.workflowGuidance?.length ? renderWorkflowGuidanceBlock(draft.workflowGuidance) : ''}
-          ${renderEvidenceQualityBlock(draft.confidenceLabel, draft.evidenceQuality, draft.evidenceSummary, draft.missingInformation, 'AI Evidence Quality', { primaryGrounding: draft.primaryGrounding, supportingReferences: draft.supportingReferences, inferredAssumptions: draft.inferredAssumptions })}
-          ${renderBenchmarkRationaleBlock(draft.benchmarkBasis, draft.inputRationale, draft.benchmarkReferences)}
-          ${renderInputProvenanceBlock(draft.inputProvenance)}
-          ${renderEstimateActionCard(draft, recommendedPresetKey)}
+          ${renderEstimateQuickStartBlock(draft, recommendedPresetKey)}
           ${renderEstimateModeNote(isAdv)}
-          ${renderEstimateExplainerCard(draft, bu, isAdv, cur)}
-          <details class="wizard-disclosure card card--elevated anim-fade-in">
-            <summary>Show examples and optional help</summary>
-            <div class="wizard-disclosure-body">
-              ${UI.contextInfoGrid({
-                title: 'How to complete this step',
-                className: 'card card--elevated wizard-nested-card',
-                panels: [
-                  UI.contextInfoPanel({ title: '1. Start with the AI values', copy: 'If the AI suggestions look broadly right, adjust only the values you have evidence for.' }),
-                  UI.contextInfoPanel({ title: '2. Think in ranges, not exact numbers', copy: 'Use a low, expected, and severe case. You do not need one perfect number.' }),
-                  UI.contextInfoPanel({ title: '3. Use Advanced only when needed', copy: 'Advanced mode is only for direct exposure, follow-on impact, and simulation tuning. Most users should stay in Basic.' })
-                ]
-              })}
-              ${renderRangeCalibrationCard(sym)}
-              ${renderEstimatePresetCard(draft)}
-            </div>
-          </details>
 
           ${UI.wizardInputSection({
             title: 'How often could this happen? <span data-tooltip="How many times per year this type of event could realistically occur." style="cursor:help;color:var(--color-accent-300);font-size:.8rem">ⓘ</span>',
@@ -325,6 +331,10 @@ function renderWizard3() {
               </details>
             </div>`
           })}
+
+          ${!isAdv ? `${renderEstimateBackgroundDetails(draft, bu, isAdv, cur, sym)}${renderEstimateOptionalHelpDetails(draft, sym)}` : ''}
+
+          ${isAdv ? `${renderEstimateBackgroundDetails(draft, bu, isAdv, cur, sym)}${renderEstimateOptionalHelpDetails(draft, sym)}` : ''}
 
           ${isAdv ? `<details class="wizard-disclosure card anim-fade-in anim-delay-3" ${p.secondaryEnabled ? 'open' : ''}>
             <summary>Follow-on impact <span class="badge badge--neutral">Advanced</span></summary>
