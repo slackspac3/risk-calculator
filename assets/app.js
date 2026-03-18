@@ -207,6 +207,87 @@ if (typeof window !== 'undefined' && !window.__rqRuntimeInstrumentationInstalled
   });
 }
 
+
+function isEditableTarget(target) {
+  if (!target) return false;
+  const tag = String(target.tagName || '').toLowerCase();
+  return tag === 'input' || tag === 'textarea' || tag === 'select' || !!target.isContentEditable;
+}
+
+function focusAdminUserSearch() {
+  const input = document.getElementById('admin-user-search');
+  if (!input) return false;
+  input.focus();
+  input.select?.();
+  return true;
+}
+
+function triggerResultsTab(tabName) {
+  const button = document.querySelector(`[data-results-tab="${tabName}"]`);
+  if (!button) return false;
+  button.click();
+  return true;
+}
+
+function handleGlobalDesktopShortcut(event) {
+  if (event.defaultPrevented || isEditableTarget(event.target)) return;
+  if (!(event.altKey || event.metaKey)) return;
+  if (event.ctrlKey) return;
+
+  const key = String(event.key || '').toLowerCase();
+  const route = typeof window !== 'undefined' ? String(window.location.hash || '#/').toLowerCase() : '#/';
+
+  if (key === 'n') {
+    const button = document.getElementById('btn-dashboard-new-assessment') || document.getElementById('btn-new-assess');
+    if (button && !button.disabled) {
+      event.preventDefault();
+      button.click();
+    }
+    return;
+  }
+
+  if (key === 'r' && route.includes('/dashboard')) {
+    const button = document.getElementById('btn-dashboard-continue-draft');
+    if (button && !button.disabled) {
+      event.preventDefault();
+      button.click();
+    }
+    return;
+  }
+
+  if (key === 's' && (route.includes('/dashboard') || route.includes('/settings'))) {
+    const button = document.getElementById('btn-dashboard-open-settings') || document.getElementById('btn-dashboard-settings-secondary');
+    if (button && !button.disabled) {
+      event.preventDefault();
+      button.click();
+    }
+    return;
+  }
+
+  if (key === '1' && route.includes('/results/')) {
+    event.preventDefault();
+    triggerResultsTab('executive');
+    return;
+  }
+
+  if (key === '2' && route.includes('/results/')) {
+    event.preventDefault();
+    triggerResultsTab('technical');
+    return;
+  }
+
+  if (key === 'f' && route.includes('/admin/settings/users')) {
+    if (focusAdminUserSearch()) {
+      event.preventDefault();
+    }
+  }
+}
+
+if (typeof document !== 'undefined' && !document.__rqDesktopShortcutsInstalled) {
+  document.__rqDesktopShortcutsInstalled = true;
+  document.addEventListener('keydown', handleGlobalDesktopShortcut);
+}
+
 function getAuditApiUrl() {
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   if (origin && origin.includes('vercel.app')) return `${origin}/api/audit-log`;
