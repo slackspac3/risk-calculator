@@ -224,14 +224,8 @@ function markFairInputSource(inputKey, sourceKind) {
   draft.fairParamOrigins = { ...(draft.fairParamOrigins || {}), [inputKey]: sourceKind };
 }
 
-function _hasMeaningfulFairInputs(draft) {
-  const p = draft?.fairParams || {};
-  const keys = ['tefLikely', 'threatCapLikely', 'controlStrLikely', 'irLikely', 'biLikely', 'dbLikely'];
-  return keys.some(key => Number.isFinite(Number(p[key])) && Number(p[key]) > 0);
-}
-
 function _ensureDraftFairParamsSeeded(draft) {
-  if (!draft || _hasMeaningfulFairInputs(draft)) return;
+  if (!draft) return;
   const businessUnit = getBUList().find(bu => bu.id === draft.buId) || null;
   const defaults = businessUnit?.defaultAssumptions || {};
   const selectedRisks = getSelectedRisks();
