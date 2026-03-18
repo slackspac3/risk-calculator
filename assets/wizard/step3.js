@@ -141,6 +141,16 @@ function recommendEstimatePreset(draft) {
   return '';
 }
 
+function renderEstimateActionCard(draft, recommendedKey) {
+  const recommendation = recommendedKey
+    ? `Use <strong>${getEstimatePresetLibrary()[recommendedKey].label}</strong> only if it matches the scenario pattern. Otherwise keep the AI starting values and adjust only where you have evidence.`
+    : 'Start with the AI values, then change only the inputs you can justify with business, control, incident, or finance evidence.';
+  return `<div class="card card--elevated anim-fade-in estimate-next-card">
+    <div class="context-panel-title">Recommended next action</div>
+    <p class="context-panel-copy" style="margin-top:var(--sp-2)">${recommendation}</p>
+  </div>`;
+}
+
 function renderEstimatePresetCard(draft) {
   const presets = getEstimatePresetLibrary();
   const recommendedKey = recommendEstimatePreset(draft);
@@ -199,6 +209,7 @@ function renderWizard3() {
   const sym = cur;
   const baselineAssessment = draft.comparisonBaselineId ? getAssessmentById(draft.comparisonBaselineId) : null;
   const inlineExamples = renderInlineEstimateExamples(sym);
+  const recommendedPresetKey = recommendEstimatePreset(draft);
 
   const v = (key, def) => p[key] != null ? p[key] : def;
 
@@ -226,20 +237,24 @@ function renderWizard3() {
           ${renderEvidenceQualityBlock(draft.confidenceLabel, draft.evidenceQuality, draft.evidenceSummary, draft.missingInformation, 'AI Evidence Quality', { primaryGrounding: draft.primaryGrounding, supportingReferences: draft.supportingReferences, inferredAssumptions: draft.inferredAssumptions })}
           ${renderBenchmarkRationaleBlock(draft.benchmarkBasis, draft.inputRationale, draft.benchmarkReferences)}
           ${renderInputProvenanceBlock(draft.inputProvenance)}
+          ${renderEstimateActionCard(draft, recommendedPresetKey)}
           ${renderEstimateExplainerCard(draft, bu, isAdv, cur)}
-
-          ${UI.contextInfoGrid({
-            title: 'How to complete this step',
-            className: 'card card--elevated anim-fade-in',
-            panels: [
-              UI.contextInfoPanel({ title: '1. Start with the AI values', copy: 'If the AI suggestions look broadly right, adjust only the values you have evidence for.' }),
-              UI.contextInfoPanel({ title: '2. Think in ranges, not exact numbers', copy: 'Use a low, expected, and severe case. You do not need one perfect number.' }),
-              UI.contextInfoPanel({ title: '3. Stay in Basic unless needed', copy: 'Advanced mode is for direct probability inputs, correlations, and simulation tuning.' })
-            ]
-          })}
-
-          ${renderRangeCalibrationCard(sym)}
-          ${renderEstimatePresetCard(draft)}
+          <details class="wizard-disclosure card card--elevated anim-fade-in">
+            <summary>Show quick guidance and example starting points</summary>
+            <div class="wizard-disclosure-body">
+              ${UI.contextInfoGrid({
+                title: 'How to complete this step',
+                className: 'card card--elevated wizard-nested-card',
+                panels: [
+                  UI.contextInfoPanel({ title: '1. Start with the AI values', copy: 'If the AI suggestions look broadly right, adjust only the values you have evidence for.' }),
+                  UI.contextInfoPanel({ title: '2. Think in ranges, not exact numbers', copy: 'Use a low, expected, and severe case. You do not need one perfect number.' }),
+                  UI.contextInfoPanel({ title: '3. Stay in Basic unless needed', copy: 'Advanced mode is for direct probability inputs, correlations, and simulation tuning.' })
+                ]
+              })}
+              ${renderRangeCalibrationCard(sym)}
+              ${renderEstimatePresetCard(draft)}
+            </div>
+          </details>
 
           ${UI.wizardInputSection({
             title: 'How often could this happen? <span data-tooltip="How many times per year this type of event could realistically occur." style="cursor:help;color:var(--color-accent-300);font-size:.8rem">ⓘ</span>',
@@ -275,62 +290,81 @@ function renderWizard3() {
             title: 'What could this cost if it happens?',
             description: `For each cost area, enter a low, expected, and severe per-event estimate in ${sym}. These values are added together in the simulation.`,
             className: 'card anim-fade-in anim-delay-2',
-            body: `${inlineExamples.cost}<div style="display:flex;flex-direction:column;gap:var(--sp-5)">
-              ${lossRow('ir','Response and recovery cost', v('irMin',da.incidentResponse?.min||50000), v('irLikely',da.incidentResponse?.likely||180000), v('irMax',da.incidentResponse?.max||600000), 'Containment, forensics, internal recovery effort, and external incident response support.')}
-              ${lossRow('bi','Business disruption cost', v('biMin',da.businessInterruption?.min||100000), v('biLikely',da.businessInterruption?.likely||450000), v('biMax',da.businessInterruption?.max||2500000), 'Lost revenue, delayed operations, and productivity impact while the issue is active.')}
-              ${lossRow('db','Data remediation cost', v('dbMin',da.dataBreachRemediation?.min||30000), v('dbLikely',da.dataBreachRemediation?.likely||120000), v('dbMax',da.dataBreachRemediation?.max||500000), 'Notification, monitoring, remediation, and cleanup when data is affected.')}
-              ${lossRow('rl','Regulatory and legal cost', v('rlMin',da.regulatoryLegal?.min||0), v('rlLikely',da.regulatoryLegal?.likely||80000), v('rlMax',da.regulatoryLegal?.max||800000), 'Fines, legal support, regulatory response, and formal notices.')}
-              ${lossRow('tp','Third-party impact cost', v('tpMin',da.thirdPartyLiability?.min||0), v('tpLikely',da.thirdPartyLiability?.likely||50000), v('tpMax',da.thirdPartyLiability?.max||400000), 'Claims, service credits, or compensation for partners and customers.')}
-              ${lossRow('rc','Reputation and contract cost', v('rcMin',da.reputationContract?.min||50000), v('rcLikely',da.reputationContract?.likely||200000), v('rcMax',da.reputationContract?.max||1200000), 'Customer churn, commercial loss, and contract penalties after the event.')}
+            body: `${inlineExamples.cost}<div class="wizard-cost-stack">
+              <div class="wizard-cost-group">
+                <div class="wizard-cost-group-label">Core costs</div>
+                <div class="wizard-cost-group-copy">These are usually the biggest drivers and should be completed first.</div>
+                <div style="display:flex;flex-direction:column;gap:var(--sp-5);margin-top:var(--sp-4)">
+                  ${lossRow('ir','Response and recovery cost', v('irMin',da.incidentResponse?.min||50000), v('irLikely',da.incidentResponse?.likely||180000), v('irMax',da.incidentResponse?.max||600000), 'Containment, forensics, internal recovery effort, and external incident response support.')}
+                  ${lossRow('bi','Business disruption cost', v('biMin',da.businessInterruption?.min||100000), v('biLikely',da.businessInterruption?.likely||450000), v('biMax',da.businessInterruption?.max||2500000), 'Lost revenue, delayed operations, and productivity impact while the issue is active.')}
+                  ${lossRow('db','Data remediation cost', v('dbMin',da.dataBreachRemediation?.min||30000), v('dbLikely',da.dataBreachRemediation?.likely||120000), v('dbMax',da.dataBreachRemediation?.max||500000), 'Notification, monitoring, remediation, and cleanup when data is affected.')}
+                </div>
+              </div>
+              <details class="wizard-disclosure">
+                <summary>Show conditional cost areas</summary>
+                <div class="wizard-disclosure-body">
+                  <div class="wizard-cost-group">
+                    <div class="wizard-cost-group-label">Conditional costs</div>
+                    <div class="wizard-cost-group-copy">Only spend time here if these are realistic for your scenario.</div>
+                    <div style="display:flex;flex-direction:column;gap:var(--sp-5);margin-top:var(--sp-4)">
+                      ${lossRow('rl','Regulatory and legal cost', v('rlMin',da.regulatoryLegal?.min||0), v('rlLikely',da.regulatoryLegal?.likely||80000), v('rlMax',da.regulatoryLegal?.max||800000), 'Fines, legal support, regulatory response, and formal notices.')}
+                      ${lossRow('tp','Third-party impact cost', v('tpMin',da.thirdPartyLiability?.min||0), v('tpLikely',da.thirdPartyLiability?.likely||50000), v('tpMax',da.thirdPartyLiability?.max||400000), 'Claims, service credits, or compensation for partners and customers.')}
+                      ${lossRow('rc','Reputation and contract cost', v('rcMin',da.reputationContract?.min||50000), v('rcLikely',da.reputationContract?.likely||200000), v('rcMax',da.reputationContract?.max||1200000), 'Customer churn, commercial loss, and contract penalties after the event.')}
+                    </div>
+                  </div>
+                </div>
+              </details>
             </div>`
           })}
 
-          <div class="card anim-fade-in anim-delay-3">
-            <div class="flex items-center justify-between mb-4">
-              <div>
-                <h3 style="font-size:var(--text-base)">Extra downstream impact <span class="badge badge--neutral" style="margin-left:6px">Optional</span></h3>
-                <p style="font-size:.78rem;color:var(--text-muted)">Use this only if the main event could trigger another follow-on loss, such as a lawsuit, major partner claim, or wider business consequence.</p>
+          <details class="wizard-disclosure card anim-fade-in anim-delay-3" ${p.secondaryEnabled ? 'open' : ''}>
+            <summary>Extra downstream impact <span class="badge badge--neutral">Optional</span></summary>
+            <div class="wizard-disclosure-body">
+              <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:var(--sp-4)">Use this only if the main event could trigger another follow-on loss, such as a lawsuit, major partner claim, or wider business consequence.</p>
+              <div class="flex items-center justify-between mb-4">
+                <div class="form-help">Include a follow-on impact in the simulation</div>
+                <label class="toggle"><input type="checkbox" id="secondary-toggle" ${p.secondaryEnabled?'checked':''}><div class="toggle-track"></div></label>
               </div>
-              <label class="toggle"><input type="checkbox" id="secondary-toggle" ${p.secondaryEnabled?'checked':''}><div class="toggle-track"></div></label>
-            </div>
-            <div id="secondary-inputs" ${!p.secondaryEnabled?'class="hidden"':''}>
-              <div class="grid-2">
-                <div class="wizard-subsection"><p class="wizard-subsection-copy">How likely is the follow-on impact? Use 0 to 1.</p>${tripleInput('secProb','Secondary probability', v('secProbMin',0.1), v('secProbLikely',0.3), v('secProbMax',0.7), { minLabel: 'Low chance', likelyLabel: 'Expected chance', maxLabel: 'High chance' })}</div>
-                <div class="wizard-subsection"><p class="wizard-subsection-copy">If it happens, how large could that extra impact be in ${sym}?</p>${tripleInput('secMag','Secondary magnitude', v('secMagMin',100000), v('secMagLikely',500000), v('secMagMax',2000000), { minLabel: 'Low cost', likelyLabel: 'Expected cost', maxLabel: 'High cost', money: true, inputType: 'text' })}</div>
-              </div>
-            </div>
-          </div>
-
-          ${isAdv ? UI.wizardInputSection({
-            title: 'Advanced Simulation Settings',
-            className: 'card anim-fade-in',
-            body: `<div class="grid-2">
-              <div class="form-group">
-                <label class="form-label">Distribution Type <span data-tooltip="Triangular: intuitive. Lognormal: heavier right tail (better for cyber)." style="cursor:help;color:var(--color-accent-300)">ⓘ</span></label>
-                <select class="form-select" id="adv-dist">
-                  <option value="triangular" ${(p.distType||'triangular')==='triangular'?'selected':''}>Triangular</option>
-                  <option value="lognormal" ${p.distType==='lognormal'?'selected':''}>Lognormal</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Iterations</label>
-                <input class="form-input" id="adv-iter" type="number" min="1000" max="100000" step="1000" value="${p.iterations||10000}">
-              </div>
-              <div class="form-group">
-                <label class="form-label">Random Seed <span class="text-muted text-xs">(reproducibility)</span></label>
-                <input class="form-input" id="adv-seed" type="number" placeholder="Leave empty for random" value="${p.seed||''}">
-              </div>
-              <div class="form-group">
-                <label class="form-label">Correlations <span data-tooltip="BI-IR: Business Interruption & IR correlation. RL-RC: Regulatory & Reputation." style="cursor:help;color:var(--color-accent-300)">ⓘ</span></label>
-                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px">
-                  <label style="font-size:.72rem;color:var(--text-muted)">BI↔IR</label>
-                  <input class="form-input" id="corr-bi-ir" type="number" min="-1" max="1" step="0.05" value="${p.corrBiIr||0.3}" style="width:72px">
-                  <label style="font-size:.72rem;color:var(--text-muted)">Reg↔Rep</label>
-                  <input class="form-input" id="corr-rl-rc" type="number" min="-1" max="1" step="0.05" value="${p.corrRlRc||0.2}" style="width:72px">
+              <div id="secondary-inputs" ${!p.secondaryEnabled?'class="hidden"':''}>
+                <div class="grid-2">
+                  <div class="wizard-subsection"><p class="wizard-subsection-copy">How likely is the follow-on impact? Use 0 to 1.</p>${tripleInput('secProb','Secondary probability', v('secProbMin',0.1), v('secProbLikely',0.3), v('secProbMax',0.7), { minLabel: 'Low chance', likelyLabel: 'Expected chance', maxLabel: 'High chance' })}</div>
+                  <div class="wizard-subsection"><p class="wizard-subsection-copy">If it happens, how large could that extra impact be in ${sym}?</p>${tripleInput('secMag','Secondary magnitude', v('secMagMin',100000), v('secMagLikely',500000), v('secMagMax',2000000), { minLabel: 'Low cost', likelyLabel: 'Expected cost', maxLabel: 'High cost', money: true, inputType: 'text' })}</div>
                 </div>
               </div>
-            </div>`
-          }) : ''}
+            </div>
+          </details>
+
+          ${isAdv ? `<details class="wizard-disclosure card anim-fade-in" open>
+            <summary>Advanced simulation settings</summary>
+            <div class="wizard-disclosure-body">
+              <div class="grid-2">
+                <div class="form-group">
+                  <label class="form-label">Distribution Type <span data-tooltip="Triangular: intuitive. Lognormal: heavier right tail (better for cyber)." style="cursor:help;color:var(--color-accent-300)">ⓘ</span></label>
+                  <select class="form-select" id="adv-dist">
+                    <option value="triangular" ${(p.distType||'triangular')==='triangular'?'selected':''}>Triangular</option>
+                    <option value="lognormal" ${p.distType==='lognormal'?'selected':''}>Lognormal</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Iterations</label>
+                  <input class="form-input" id="adv-iter" type="number" min="1000" max="100000" step="1000" value="${p.iterations||10000}">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Random Seed <span class="text-muted text-xs">(reproducibility)</span></label>
+                  <input class="form-input" id="adv-seed" type="number" placeholder="Leave empty for random" value="${p.seed||''}">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Correlations <span data-tooltip="BI-IR: Business Interruption & IR correlation. RL-RC: Regulatory & Reputation." style="cursor:help;color:var(--color-accent-300)">ⓘ</span></label>
+                  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px">
+                    <label style="font-size:.72rem;color:var(--text-muted)">BI↔IR</label>
+                    <input class="form-input" id="corr-bi-ir" type="number" min="-1" max="1" step="0.05" value="${p.corrBiIr||0.3}" style="width:72px">
+                    <label style="font-size:.72rem;color:var(--text-muted)">Reg↔Rep</label>
+                    <input class="form-input" id="corr-rl-rc" type="number" min="-1" max="1" step="0.05" value="${p.corrRlRc||0.2}" style="width:72px">
+                  </div>
+                </div>
+              </div>
+            </div>
+          </details>` : ''}
 
         </div>
         <div class="wizard-footer">
