@@ -54,6 +54,105 @@ function renderStep1StartCard(recommendation) {
   </div>`;
 }
 
+const STEP1_DRY_RUN_SCENARIOS = [
+  {
+    id: 'supplier-platform-outage',
+    title: 'Supplier outage on a regulated platform',
+    summary: 'Good first example for third-party and resilience risk.',
+    event: 'A critical supplier with privileged access is compromised and disrupts a regulated digital platform.',
+    asset: 'Customer-facing regulated platform and supporting supplier connection',
+    cause: 'Supplier compromise leading to operational disruption and delayed response',
+    impact: 'Service outage, customer disruption, and regulatory scrutiny',
+    urgency: 'high',
+    geographies: ['United Arab Emirates'],
+    risks: [
+      { title: 'Third-party service disruption', category: 'Third-party', source: 'dry-run', description: 'Supplier dependency leads to a material service outage.' },
+      { title: 'Regulatory reporting delay', category: 'Compliance', source: 'dry-run', description: 'Incident handling delays increase regulatory exposure.' }
+    ]
+  },
+  {
+    id: 'cloud-data-exposure',
+    title: 'Cloud misconfiguration exposing sensitive data',
+    summary: 'Useful for privacy, security, and legal-impact walkthroughs.',
+    event: 'A cloud storage configuration error exposes sensitive data to unauthorised parties.',
+    asset: 'Cloud data store containing customer and operational records',
+    cause: 'Misconfiguration and weak change control',
+    impact: 'Data exposure, legal obligations, and customer trust impact',
+    urgency: 'high',
+    geographies: ['United Arab Emirates', 'European Union'],
+    risks: [
+      { title: 'Sensitive data exposure', category: 'Privacy', source: 'dry-run', description: 'Sensitive records become accessible outside intended controls.' },
+      { title: 'Regulatory notification breach', category: 'Compliance', source: 'dry-run', description: 'Notification and remediation obligations increase quickly.' }
+    ]
+  },
+  {
+    id: 'ransomware-core-services',
+    title: 'Ransomware disrupting core business services',
+    summary: 'Helpful for business interruption and recovery modelling.',
+    event: 'A ransomware event disrupts core business services and slows operational recovery.',
+    asset: 'Core business systems, shared files, and service operations',
+    cause: 'Phishing-led compromise and weak endpoint containment',
+    impact: 'Business interruption, recovery cost, and customer service degradation',
+    urgency: 'critical',
+    geographies: ['United Arab Emirates'],
+    risks: [
+      { title: 'Critical service outage', category: 'Resilience', source: 'dry-run', description: 'Essential services are unavailable during containment and recovery.' },
+      { title: 'Recovery cost escalation', category: 'Financial', source: 'dry-run', description: 'Recovery, response, and overtime costs rise quickly.' }
+    ]
+  }
+];
+
+function buildDryRunNarrative(example) {
+  return composeGuidedNarrative({
+    event: example.event,
+    asset: example.asset,
+    cause: example.cause,
+    impact: example.impact,
+    urgency: example.urgency
+  });
+}
+
+function hasStep1Content() {
+  const draft = AppState.draft || {};
+  return !!(
+    String(draft.narrative || draft.sourceNarrative || '').trim() ||
+    String(draft.guidedInput?.event || '').trim() ||
+    getRiskCandidates().length
+  );
+}
+
+function applyDryRunScenario(example) {
+  const settings = getEffectiveSettings();
+  const nextNarrative = buildDryRunNarrative(example);
+  AppState.draft.guidedInput = {
+    event: example.event,
+    asset: example.asset,
+    cause: example.cause,
+    impact: example.impact,
+    urgency: example.urgency
+  };
+  AppState.draft.narrative = nextNarrative;
+  AppState.draft.sourceNarrative = nextNarrative;
+  AppState.draft.enhancedNarrative = '';
+  AppState.draft.intakeSummary = '';
+  AppState.draft.linkAnalysis = '';
+  AppState.draft.geographies = normaliseScenarioGeographies(example.geographies, settings.geography);
+  AppState.draft.geography = formatScenarioGeographies(AppState.draft.geographies, settings.geography);
+  const seededRisks = mergeRisks([], example.risks.map(risk => ({ ...risk })));
+  AppState.draft.riskCandidates = seededRisks;
+  AppState.draft.selectedRiskIds = seededRisks.map(risk => risk.id);
+  AppState.draft.selectedRisks = seededRisks.slice();
+  AppState.draft.scenarioTitle = example.title;
+  AppState.draft.applicableRegulations = deriveApplicableRegulations(
+    getBUList().find(b => b.id === AppState.draft.buId),
+    getSelectedRisks(),
+    AppState.draft.geographies
+  );
+  saveDraft();
+  renderWizard1();
+  UI.toast(`Loaded dry-run example: ${example.title}.`, 'success');
+}
+
 
 function seedRisksFromScenarioDraft(narrative, { force = false } = {}) {
   const draftText = String(narrative || '').trim();
@@ -148,6 +247,25 @@ function renderWizard1() {
               <div>
                 <h3>Start Here: Guided Scenario Builder</h3>
                 <p>Use this if you do not already have a finished risk statement. The platform will turn your answers into a structured starting point.</p>
+              </div>
+            </div>
+            <div class="card mt-4" style="padding:var(--sp-4);background:var(--bg-elevated)">
+              <div class="context-panel-title">Try a dry-run example</div>
+              <p class="context-panel-copy">Use one of these examples to prefill the scenario and shortlist so new users can see how the full assessment flow works.</p>
+              <div class="risk-selection-grid" style="margin-top:var(--sp-4)">
+                ${STEP1_DRY_RUN_SCENARIOS.map(example => `<div class="risk-pick-card">
+                  <div class="risk-pick-head" style="align-items:flex-start">
+                    <div style="flex:1">
+                      <div class="risk-pick-title">${example.title}</div>
+                      <div class="form-help" style="margin-top:6px">${example.summary}</div>
+                    </div>
+                    <button class="btn btn--ghost btn--sm btn-load-dry-run" data-dry-run-id="${example.id}" type="button">Load Example</button>
+                  </div>
+                  <div class="citation-chips" style="margin-top:var(--sp-3)">
+                    ${(example.geographies || []).map(geo => `<span class="badge badge--neutral">${geo}</span>`).join('')}
+                    <span class="badge badge--neutral">${example.risks.length} starter risks</span>
+                  </div>
+                </div>`).join('')}
               </div>
             </div>
             <div class="grid-2">
@@ -333,6 +451,14 @@ function renderWizard1() {
       scheduleDraftAutosave();
       markDraftDirty();
       scheduleDraftAutosave();
+    });
+  });
+  document.querySelectorAll('.btn-load-dry-run').forEach(button => {
+    button.addEventListener('click', () => {
+      const example = STEP1_DRY_RUN_SCENARIOS.find(entry => entry.id === button.dataset.dryRunId);
+      if (!example) return;
+      if (hasStep1Content() && !window.confirm('Load this dry-run example and replace the current step-1 scenario draft and shortlist?')) return;
+      applyDryRunScenario(example);
     });
   });
   document.getElementById('linked-risks-toggle').addEventListener('change', function() {

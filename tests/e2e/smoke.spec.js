@@ -152,6 +152,49 @@ test('results route redirects unauthenticated users to login', async ({ page }) 
   });
 });
 
+test('wizard step 1 dry-run examples prefill the scenario and shortlist', async ({ page }) => {
+  const seededUserSettings = {
+    userProfile: {
+      fullName: 'Alex Trafton',
+      jobTitle: 'Risk Manager',
+      businessUnit: 'G42',
+      department: 'Security',
+      focusAreas: ['Resilience'],
+      preferredOutputs: 'Executive summaries',
+      workingContext: 'Support regulated services.'
+    },
+    onboardedAt: '2026-03-17T00:00:00.000Z',
+    _overrideKeys: []
+  };
+  await seedAuthenticatedUser(page, { userSettings: seededUserSettings });
+  await mockSharedApis(page, {
+    settings: {
+      geography: 'United Arab Emirates',
+      applicableRegulations: ['UAE PDPL'],
+      entityContextLayers: [],
+      companyStructure: [],
+      aiInstructions: 'Use British English.',
+      benchmarkStrategy: 'Prefer GCC and UAE benchmark references.',
+      typicalDepartments: ['Security']
+    },
+    userState: {
+      userSettings: seededUserSettings,
+      assessments: [],
+      learningStore: { templates: {} },
+      draft: null,
+      _meta: { revision: 1, updatedAt: Date.now() }
+    }
+  });
+
+  await expectNoClientCrashOnRoute(page, '/#/wizard/1', async () => {
+    await page.getByRole('button', { name: 'Load Example' }).first().click();
+    await expect(page.locator('#guided-event')).toContainText('critical supplier');
+    await expect(page.locator('#intake-risk-statement')).toContainText('critical supplier');
+    await expect(page.locator('.risk-select-checkbox:checked')).toHaveCount(2);
+    await expect(page.getByRole('button', { name: /Continue with 2 selected risks/i })).toBeVisible();
+  });
+});
+
 test('pressing Enter signs in and opens the personal dashboard', async ({ page }) => {
   await mockSharedApis(page, {
     loginUser: {
