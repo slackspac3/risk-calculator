@@ -1568,6 +1568,12 @@ canvas { display: block; width: 100%; }
   background: var(--bg-surface);
 }
 
+.results-comparison-card { box-shadow: var(--shadow-sm); }
+.results-comparison-head > div { min-width: 0; }
+.results-comparison-grid { align-items: stretch; }
+.results-comparison-metric { display: flex; flex-direction: column; justify-content: space-between; min-height: 180px; }
+.results-comparison-value { line-height: 1.1; }
+
 .results-comparison-head {
   display: flex;
   align-items: flex-start;
@@ -1709,6 +1715,12 @@ canvas { display: block; width: 100%; }
   border: 1px solid var(--border-subtle);
   background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.015));
 }
+
+.data-table--dense th,
+.data-table--dense td { padding-top: 12px; padding-bottom: 12px; }
+.data-table--dense select,
+.data-table--dense .btn { min-height: 36px; }
+.managed-account-row td:last-child { min-width: 320px; }
 .data-table th {
   text-align: left;
   font-size: var(--text-xs);
@@ -2001,6 +2013,7 @@ canvas { display: block; width: 100%; }
 .dashboard-main-grid {
   margin-top: var(--sp-8);
   align-items: start;
+  grid-template-columns: minmax(0, 1.35fr) minmax(360px, .9fr);
 }
 .dashboard-column {
   display: flex;

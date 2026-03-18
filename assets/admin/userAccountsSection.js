@@ -7,10 +7,21 @@ const AdminUserAccountsSection = (() => {
       scope: 'admin-settings',
       description: 'Create users, assign access, and keep role changes aligned with the rest of the platform.',
       meta: `${managedAccounts.length} managed accounts`,
-      body: `${UI.adminTableCard({
+      body: `<div class="card card--elevated" style="padding:var(--sp-4);background:var(--bg-canvas);margin-bottom:var(--sp-4)">
+        <div class="flex items-center justify-between" style="gap:var(--sp-3);flex-wrap:wrap">
+          <div>
+            <div class="context-panel-title">Current users</div>
+            <div class="form-help" style="margin-top:6px">Review assigned role, business unit, and function before applying access changes.</div>
+          </div>
+          <div class="flex items-center gap-3" style="flex-wrap:wrap">
+            <input class="form-input" id="admin-user-search" type="search" placeholder="Search name, username, role, BU, or function" style="min-width:320px;max-width:420px">
+          </div>
+        </div>
+      </div>
+      ${UI.adminTableCard({
         title: 'Current users',
         description: 'Review assigned role, business unit, and function before applying access changes.',
-        table: `<table class="data-table">
+        table: `<table class="data-table data-table--dense">
           <thead>
             <tr>
               <th>User</th>
@@ -208,6 +219,21 @@ const AdminUserAccountsSection = (() => {
     document.getElementById('admin-new-user-bu')?.addEventListener('change', () => _renderAdminNewUserDepartments(companyStructure));
     document.getElementById('admin-new-user-role')?.addEventListener('change', () => _renderAdminNewUserDepartments(companyStructure));
     _renderAdminNewUserDepartments(companyStructure);
+
+
+    document.getElementById('admin-user-search')?.addEventListener('input', event => {
+      const query = String(event.target.value || '').trim().toLowerCase();
+      document.querySelectorAll('.managed-account-row').forEach(row => {
+        const haystack = [
+          row.children[0]?.textContent || '',
+          row.children[1]?.textContent || '',
+          row.querySelector('.account-role-select option:checked')?.textContent || '',
+          row.querySelector('.account-bu-select option:checked')?.textContent || '',
+          row.querySelector('.account-department-select option:checked')?.textContent || ''
+        ].join(' ').toLowerCase();
+        row.style.display = !query || haystack.includes(query) ? '' : 'none';
+      });
+    });
 
     document.querySelectorAll('.managed-account-row').forEach(row => {
       const markDirty = () => {
