@@ -12,6 +12,48 @@ function _setStep1ButtonBusy(button, busyLabel, idleLabel) {
   };
 }
 
+function getStep1RecommendedAction(draft, selectedRisks) {
+  const selectedCount = Array.isArray(selectedRisks) ? selectedRisks.length : 0;
+  if (!String(draft.narrative || '').trim() && !selectedCount) {
+    return {
+      title: 'Start with the guided questions',
+      copy: 'Answer the simple prompts first. That is the fastest path for most users and gives AI better context to work with.'
+    };
+  }
+  if (String(draft.narrative || '').trim() && !selectedCount) {
+    return {
+      title: 'Use AI or add the risks you want to assess',
+      copy: 'Your scenario wording is in place. Next, either let AI suggest risks from it or add the risks you already know belong in scope.'
+    };
+  }
+  return {
+    title: 'Review the selected risks and continue',
+    copy: `You already have ${selectedCount} risk${selectedCount === 1 ? '' : 's'} selected. Remove anything out of scope, then continue to scenario review.`
+  };
+}
+
+function renderStep1StartCard(recommendation) {
+  return `<div class="card card--elevated anim-fade-in">
+    <div class="context-panel-title">Recommended starting path</div>
+    <p class="context-panel-copy" style="margin-top:var(--sp-2)"><strong>${recommendation.title}</strong></p>
+    <div class="context-grid" style="margin-top:var(--sp-4)">
+      <div class="context-chip-panel">
+        <div class="context-panel-title">1. Describe the scenario</div>
+        <p class="context-panel-copy">Use the guided questions below unless you already have a clean risk statement.</p>
+      </div>
+      <div class="context-chip-panel">
+        <div class="context-panel-title">2. Let AI structure it</div>
+        <p class="context-panel-copy">Use AI only when you want help sharpening the wording or extracting candidate risks.</p>
+      </div>
+      <div class="context-chip-panel">
+        <div class="context-panel-title">3. Carry forward only what matters</div>
+        <p class="context-panel-copy">Select the risks that belong in this assessment and leave everything else out.</p>
+      </div>
+    </div>
+    <div class="context-panel-foot" style="margin-top:var(--sp-4)">${recommendation.copy}</div>
+  </div>`;
+}
+
 function renderWizard1() {
   ensureDraftShape();
   const draft = AppState.draft;
@@ -31,6 +73,7 @@ function renderWizard1() {
   const riskCandidates = getRiskCandidates();
   const scenarioGeographies = getScenarioGeographies();
   const regs = deriveApplicableRegulations(buList.find(b => b.id === draft.buId), selectedRisks, scenarioGeographies);
+  const recommendation = getStep1RecommendedAction(draft, selectedRisks);
 
   setPage(`
     <main class="page">
@@ -38,10 +81,12 @@ function renderWizard1() {
         <div class="wizard-header">
           ${UI.renderStepper(1)}
           <h2 class="wizard-step-title">AI-Assisted Risk &amp; Context Builder</h2>
-          <p class="form-help" style="margin-top:8px">Start with a short risk statement, then let AI sharpen it or extract risks from a register. Select only the risks you want to carry forward.</p>
-          <p class="wizard-step-desc">Start with a risk statement or upload a register. AI will enhance the context, extract candidate risks, and prepare a linked scenario for quantification.</p>
+          <p class="form-help" style="margin-top:8px">Describe the scenario, let AI help only where useful, then carry forward only the risks that belong in this assessment.</p>
+          <p class="wizard-step-desc">Use the guided path first if you want the easiest route. Use the text or upload paths only when you already have source material.</p>
+          <div class="form-help" data-draft-save-state style="margin-top:10px">Draft will save automatically</div>
         </div>
         <div class="wizard-body">
+          ${renderStep1StartCard(recommendation)}
           ${draft.learningNote ? `<div class="card card--elevated anim-fade-in"><div class="context-panel-title">Learnt from prior use</div><p class="context-panel-copy">${draft.learningNote}</p></div>` : ''}
           <div class="card card--elevated anim-fade-in">
             <div class="grid-2">
@@ -79,8 +124,8 @@ function renderWizard1() {
           <div class="card anim-fade-in anim-delay-1">
             <div class="admin-section-head" style="margin-bottom:var(--sp-5)">
               <div>
-                <h3>Guided Input for Non-Specialists</h3>
-                <p>Answer the simple questions below. The platform will turn them into a structured risk statement for you.</p>
+                <h3>Start Here: Guided Scenario Builder</h3>
+                <p>Use this if you do not already have a finished risk statement. The platform will turn your answers into a structured starting point.</p>
               </div>
             </div>
             <div class="grid-2">
@@ -121,44 +166,49 @@ function renderWizard1() {
               </div>
             </div>
             <div class="admin-inline-actions mt-4">
-              <button class="btn btn--secondary" id="btn-build-guided-narrative" type="button">Build Risk Statement from Answers</button>
-              <span class="form-help">You can still edit the generated statement manually afterwards.</span>
+              <button class="btn btn--primary" id="btn-build-guided-narrative" type="button">Build Scenario Draft</button>
+              <span class="form-help">This creates a plain-English draft below. You can still edit it manually afterwards.</span>
             </div>
             <div class="card mt-4" style="padding:var(--sp-4);background:var(--bg-elevated)">
               <div class="context-panel-title">Generated Statement Preview</div>
-              <p class="context-panel-copy" id="guided-preview">${composeGuidedNarrative(draft.guidedInput) || 'Complete the guided questions and click “Build Risk Statement from Answers”.'}</p>
+              <p class="context-panel-copy" id="guided-preview">${composeGuidedNarrative(draft.guidedInput) || 'Complete the guided questions and click “Build Scenario Draft”.'}</p>
             </div>
           </div>
 
           <div class="card anim-fade-in anim-delay-1">
             <div class="form-group">
-              <label class="form-label" for="intake-risk-statement">Risk Statement</label>
-              <textarea class="form-textarea" id="intake-risk-statement" rows="6" placeholder="Describe the risk in plain English. Include what could happen, the affected platform or service, likely triggers, and the business or regulatory impact.">${draft.narrative || ''}</textarea>
+              <label class="form-label" for="intake-risk-statement">Scenario Draft</label>
+              <textarea class="form-textarea" id="intake-risk-statement" rows="6" placeholder="If you already know the scenario, describe it here in plain English. Include what could happen, what is affected, likely triggers, and the business or regulatory impact.">${draft.narrative || ''}</textarea>
             </div>
             <div class="flex items-center gap-3 mt-4" style="flex-wrap:wrap">
-              <button class="btn btn--secondary" id="btn-enhance-risk-statement" type="button">Enhance with AI</button>
-              <span class="form-help">Refines the typed risk statement, adds nuance, and extracts candidate risks you can choose from.</span>
+              <button class="btn btn--secondary" id="btn-enhance-risk-statement" type="button">Use AI to Refine This Draft</button>
+              <span class="form-help">Best when you already have a rough statement and want AI to sharpen it and suggest risks from it.</span>
             </div>
-            <div class="grid-2 mt-5">
-              <div class="form-group">
-                <label class="form-label" for="risk-register-file">Risk Register Upload</label>
-                <input class="form-input" id="risk-register-file" type="file" accept=".txt,.csv,.json,.md,.tsv,.xlsx,.xls">
-                <div class="form-help">${draft.uploadedRegisterName ? `Current file: ${draft.uploadedRegisterName}${draft.registerMeta?.sheetCount ? ` · ${draft.registerMeta.sheetCount} sheet(s)` : ''}` : 'Upload TXT, CSV, TSV, JSON, Markdown, or Excel. Word and PDF still need conversion before upload.'}</div>
-                <div class="flex items-center gap-3 mt-4" style="flex-wrap:wrap">
-                  <button class="btn btn--primary" id="btn-register-analyse">Upload, Extract, Analyse &amp; Enhance Risks</button>
-                  <span class="form-help">Processes the uploaded file and proposes candidate risks for selection.</span>
+            <details class="wizard-disclosure" style="margin-top:var(--sp-5)">
+              <summary>Import from a risk register or add risks manually <span class="badge badge--neutral">Advanced</span></summary>
+              <div class="wizard-disclosure-body">
+                <div class="grid-2">
+                  <div class="form-group">
+                    <label class="form-label" for="risk-register-file">Risk Register Upload</label>
+                    <input class="form-input" id="risk-register-file" type="file" accept=".txt,.csv,.json,.md,.tsv,.xlsx,.xls">
+                    <div class="form-help">${draft.uploadedRegisterName ? `Current file: ${draft.uploadedRegisterName}${draft.registerMeta?.sheetCount ? ` · ${draft.registerMeta.sheetCount} sheet(s)` : ''}` : 'Upload TXT, CSV, TSV, JSON, Markdown, or Excel. Word and PDF still need conversion before upload.'}</div>
+                    <div class="flex items-center gap-3 mt-4" style="flex-wrap:wrap">
+                      <button class="btn btn--secondary" id="btn-register-analyse">Upload, Extract, Analyse &amp; Enhance Risks</button>
+                      <span class="form-help">Use this when the source material already exists in a register or spreadsheet.</span>
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label" for="manual-risk-add">Add Risk Manually</label>
+                    <div class="inline-action-row">
+                      <input class="form-input" id="manual-risk-add" type="text" placeholder="e.g. Export control screening failure">
+                      <button class="btn btn--secondary" id="btn-add-manual-risk" type="button">Add</button>
+                    </div>
+                    <div class="form-help" style="margin-top:10px">Manual risks are added to the same candidate list and selected by default.</div>
+                  </div>
                 </div>
+                <p class="form-help mt-4">Uses runtime AI if a key has been set with <code>LLMService.setOpenAIKey(...)</code>. Otherwise the local extraction stub is used.</p>
               </div>
-              <div class="form-group">
-                <label class="form-label" for="manual-risk-add">Add Risk Manually</label>
-                <div class="inline-action-row">
-                  <input class="form-input" id="manual-risk-add" type="text" placeholder="e.g. Export control screening failure">
-                  <button class="btn btn--secondary" id="btn-add-manual-risk" type="button">Add</button>
-                </div>
-                <div class="form-help" style="margin-top:10px">Manual risks are added to the same candidate list and selected by default.</div>
-              </div>
-            </div>
-            <p class="form-help mt-4">Uses runtime AI if a key has been set with <code>LLMService.setOpenAIKey(...)</code>. Otherwise the local extraction stub is used.</p>
+            </details>
           </div>
 
           <div id="intake-output">
@@ -168,8 +218,8 @@ function renderWizard1() {
           <div class="card anim-fade-in anim-delay-2">
             <div class="flex items-center justify-between mb-4" style="flex-wrap:wrap;gap:var(--sp-3)">
               <div>
-                <div class="context-panel-title">Select Risks To Analyse</div>
-                <p class="context-panel-copy">Review the extracted and manual risks below, then tick the ones you want to carry into the assessment.</p>
+                <div class="context-panel-title">Select Risks To Carry Forward</div>
+                <p class="context-panel-copy">Keep only the risks that belong in this assessment. Remove anything that is out of scope before continuing.</p>
               </div>
               <label class="toggle-row">
                 <span class="toggle-label">Treat as linked scenario</span>
@@ -182,7 +232,7 @@ function renderWizard1() {
           </div>
         </div>
         <div class="wizard-footer">
-          <a class="btn btn--ghost" href="#/">← Home</a>
+          <a class="btn btn--ghost" href="#/dashboard">← Dashboard</a>
           <button class="btn btn--primary" id="btn-next-1">Continue to Scenario Review →</button>
         </div>
       </div>
@@ -204,6 +254,7 @@ function renderWizard1() {
     renderWizard1();
   };
   const wizardGeographyInput = UI.tagInput('ti-wizard-geographies', scenarioGeographies, syncWizardGeographies);
+  updateWizardSaveState();
   document.querySelectorAll('.wizard-geo-chip').forEach(button => {
     button.addEventListener('click', () => {
       const next = Array.from(new Set([...(wizardGeographyInput.getTags() || []), button.dataset.geo]));
@@ -213,16 +264,22 @@ function renderWizard1() {
   ['event', 'asset', 'cause', 'impact'].forEach(key => {
     document.getElementById(`guided-${key}`).addEventListener('input', function() {
       AppState.draft.guidedInput[key] = this.value;
-      document.getElementById('guided-preview').textContent = composeGuidedNarrative(AppState.draft.guidedInput) || 'Complete the guided questions and click “Build Risk Statement from Answers”.';
+      document.getElementById('guided-preview').textContent = composeGuidedNarrative(AppState.draft.guidedInput) || 'Complete the guided questions and click “Build Scenario Draft”.';
+      markDraftDirty();
+      scheduleDraftAutosave();
     });
   });
   document.getElementById('guided-urgency').addEventListener('change', function() {
     AppState.draft.guidedInput.urgency = this.value;
-    document.getElementById('guided-preview').textContent = composeGuidedNarrative(AppState.draft.guidedInput) || 'Complete the guided questions and click “Build Risk Statement from Answers”.';
+    document.getElementById('guided-preview').textContent = composeGuidedNarrative(AppState.draft.guidedInput) || 'Complete the guided questions and click “Build Scenario Draft”.';
+    markDraftDirty();
+    scheduleDraftAutosave();
   });
   document.getElementById('intake-risk-statement').addEventListener('input', function() {
     AppState.draft.narrative = this.value;
     AppState.draft.sourceNarrative = this.value;
+    markDraftDirty();
+    scheduleDraftAutosave();
   });
   document.getElementById('btn-build-guided-narrative').addEventListener('click', () => {
     const composed = composeGuidedNarrative(AppState.draft.guidedInput);
@@ -234,13 +291,17 @@ function renderWizard1() {
     AppState.draft.sourceNarrative = composed;
     document.getElementById('intake-risk-statement').value = composed;
     saveDraft();
-    UI.toast('Risk statement created from guided answers.', 'success');
+    UI.toast('Scenario draft created from guided answers.', 'success');
   });
   document.querySelectorAll('.guided-prompt-chip').forEach(btn => {
     btn.addEventListener('click', () => {
       AppState.draft.guidedInput.event = btn.dataset.prompt;
       document.getElementById('guided-event').value = btn.dataset.prompt;
       document.getElementById('guided-preview').textContent = composeGuidedNarrative(AppState.draft.guidedInput);
+      markDraftDirty();
+      scheduleDraftAutosave();
+      markDraftDirty();
+      scheduleDraftAutosave();
     });
   });
   document.getElementById('linked-risks-toggle').addEventListener('change', function() {
