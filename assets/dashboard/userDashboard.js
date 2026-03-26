@@ -292,31 +292,33 @@ function renderUserDashboard() {
           </div>
           <button class="btn btn--primary btn--lg" id="btn-dashboard-new-assessment" aria-label="Start Guided Assessment">Start Guided Assessment</button>
         </div>
-        <div class="dashboard-start-secondary">
-          <div>
-            <div class="dashboard-start-kicker">Bring your own source material</div>
-            <strong>Upload a risk register</strong>
-            <p>Bring in existing risks and turn them into candidate scenarios for assessment.</p>
+        <div class="dashboard-start-secondary-grid">
+          <div class="dashboard-start-secondary">
+            <div>
+              <div class="dashboard-start-kicker">Bring your own source material</div>
+              <strong>Upload a risk register</strong>
+              <p>Bring in existing risks and turn them into candidate scenarios for assessment.</p>
+            </div>
+            <button class="btn btn--secondary" id="btn-dashboard-upload-register">Upload risk register</button>
           </div>
-          <button class="btn btn--secondary" id="btn-dashboard-upload-register">Upload risk register</button>
-        </div>
-        <div class="dashboard-start-tertiary">
-          <div>
-            <div class="dashboard-start-kicker">Faster starting point</div>
-            <strong>Preloaded risk scenarios</strong>
-            <p>Start from realistic example scenarios when you want a faster first pass.</p>
-          </div>
-          <div class="dashboard-start-tertiary__actions">
-            <button class="btn btn--ghost" id="btn-dashboard-start-sample">Use preloaded scenario</button>
-            <details class="results-actions-disclosure dashboard-hero-overflow">
-              <summary class="btn btn--ghost">More actions</summary>
-              <div class="results-actions-disclosure-menu">
-                <button class="btn btn--secondary btn--sm" id="btn-dashboard-start-template">Start from Template</button>
-                <button class="btn btn--secondary btn--sm" id="btn-dashboard-export-assessments">Export Assessments</button>
-                <button class="btn btn--secondary btn--sm" id="btn-dashboard-import-assessments">Import Assessments</button>
-                <button class="btn btn--secondary btn--sm" id="btn-dashboard-open-settings">${primarySettingsLabel}</button>
-              </div>
-            </details>
+          <div class="dashboard-start-tertiary">
+            <div>
+              <div class="dashboard-start-kicker">Faster starting point</div>
+              <strong>Preloaded risk scenarios</strong>
+              <p>Start from realistic example scenarios when you want a faster first pass.</p>
+            </div>
+            <div class="dashboard-start-tertiary__actions">
+              <button class="btn btn--ghost" id="btn-dashboard-start-sample">Use preloaded scenario</button>
+              <details class="results-actions-disclosure dashboard-hero-overflow">
+                <summary class="btn btn--ghost">More actions</summary>
+                <div class="results-actions-disclosure-menu">
+                  <button class="btn btn--secondary btn--sm" id="btn-dashboard-start-template">Start from Template</button>
+                  <button class="btn btn--secondary btn--sm" id="btn-dashboard-export-assessments">Export Assessments</button>
+                  <button class="btn btn--secondary btn--sm" id="btn-dashboard-import-assessments">Import Assessments</button>
+                  <button class="btn btn--secondary btn--sm" id="btn-dashboard-open-settings">${primarySettingsLabel}</button>
+                </div>
+              </details>
+            </div>
           </div>
         </div>
       </div>
@@ -326,7 +328,7 @@ function renderUserDashboard() {
     <main class="page">
       <div class="container container--wide dashboard-shell">
         <section class="card card--elevated dashboard-hero ${isOversightUser ? '' : 'dashboard-hero--start'}">
-          <div class="dashboard-hero-grid ${isOversightUser ? '' : 'dashboard-hero-grid--single'}">
+          <div class="dashboard-hero-grid ${isOversightUser ? '' : 'dashboard-hero-grid--balanced'}">
             <div class="dashboard-hero-main">
               <div class="landing-badge">${roleFrontDoor.badge}</div>
               <h2 style="margin-top:var(--sp-4)">Welcome back, ${user?.displayName || 'there'}.</h2>
@@ -373,7 +375,17 @@ function renderUserDashboard() {
                 <span>${isOversightUser ? capability.experience.dashboardLead : 'Saved context shapes default wording, guidance, and assisted suggestions.'}</span>
               </div>
               <div class="form-help dashboard-hero-side-foot">${roleFrontDoor.spotlightTitle}: ${roleFrontDoor.spotlightCopy}</div>
-            </div>` : ''}
+            </div>` : `<aside class="card dashboard-hero-side dashboard-hero-side--support dashboard-hero-side--standard">
+              <div class="context-panel-title">Workspace summary</div>
+              <div class="dashboard-hero-side-copy">Use the guided path for most new work. Open the register or preloaded scenario paths only when they match how you are starting.</div>
+              <div class="dashboard-side-summary-list">
+                ${orientationCards.map(card => `<div class="dashboard-side-summary-item dashboard-side-summary-item--${card.tone}">
+                  <span class="dashboard-side-summary-item__label">${card.label}</span>
+                  <strong>${card.value}</strong>
+                  <span>${card.note}</span>
+                </div>`).join('')}
+              </div>
+            </aside>`}
           </div>
         </section>
 
@@ -412,7 +424,7 @@ function renderUserDashboard() {
           })}
         </section>
 
-        <section class="dashboard-status-band dashboard-status-band--compact" aria-label="Workspace orientation">
+        ${isOversightUser ? `<section class="dashboard-status-band dashboard-status-band--compact" aria-label="Workspace orientation">
           ${orientationCards.map(card => `
             <div class="dashboard-status-chip dashboard-status-chip--${card.tone}">
               <span class="dashboard-status-chip__label">${card.label}</span>
@@ -420,7 +432,7 @@ function renderUserDashboard() {
               <span>${card.note}</span>
             </div>
           `).join('')}
-        </section>
+        </section>` : ''}
 
         <section class="dashboard-primary-band">
           ${UI.dashboardSectionCard({
