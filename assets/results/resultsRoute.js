@@ -1490,8 +1490,8 @@ function renderResults(id, isShared) {
       </details>
 
       <details class="results-detail-disclosure">
-        <summary>Show challenge and review tools</summary>
-        <div class="results-detail-disclosure-copy">Open this only when you want to pressure-test the assumptions, evidence quality, and committee questions behind the result.</div>
+        <summary>Challenge review and AI audit</summary>
+        <div class="results-detail-disclosure-copy">Open this when you want to pressure-test the assumptions, review committee-style challenge points, or inspect how AI and supporting material shaped the inputs.</div>
         <div class="results-disclosure-stack">
           <div class="card mb-2 anim-fade-in">
             <div class="flex items-center justify-between" style="gap:var(--sp-4);flex-wrap:wrap">
@@ -1504,22 +1504,15 @@ function renderResults(id, isShared) {
             <div id="assessment-challenge-status" class="form-help" style="margin-top:12px">${assessmentChallenge ? 'Latest challenge review saved with this assessment.' : 'No challenge review has been generated yet.'}</div>
           </div>
           ${assessmentChallenge ? renderAssessmentChallengeBlock(assessmentChallenge) : ''}
-        </div>
-      </details>
-
-      ${(workflowGuidance.length || assessment.benchmarkBasis || assessment.inputRationale || assessment.evidenceSummary || assessment.confidenceLabel || assessment.inputProvenance?.length) ? `
-      <details class="results-detail-disclosure">
-        <summary>${rolePresentation.aiSummary}</summary>
-        <div class="results-detail-disclosure-copy">Use this when you need to review how the AI formed the inputs and how grounded those inputs were.</div>
-        <div class="results-disclosure-stack">
+          ${(workflowGuidance.length || assessment.benchmarkBasis || assessment.inputRationale || assessment.evidenceSummary || assessment.confidenceLabel || assessment.inputProvenance?.length) ? `
           <div class="grid-2 anim-fade-in">
             ${renderWorkflowGuidanceBlock(workflowGuidance, 'How AI guided this assessment')}
             ${renderBenchmarkRationaleBlock(assessment.benchmarkBasis, assessment.inputRationale, assessment.benchmarkReferences)}
             ${renderInputProvenanceBlock(assessment.inputProvenance)}
           </div>
-          ${renderEvidenceQualityBlock(assessment.confidenceLabel, assessment.evidenceQuality, assessment.evidenceSummary, missingInformation, 'How grounded the AI inputs were', { primaryGrounding: primaryGrounding, supportingReferences: supportingReferences, inferredAssumptions: inferredAssumptions })}
+          ${renderEvidenceQualityBlock(assessment.confidenceLabel, assessment.evidenceQuality, assessment.evidenceSummary, missingInformation, 'How grounded the AI inputs were', { primaryGrounding: primaryGrounding, supportingReferences: supportingReferences, inferredAssumptions: inferredAssumptions })}` : ''}
         </div>
-      </details>` : ''}
+      </details>
 
 
       <details class="results-detail-disclosure">
@@ -1542,13 +1535,13 @@ function renderResults(id, isShared) {
         </div>
       </details>
 
-      ${citations.length ? `<details class="results-detail-disclosure"><summary>Show key references used</summary><div class="results-disclosure-stack">${renderCitationBlock(citations)}</div></details>` : ''}
-
-      ${recommendations.length ? `
+      ${(citations.length || recommendations.length) ? `
       <details class="results-detail-disclosure">
-        <summary>Show full treatment list</summary>
+        <summary>References and full treatment list</summary>
+        <div class="results-detail-disclosure-copy">Open this when you want the supporting references and the longer treatment set behind the headline recommendations.</div>
         <div class="results-disclosure-stack">
-          <div style="display:flex;flex-direction:column;gap:var(--sp-4)">
+          ${citations.length ? renderCitationBlock(citations) : ''}
+          ${recommendations.length ? `<div style="display:flex;flex-direction:column;gap:var(--sp-4)">
             ${recommendations.map((rec, i) => `
               <div class="rec-card">
                 <div class="flex items-start gap-4">
@@ -1560,7 +1553,7 @@ function renderResults(id, isShared) {
                   </div>
                 </div>
               </div>`).join('')}
-          </div>
+          </div>` : ''}
         </div>
       </details>` : ''}
     </section>`;

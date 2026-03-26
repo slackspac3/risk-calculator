@@ -672,6 +672,15 @@ function renderWizard3() {
             <div class="form-help" style="margin-top:8px">These sections support challenge, calibration, and tuning. Most users can finish the estimate without opening all of them.</div>
           </section>
 
+          ${UI.disclosureSection({
+            title: 'Working guidance and input sources',
+            badgeLabel: 'Optional',
+            badgeTone: 'neutral',
+            open: false,
+            className: 'wizard-disclosure card card--elevated anim-fade-in',
+            body: `${renderEstimateModeNote(isAdv)}${renderEstimateSourceAtGlance(draft)}`
+          })}
+
           ${renderEstimateBackgroundDetails(draft, bu, isAdv, cur, sym)}
           ${renderEstimateOptionalHelpDetails(draft, sym)}
 

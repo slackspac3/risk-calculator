@@ -76,7 +76,7 @@ const AdminUserAccountsSection = (() => {
           </tbody>
         </table>`
       })}
-      <details class="dashboard-disclosure card mt-4" open>
+      <details class="dashboard-disclosure card mt-4">
         <summary>Create a user <span class="badge badge--neutral">Optional</span></summary>
         <div class="dashboard-disclosure-copy">Create a new account only when you need to add someone to the platform.</div>
         <div class="dashboard-disclosure-body">
