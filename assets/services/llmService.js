@@ -254,7 +254,14 @@ const LLMService = (() => {
             throw new Error(`LLM API error ${res.status}: ${errText}`);
           }
           const data = await res.json();
-          return data.choices?.[0]?.message?.content || null;
+          const extracted = typeof extractLlmTextResponse === 'function'
+            ? extractLlmTextResponse(data)
+            : data.choices?.[0]?.message?.content || null;
+          if (!extracted) {
+            const keys = Object.keys(data || {}).slice(0, 8).join(', ');
+            throw new Error(`AI response shape was not usable. Top-level keys: ${keys || '(none)'}`);
+          }
+          return extracted;
         })();
         const timeoutPromise = new Promise((_, reject) => {
           timeoutId = setTimeout(() => {
