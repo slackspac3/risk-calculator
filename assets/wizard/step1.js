@@ -33,7 +33,7 @@ function getStep1RecommendedAction(draft, selectedRisks) {
 }
 
 function renderStep1StartCard(recommendation) {
-  return `<section class="wizard-summary-band wizard-summary-band--support anim-fade-in">
+  return `<section class="wizard-summary-band wizard-summary-band--support wizard-summary-band--quiet anim-fade-in">
     <div>
       <div class="wizard-summary-band__label">Recommended path</div>
       <strong>${recommendation.title}</strong>
@@ -41,8 +41,7 @@ function renderStep1StartCard(recommendation) {
     </div>
     <div class="wizard-summary-band__meta">
       <span class="badge badge--gold">Guided builder first</span>
-      <span class="badge badge--neutral">AI only if useful</span>
-      <span class="badge badge--neutral">Tight shortlist</span>
+      <span class="wizard-summary-band__hint">Tighten wording and shortlist only after the first draft exists.</span>
     </div>
   </section>`;
 }
@@ -68,16 +67,17 @@ function renderStep1FeaturedExampleCard(example) {
   return `<details class="wizard-disclosure wizard-disclosure--support anim-fade-in">
     <summary>Worked example <span class="badge badge--neutral">Fast demo path</span></summary>
     <div class="wizard-disclosure-body">
-      <div class="form-help">Load one polished example to see what a good first draft and shortlist look like before you enter your own case.</div>
-      <div class="wizard-focus-card wizard-focus-card--wide" style="margin-top:var(--sp-4)">
-        <span class="wizard-focus-card__label">Featured example</span>
-        <strong>${escapeHtml(example.title)}</strong>
-        <span>${escapeHtml(example.summary)} Best for: ${escapeHtml(example.bestFor)}.</span>
+      <div class="wizard-summary-band wizard-summary-band--quiet" style="margin-top:0">
+        <div>
+          <div class="wizard-summary-band__label">Featured example</div>
+          <strong>${escapeHtml(example.title)}</strong>
+          <div class="wizard-summary-band__copy">${escapeHtml(example.summary)} Best for: ${escapeHtml(example.bestFor)}.</div>
+        </div>
+        <div class="wizard-summary-band__meta">
+          <button class="btn btn--secondary btn-load-dry-run" data-dry-run-id="${escapeHtml(example.id)}" type="button">Load Example</button>
+        </div>
       </div>
-      <div class="admin-inline-actions" style="margin-top:var(--sp-4)">
-        <button class="btn btn--secondary btn-load-dry-run" data-dry-run-id="${escapeHtml(example.id)}" type="button">Load Example</button>
-        <span class="form-help">${escapeHtml(example.nextStep)}</span>
-      </div>
+      <div class="form-help" style="margin-top:var(--sp-4)">${escapeHtml(example.nextStep)}</div>
     </div>
   </details>`;
 }
@@ -535,11 +535,10 @@ function renderWizard1() {
         </div>
         <div class="wizard-body">
           ${renderStep1GuidedBuilderCard(draft)}
+          ${renderStep1StartCard(recommendation)}
           ${renderStep1SelectedRisksSummary(selectedRisks, riskCandidates)}
           ${renderLoadedDryRunBanner(activeDryRun)}
           ${draft.learningNote ? `<div class="card card--elevated anim-fade-in"><div class="context-panel-title">Learnt from prior use</div><p class="context-panel-copy">${draft.learningNote}</p></div>` : ''}
-          ${renderStep1StartCard(recommendation)}
-          ${renderStep1FeaturedExampleCard(featuredDryRun)}
           ${UI.disclosureSection({
             title: 'Assessment framing and defaults',
             badgeLabel: 'Adjust only if needed',
@@ -581,6 +580,7 @@ function renderWizard1() {
           })}
 
           ${renderStep1OtherWaysToStart(draft, hasScenarioDraft, hasImportedSource)}
+          ${renderStep1FeaturedExampleCard(featuredDryRun)}
 
           <div id="intake-output">
             ${draft.intakeSummary ? `<div class="card card--glow anim-fade-in"><div class="context-panel-title">AI Intake Summary</div><p class="context-panel-copy">${draft.intakeSummary}</p>${draft.linkAnalysis ? `<div class="context-panel-foot">${draft.linkAnalysis}</div>` : ''}</div>` : ''}

@@ -1780,6 +1780,20 @@ canvas { display: block; width: 100%; }
   flex-direction: column;
   gap: var(--sp-3);
 }
+.results-comparison-inline-meta,
+.results-comparison-rail-note {
+  margin-top: var(--sp-4);
+  color: rgba(246,243,242,.58);
+  font-size: .82rem;
+  line-height: 1.55;
+}
+.results-comparison-rail-note {
+  margin-top: 0;
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: 18px;
+  border: 1px solid rgba(246,243,242,.08);
+  background: linear-gradient(180deg, rgba(246,243,242,.028), rgba(246,243,242,.01));
+}
 .results-comparison-verdict {
   display: flex;
   flex-direction: column;
@@ -1815,6 +1829,23 @@ canvas { display: block; width: 100%; }
 .results-comparison-grid { align-items: stretch; }
 .results-comparison-metric { display: flex; flex-direction: column; justify-content: space-between; min-height: 180px; }
 .results-comparison-value { line-height: 1.1; }
+.results-comparison-narrative {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(280px, .85fr);
+  gap: var(--sp-4);
+  margin-top: var(--sp-5);
+}
+.results-comparison-narrative__main {
+  padding: var(--sp-5);
+  border-radius: 22px;
+  border: 1px solid rgba(246,243,242,.08);
+  background: linear-gradient(180deg, rgba(246,243,242,.03), rgba(246,243,242,.012));
+}
+.results-comparison-narrative__aside {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
 
 .results-comparison-head {
   display: flex;
@@ -2217,6 +2248,10 @@ canvas { display: block; width: 100%; }
   border-radius: 18px;
   background: rgba(246,243,242,0.03);
   border: 1px solid rgba(246,243,242,.08);
+}
+.results-comparison-lever--accent {
+  border-color: rgba(3,209,168,.14);
+  background: linear-gradient(180deg, rgba(3,209,168,.1), rgba(246,243,242,.02));
 }
 .results-comparison-lever strong {
   display: block;
@@ -3029,9 +3064,20 @@ canvas { display: block; width: 100%; }
 .dashboard-at-a-glance .admin-overview-card {
   background: linear-gradient(180deg, rgba(246,243,242,.022), rgba(246,243,242,.008));
   border-color: rgba(246,243,242,.06);
+  padding: var(--sp-4) var(--sp-5);
+  min-height: 0;
+  box-shadow: none;
 }
 .dashboard-at-a-glance .admin-overview-foot {
   color: rgba(246,243,242,.58);
+  line-height: 1.55;
+}
+.dashboard-at-a-glance .admin-overview-value {
+  font-size: 1.08rem !important;
+  margin-top: var(--sp-2);
+}
+.dashboard-at-a-glance .admin-overview-label {
+  opacity: .72;
 }
 .dashboard-hero-overflow,
 .dashboard-row-overflow,
@@ -3081,13 +3127,25 @@ canvas { display: block; width: 100%; }
   max-width: 60ch;
   line-height: 1.8;
 }
+.results-hero-meta {
+  color: rgba(246,243,242,.56);
+  font-size: .82rem;
+  letter-spacing: .01em;
+}
 .results-executive-band {
   display: flex;
   flex-direction: column;
   gap: var(--sp-6);
   margin-top: var(--sp-8);
 }
-.results-hero-side { gap: var(--sp-5); }
+.results-hero-side { gap: var(--sp-4); }
+.results-hero-side-note {
+  max-width: 20ch;
+  text-align: center;
+  color: rgba(246,243,242,.56);
+  font-size: .78rem;
+  line-height: 1.45;
+}
 .results-executive-brief, .results-exec-metrics { gap: var(--sp-5); }
 .results-executive-brief--premium .results-brief-card:first-child,
 .results-executive-brief--premium .results-brief-card:nth-child(2) {
@@ -3156,6 +3214,11 @@ canvas { display: block; width: 100%; }
 .wizard-summary-band--support {
   background: linear-gradient(180deg, rgba(246,243,242,.024), rgba(246,243,242,.012));
 }
+.wizard-summary-band--quiet {
+  background: linear-gradient(180deg, rgba(246,243,242,.028), rgba(246,243,242,.012));
+  border-color: rgba(246,243,242,.07);
+  padding: var(--sp-4) var(--sp-5);
+}
 .wizard-summary-band__label {
   font-size: 0.72rem;
   letter-spacing: 0.08em;
@@ -3180,6 +3243,15 @@ canvas { display: block; width: 100%; }
   flex-wrap: wrap;
   gap: var(--sp-2);
   justify-content: flex-end;
+}
+.wizard-summary-band--quiet .wizard-summary-band__meta {
+  align-items: flex-end;
+}
+.wizard-summary-band__hint {
+  color: rgba(246,243,242,.58);
+  font-size: .82rem;
+  line-height: 1.5;
+  max-width: 26ch;
 }
 .wizard-focus-card strong {
   font-family: var(--font-display);
@@ -3314,6 +3386,9 @@ canvas { display: block; width: 100%; }
   }
   .wizard-summary-band__meta {
     justify-content: flex-start;
+  }
+  .results-comparison-narrative {
+    grid-template-columns: 1fr;
   }
 }
 .feature-card {

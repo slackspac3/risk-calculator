@@ -182,6 +182,7 @@ function renderResultsComparisonHighlight(comparison) {
           <div class="results-driver-label">Decision signal versus the baseline</div>
           <h3 class="results-comparison-spotlight__title">${treatmentDecision.title}</h3>
           <p class="results-summary-copy" style="margin-top:var(--sp-3)">${treatmentDecision.summary}</p>
+          <div class="results-comparison-inline-meta">Baseline reference: ${comparison.baselineTitle} · ${comparison.baselineDate}</div>
         </div>
         <div class="results-comparison-spotlight__rail">
           <div class="results-comparison-verdict results-comparison-verdict--${outcomeTone}">
@@ -189,8 +190,7 @@ function renderResultsComparisonHighlight(comparison) {
             <strong>${outcomeLabel}</strong>
             <span>${comparison.directionTitle || comparison.summary}</span>
           </div>
-          <div class="results-comparison-banner"><strong>Baseline:</strong> ${comparison.baselineTitle} · ${comparison.baselineDate}</div>
-          <div class="results-comparison-banner">${comparison.statusShift}</div>
+          <div class="results-comparison-rail-note">${comparison.statusShift}</div>
         </div>
       </div>
       <div class="results-treatment-before-after">
@@ -218,21 +218,24 @@ function renderResultsComparisonHighlight(comparison) {
         <div class="results-comparison-metric ${comparison.annualExposure.direction}"><div class="results-impact-label">Reduction in expected annual loss</div><div class="results-comparison-value">${comparison.annualExposure.formatted}</div><div class="results-comparison-foot">${comparison.annualExposure.direction === 'down' ? 'Average-year burden is falling.' : comparison.annualExposure.direction === 'up' ? 'Average-year burden is rising.' : 'Average-year burden is broadly unchanged.'}</div></div>
         <div class="results-comparison-metric ${comparison.severeAnnual.direction}"><div class="results-impact-label">Change in threshold posture</div><div class="results-comparison-value">${comparison.currentStatus}</div><div class="results-comparison-foot">${comparison.statusShift}</div></div>
       </div>
-      <div class="results-comparison-banner results-comparison-banner--premium" style="margin-top:var(--sp-4)">
-        <strong>Recommended treatment read:</strong> ${treatmentDecision.action}
-      </div>
-      <div class="results-comparison-levers">
-        <div class="results-comparison-lever">
-          <span class="results-driver-label">Driver shift</span>
-          <strong>${comparison.keyDriver}</strong>
+      <div class="results-comparison-narrative">
+        <div class="results-comparison-narrative__main">
+          <div class="results-driver-label">Plain-language treatment impact</div>
+          <div class="results-summary-copy">${comparison.treatmentNarrative || treatmentDecision.summary}</div>
         </div>
-        <div class="results-comparison-lever">
-          <span class="results-driver-label">Confidence caveat</span>
-          <strong>${comparison.caveat}</strong>
-        </div>
-        <div class="results-comparison-lever">
-          <span class="results-driver-label">Recommendation summary</span>
-          <strong>${treatmentDecision.title}</strong>
+        <div class="results-comparison-narrative__aside">
+          <div class="results-comparison-lever">
+            <span class="results-driver-label">Driver shift</span>
+            <strong>${comparison.keyDriver}</strong>
+          </div>
+          <div class="results-comparison-lever">
+            <span class="results-driver-label">Confidence caveat</span>
+            <strong>${comparison.caveat}</strong>
+          </div>
+          <div class="results-comparison-lever results-comparison-lever--accent">
+            <span class="results-driver-label">Recommendation summary</span>
+            <strong>${treatmentDecision.action}</strong>
+          </div>
         </div>
       </div>
       <details class="results-detail-disclosure" style="margin-top:var(--sp-5);margin-bottom:0">
@@ -1373,6 +1376,7 @@ function renderResults(id, isShared) {
             <div class="results-signal-ring-inner">${statusIcon}</div>
           </div>
           <div class="results-signal-label">${exceedancePct}% breach likelihood</div>
+          <div class="results-hero-side-note">Quantified from the saved FAIR-inspired Monte Carlo run for this scenario.</div>
         </div>
       </div>
 
