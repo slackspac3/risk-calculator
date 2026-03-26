@@ -1,0 +1,202 @@
+'use strict';
+
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+
+function createStorage() {
+  const store = new Map();
+  return {
+    getItem(key) {
+      return store.has(key) ? store.get(key) : null;
+    },
+    setItem(key, value) {
+      store.set(key, String(value));
+    },
+    removeItem(key) {
+      store.delete(key);
+    }
+  };
+}
+
+function loadAssessmentStateRuntime() {
+  const source = fs.readFileSync(
+    path.resolve(__dirname, '../../assets/state/assessmentState.js'),
+    'utf8'
+  );
+
+  const localStorage = createStorage();
+  const cache = {
+    username: 'alex.trafton',
+    assessments: [],
+    savedAssessments: { index: [], itemsById: {} },
+    learningStore: { templates: {} },
+    draft: null,
+    _meta: { revision: 1, updatedAt: 1 }
+  };
+  const appState = { draft: null };
+
+  const context = {
+    console,
+    Date,
+    JSON,
+    Math,
+    setTimeout,
+    clearTimeout,
+    window: {},
+    localStorage,
+    AppState: appState,
+    ASSESSMENT_LIFECYCLE_STATUS: {
+      DRAFT: 'draft',
+      ARCHIVED: 'archived'
+    },
+    DEFAULT_ADMIN_SETTINGS: {
+      geography: 'United Arab Emirates',
+      defaultLinkMode: 'linked',
+      applicableRegulations: []
+    },
+    ensureUserStateCache() {
+      return cache;
+    },
+    normaliseSavedAssessmentsSection(section, legacyAssessments = []) {
+      const list = Array.isArray(legacyAssessments) ? legacyAssessments.slice() : [];
+      if (section && section.itemsById) {
+        return section;
+      }
+      const itemsById = {};
+      list.forEach(item => {
+        itemsById[item.id] = { ...item };
+      });
+      return {
+        index: list.map(item => ({ id: item.id })),
+        itemsById
+      };
+    },
+    materializeSavedAssessments(section = {}) {
+      return Object.values(section.itemsById || {}).map(item => ({ ...item }));
+    },
+    buildSavedAssessmentsSection(list = []) {
+      const itemsById = {};
+      list.forEach(item => {
+        itemsById[item.id] = { ...item };
+      });
+      return {
+        index: list.map(item => ({ id: item.id })),
+        itemsById
+      };
+    },
+    buildDraftWorkspaceSection(draft = null, overrides = {}) {
+      return {
+        schemaVersion: 2,
+        draft: draft && typeof draft === 'object' ? { ...draft } : null,
+        status: draft ? 'active' : 'empty',
+        lastSavedAt: Number(overrides.lastSavedAt || 0),
+        recoverySnapshotAt: Number(overrides.recoverySnapshotAt || 0)
+      };
+    },
+    normaliseAssessmentRecord(item) {
+      return item ? { ...item } : item;
+    },
+    buildUserStorageKey(prefix, username = 'alex.trafton') {
+      return `${prefix}__${username}`;
+    },
+    ASSESSMENTS_STORAGE_PREFIX: 'rq_assessments',
+    LEARNING_STORAGE_PREFIX: 'rq_learning_store',
+    queueSharedUserStateSync() {},
+    prepareAssessmentForSave(assessment, options = {}) {
+      const next = { ...assessment };
+      if (options.targetStatus) {
+        next.lifecycleStatus = options.targetStatus;
+        if (options.targetStatus === 'archived' && options.at) {
+          next.archivedAt = options.at;
+        }
+      }
+      return next;
+    },
+    restoreAssessmentLifecycle(assessment) {
+      const next = { ...assessment };
+      delete next.archivedAt;
+      next.lifecycleStatus = 'draft';
+      return next;
+    },
+    ensureDraftShape() {
+      return {
+        id: 'a_draft',
+        scenarioTitle: '',
+        narrative: '',
+        lifecycleStatus: 'draft',
+        fairParams: {},
+        results: null,
+        selectedRiskIds: [],
+        selectedRisks: [],
+        geographies: ['United Arab Emirates'],
+        applicableRegulations: []
+      };
+    },
+    deriveAssessmentLifecycleStatus(record = {}) {
+      if (record.archivedAt) return 'archived';
+      if (record.results || record.completedAt) return record.lifecycleStatus || 'simulated';
+      return 'draft';
+    },
+    dispatchDraftAction(action, payload) {
+      if (action === 'SET_DRAFT') {
+        appState.draft = payload.draft;
+      }
+      if (action === 'RESET_DRAFT') {
+        appState.draft = payload.draft;
+      }
+    },
+    saveDraft() {},
+    UI: { toast() {} }
+  };
+
+  vm.createContext(context);
+  vm.runInContext(source, context, { filename: 'assessmentState.js' });
+
+  return { api: context.window, cache, appState, localStorage };
+}
+
+test('archiveAssessment marks the saved assessment as archived', () => {
+  const { api, cache } = loadAssessmentStateRuntime();
+  cache.assessments = [{
+    id: 'assess-1',
+    scenarioTitle: 'Ransomware on shared ERP',
+    lifecycleStatus: 'simulated'
+  }];
+  cache.savedAssessments = api.buildSavedAssessmentsSection
+    ? api.buildSavedAssessmentsSection(cache.assessments)
+    : {
+        index: [{ id: 'assess-1' }],
+        itemsById: { 'assess-1': { ...cache.assessments[0] } }
+      };
+
+  const archived = api.archiveAssessment('assess-1');
+  assert.equal(archived, true);
+
+  const updated = api.getAssessmentById('assess-1');
+  assert.equal(updated.lifecycleStatus, 'archived');
+  assert.ok(updated.archivedAt);
+});
+
+test('duplicateAssessmentToDraft creates a new draft copy with draft lifecycle status', () => {
+  const { api, cache, appState } = loadAssessmentStateRuntime();
+  cache.assessments = [{
+    id: 'assess-2',
+    scenarioTitle: 'Cloud exposure in shared platform',
+    lifecycleStatus: 'simulated',
+    results: { toleranceBreached: false }
+  }];
+  cache.savedAssessments = {
+    index: [{ id: 'assess-2' }],
+    itemsById: { 'assess-2': { ...cache.assessments[0] } }
+  };
+
+  const duplicated = api.duplicateAssessmentToDraft('assess-2');
+  assert.ok(duplicated);
+  assert.match(duplicated.scenarioTitle, /copy/i);
+  assert.equal(duplicated.lifecycleStatus, 'draft');
+  assert.equal(duplicated.results, null);
+  assert.equal(appState.draft.lifecycleStatus, 'draft');
+});
