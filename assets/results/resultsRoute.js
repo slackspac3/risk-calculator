@@ -643,14 +643,14 @@ function renderWizard4() {
             <button class="btn btn--primary btn--lg" id="btn-run-sim" style="width:100%;justify-content:center">🚀 Run Monte Carlo Simulation (${safeIterations} iterations)</button>
           </div>
           <div id="sim-progress" class="hidden">
-            <div class="card" style="text-align:center;padding:var(--sp-10)">
-              <div style="font-size:48px;margin-bottom:var(--sp-4);animation:spin 1s linear infinite">⚙️</div>
-              <div style="font-family:var(--font-display);font-size:var(--text-xl);margin-bottom:var(--sp-2)">Running Simulation…</div>
-              <div id="sim-progress-text" style="font-size:var(--text-sm);color:var(--text-muted)">Computing ${safeIterations} Monte Carlo iterations…</div>
-              <div style="margin-top:var(--sp-5);height:10px;background:var(--bg-elevated);border-radius:999px;overflow:hidden">
-                <div id="sim-progress-bar" style="height:100%;width:0%;background:linear-gradient(90deg,var(--color-primary-400),var(--color-accent-300));transition:width .12s ease"></div>
+            <div class="card sim-progress-card">
+              <div class="sim-progress-mark" aria-hidden="true">◌</div>
+              <div class="sim-progress-title">Running simulation</div>
+              <div id="sim-progress-text" class="sim-progress-copy">Computing ${safeIterations} Monte Carlo iterations…</div>
+              <div class="sim-progress-track">
+                <div id="sim-progress-bar" class="sim-progress-fill"></div>
               </div>
-              <div id="sim-progress-meta" style="font-size:.75rem;color:var(--text-muted);margin-top:var(--sp-3)">Yielding frequently so the page stays responsive.</div>
+              <div id="sim-progress-meta" class="sim-progress-meta">Yielding frequently so the page stays responsive.</div>
               <button class="btn btn--ghost btn--sm" id="btn-cancel-sim" style="margin-top:var(--sp-5)">Cancel Run</button>
             </div>
           </div>
@@ -659,8 +659,7 @@ function renderWizard4() {
           <button class="btn btn--ghost" id="btn-back-4">← Back</button>
         </div>
       </div>
-    </main>
-    <style>@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}</style>`);
+    </main>`);
 
   document.getElementById('btn-back-4').addEventListener('click', () => Router.navigate('/wizard/3'));
   document.getElementById('btn-run-sim').addEventListener('click', runSimulation);

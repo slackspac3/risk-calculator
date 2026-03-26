@@ -7,10 +7,10 @@ const UI = (() => {
   function toast(message, type = 'success', duration = 3500) {
     const container = document.getElementById('toast-container');
     if (!container) return;
-    const icons = { success: '✓', danger: '✕', warning: '⚠', info: 'ℹ' };
+    const icons = { success: '○', danger: '△', warning: '◌', info: '·' };
     const el = document.createElement('div');
     el.className = `toast toast--${type}`;
-    el.innerHTML = `<span class="toast-icon">${icons[type] || 'ℹ'}</span><span class="toast-msg">${message}</span>`;
+    el.innerHTML = `<span class="toast-icon" aria-hidden="true">${icons[type] || '·'}</span><span class="toast-msg">${message}</span><span class="toast-progress" aria-hidden="true"></span>`;
     container.appendChild(el);
     setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity 0.3s'; setTimeout(() => el.remove(), 320); }, duration);
   }
@@ -125,9 +125,9 @@ const UI = (() => {
 
 
   function dashboardOverviewCard({ label, value, foot }) {
-    return `<div class="admin-overview-card">
+    return `<div class="admin-overview-card dashboard-overview-card--premium">
       <div class="admin-overview-label">${label}</div>
-      <div class="admin-overview-value" style="font-size:1.2rem">${value}</div>
+      <div class="admin-overview-value dashboard-overview-value--premium" style="font-size:1.2rem">${value}</div>
       <div class="admin-overview-foot">${foot}</div>
     </div>`;
   }
