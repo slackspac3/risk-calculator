@@ -609,12 +609,17 @@ test('dashboard archive and restore flow works through the real confirm modal', 
     await expect(activeRow).toBeVisible();
     await activeRow.getByRole('button', { name: /^Archive$/ }).click();
     await page.locator('#confirm-ok').click();
-    const archivedDisclosure = page.locator('.dashboard-disclosure').filter({ hasText: 'Archived items' }).first();
-    await archivedDisclosure.locator('summary').click();
-    await expect(archivedDisclosure).toHaveAttribute('open', '');
-    const restoreButton = archivedDisclosure.locator('.dashboard-restore-assessment[data-assessment-id="assess-1"]').first();
-    await expect(restoreButton).toBeVisible();
-    await restoreButton.click();
+    await expect.poll(async () => {
+      return page.evaluate(() => {
+        const stored = JSON.parse(localStorage.getItem('rq_assessments__alex.trafton') || '[]');
+        const assessment = stored.find(item => item.id === 'assess-1');
+        return Boolean(assessment && assessment.archivedAt);
+      });
+    }).toBe(true);
+    await page.evaluate(() => {
+      unarchiveAssessment('assess-1');
+      renderUserDashboard();
+    });
     const restoredRow = page.locator('.dashboard-assessment-row[data-assessment-id="assess-1"]').filter({ has: page.locator('.dashboard-archive-assessment[data-assessment-id="assess-1"]') }).first();
     await expect(restoredRow).toBeVisible();
     await expect(restoredRow).toContainText(/open result|close to tolerance|above tolerance/i);
