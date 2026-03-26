@@ -93,7 +93,7 @@ const ReportPresentation = (() => {
       };
     }
     return {
-      decision: 'Monitor and improve selectively',
+      decision: 'Monitor and improve where it matters',
       rationale: 'The scenario is currently within tolerance, so the priority is to preserve what is working, watch for change, and improve the most material weak point before it becomes urgent.',
       priority: strongestUpward || 'Use this as a monitored scenario and challenge the assumptions that could move it upward fastest.',
       managementFocus: strongestStabiliser || `Keep the strongest current control in place and refresh the assessment if ${keyUncertainty || 'the main assumptions'} changes materially.`
@@ -108,7 +108,7 @@ const ReportPresentation = (() => {
       ? 'Use this as a directional management view and close the biggest evidence gap before relying on it for longer-term decisions.'
       : /high/i.test(label)
         ? 'The result is grounded enough for management action, but the main assumptions should still be reviewed before escalation.'
-        : 'Use this as a working management view and challenge the most material assumptions before treating it as settled.'
+        : 'Use this as a working decision view and challenge the most material assumptions before treating it as settled.'
     ;
     const evidenceSummary = evidenceQuality
       ? `${evidenceQuality}. ${evidenceCount} supporting reference${evidenceCount === 1 ? '' : 's'} attached.`
@@ -306,7 +306,7 @@ const ReportPresentation = (() => {
       return {
         title: 'The treatment path is materially improving the management position',
         summary: comparison?.treatmentNarrative || 'The treated case is reducing both the severe event burden and the annual exposure profile relative to the baseline.',
-        action: `Validate the treatment assumptions, then decide whether to sponsor this path. Primary lever: ${keyDriver} Secondary lever: ${secondaryDriver}`
+        action: `Validate the treatment assumptions, then decide whether to sponsor this path. Main lever: ${keyDriver} Supporting lever: ${secondaryDriver}`
       };
     }
 
@@ -314,7 +314,7 @@ const ReportPresentation = (() => {
       return {
         title: 'The treatment path improves the severe case, but not the whole annual picture yet',
         summary: comparison?.treatmentNarrative || 'The treated case is improving the single-event position, but the annual exposure still needs more work before this becomes a clear management move.',
-        action: `Keep the stronger severe-event assumptions, then refine the annual drivers before relying on this as the preferred path. Primary lever: ${keyDriver}`
+        action: `Keep the stronger severe-event assumptions, then refine the annual drivers before relying on this as the preferred path. Main lever: ${keyDriver}`
       };
     }
 
@@ -322,14 +322,14 @@ const ReportPresentation = (() => {
       return {
         title: 'The current treatment assumptions are not yet improving the baseline',
         summary: comparison?.treatmentNarrative || 'The current case remains heavier than the baseline, so the proposed treatment path should be refined before it is taken forward.',
-        action: `Challenge the assumptions that are still keeping the case above the baseline. Primary lever: ${keyDriver} Secondary lever: ${secondaryDriver}`
+        action: `Challenge the assumptions that are still keeping the case above the baseline. Main lever: ${keyDriver} Supporting lever: ${secondaryDriver}`
       };
     }
 
     return {
       title: 'The treatment path is not yet materially changing the position',
       summary: comparison?.treatmentNarrative || 'The current case and baseline are directionally similar, so the proposed change is not yet creating a clear decision delta.',
-      action: `Adjust the assumptions that should move the result most, then rerun the comparison. Primary lever: ${keyDriver}`
+      action: `Adjust the assumptions that should move the result most, then rerun the comparison. Main lever: ${keyDriver}`
     };
   }
 

@@ -8,10 +8,10 @@ function renderWizard2() {
         <div class="wizard-header">
           ${UI.renderStepper(2)}
           <h2 class="wizard-step-title">Refine the Scenario</h2>
-          <p class="form-help" style="margin-top:8px">Use this step to turn the selected risk into one clear assessment scope. The AI assist should help draft the scenario and suggest starting FAIR inputs.</p>
-          <p class="wizard-step-desc">Review the AI-built context, refine the narrative, and confirm how the selected risks should be quantified together.</p>
+          <p class="form-help" style="margin-top:8px">Use this step to turn the selected risk into one clear assessment scope. AI should help structure the scenario and suggest starting FAIR inputs.</p>
+          <p class="wizard-step-desc">Review the context, refine the narrative, and confirm how the selected risks should be quantified together.</p>
           <div class="wizard-status-stack">
-            <div class="form-help" data-draft-save-state>Draft will save automatically</div>
+            <div class="form-help" data-draft-save-state>Draft saves automatically</div>
             ${renderPilotWarningBanner('ai', { compact: true })}
             ${renderStep2ReadinessBanner(draft, selectedRisks, scenarioGeographies)}
           </div>
@@ -72,7 +72,7 @@ function renderWizard2() {
             className: 'wizard-disclosure card anim-fade-in anim-delay-2',
             body: `<div class="wizard-section-head">
               <div class="wizard-section-copy">
-                <h3 class="wizard-section-title">Use AI only if you want better structure, not more fluff</h3>
+                <h3 class="wizard-section-title">Use AI when you want better structure, not more text</h3>
                 <p class="wizard-section-description">AI should help tighten scope, surface assumptions, and prepare challengeable FAIR inputs for the next step. Your narrative stays editable.</p>
               </div>
               ${UI.sectionStatusBadge('Assistive only', 'neutral')}
@@ -81,13 +81,13 @@ function renderWizard2() {
               <span id="llm-btn-text">🤖 Structure scenario and suggest FAIR inputs</span>
             </button>
             <p style="text-align:center;font-size:.75rem;color:var(--text-muted);margin-top:8px">Retrieves relevant internal docs and uses AI to suggest structured narrative improvements and FAIR inputs with citations.</p>
-            <div class="form-help" id="wizard2-ai-status" style="text-align:center;margin-top:8px">Use AI assist only if you want a structured starting point. You can continue manually at any time.</div>`
+            <div class="form-help" id="wizard2-ai-status" style="text-align:center;margin-top:8px">Use AI only if you want a structured starting point. You can continue manually at any time.</div>`
           })}
           <div id="llm-output-area"></div>
         </div>
         <div class="wizard-footer">
           <button class="btn btn--ghost" id="btn-back-2">← Back</button>
-          <button class="btn btn--primary" id="btn-next-2">Continue to Loss Estimation →</button>
+          <button class="btn btn--primary" id="btn-next-2">Continue to estimation →</button>
         </div>
       </div>
     </main>`);
@@ -235,7 +235,7 @@ function renderStep2WhyItMattersCard(draft, selectedRisks, scenarioGeographies) 
       </div>
       <div class="wizard-focus-card">
         <span class="wizard-focus-card__label">Set up the quant step</span>
-        <strong>Better defaults, less rework</strong>
+        <strong>Better starting assumptions, less rework</strong>
         <span>${escapeHtml(warnings[0] || 'If the scenario wording is coherent, the estimate step becomes faster and more defensible.')}</span>
       </div>
     </div>
@@ -382,7 +382,7 @@ function renderWizard2AiChangeSummary(result, previousNarrative) {
   if (citationCount) changed.push(`Attached ${citationCount} supporting reference${citationCount === 1 ? '' : 's'} for grounding and challenge.`);
   const summaryItems = changed.length ? changed : ['Prepared a structured starting point without changing your saved scenario wording.'];
   const wordingNote = String(previousNarrative || '').trim()
-    ? '<div class="form-help" style="margin-top:10px">Your own narrative remains editable below. Keep it, edit it, or rerun AI assist if the structure still feels off.</div>'
+    ? '<div class="form-help" style="margin-top:10px">Your own narrative remains editable below. Keep it, edit it, or rerun AI if the structure still feels off.</div>'
     : '';
   return `<div class="card card--elevated mt-4 anim-fade-in"><div class="context-panel-title">What AI changed</div><ol style="margin:12px 0 0 18px;display:flex;flex-direction:column;gap:8px">${summaryItems.map(item => `<li style="color:var(--text-secondary)">${item}</li>`).join('')}</ol>${wordingNote}</div>`;
 }
@@ -398,7 +398,7 @@ async function runLLMAssist() {
   const previousNarrative = AppState.draft.enhancedNarrative || AppState.draft.narrative || narrative;
   btn.disabled = true; btn.classList.add('loading');
   btnText.textContent = '⏳ Retrieving docs and generating inputs…';
-  if (status) status.textContent = 'AI assist is building a suggested draft and loading starting values for the next step.';
+  if (status) status.textContent = 'AI is building a suggested draft and loading starting values for the next step.';
   output.innerHTML = `<div class="mt-4">${UI.wizardAssistSkeleton()}</div>`;
   try {
     const bu = getBUList().find(b => b.id === AppState.draft.buId);
@@ -468,7 +468,7 @@ async function runLLMAssist() {
       benchmarkBasis: AppState.draft.benchmarkBasis,
       inputProvenance: AppState.draft.inputProvenance,
       citations: AppState.draft.citations
-    })}<div class="flex items-center gap-3 mt-4" style="flex-wrap:wrap"><button class="btn btn--primary" id="btn-wizard2-ai-continue" type="button">Continue to Loss Estimation</button><button class="btn btn--ghost" id="btn-wizard2-ai-retry" type="button">Run AI Assist Again</button></div><details class="card mt-4 anim-fade-in"><summary style="cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);font-size:.82rem;font-weight:600;color:var(--text-primary)"><span>Show benchmark and evidence detail</span><span class="badge badge--neutral">Optional</span></summary><div style="display:flex;flex-direction:column;gap:var(--sp-4);margin-top:var(--sp-4)">${renderBenchmarkRationaleBlock(AppState.draft.benchmarkBasis, AppState.draft.inputRationale, AppState.draft.benchmarkReferences)}${renderInputProvenanceBlock(AppState.draft.inputProvenance)}${renderCitationBlock(AppState.draft.citations)}${renderEvidenceQualityBlock(AppState.draft.confidenceLabel, AppState.draft.evidenceQuality, AppState.draft.evidenceSummary, AppState.draft.missingInformation, 'Detailed evidence view', { primaryGrounding: AppState.draft.primaryGrounding, supportingReferences: AppState.draft.supportingReferences, inferredAssumptions: AppState.draft.inferredAssumptions })}</div></details>`;
+    })}<div class="flex items-center gap-3 mt-4" style="flex-wrap:wrap"><button class="btn btn--primary" id="btn-wizard2-ai-continue" type="button">Continue to estimation</button><button class="btn btn--ghost" id="btn-wizard2-ai-retry" type="button">Run AI again</button></div><details class="card mt-4 anim-fade-in"><summary style="cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);font-size:.82rem;font-weight:600;color:var(--text-primary)"><span>Show benchmark and evidence detail</span><span class="badge badge--neutral">Optional</span></summary><div style="display:flex;flex-direction:column;gap:var(--sp-4);margin-top:var(--sp-4)">${renderBenchmarkRationaleBlock(AppState.draft.benchmarkBasis, AppState.draft.inputRationale, AppState.draft.benchmarkReferences)}${renderInputProvenanceBlock(AppState.draft.inputProvenance)}${renderCitationBlock(AppState.draft.citations)}${renderEvidenceQualityBlock(AppState.draft.confidenceLabel, AppState.draft.evidenceQuality, AppState.draft.evidenceSummary, AppState.draft.missingInformation, 'Detailed evidence view', { primaryGrounding: AppState.draft.primaryGrounding, supportingReferences: AppState.draft.supportingReferences, inferredAssumptions: AppState.draft.inferredAssumptions })}</div></details>`;
     if (status) status.textContent = result.usedFallback
       ? 'A fallback suggested draft is ready. Review the changes, assumptions, and source basis before continuing.'
       : 'A suggested draft is ready. Review the changes, assumptions, and source basis before continuing.';
@@ -476,7 +476,7 @@ async function runLLMAssist() {
     document.getElementById('btn-wizard2-ai-retry')?.addEventListener('click', runLLMAssist);
     document.getElementById('btn-wizard2-ai-continue')?.addEventListener('click', () => document.getElementById('btn-next-2')?.click());
   } catch(e) {
-    if (status) status.textContent = 'AI assist is unavailable right now. You can continue manually with your own wording.';
+    if (status) status.textContent = 'AI is unavailable right now. You can continue manually with your own wording.';
     output.innerHTML = `<div class="banner banner--danger mt-4"><span class="banner-icon">⚠</span><span class="banner-text">LLM Assist is unavailable right now.</span></div><div class="flex items-center gap-3 mt-4" style="flex-wrap:wrap"><button class="btn btn--secondary" id="btn-wizard2-ai-retry" type="button">Try again</button><button class="btn btn--ghost" id="btn-wizard2-continue-manual" type="button">Continue without AI</button></div>`;
     document.getElementById('btn-wizard2-ai-retry')?.addEventListener('click', runLLMAssist);
     document.getElementById('btn-wizard2-continue-manual')?.addEventListener('click', () => document.getElementById('btn-next-2')?.click());

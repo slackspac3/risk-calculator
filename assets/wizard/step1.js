@@ -49,8 +49,8 @@ function renderStep1StartCard(recommendation) {
       </div>
       <div class="wizard-focus-card">
         <span class="wizard-focus-card__label">2. Improve only if needed</span>
-        <strong>Use AI deliberately</strong>
-        <span>Use AI only when you want help sharpening the wording or extracting candidate risks.</span>
+        <strong>Use AI only when it helps</strong>
+        <span>Use AI when you want help tightening the wording or extracting candidate risks.</span>
       </div>
       <div class="wizard-focus-card">
         <span class="wizard-focus-card__label">3. Keep scope tight</span>
@@ -152,7 +152,7 @@ function renderStep1OtherWaysToStart(draft, hasScenarioDraft, hasImportedSource)
       <div class="form-help">Open this only if you already have a scenario draft, a register, or a known list of risks. The guided builder remains the easiest path for most users.</div>
       <div class="card" style="padding:var(--sp-5);background:var(--bg-elevated)">
         <div class="context-panel-title">Bring your own scenario wording</div>
-        <div class="form-help" style="margin-top:6px">Use AI only if you want help sharpening the draft or extracting the shortlist.</div>
+        <div class="form-help" style="margin-top:6px">Use AI only if you want help tightening the draft or extracting the shortlist.</div>
         <div class="form-group" style="margin-top:var(--sp-4)">
           <label class="form-label" for="intake-risk-statement">Scenario draft</label>
           <textarea class="form-textarea" id="intake-risk-statement" rows="6" placeholder="If you already know the scenario, describe it here in plain English. Include what could happen, what is affected, likely triggers, and the business or regulatory impact.">${draft.narrative || ''}</textarea>
@@ -258,14 +258,14 @@ function renderStep1ContextCard(settings, draft, scenarioGeographies, regs, buLi
         <div class="context-panel-title">Current context shaping this assessment</div>
         <p class="context-panel-copy" style="margin-top:var(--sp-2)">The wizard is already using your saved role and organisation defaults so you do not have to start from a blank page.</p>
       </div>
-      <span class="badge badge--neutral">Recognition over recall</span>
+      <span class="badge badge--neutral">Using saved context</span>
     </div>
     <div class="citation-chips" style="margin-top:var(--sp-4)">
       ${chips.map(chip => `<span class="badge badge--neutral">${escapeHtml(chip)}</span>`).join('')}
       ${regs.slice(0, 4).map(tag => `<span class="badge badge--gold">${escapeHtml(tag)}</span>`).join('')}
     </div>
     ${workingContext ? `<div class="context-panel-foot" style="margin-top:var(--sp-3)">Working context: ${escapeHtml(workingContext)}</div>` : ''}
-    <div class="context-panel-foot" style="margin-top:${workingContext ? '8px' : 'var(--sp-3)'}">These defaults affect AI suggestions, regulations, and examples, but you can change them at any time on this step.</div>
+    <div class="context-panel-foot" style="margin-top:${workingContext ? '8px' : 'var(--sp-3)'}">These defaults affect assisted suggestions, regulations, and examples, but you can change them at any time on this step.</div>
   </div>`;
 }
 
@@ -519,7 +519,7 @@ function renderWizard1() {
           <p class="form-help" style="margin-top:8px">Describe the scenario, let AI help only where useful, then carry forward only the risks that belong in this assessment.</p>
           <p class="wizard-step-desc">Use the guided path first if you want the easiest route. Use the text or upload paths only when you already have source material.</p>
           <div class="wizard-status-stack">
-            <div class="form-help" data-draft-save-state>Draft will save automatically</div>
+            <div class="form-help" data-draft-save-state>Draft saves automatically</div>
             ${renderPilotWarningBanner('ai', { compact: true })}
             ${renderStep1ReadinessBanner(draft, selectedRisks)}
           </div>

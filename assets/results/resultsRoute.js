@@ -91,7 +91,7 @@ function renderDecisionRail(statusTitle, statusDetail, executiveDecision, execut
 function renderAnalystSummaryBlock(summary) {
   if (!summary) return '';
   return `<section class="results-section-stack">
-    <div class="results-section-heading">${escapeHtml(String(summary.title || 'Analyst Summary'))}</div>
+    <div class="results-section-heading">${escapeHtml(String(summary.title || 'Analyst summary'))}</div>
     <div class="results-analyst-summary">
       <div class="results-analyst-summary__main">
         <h3 class="results-analyst-summary__title">${escapeHtml(String(summary.opening || 'This result should be read as a decision-support view.'))}</h3>
@@ -99,15 +99,15 @@ function renderAnalystSummaryBlock(summary) {
       </div>
       <div class="results-analyst-summary__grid">
         <div class="results-summary-card">
-          <div class="results-driver-label">Confidence read</div>
+          <div class="results-driver-label">Confidence posture</div>
           <div class="results-summary-copy">${escapeHtml(String(summary.confidence || ''))}</div>
         </div>
         <div class="results-summary-card">
-          <div class="results-driver-label">Best next evidence move</div>
+          <div class="results-driver-label">Best next evidence step</div>
           <div class="results-summary-copy">${escapeHtml(String(summary.evidence || ''))}</div>
         </div>
         <div class="results-summary-card results-summary-card--wide">
-          <div class="results-driver-label">Treatment read</div>
+          <div class="results-driver-label">Treatment view</div>
           <div class="results-summary-copy">${escapeHtml(String(summary.treatment || ''))}</div>
           <div class="results-comparison-foot" style="margin-top:var(--sp-3)">${escapeHtml(String(summary.close || ''))}</div>
         </div>
@@ -143,7 +143,7 @@ function renderResultsActionBlock(recommendations, executiveAction, missingInfor
   ];
   const cards = nextStepPlan.length ? nextStepPlan : fallbackCards;
   return `<section class="results-section-stack">
-    <div class="results-section-heading">What to do next</div>
+    <div class="results-section-heading">Recommended next steps</div>
     ${renderLifecycleNextStepCards(cards)}
   </section>`;
 }
@@ -151,7 +151,7 @@ function renderResultsActionBlock(recommendations, executiveAction, missingInfor
 function renderResultsConfidenceNeedsBlock(confidenceFrame, evidenceQuality, missingInformation = [], citations = []) {
   const topGap = confidenceFrame?.topGap || missingInformation[0] || 'No major evidence gap has been recorded yet.';
   return `<section class="results-section-stack">
-    <div class="results-section-heading">Confidence and evidence needs</div>
+    <div class="results-section-heading">Confidence and evidence</div>
     <div class="results-summary-grid results-summary-grid--primary">
       <div class="results-summary-card"><div class="results-driver-label">Confidence for decisions</div><p class="results-summary-copy"><strong>${confidenceFrame?.label || 'Moderate confidence'}</strong></p><div class="results-comparison-foot">${confidenceFrame?.summary || 'Use this as a working decision view, then challenge the largest assumptions.'}</div></div>
       <div class="results-summary-card"><div class="results-driver-label">Evidence base</div><p class="results-summary-copy"><strong>${evidenceQuality || 'Useful but incomplete evidence base'}</strong></p><div class="results-comparison-foot">${confidenceFrame?.evidenceSummary || `${citations.length} supporting reference${citations.length === 1 ? '' : 's'} attached`}</div></div>
@@ -675,7 +675,7 @@ function buildResultTrustBasis(assessment, runMetadata) {
 function renderModelBasisPanel(assessment, runMetadata, confidenceFrame, thresholdModel) {
   const basis = buildResultTrustBasis(assessment, runMetadata);
   return `<section class="results-section-stack">
-    <div class="results-section-heading">Model basis and input origins</div>
+    <div class="results-section-heading">Model basis and input sources</div>
     <div class="results-model-basis">
       <div class="results-model-basis__intro">
         <div class="results-driver-label">Plain-language model summary</div>
@@ -710,7 +710,7 @@ function renderModelBasisPanel(assessment, runMetadata, confidenceFrame, thresho
         </div>
       </div>
       <details class="results-detail-disclosure" style="margin-bottom:0">
-        <summary>How this works and what influenced it</summary>
+        <summary>How the model works and what influenced this result</summary>
         <div class="results-detail-disclosure-copy">Open this for the short scientific explanation and the live source audit behind the current result.</div>
         <div class="results-disclosure-stack">
           ${renderSimulationEquationFlow()}

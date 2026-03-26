@@ -102,7 +102,7 @@ function renderUserDashboard() {
       ? 'Review the latest result'
       : 'Start a guided assessment';
   const roleLaneCopy = hasDraft
-    ? 'Continue the active assessment and move it toward a management-ready result.'
+    ? 'Continue the active assessment and move it toward a decision-ready result.'
     : assessmentsNeedingReview.length
       ? 'Open the highest-priority completed scenario and confirm the next management action.'
       : 'Use the guided path to get to a first useful result quickly, then refine only if needed.';
@@ -118,7 +118,7 @@ function renderUserDashboard() {
           ? 'A focused oversight space for reviewing flagged business-unit work, maintaining context, and starting new assessments only when needed.'
           : 'A focused oversight space for reviewing function-level work, maintaining context, and starting new assessments only when needed.',
         roleLaneCopy: hasDraft
-          ? 'Continue the active draft, then bring it back into the review lane once the scenario is management-ready.'
+          ? 'Continue the active draft, then bring it back into the review lane once the scenario is decision-ready.'
           : assessmentsNeedingReview.length
             ? 'Open the highest-priority completed scenario and decide whether the business context, function context, or next action needs to change.'
             : 'No item currently needs escalation, so keep the context current and start new work only when it is materially useful.',
@@ -167,7 +167,7 @@ function renderUserDashboard() {
       }
     : {
         badge: 'Personal Workspace',
-        heroCopy: 'A calm working space for moving from scenario framing to a management-ready risk view. Start with the guided path, then open detail only when you need it.',
+        heroCopy: 'A calm working space for moving from scenario framing to a decision-ready risk view. Start with the guided path, then open detail only when you need it.',
         roleLaneCopy,
         quickStatus,
         primaryActionLabel: 'Start Guided Assessment',
@@ -181,14 +181,14 @@ function renderUserDashboard() {
             foot: hasDraft ? 'Your live draft or priority review items are ready to open.' : 'No active draft right now. Start from the guided path when needed.'
           },
           {
-            label: 'Completed view',
+            label: 'Completed assessments',
             value: assessments.length,
             foot: latestAssessment ? `Latest: ${new Date(latestAssessment.completedAt || latestAssessment.createdAt || Date.now()).toLocaleDateString('en-AE', { day: 'numeric', month: 'short', year: 'numeric' })}` : 'No completed assessments yet'
           },
           {
-            label: 'Context signal',
+            label: 'Context quality',
             value: contextReadinessLabel,
-            foot: contextReadinessScore >= 5 ? 'Your saved role and working context are ready to support AI-assisted drafting.' : 'Add more profile context to improve defaults and assisted output quality.'
+            foot: contextReadinessScore >= 5 ? 'Your saved role and working context are ready to support AI-assisted drafting.' : 'Add more profile context to improve defaults and suggestion quality.'
           }
         ],
         nextUpTitle: 'Next up',
@@ -196,7 +196,7 @@ function renderUserDashboard() {
         recentTitle: 'Recent work',
         recentDescription: 'Your latest saved assessments, kept compact so it is easy to reopen or compare them.',
         contextTitle: 'Your settings and saved context',
-        contextDescription: 'Reference information that shapes AI-assisted output and your default working context.',
+        contextDescription: 'Reference information that shapes assisted suggestions and your default working context.',
         playbookTitle: 'Role playbook',
         playbookDescription: 'Open this when you want role-specific guidance. The primary workflow stays intentionally simple by default.',
         spotlightTitle: 'Worked example and templates',
@@ -317,7 +317,7 @@ function renderUserDashboard() {
                 <div class="dashboard-focus-card">
                   <span class="dashboard-focus-card__label">Default context in use</span>
                   <strong>${settings.geographyPrimary || settings.geography || globalSettings.geography}</strong>
-                  <div class="context-panel-copy">This geography and your saved profile shape default wording, guidance, and AI-assisted suggestions.</div>
+                  <div class="context-panel-copy">This geography and your saved profile shape default wording, guidance, and assisted suggestions.</div>
                 </div>
                 <div class="dashboard-focus-card dashboard-focus-card--spotlight">
                   <span class="dashboard-focus-card__label">${roleFrontDoor.spotlightTitle}</span>
@@ -398,7 +398,7 @@ function renderUserDashboard() {
                   <div class="results-section-heading">Current profile</div>
                   <div class="context-panel-copy" style="margin-top:10px">${workspaceSummary}</div>
                   <div class="form-help" style="margin-top:12px">${guidanceSummary}</div>
-                  <div class="form-help" style="margin-top:8px">${profile.workingContext ? 'Working context is saved and will be reused in AI-assisted steps.' : 'Add working context in Personal Settings to improve AI-assisted outputs.'}</div>
+                  <div class="form-help" style="margin-top:8px">${profile.workingContext ? 'Working context is saved and will be reused in assisted steps.' : 'Add working context in Personal Settings to improve assisted suggestions.'}</div>
                   <div class="flex items-center gap-3 mt-5" style="flex-wrap:wrap">
                     <button class="btn btn--secondary" id="btn-dashboard-settings-secondary">Open Settings</button>
                   </div>

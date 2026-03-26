@@ -38,7 +38,7 @@ function buildEstimateExplainer(draft, bu, isAdv, currency) {
 function renderEstimateExplainerCard(draft, bu, isAdv, currency) {
   const explainer = buildEstimateExplainer(draft, bu, isAdv, currency);
   return `<div class="card card--elevated anim-fade-in">
-    <div class="context-panel-title">What These AI Values Mean</div>
+    <div class="context-panel-title">What the starting values mean</div>
     <div style="display:flex;flex-direction:column;gap:var(--sp-4);margin-top:var(--sp-3)">
       ${UI.contextInfoPanel({
         title: 'Where the starting values came from',
@@ -165,7 +165,7 @@ function renderEstimatePresetCard(draft) {
     : '<div class="context-panel-foot" style="margin-top:12px">Pick a quick start only if one looks close to your scenario. Otherwise keep the AI values or enter your own evidence-based ranges.</div>';
   return `<div class="card card--elevated anim-fade-in">
     <div class="context-panel-title">Quick start examples</div>
-    <p class="context-panel-copy" style="margin-top:var(--sp-2)">Use one of these only if you want a fast starting pattern. They do not replace the AI suggestions or your own evidence.</p>
+    <p class="context-panel-copy" style="margin-top:var(--sp-2)">Use one of these only if you want a fast starting pattern. They do not replace the suggested values or your own evidence.</p>
     <div class="citation-chips" style="margin-top:12px">${buttons}</div>
     ${summary}
   </div>`;
@@ -532,7 +532,7 @@ function renderEstimateOptionalHelpDetails(draft, sym) {
     title: 'How to complete this step',
     className: 'card card--elevated wizard-nested-card',
     panels: [
-      UI.contextInfoPanel({ title: '1. Start with the AI values', copy: 'If the AI suggestions look broadly right, adjust only the values you have evidence for.' }),
+      UI.contextInfoPanel({ title: '1. Start with the suggested values', copy: 'If the suggested values look broadly right, adjust only the values you have evidence for.' }),
       UI.contextInfoPanel({ title: '2. Think in ranges, not exact numbers', copy: 'Use a low, expected, and severe case. You do not need one perfect number.' }),
       UI.contextInfoPanel({ title: '3. Use Advanced only when needed', copy: 'Advanced mode is only for direct exposure, follow-on impact, and simulation tuning. Most users should stay in Basic.' })
     ]
@@ -565,8 +565,8 @@ function renderWizard3() {
             <div>
               <h2 class="wizard-step-title">Estimate the Scenario in Plain Language</h2>
               <p class="form-help" style="margin-top:8px">Review the starting numbers, sense-check them against what you know, and adjust only the values you want to challenge.</p>
-              <p class="wizard-step-desc">Start in Basic mode for the normal estimation path. Switch to Advanced only if you need direct exposure, follow-on loss, or simulation tuning. ${draft.llmAssisted?'<span style="color:var(--color-success-400)">✓ Pre-loaded from AI assist</span>':''}</p>
-              <div class="form-help" data-draft-save-state style="margin-top:10px">Draft will save automatically</div>
+              <p class="wizard-step-desc">Start in Basic mode for the standard estimation path. Switch to Advanced only if you need direct exposure, follow-on loss, or simulation tuning. ${draft.llmAssisted?'<span style="color:var(--color-success-400)">✓ Suggested values loaded</span>':''}</p>
+              <div class="form-help" data-draft-save-state style="margin-top:10px">Draft saves automatically</div>
               ${draft.llmAssisted ? renderPilotWarningBanner('ai', { compact: true }) : ''}
               ${/low/i.test(String(draft.confidenceLabel || '')) || (Array.isArray(draft.missingInformation) && draft.missingInformation.length) ? renderPilotWarningBanner('lowConfidence', {
                 compact: true,
@@ -832,8 +832,8 @@ ${request}`, 5);
       renderWizard3();
       UI.toast(result.usedFallback ? 'A fallback suggested better-outcome draft was loaded. Review the numbers before rerunning.' : 'A suggested better-outcome draft was loaded. Review the numbers before rerunning.', result.usedFallback ? 'warning' : 'success', 5000);
     } catch (error) {
-      if (statusEl) statusEl.textContent = 'AI assist failed. Keep your current values or try again in a moment.';
-      UI.toast('AI assist failed. Try again in a moment.', 'danger');
+      if (statusEl) statusEl.textContent = 'AI could not update the values just now. Keep the current values or try again in a moment.';
+      UI.toast('AI could not update the values. Try again in a moment.', 'danger');
       if (btn) { btn.disabled = false; btn.textContent = 'AI Assist This Better Outcome'; }
     }
   });

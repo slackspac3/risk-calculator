@@ -108,7 +108,7 @@ function renderPilotWarningBanner(kind = 'poc', {
     ai: {
       tone: 'info',
       icon: '✦',
-      title: title || 'AI-generated suggestions',
+      title: title || 'AI suggestions',
       text: text || 'Treat AI content as a suggested draft. Keep what helps, edit what does not, and confirm the assumptions before you rely on it.'
     },
     lowConfidence: {
@@ -503,7 +503,7 @@ function formatDraftSaveState() {
   if (AppState.userStateSyncInFlight) return 'Saving draft…';
   if (AppState.draftSaveTimer) return 'Saving draft soon…';
   if (AppState.draftDirty) return 'Changes not saved yet';
-  if (!AppState.draftLastSavedAt) return 'Draft will save automatically';
+  if (!AppState.draftLastSavedAt) return 'Draft saves automatically';
   return `Saved ${formatRelativePilotTime(AppState.draftLastSavedAt)}`;
 }
 
