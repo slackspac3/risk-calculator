@@ -32,20 +32,6 @@ function getStep1RecommendedAction(draft, selectedRisks) {
   };
 }
 
-function renderStep1StartCard(recommendation) {
-  return `<section class="wizard-summary-band wizard-summary-band--support wizard-summary-band--quiet anim-fade-in">
-    <div>
-      <div class="wizard-summary-band__label">Recommended path</div>
-      <strong>${recommendation.title}</strong>
-      <div class="wizard-summary-band__copy">${recommendation.copy}</div>
-    </div>
-    <div class="wizard-summary-band__meta">
-      <span class="badge badge--gold">Guided builder first</span>
-      <span class="wizard-summary-band__hint">Tighten wording and shortlist only after the first draft exists.</span>
-    </div>
-  </section>`;
-}
-
 function renderStep1SelectedRisksSummary(selectedRisks, riskCandidates) {
   if (!selectedRisks.length) return '';
   const chosenRisks = (riskCandidates || []).filter(risk => selectedRisks.includes(risk.id)).slice(0, 3);
@@ -82,12 +68,17 @@ function renderStep1FeaturedExampleCard(example) {
   </details>`;
 }
 
-function renderStep1GuidedBuilderCard(draft) {
+function renderStep1GuidedBuilderCard(draft, recommendation) {
+  const draftPreview = composeGuidedNarrative(draft.guidedInput);
   return `<div class="card card--elevated wizard-primary-card anim-fade-in anim-delay-1">
     <div class="wizard-premium-head" style="margin-bottom:var(--sp-5)">
       <div>
         <h3>Guided scenario builder</h3>
         <p>Answer a few plain-language prompts. The platform will turn them into a structured starting point you can edit before continuing.</p>
+        <div class="wizard-builder-note">
+          <strong>${recommendation.title}</strong>
+          <span>${recommendation.copy}</span>
+        </div>
       </div>
       <span class="badge badge--gold">Recommended</span>
     </div>
@@ -139,11 +130,101 @@ function renderStep1GuidedBuilderCard(draft) {
       <button class="btn btn--primary" id="btn-build-guided-narrative" type="button">Build scenario draft</button>
       <span class="form-help">Good enough is enough here. You can still tighten the wording and shortlist on the next screens.</span>
     </div>
-    <div class="card mt-4" style="padding:var(--sp-4);background:var(--bg-elevated)">
+    ${draftPreview ? `<div class="card mt-4 wizard-draft-preview" style="padding:var(--sp-4);background:var(--bg-elevated)">
       <div class="context-panel-title">Draft preview</div>
-      <p class="context-panel-copy" id="guided-preview">${composeGuidedNarrative(draft.guidedInput) || 'Answer the prompts and build the draft. The platform will create a clean starting statement for you.'}</p>
-    </div>
+      <p class="context-panel-copy" id="guided-preview">${draftPreview}</p>
+    </div>` : '<div class="form-help wizard-preview-placeholder" id="guided-preview">Answer the prompts and build the draft. The platform will create a clean starting statement for you.</div>'}
   </div>`;
+}
+
+function renderStep1SupportBand({ draft, hasScenarioDraft, hasImportedSource, featuredDryRun, activeDryRun, buList, scenarioGeographies, regs, settings }) {
+  return `<section class="wizard-support-band anim-fade-in">
+    <div class="results-section-heading">Support and alternate starts</div>
+    <div class="form-help" style="margin-top:8px">Use these only when you need existing context, a faster starting point, or a different source for the shortlist.</div>
+    <div class="wizard-support-band__stack">
+      ${activeDryRun ? renderLoadedDryRunBanner(activeDryRun) : ''}
+      ${draft.learningNote ? `<div class="wizard-summary-band wizard-summary-band--quiet"><div><div class="wizard-summary-band__label">Learnt from prior use</div><strong>Saved guidance from earlier use</strong><div class="wizard-summary-band__copy">${draft.learningNote}</div></div></div>` : ''}
+      ${UI.disclosureSection({
+        title: 'Assessment framing and defaults',
+        badgeLabel: 'Adjust only if needed',
+        badgeTone: 'neutral',
+        open: !draft.buId || !scenarioGeographies.length,
+        className: 'wizard-disclosure wizard-disclosure--support',
+        body: `
+        <div class="grid-2">
+          <div class="form-group">
+            <label class="form-label" for="wizard-bu">Business Unit <span class="required">*</span></label>
+            <select class="form-select" id="wizard-bu">
+              <option value="">— Select —</option>
+              ${buList.map(b => `<option value="${b.id}" ${draft.buId===b.id?'selected':''}>${b.name}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Geographies</label>
+            <div class="tag-input-wrap" id="ti-wizard-geographies"></div>
+            <div class="citation-chips" style="margin-top:10px">
+              ${GEOGRAPHY_OPTIONS.map(option => `<button type="button" class="chip wizard-geo-chip" data-geo="${option}">${option}</button>`).join('')}
+            </div>
+            <span class="form-help">Select all countries or regions relevant to this scenario. Applicable regulations update from the combined footprint.</span>
+          </div>
+        </div>
+        <div class="context-grid mt-4">
+          <div class="context-chip-panel">
+            <div class="context-panel-title">Risk Appetite</div>
+            <p class="context-panel-copy">${settings.riskAppetiteStatement}</p>
+            <div class="context-panel-foot">Current P90 per-event tolerance: ${fmtCurrency(getToleranceThreshold())}. Warning trigger: ${fmtCurrency(getWarningThreshold())}.</div>
+          </div>
+          <div class="context-chip-panel">
+            <div class="context-panel-title">Applicable Regulations</div>
+            <div class="citation-chips">
+              ${regs.map(tag => `<span class="badge badge--gold">${tag}</span>`).join('')}
+            </div>
+          </div>
+        </div>
+      `
+      })}
+      ${renderStep1FeaturedExampleCard(featuredDryRun)}
+      ${renderStep1OtherWaysToStart(draft, hasScenarioDraft, hasImportedSource)}
+      <div id="intake-output">
+        ${draft.intakeSummary ? `<div class="card card--glow"><div class="context-panel-title">AI Intake Summary</div><p class="context-panel-copy">${draft.intakeSummary}</p>${draft.linkAnalysis ? `<div class="context-panel-foot">${draft.linkAnalysis}</div>` : ''}</div>` : ''}
+      </div>
+    </div>
+  </section>`;
+}
+
+function renderStep1ScopeBand({ draft, selectedRisks, riskCandidates, regs }) {
+  const hasCandidates = riskCandidates.length > 0;
+  return `<section class="wizard-scope-band anim-fade-in">
+    <div class="wizard-ia-section">
+      <div class="results-section-heading">Choose what stays in scope</div>
+      <div class="form-help" style="margin-top:8px">Carry forward only the risks that belong in the same scenario and management discussion.</div>
+    </div>
+    ${hasCandidates ? `
+      <div class="card anim-fade-in anim-delay-2">
+        <div class="flex items-center justify-between mb-4" style="flex-wrap:wrap;gap:var(--sp-3)">
+          <div>
+            <div class="context-panel-title">Choose the risks for this assessment</div>
+            <p class="context-panel-copy">Keep only risks that share the same event, scope, or business impact. Remove anything that is out of scope before continuing.</p>
+          </div>
+          <label class="toggle-row">
+            <span class="toggle-label">Treat as linked scenario</span>
+            <label class="toggle"><input type="checkbox" id="linked-risks-toggle" ${draft.linkedRisks ? 'checked' : ''}><div class="toggle-track"></div></label>
+          </label>
+        </div>
+        <div id="selected-risks-wrap">
+          ${renderSelectedRiskCards(riskCandidates, selectedRisks, regs)}
+        </div>
+      </div>
+    ` : `
+      <section class="wizard-summary-band wizard-summary-band--quiet wizard-summary-band--scope-empty">
+        <div>
+          <div class="wizard-summary-band__label">Scope shortlist</div>
+          <strong>No candidate risks yet</strong>
+          <div class="wizard-summary-band__copy">Build the first scenario draft or use a support path above. The shortlist becomes the main focus once the page has real scope to review.</div>
+        </div>
+      </section>
+    `}
+  </section>`;
 }
 
 function renderStep1OtherWaysToStart(draft, hasScenarioDraft, hasImportedSource) {
@@ -518,6 +599,7 @@ function renderWizard1() {
   const featuredDryRun = STEP1_DRY_RUN_SCENARIOS[0] || null;
   const hasScenarioDraft = !!String(draft.narrative || draft.sourceNarrative || '').trim();
   const hasImportedSource = !!String(draft.uploadedRegisterName || '').trim() || (riskCandidates || []).some(risk => risk.source === 'register' || risk.source === 'ai+register');
+  const stepReady = !!(draft.buId && (hasScenarioDraft || selectedRisks.length));
 
   setPage(`
     <main class="page">
@@ -525,8 +607,7 @@ function renderWizard1() {
         <div class="wizard-header">
           ${UI.renderStepper(1)}
           <h2 class="wizard-step-title">AI-Assisted Risk &amp; Context Builder</h2>
-          <p class="form-help" style="margin-top:8px">Describe the scenario, let AI help only where useful, then carry forward only the risks that belong in this assessment.</p>
-          <p class="wizard-step-desc">Use the guided path first if you want the easiest route. Use the text or upload paths only when you already have source material.</p>
+          <p class="wizard-step-desc">Answer a few prompts, build the first scenario draft, then keep only the risks that belong in the same management discussion.</p>
           <div class="wizard-status-stack">
             <div class="form-help" data-draft-save-state>Draft saves automatically</div>
             ${renderPilotWarningBanner('ai', { compact: true })}
@@ -534,82 +615,14 @@ function renderWizard1() {
           </div>
         </div>
         <div class="wizard-body">
-          ${renderStep1GuidedBuilderCard(draft)}
-          ${renderStep1StartCard(recommendation)}
+          ${renderStep1GuidedBuilderCard(draft, recommendation)}
           ${renderStep1SelectedRisksSummary(selectedRisks, riskCandidates)}
-          ${renderLoadedDryRunBanner(activeDryRun)}
-          ${draft.learningNote ? `<div class="card card--elevated anim-fade-in"><div class="context-panel-title">Learnt from prior use</div><p class="context-panel-copy">${draft.learningNote}</p></div>` : ''}
-          ${UI.disclosureSection({
-            title: 'Assessment framing and defaults',
-            badgeLabel: 'Adjust only if needed',
-            badgeTone: 'neutral',
-            open: !draft.buId || !scenarioGeographies.length,
-            className: 'wizard-disclosure wizard-disclosure--support anim-fade-in',
-            body: `
-            <div class="grid-2">
-              <div class="form-group">
-                <label class="form-label" for="wizard-bu">Business Unit <span class="required">*</span></label>
-                <select class="form-select" id="wizard-bu">
-                  <option value="">— Select —</option>
-                  ${buList.map(b => `<option value="${b.id}" ${draft.buId===b.id?'selected':''}>${b.name}</option>`).join('')}
-                </select>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Geographies</label>
-                <div class="tag-input-wrap" id="ti-wizard-geographies"></div>
-                <div class="citation-chips" style="margin-top:10px">
-                  ${GEOGRAPHY_OPTIONS.map(option => `<button type="button" class="chip wizard-geo-chip" data-geo="${option}">${option}</button>`).join('')}
-                </div>
-                <span class="form-help">Select all countries or regions relevant to this scenario. Applicable regulations update from the combined footprint.</span>
-              </div>
-            </div>
-            <div class="context-grid mt-4">
-              <div class="context-chip-panel">
-                <div class="context-panel-title">Risk Appetite</div>
-                <p class="context-panel-copy">${settings.riskAppetiteStatement}</p>
-                <div class="context-panel-foot">Current P90 per-event tolerance: ${fmtCurrency(getToleranceThreshold())}. Warning trigger: ${fmtCurrency(getWarningThreshold())}.</div>
-              </div>
-              <div class="context-chip-panel">
-                <div class="context-panel-title">Applicable Regulations</div>
-                <div class="citation-chips">
-                  ${regs.map(tag => `<span class="badge badge--gold">${tag}</span>`).join('')}
-                </div>
-              </div>
-            </div>
-          `
-          })}
-
-          ${renderStep1OtherWaysToStart(draft, hasScenarioDraft, hasImportedSource)}
-          ${renderStep1FeaturedExampleCard(featuredDryRun)}
-
-          <div id="intake-output">
-            ${draft.intakeSummary ? `<div class="card card--glow anim-fade-in"><div class="context-panel-title">AI Intake Summary</div><p class="context-panel-copy">${draft.intakeSummary}</p>${draft.linkAnalysis ? `<div class="context-panel-foot">${draft.linkAnalysis}</div>` : ''}</div>` : ''}
-          </div>
-
-          <section class="wizard-ia-section anim-fade-in">
-            <div class="results-section-heading">Choose what stays in scope</div>
-            <div class="form-help" style="margin-top:8px">Carry forward only the risks that belong in the same scenario and management discussion.</div>
-          </section>
-
-          <div class="card anim-fade-in anim-delay-2">
-            <div class="flex items-center justify-between mb-4" style="flex-wrap:wrap;gap:var(--sp-3)">
-              <div>
-                <div class="context-panel-title">Choose the risks for this assessment</div>
-                <p class="context-panel-copy">Keep only risks that share the same event, scope, or business impact. Remove anything that is out of scope before continuing.</p>
-              </div>
-              <label class="toggle-row">
-                <span class="toggle-label">Treat as linked scenario</span>
-                <label class="toggle"><input type="checkbox" id="linked-risks-toggle" ${draft.linkedRisks ? 'checked' : ''}><div class="toggle-track"></div></label>
-              </label>
-            </div>
-            <div id="selected-risks-wrap">
-              ${renderSelectedRiskCards(riskCandidates, selectedRisks, regs)}
-            </div>
-          </div>
+          ${renderStep1SupportBand({ draft, hasScenarioDraft, hasImportedSource, featuredDryRun, activeDryRun, buList, scenarioGeographies, regs, settings })}
+          ${renderStep1ScopeBand({ draft, selectedRisks, riskCandidates, regs })}
         </div>
         <div class="wizard-footer">
           <a class="btn btn--ghost" href="#/dashboard">← Dashboard</a>
-          <button class="btn btn--primary" id="btn-next-1">Continue with ${selectedRisks.length || 0} selected risk${selectedRisks.length === 1 ? '' : 's'} →</button>
+          <button class="btn ${stepReady ? 'btn--primary' : 'btn--secondary'}" id="btn-next-1" ${stepReady ? '' : 'disabled'}>Continue with ${selectedRisks.length || 0} selected risk${selectedRisks.length === 1 ? '' : 's'} →</button>
         </div>
       </div>
     </main>`);
@@ -703,7 +716,7 @@ function renderWizard1() {
   document.getElementById('btn-clear-dry-run')?.addEventListener('click', () => {
     resetStep1DryRunContent();
   });
-  document.getElementById('linked-risks-toggle').addEventListener('change', function() {
+  document.getElementById('linked-risks-toggle')?.addEventListener('change', function() {
     AppState.draft.linkedRisks = this.checked;
     saveDraft();
   });
