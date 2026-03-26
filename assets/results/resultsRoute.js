@@ -1428,13 +1428,13 @@ function renderResults(id, isShared) {
     <main class="page">
       <div class="container container--wide" style="padding:var(--sp-8) var(--sp-6)">
         ${sharedBanner}
-        <div class="flex items-center justify-between mb-6 anim-fade-in" style="gap:var(--sp-4);flex-wrap:wrap">
+        <div class="flex items-center justify-between mb-6 anim-fade-in results-header-bar" style="gap:var(--sp-4);flex-wrap:wrap">
           <div>
             <div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:4px">Assessment Results</div>
             <h1 style="font-size:var(--text-3xl)">${assessment.scenarioTitle || 'Risk Assessment'}</h1>
             <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:4px">${assessment.buName || '—'} · ${assessment.geography || '—'} · ${completedLabel}</div>
           </div>
-          <div class="flex items-center gap-3" style="flex-wrap:wrap">
+          <div class="flex items-center gap-3 results-header-actions" style="flex-wrap:wrap">
             <button class="btn btn--primary btn--sm" id="btn-export-pdf">↓ PDF Report</button>
             <button class="btn btn--secondary btn--sm" id="btn-create-treatment-case">Compare a Better Outcome</button>
             <details class="results-actions-disclosure">

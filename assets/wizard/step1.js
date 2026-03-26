@@ -522,7 +522,7 @@ function renderWizard1() {
           ${renderStep1ReadinessBanner(draft, selectedRisks)}
         </div>
         <div class="wizard-body">
-          <div class="wizard-focus-strip anim-fade-in">
+          <div class="wizard-focus-strip wizard-focus-strip--compact anim-fade-in">
             <div class="wizard-focus-card wizard-focus-card--wide">
               <span class="wizard-focus-card__label">Step goal</span>
               <strong>Get to one clear scenario and a tight shortlist of in-scope risks.</strong>
