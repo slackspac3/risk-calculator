@@ -2,6 +2,9 @@
   "name": "risk-calculator",
   "version": "0.10.0-pilot.1",
   "private": true,
+  "engines": {
+    "node": ">=24 <25"
+  },
   "scripts": {
     "check:syntax": "node scripts/syntax-check.js",
     "check:smoke": "node scripts/smoke-check.js",

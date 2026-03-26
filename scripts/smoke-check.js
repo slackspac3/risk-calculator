@@ -6,6 +6,8 @@ const root = path.resolve(__dirname, '..');
 const failures = [];
 const notes = [];
 const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+const nvmrc = fs.readFileSync(path.join(root, '.nvmrc'), 'utf8').trim();
+const nodeVersionFile = fs.readFileSync(path.join(root, '.node-version'), 'utf8').trim();
 
 function read(file) {
   return fs.readFileSync(path.join(root, file), 'utf8');
@@ -46,9 +48,12 @@ const seededAssessments = read('data/pilot-seed/demo-assessments.sample.json');
 const versions = extractAssetVersions(indexHtml);
 expect(versions.length === 1, `Expected one frontend asset version, found: ${versions.join(', ') || 'none'}`);
 expect(indexHtml.includes('window.__RISK_CALCULATOR_RELEASE__'), 'index.html is missing the release metadata bootstrap');
+expect(nvmrc === '24', `.nvmrc must pin Node 24 for the pilot release flow. Found: ${nvmrc || 'empty'}`);
+expect(nodeVersionFile === '24', `.node-version must pin Node 24 for the pilot release flow. Found: ${nodeVersionFile || 'empty'}`);
 expect(appJs.includes('function getReleaseInfo()'), 'app.js is missing getReleaseInfo helper');
 expect(appJs.includes('function getReleaseLabel()'), 'app.js is missing getReleaseLabel helper');
 expect(String(packageJson.version || '').trim().length > 0, 'package.json must include an application version');
+expect(String(packageJson.engines?.node || '').trim() === '>=24 <25', 'package.json engines.node must pin the supported Node major version.');
 expect(appJs.includes(`const APP_ASSET_VERSION = '${versions[0] || ''}'`), 'app.js asset version does not match index.html asset version');
 expect(indexHtml.includes('assets/services/reportPresentation.js'), 'index.html is missing reportPresentation.js');
 expect(indexHtml.includes('assets/services/benchmarkService.js'), 'index.html is missing benchmarkService.js');
@@ -120,7 +125,9 @@ expect(e2eSmokeSpecJs.includes('admin can update user access and the request car
 expect(ciWorkflow.includes('npm run check:syntax'), 'Pilot CI workflow is missing syntax checks');
 expect(ciWorkflow.includes('npm run check:smoke'), 'Pilot CI workflow is missing smoke-check.js');
 expect(ciWorkflow.includes('npm run test:e2e:smoke'), 'Pilot CI workflow is missing Playwright smoke coverage');
+expect(ciWorkflow.includes('node-version-file: .nvmrc'), 'Pilot CI workflow must use the repo Node pin.');
 expect(pagesWorkflow.includes('needs: validate'), 'Pages deployment is not blocked on validation');
+expect(pagesWorkflow.includes('node-version-file: .nvmrc'), 'Pages workflow must use the repo Node pin.');
 expect(releaseChecklist.includes('Confirm GitHub Actions `Pilot CI` is green'), 'Release checklist is missing CI confirmation');
 expect(rollbackPlaybook.includes('Frontend Rollback: GitHub Pages'), 'Rollback playbook is missing frontend rollback guidance');
 expect(rollbackPlaybook.includes('Backend Rollback: Vercel API'), 'Rollback playbook is missing backend rollback guidance');

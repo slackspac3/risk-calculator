@@ -113,6 +113,17 @@ Shared backend persistence covers:
 
 ## Local Development
 
+Preferred local Node version:
+
+```bash
+nvm use
+```
+
+This repo pins Node `24` in:
+- [.nvmrc](./.nvmrc)
+- [.node-version](./.node-version)
+- [package.json](./package.json) `engines`
+
 Run a simple local static server from the repo root:
 
 ```bash
