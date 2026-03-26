@@ -16,6 +16,8 @@ const LEARNING_STORAGE_PREFIX = 'rq_learning_store';
 const DRAFT_STORAGE_PREFIX = 'rq_draft';
 const DRAFT_RECOVERY_STORAGE_PREFIX = 'rq_draft_recovery';
 const SESSION_LLM_STORAGE_PREFIX = 'rq_llm_session';
+const MAX_AI_UPLOAD_BYTES = 5 * 1024 * 1024;
+const MAX_AI_UPLOAD_CHARS = 20000;
 const DEFAULT_TYPICAL_DEPARTMENTS = [
   'Information Security',
   'Technology',
@@ -3456,6 +3458,15 @@ function extractTextFromBinaryDocument(buffer) {
 }
 
 async function parseRegisterFile(file) {
+  if (Number(file?.size || 0) > MAX_AI_UPLOAD_BYTES) {
+    throw new Error('The uploaded file is too large for pilot AI assist. Keep files under 5 MB.');
+  }
+  const sanitizeAiUploadText = value => {
+    if (typeof AIGuardrails?.sanitizeText === 'function') {
+      return AIGuardrails.sanitizeText(value, { maxChars: MAX_AI_UPLOAD_CHARS });
+    }
+    return String(value || '').replace(/\s+/g, ' ').trim().slice(0, MAX_AI_UPLOAD_CHARS);
+  };
   const ext = getFileExtension(file.name);
   if (ext === 'xlsx' || ext === 'xls') {
     if (typeof XLSX === 'undefined') {
@@ -3473,7 +3484,7 @@ async function parseRegisterFile(file) {
       };
     });
     return {
-      text: sheetSummaries.map(s => s.text).join('\n\n'),
+      text: sanitizeAiUploadText(sheetSummaries.map(s => s.text).join('\n\n')),
       meta: {
         type: 'spreadsheet',
         extension: ext,
@@ -3487,7 +3498,7 @@ async function parseRegisterFile(file) {
     const buffer = await file.arrayBuffer();
     const extracted = extractTextFromBinaryDocument(buffer);
     return {
-      text: extracted || `${file.name} was uploaded, but only limited text could be extracted in the browser.`,
+      text: sanitizeAiUploadText(extracted || `${file.name} was uploaded, but only limited text could be extracted in the browser.`),
       meta: {
         type: 'document',
         extension: ext,
@@ -3501,7 +3512,7 @@ async function parseRegisterFile(file) {
   if (ext === 'csv' || ext === 'tsv') {
     const rows = parseDelimitedText(text, ext === 'tsv' ? '\t' : ',');
     return {
-      text: rowsToStructuredRegisterText(file.name, rows),
+      text: sanitizeAiUploadText(rowsToStructuredRegisterText(file.name, rows)),
       meta: {
         type: 'delimited',
         extension: ext,
@@ -3512,7 +3523,7 @@ async function parseRegisterFile(file) {
   }
 
   return {
-    text,
+    text: sanitizeAiUploadText(text),
     meta: {
       type: 'text',
       extension: ext || 'txt',

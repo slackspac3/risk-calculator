@@ -10,6 +10,64 @@
  */
 
 const LLMService = (() => {
+  const AI_MAX_RETRIES = 2;
+  const AI_TIMEOUT_MS = 30000;
+
+  function _guardrails() {
+    return typeof AIGuardrails === 'object' && AIGuardrails ? AIGuardrails : null;
+  }
+
+  function _sanitizeAiText(value = '', { maxChars = 20000 } = {}) {
+    const guardrails = _guardrails();
+    if (guardrails?.sanitizeText) return guardrails.sanitizeText(value, { maxChars });
+    return String(value || '').replace(/\s+/g, ' ').trim().slice(0, maxChars);
+  }
+
+  function _labelSuggestedDraft(value = '') {
+    const guardrails = _guardrails();
+    if (guardrails?.labelSuggested) return guardrails.labelSuggested(value);
+    const text = _sanitizeAiText(value, { maxChars: 40000 });
+    return text ? `Suggested draft: ${text}` : '';
+  }
+
+  function _buildPromptPayload(systemPrompt, userPrompt, options = {}) {
+    const guardrails = _guardrails();
+    if (guardrails?.buildPromptPayload) {
+      return guardrails.buildPromptPayload(systemPrompt, userPrompt, { maxChars: Number(options.maxPromptChars || 18000) });
+    }
+    return {
+      systemPrompt: _sanitizeAiText(systemPrompt, { maxChars: 6000 }),
+      userPrompt: _sanitizeAiText(userPrompt, { maxChars: Number(options.maxPromptChars || 18000) }),
+      truncated: false
+    };
+  }
+
+  function _buildSourceBasis({ evidenceMeta = {}, citations = [], uploadedDocumentName = '', fallbackUsed = false } = {}) {
+    const guardrails = _guardrails();
+    if (guardrails?.buildSourceBasis) {
+      return guardrails.buildSourceBasis({
+        evidenceSummary: evidenceMeta?.summary || '',
+        citations,
+        uploadedDocumentName,
+        fallbackUsed
+      });
+    }
+    return [];
+  }
+
+  async function _auditAiEvent(eventType, status, details = {}) {
+    try {
+      if (typeof logAuditEvent !== 'function') return;
+      await logAuditEvent({
+        category: 'ai',
+        eventType,
+        target: details.target || 'ai_service',
+        status: status || 'success',
+        source: 'client',
+        details
+      });
+    } catch {}
+  }
 
   function resolveCompassApiUrl() {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
@@ -72,6 +130,58 @@ const LLMService = (() => {
     return error instanceof Error ? error : new Error(msg);
   }
 
+  function _decorateAiResult(result = {}, evidenceMeta = null, { contentFields = [], fallbackUsed = false, uploadedDocumentName = '' } = {}) {
+    const next = { ...(result || {}) };
+    const content = {};
+    contentFields.forEach(field => {
+      const value = next[field];
+      if (typeof value === 'string' && value.trim()) {
+        const labelled = _labelSuggestedDraft(value);
+        next[field] = labelled;
+        content[field] = labelled;
+      }
+    });
+    const assumptions = Array.isArray(next.inferredAssumptions)
+      ? next.inferredAssumptions
+      : Array.isArray(next.assumptions)
+        ? next.assumptions.map(item => typeof item === 'string' ? item : `${item?.category || 'Assumption'}: ${item?.text || ''}`)
+        : [];
+    const sourceBasis = _buildSourceBasis({
+      evidenceMeta,
+      citations: next.citations || [],
+      uploadedDocumentName,
+      fallbackUsed
+    });
+    const guardrails = _guardrails();
+    const envelope = guardrails?.buildEnvelope
+      ? guardrails.buildEnvelope({
+          content,
+          confidence: {
+            label: next.confidenceLabel || evidenceMeta?.confidenceLabel || 'Moderate confidence',
+            evidenceQuality: next.evidenceQuality || evidenceMeta?.evidenceQuality || '',
+            summary: next.evidenceSummary || evidenceMeta?.summary || ''
+          },
+          assumptions,
+          missingInformation: next.missingInformation || evidenceMeta?.missingInformation || [],
+          sourceBasis,
+          fallbackUsed
+        })
+      : {
+          label: 'Suggested draft',
+          content,
+          confidence: { label: next.confidenceLabel || 'Moderate confidence', evidenceQuality: next.evidenceQuality || '', summary: next.evidenceSummary || '' },
+          assumptions,
+          missingInformation: next.missingInformation || [],
+          sourceBasis,
+          fallbackUsed
+        };
+    next.draftStatusLabel = 'Suggested draft';
+    next.sourceBasis = sourceBasis;
+    next.aiEnvelope = envelope;
+    next.usedFallback = !!fallbackUsed;
+    return next;
+  }
+
   function _isDirectCompassUrl(url) {
     try {
       return new URL(url).hostname === 'api.core42.ai';
@@ -109,56 +219,74 @@ const LLMService = (() => {
     const directCompass = _isDirectCompassUrl(_compassApiUrl);
     if (directCompass && !_compassApiKey) return null; // fall through to stub
 
-    const timeoutMs = Number(options.timeoutMs || 30000);
+    const timeoutMs = Number(options.timeoutMs || AI_TIMEOUT_MS);
     const maxCompletionTokens = Number(options.maxCompletionTokens || 1200);
-    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    let timeoutId = null;
+    const promptPayload = _buildPromptPayload(systemPrompt, userPrompt, options);
+    let lastError = null;
 
-    try {
-      const headers = {
-        'Content-Type': 'application/json'
-      };
-      if (_compassApiKey) {
-        headers.Authorization = `Bearer ${_compassApiKey}`;
-      }
-      const fetchPromise = (async () => {
-        const res = await fetch(_compassApiUrl, {
-          method: 'POST',
-          headers,
-          signal: controller?.signal,
-          body: JSON.stringify({
-            model: _compassModel,
-            max_completion_tokens: maxCompletionTokens,
-            temperature: 0.3,
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user',   content: userPrompt }
-            ]
-          })
-        });
-        if (!res.ok) {
-          const errText = await res.text();
-          throw new Error(`LLM API error ${res.status}: ${errText}`);
+    for (let attempt = 1; attempt <= AI_MAX_RETRIES; attempt += 1) {
+      const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      let timeoutId = null;
+      try {
+        const headers = {
+          'Content-Type': 'application/json'
+        };
+        if (_compassApiKey) {
+          headers.Authorization = `Bearer ${_compassApiKey}`;
         }
-        const data = await res.json();
-        return data.choices?.[0]?.message?.content || null;
-      })();
-      const timeoutPromise = new Promise((_, reject) => {
-        timeoutId = setTimeout(() => {
-          try { controller?.abort(); } catch {}
-          reject(new Error('AI assist timed out. Try again, shorten the prompt, or check the model configuration.'));
-        }, timeoutMs);
-      });
-      return await Promise.race([fetchPromise, timeoutPromise]);
-    } catch (error) {
-      const message = String(error?.message || error || '');
-      if (error?.name === 'AbortError' || /timed out/i.test(message)) {
-        throw new Error('AI assist timed out. Try again, shorten the prompt, or check the model configuration.');
+        const fetchPromise = (async () => {
+          const res = await fetch(_compassApiUrl, {
+            method: 'POST',
+            headers,
+            signal: controller?.signal,
+            body: JSON.stringify({
+              model: _compassModel,
+              max_completion_tokens: maxCompletionTokens,
+              temperature: 0.3,
+              messages: [
+                { role: 'system', content: promptPayload.systemPrompt },
+                { role: 'user', content: promptPayload.userPrompt }
+              ]
+            })
+          });
+          if (!res.ok) {
+            const errText = await res.text();
+            throw new Error(`LLM API error ${res.status}: ${errText}`);
+          }
+          const data = await res.json();
+          return data.choices?.[0]?.message?.content || null;
+        })();
+        const timeoutPromise = new Promise((_, reject) => {
+          timeoutId = setTimeout(() => {
+            try { controller?.abort(); } catch {}
+            reject(new Error('AI assist timed out. Try again, shorten the prompt, or check the model configuration.'));
+          }, timeoutMs);
+        });
+        const response = await Promise.race([fetchPromise, timeoutPromise]);
+        if (promptPayload.truncated) {
+          _auditAiEvent('ai_prompt_truncated', 'success', {
+            taskName: options.taskName || 'ai_request',
+            promptLimit: Number(options.maxPromptChars || 18000)
+          });
+        }
+        return response;
+      } catch (error) {
+        lastError = error;
+        const message = String(error?.message || error || '');
+        if (attempt < AI_MAX_RETRIES && (/timed out/i.test(message) || /Failed to fetch|NetworkError|502|503|504/i.test(message))) {
+          await new Promise(resolve => setTimeout(resolve, 300 * attempt));
+          continue;
+        }
+      } finally {
+        if (timeoutId) clearTimeout(timeoutId);
       }
-      throw _normaliseLLMError(error);
-    } finally {
-      if (timeoutId) clearTimeout(timeoutId);
     }
+
+    const message = String(lastError?.message || lastError || '');
+    if (lastError?.name === 'AbortError' || /timed out/i.test(message)) {
+      throw new Error('AI assist timed out. Try again, shorten the prompt, or check the model configuration.');
+    }
+    throw _normaliseLLMError(lastError);
   }
 
   // ─── Stub generator ──────────────────────────────────────
@@ -450,6 +578,18 @@ ${businessUnit.selectedDepartmentContext}` : ''
       citations: Array.isArray(result.citations) ? result.citations.filter(Boolean) : []
     };
     return normalised;
+  }
+
+  async function _auditAiFallback(taskName, error, details = {}) {
+    await _auditAiEvent('ai_request_failed', 'failure', {
+      taskName,
+      message: _sanitizeAiText(error?.message || error || 'Unknown AI failure', { maxChars: 240 }),
+      ...details
+    });
+    await _auditAiEvent('ai_fallback_used', 'success', {
+      taskName,
+      ...details
+    });
   }
 
   function _classifyScenario(narrative = '') {
@@ -961,7 +1101,7 @@ ${BenchmarkService.buildPromptBlock(benchmarkCandidates)}
 Evidence quality context:
 ${evidenceMeta.promptBlock}`;
 
-        const raw = await _callLLM(systemPrompt, userPrompt);
+        const raw = await _callLLM(systemPrompt, userPrompt, { taskName: 'generateScenarioAndInputs' });
         if (raw) {
           const parsed = JSON.parse(raw.replace(/```json\n?|```/g, '').trim());
           const fallback = _generateStub(narrative, buContext, retrievedDocs, benchmarkCandidates);
@@ -976,7 +1116,7 @@ ${evidenceMeta.promptBlock}`;
           });
           const cleanedTitle = String(parsed.scenarioTitle || '').trim();
           const keepFallbackClassification = classification.key === 'identity' && /cloud|misconfig/i.test(cleanedTitle);
-          return _withEvidenceMeta({
+          return _decorateAiResult(_withEvidenceMeta({
             ...fallback,
             ...parsed,
             scenarioTitle: _cleanUserFacingText(keepFallbackClassification ? fallback.scenarioTitle : (cleanedTitle || fallback.scenarioTitle), { maxSentences: 1, stripTrailingPeriod: true }),
@@ -1019,15 +1159,23 @@ ${evidenceMeta.promptBlock}`;
             },
             recommendations: _normaliseRiskCards((parsed.recommendations || fallback.recommendations || []).map((rec) => ({ title: rec.title, category: 'Recommendation', description: rec.why, regulations: [], impact: rec.impact }))).map((rec) => ({ title: rec.title, why: rec.description, impact: rec.impact || '' })),
             citations: retrievedDocs
-          }, evidenceMeta);
+          }, evidenceMeta), evidenceMeta, {
+            contentFields: ['scenarioTitle', 'benchmarkBasis'],
+            fallbackUsed: false
+          });
         }
       } catch (e) {
+        await _auditAiFallback('generateScenarioAndInputs', e);
         console.warn('LLM API call failed, falling back to stub:', e.message);
       }
     }
 
     // Fall back to stub
-    return _withEvidenceMeta(_generateStub(narrative, buContext, retrievedDocs, benchmarkCandidates), _buildEvidenceMeta({ citations: retrievedDocs, businessUnit: buContext, geography: buContext?.geography, applicableRegulations: buContext?.regulatoryTags || [], userProfile: buContext?.userProfileSummary, organisationContext: buContext?.companyStructureContext }));
+    const fallbackMeta = _buildEvidenceMeta({ citations: retrievedDocs, businessUnit: buContext, geography: buContext?.geography, applicableRegulations: buContext?.regulatoryTags || [], userProfile: buContext?.userProfileSummary, organisationContext: buContext?.companyStructureContext });
+    return _decorateAiResult(_withEvidenceMeta(_generateStub(narrative, buContext, retrievedDocs, benchmarkCandidates), fallbackMeta), fallbackMeta, {
+      contentFields: ['scenarioTitle', 'benchmarkBasis'],
+      fallbackUsed: true
+    });
   }
 
   async function enhanceRiskContext(input) {
@@ -1087,10 +1235,10 @@ Instructions:
 
 Evidence quality context:
 ${evidenceMeta.promptBlock}`;
-        const raw = await _callLLM(systemPrompt, userPrompt);
+        const raw = await _callLLM(systemPrompt, userPrompt, { taskName: 'enhanceRiskContext' });
         if (raw) {
           const parsed = JSON.parse(raw.replace(/```json\n?|```/g, '').trim());
-          return _withEvidenceMeta({
+          return _decorateAiResult(_withEvidenceMeta({
             ...parsed,
             enhancedStatement: _buildEnhancedNarrative(input, parsed.enhancedStatement),
             summary: _cleanUserFacingText(parsed.summary || '', { maxSentences: 3 }),
@@ -1100,13 +1248,21 @@ ${evidenceMeta.promptBlock}`;
             risks: _normaliseRiskCards(parsed.risks),
             regulations: Array.from(new Set((parsed.regulations || []).map(String).filter(Boolean))),
             citations: input.citations || []
-          }, evidenceMeta);
+          }, evidenceMeta), evidenceMeta, {
+            contentFields: ['enhancedStatement', 'summary', 'linkAnalysis', 'benchmarkBasis'],
+            fallbackUsed: false
+          });
         }
       } catch (e) {
+        await _auditAiFallback('enhanceRiskContext', e);
         console.warn('enhanceRiskContext fallback:', e.message);
       }
     }
-    return _withEvidenceMeta(_generateRiskBuilderStub(input), _buildEvidenceMeta({ citations: input.citations || [], businessUnit: input.businessUnit, geography: input.geography, applicableRegulations: input.applicableRegulations, uploadedText: input.registerText, registerText: input.registerText, userProfile: input.adminSettings?.userProfileSummary, organisationContext: input.adminSettings?.companyStructureContext, adminSettings: input.adminSettings }));
+    const fallbackMeta = _buildEvidenceMeta({ citations: input.citations || [], businessUnit: input.businessUnit, geography: input.geography, applicableRegulations: input.applicableRegulations, uploadedText: input.registerText, registerText: input.registerText, userProfile: input.adminSettings?.userProfileSummary, organisationContext: input.adminSettings?.companyStructureContext, adminSettings: input.adminSettings });
+    return _decorateAiResult(_withEvidenceMeta(_generateRiskBuilderStub(input), fallbackMeta), fallbackMeta, {
+      contentFields: ['enhancedStatement', 'summary', 'linkAnalysis', 'benchmarkBasis'],
+      fallbackUsed: true
+    });
   }
 
   async function analyseRiskRegister(input) {
@@ -1168,10 +1324,10 @@ Instructions:
 
 Evidence quality context:
 ${evidenceMeta.promptBlock}`;
-        const raw = await _callLLM(systemPrompt, userPrompt);
+        const raw = await _callLLM(systemPrompt, userPrompt, { taskName: 'analyseRiskRegister' });
         if (raw) {
           const parsed = JSON.parse(raw.replace(/```json\n?|```/g, '').trim());
-          return _withEvidenceMeta({
+          return _decorateAiResult(_withEvidenceMeta({
             summary: _cleanUserFacingText(parsed.summary || '', { maxSentences: 3 }),
             linkAnalysis: _cleanUserFacingText(parsed.linkAnalysis || '', { maxSentences: 3 }),
             workflowGuidance: _normaliseGuidance(parsed.workflowGuidance),
@@ -1184,9 +1340,13 @@ ${evidenceMeta.promptBlock}`;
               source: risk.source || 'register',
               regulations: risk.regulations || []
             }))
-          }, evidenceMeta);
+          }, evidenceMeta), evidenceMeta, {
+            contentFields: ['summary', 'linkAnalysis', 'benchmarkBasis'],
+            fallbackUsed: false
+          });
         }
       } catch (e) {
+        await _auditAiFallback('analyseRiskRegister', e);
         console.warn('analyseRiskRegister fallback:', e.message);
       }
     }
@@ -1207,30 +1367,73 @@ ${evidenceMeta.promptBlock}`;
         'Ask AI assist to translate the selected scope into FAIR inputs with GCC-first benchmark logic.'
       ];
     }
-    return _withEvidenceMeta(stub, evidenceMeta);
+    return _decorateAiResult(_withEvidenceMeta(stub, evidenceMeta), evidenceMeta, {
+      contentFields: ['summary', 'linkAnalysis', 'benchmarkBasis'],
+      fallbackUsed: true
+    });
   }
 
   async function buildCompanyContext(websiteUrl) {
     const endpoint = _getCompanyContextUrl();
     if (!endpoint) {
-      throw new Error('Company context building requires a hosted proxy URL, not direct browser-to-Compass mode.');
+      const fallback = _decorateAiResult({
+        companySummary: 'Suggested draft: Company context could not be built from a live service in this session. Use the website and your source material to keep drafting safely.',
+        businessProfile: 'Suggested draft: Review the company website, operating model, and uploaded material to complete this profile.',
+        operatingModel: 'Suggested draft: Add the main operating model, critical services, and control dependencies here.',
+        publicCommitments: [],
+        riskSignals: [],
+        likelyObligations: [],
+        regulatorySignals: [],
+        aiGuidance: 'Suggested draft: Keep outputs concise, grounded in uploaded material, and clearly marked as working draft content.',
+        suggestedGeography: '',
+        sources: [],
+        responseMessage: 'Suggested draft: A live company-context service was unavailable, so the current content was kept as a working draft.'
+      }, { summary: 'Evidence used: website URL only.' }, {
+        contentFields: ['companySummary', 'businessProfile', 'operatingModel', 'aiGuidance', 'responseMessage'],
+        fallbackUsed: true
+      });
+      await _auditAiEvent('ai_fallback_used', 'success', { taskName: 'buildCompanyContext', reason: 'proxy_unavailable' });
+      return fallback;
     }
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ websiteUrl })
-    });
-    if (!res.ok) {
-      const errText = await res.text();
-      throw _normaliseLLMError(new Error(`LLM API error ${res.status}: ${errText}`));
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ websiteUrl: _sanitizeAiText(websiteUrl, { maxChars: 240 }) })
+      });
+      if (!res.ok) {
+        const errText = await res.text();
+        throw _normaliseLLMError(new Error(`LLM API error ${res.status}: ${errText}`));
+      }
+      const data = await res.json();
+      if (data?.error) {
+        throw new Error(data.error);
+      }
+      return _decorateAiResult(data, { summary: 'Evidence used: public website and retrieved public sources.' }, {
+        contentFields: ['companySummary', 'businessProfile', 'operatingModel', 'aiGuidance', 'responseMessage'],
+        fallbackUsed: false
+      });
+    } catch (error) {
+      await _auditAiFallback('buildCompanyContext', error, { websiteUrl: _sanitizeAiText(websiteUrl, { maxChars: 120 }) });
+      return _decorateAiResult({
+        companySummary: `Suggested draft: We could not complete a live company-context build for ${_sanitizeAiText(websiteUrl, { maxChars: 120 })}. Keep the current text and refine it manually or retry with a shorter source set.`,
+        businessProfile: 'Suggested draft: Capture the main business model, operating footprint, and critical services from the website and uploaded material.',
+        operatingModel: 'Suggested draft: Add the operating model, delivery dependencies, and major control boundaries here.',
+        publicCommitments: [],
+        riskSignals: [],
+        likelyObligations: [],
+        regulatorySignals: [],
+        aiGuidance: 'Suggested draft: Keep outputs grounded in public sources and your uploaded material.',
+        suggestedGeography: '',
+        sources: [],
+        responseMessage: 'Suggested draft: The live AI build failed, so no existing user progress was removed.'
+      }, { summary: 'Evidence used: limited website input only.' }, {
+        contentFields: ['companySummary', 'businessProfile', 'operatingModel', 'aiGuidance', 'responseMessage'],
+        fallbackUsed: true
+      });
     }
-    const data = await res.json();
-    if (data?.error) {
-      throw new Error(data.error);
-    }
-    return data;
   }
 
 
@@ -1317,20 +1520,22 @@ Instructions:
 
 Evidence quality context:
 ${evidenceMeta.promptBlock}`;
-      const raw = await _callLLM(systemPrompt, userPrompt, { maxCompletionTokens: 700, timeoutMs: 15000 });
-      if (!raw) return _withEvidenceMeta(stub, evidenceMeta);
+      const raw = await _callLLM(systemPrompt, userPrompt, { maxCompletionTokens: 700, timeoutMs: 15000, taskName: 'buildEntityContext' });
+      if (!raw) return _decorateAiResult(_withEvidenceMeta(stub, evidenceMeta), evidenceMeta, { contentFields: ['contextSummary', 'riskAppetiteStatement', 'aiInstructions', 'benchmarkStrategy'], fallbackUsed: true, uploadedDocumentName: input.uploadedDocumentName });
       const parsed = JSON.parse(String(raw).replace(/```json\n?|```/g, '').trim());
-      return _withEvidenceMeta({
+      return _decorateAiResult(_withEvidenceMeta({
         geography: String(parsed.geography || stub.geography || '').trim(),
         contextSummary: _cleanUserFacingText(parsed.contextSummary || stub.contextSummary || '', { maxSentences: isDepartment ? 4 : 5 }),
         riskAppetiteStatement: _cleanUserFacingText(parsed.riskAppetiteStatement || stub.riskAppetiteStatement || '', { maxSentences: 2 }),
         applicableRegulations: Array.isArray(parsed.applicableRegulations) ? parsed.applicableRegulations.map(String).filter(Boolean) : stub.applicableRegulations,
         aiInstructions: _cleanUserFacingText(parsed.aiInstructions || stub.aiInstructions || '', { maxSentences: 3 }),
         benchmarkStrategy: _cleanUserFacingText(parsed.benchmarkStrategy || stub.benchmarkStrategy || '', { maxSentences: 2 })
-      }, evidenceMeta);
+      }, evidenceMeta), evidenceMeta, { contentFields: ['contextSummary', 'riskAppetiteStatement', 'aiInstructions', 'benchmarkStrategy'], fallbackUsed: false, uploadedDocumentName: input.uploadedDocumentName });
     } catch (error) {
+      await _auditAiFallback('buildEntityContext', error, { entityName: String(input.entity?.name || '').trim() });
       console.warn('buildEntityContext fallback:', error.message);
-      return _withEvidenceMeta(stub, _buildEvidenceMeta({ uploadedText: input.uploadedText || '', businessUnit: input.parentEntity, geography: input.adminSettings?.geography || input.parentLayer?.geography, applicableRegulations: input.parentLayer?.applicableRegulations || input.adminSettings?.applicableRegulations, organisationContext: input.parentLayer?.contextSummary || input.parentEntity?.profile, adminSettings: input.adminSettings }));
+      const fallbackMeta = _buildEvidenceMeta({ uploadedText: input.uploadedText || '', businessUnit: input.parentEntity, geography: input.adminSettings?.geography || input.parentLayer?.geography, applicableRegulations: input.parentLayer?.applicableRegulations || input.adminSettings?.applicableRegulations, organisationContext: input.parentLayer?.contextSummary || input.parentEntity?.profile, adminSettings: input.adminSettings });
+      return _decorateAiResult(_withEvidenceMeta(stub, fallbackMeta), fallbackMeta, { contentFields: ['contextSummary', 'riskAppetiteStatement', 'aiInstructions', 'benchmarkStrategy'], fallbackUsed: true, uploadedDocumentName: input.uploadedDocumentName });
     }
   }
 
@@ -1420,13 +1625,13 @@ Instructions:
 
 Evidence quality context:
 ${evidenceMeta.promptBlock}`;
-      const raw = await _callLLM(systemPrompt, userPrompt, { maxCompletionTokens: 700, timeoutMs: 12000 });
+      const raw = await _callLLM(systemPrompt, userPrompt, { maxCompletionTokens: 700, timeoutMs: 12000, taskName: 'refineEntityContext' });
       if (!raw) {
-        return _withEvidenceMeta({ ...currentContext, responseMessage: fallbackMessage }, evidenceMeta);
+        return _decorateAiResult(_withEvidenceMeta({ ...currentContext, responseMessage: fallbackMessage }, evidenceMeta), evidenceMeta, { contentFields: ['contextSummary', 'riskAppetiteStatement', 'aiInstructions', 'benchmarkStrategy', 'responseMessage'], fallbackUsed: true, uploadedDocumentName: input.uploadedDocumentName });
       }
       const parsed = JSON.parse(String(raw).replace(/```json\n?|```/g, '').trim());
       const isDepartment = String(input.entity?.type || '').toLowerCase() === 'department / function';
-      return _withEvidenceMeta({
+      return _decorateAiResult(_withEvidenceMeta({
         geography: String(parsed.geography || currentContext.geography || '').trim(),
         contextSummary: _cleanUserFacingText(parsed.contextSummary || currentContext.contextSummary || '', { maxSentences: isDepartment ? 4 : 5 }),
         riskAppetiteStatement: _cleanUserFacingText(parsed.riskAppetiteStatement || currentContext.riskAppetiteStatement || '', { maxSentences: 2 }),
@@ -1434,13 +1639,11 @@ ${evidenceMeta.promptBlock}`;
         aiInstructions: _cleanUserFacingText(parsed.aiInstructions || currentContext.aiInstructions || '', { maxSentences: 3 }),
         benchmarkStrategy: _cleanUserFacingText(parsed.benchmarkStrategy || currentContext.benchmarkStrategy || '', { maxSentences: 2 }),
         responseMessage: _cleanUserFacingText(parsed.responseMessage || fallbackMessage, { maxSentences: 3 })
-      }, evidenceMeta);
+      }, evidenceMeta), evidenceMeta, { contentFields: ['contextSummary', 'riskAppetiteStatement', 'aiInstructions', 'benchmarkStrategy', 'responseMessage'], fallbackUsed: false, uploadedDocumentName: input.uploadedDocumentName });
     } catch (error) {
+      await _auditAiFallback('refineEntityContext', error, { entityName: String(input.entity?.name || '').trim() });
       console.warn('refineEntityContext fallback:', error.message);
-      return _withEvidenceMeta({
-        ...currentContext,
-        responseMessage: fallbackMessage
-      }, _buildEvidenceMeta({
+      const fallbackMeta = _buildEvidenceMeta({
         citations: [],
         businessUnit: input.parentEntity,
         geography: currentContext.geography || input.adminSettings?.geography || input.parentLayer?.geography,
@@ -1448,7 +1651,11 @@ ${evidenceMeta.promptBlock}`;
         organisationContext: currentContext.contextSummary || input.parentLayer?.contextSummary || input.parentEntity?.profile,
         adminSettings: input.adminSettings,
         uploadedText: input.uploadedText
-      }));
+      });
+      return _decorateAiResult(_withEvidenceMeta({
+        ...currentContext,
+        responseMessage: fallbackMessage
+      }, fallbackMeta), fallbackMeta, { contentFields: ['contextSummary', 'riskAppetiteStatement', 'aiInstructions', 'benchmarkStrategy', 'responseMessage'], fallbackUsed: true, uploadedDocumentName: input.uploadedDocumentName });
     }
   }
 
@@ -1533,18 +1740,18 @@ Instructions:
 
 Evidence quality context:
 ${evidenceMeta.promptBlock}`;
-      const raw = await _callLLM(systemPrompt, userPrompt, { maxCompletionTokens: 800, timeoutMs: 12000 });
+      const raw = await _callLLM(systemPrompt, userPrompt, { maxCompletionTokens: 800, timeoutMs: 12000, taskName: 'refineCompanyContext' });
       if (!raw) {
-        return _withEvidenceMeta({
+        return _decorateAiResult(_withEvidenceMeta({
           ...currentSections,
           aiGuidance: String(input.currentAiGuidance || '').trim(),
           suggestedGeography: String(input.currentGeography || '').trim(),
           regulatorySignals: Array.isArray(input.currentRegulations) ? input.currentRegulations : [],
           responseMessage: fallbackMessage
-        }, evidenceMeta);
+        }, evidenceMeta), evidenceMeta, { contentFields: ['companySummary', 'businessModel', 'operatingModel', 'publicCommitments', 'keyRiskSignals', 'obligations', 'sources', 'aiGuidance', 'responseMessage'], fallbackUsed: true, uploadedDocumentName: input.uploadedDocumentName });
       }
       const parsed = JSON.parse(String(raw).replace(/```json\n?|```/g, '').trim());
-      return _withEvidenceMeta({
+      return _decorateAiResult(_withEvidenceMeta({
         companySummary: _cleanUserFacingText(parsed.companySummary || currentSections.companySummary || '', { maxSentences: 4 }),
         businessModel: _cleanUserFacingText(parsed.businessModel || currentSections.businessModel || '', { maxSentences: 4 }),
         operatingModel: _cleanUserFacingText(parsed.operatingModel || currentSections.operatingModel || '', { maxSentences: 4 }),
@@ -1556,29 +1763,31 @@ ${evidenceMeta.promptBlock}`;
         suggestedGeography: String(parsed.suggestedGeography || input.currentGeography || '').trim(),
         regulatorySignals: Array.isArray(parsed.regulatorySignals) ? parsed.regulatorySignals.map(String).filter(Boolean) : (Array.isArray(input.currentRegulations) ? input.currentRegulations : []),
         responseMessage: _cleanUserFacingText(parsed.responseMessage || fallbackMessage, { maxSentences: 3 })
-      }, evidenceMeta);
+      }, evidenceMeta), evidenceMeta, { contentFields: ['companySummary', 'businessModel', 'operatingModel', 'publicCommitments', 'keyRiskSignals', 'obligations', 'sources', 'aiGuidance', 'responseMessage'], fallbackUsed: false, uploadedDocumentName: input.uploadedDocumentName });
     } catch (error) {
+      await _auditAiFallback('refineCompanyContext', error, { websiteUrl: _sanitizeAiText(input.websiteUrl || '', { maxChars: 120 }) });
       console.warn('refineCompanyContext fallback:', error.message);
-      return _withEvidenceMeta({
-        ...currentSections,
-        aiGuidance: String(input.currentAiGuidance || '').trim(),
-        suggestedGeography: String(input.currentGeography || '').trim(),
-        regulatorySignals: Array.isArray(input.currentRegulations) ? input.currentRegulations : [],
-        responseMessage: fallbackMessage
-      }, _buildEvidenceMeta({
+      const fallbackMeta = _buildEvidenceMeta({
         citations: [],
         geography: input.currentGeography,
         applicableRegulations: input.currentRegulations,
         organisationContext: currentSections,
         adminSettings: { aiInstructions: input.currentAiGuidance || '' },
         uploadedText: input.uploadedText
-      }));
+      });
+      return _decorateAiResult(_withEvidenceMeta({
+        ...currentSections,
+        aiGuidance: String(input.currentAiGuidance || '').trim(),
+        suggestedGeography: String(input.currentGeography || '').trim(),
+        regulatorySignals: Array.isArray(input.currentRegulations) ? input.currentRegulations : [],
+        responseMessage: fallbackMessage
+      }, fallbackMeta), fallbackMeta, { contentFields: ['companySummary', 'businessModel', 'operatingModel', 'publicCommitments', 'keyRiskSignals', 'obligations', 'sources', 'aiGuidance', 'responseMessage'], fallbackUsed: true, uploadedDocumentName: input.uploadedDocumentName });
     }
   }
 
   async function buildUserPreferenceAssist(input = {}) {
     const stub = _buildUserPreferenceAssistStub(input);
-    if (_isDirectCompassUrl(_compassApiUrl) && !_compassApiKey) return stub;
+    if (_isDirectCompassUrl(_compassApiUrl) && !_compassApiKey) return _decorateAiResult(stub, _buildEvidenceMeta({ uploadedText: input.uploadedText, userProfile: input.userProfile, geography: input.organisationContext?.geography || input.currentSettings?.primaryGeography, applicableRegulations: input.currentSettings?.applicableRegulations, organisationContext: input.organisationContext, adminSettings: input.currentSettings, citations: [] }), { contentFields: ['workingContext', 'preferredOutputs', 'aiInstructions', 'adminContextSummary'], fallbackUsed: true });
     try {
       const systemPrompt = `You are a senior enterprise risk assistant helping personalise a user's working context. Return JSON only with this schema:
 {
@@ -1600,7 +1809,7 @@ Existing personal settings:
 ${JSON.stringify(input.currentSettings || {}, null, 2)}
 
 Uploaded source text:
-${String(input.uploadedText || '').slice(0, 12000)}
+${_sanitizeAiText(input.uploadedText || '', { maxChars: 12000 })}
 
 Instructions:
 - use uploaded text when provided, otherwise rely on the role and organisation context
@@ -1614,18 +1823,20 @@ Instructions:
 
 Evidence quality context:
 ${evidenceMeta.promptBlock}`;
-      const raw = await _callLLM(systemPrompt, userPrompt, { maxCompletionTokens: 700, timeoutMs: 15000 });
-      if (!raw) return _withEvidenceMeta(stub, evidenceMeta);
+      const raw = await _callLLM(systemPrompt, userPrompt, { maxCompletionTokens: 700, timeoutMs: 15000, taskName: 'buildUserPreferenceAssist' });
+      if (!raw) return _decorateAiResult(_withEvidenceMeta(stub, evidenceMeta), evidenceMeta, { contentFields: ['workingContext', 'preferredOutputs', 'aiInstructions', 'adminContextSummary'], fallbackUsed: true });
       const parsed = JSON.parse(String(raw).replace(/```json\n?|```/g, '').trim());
-      return _withEvidenceMeta({
+      return _decorateAiResult(_withEvidenceMeta({
         workingContext: _cleanUserFacingText(parsed.workingContext || stub.workingContext || '', { maxSentences: 4 }),
         preferredOutputs: _cleanUserFacingText(parsed.preferredOutputs || stub.preferredOutputs || '', { maxSentences: 3 }),
         aiInstructions: _cleanUserFacingText(parsed.aiInstructions || stub.aiInstructions || '', { maxSentences: 3 }),
         adminContextSummary: _cleanUserFacingText(parsed.adminContextSummary || stub.adminContextSummary || '', { maxSentences: 3 })
-      }, evidenceMeta);
+      }, evidenceMeta), evidenceMeta, { contentFields: ['workingContext', 'preferredOutputs', 'aiInstructions', 'adminContextSummary'], fallbackUsed: false });
     } catch (error) {
+      await _auditAiFallback('buildUserPreferenceAssist', error);
       console.warn('buildUserPreferenceAssist fallback:', error.message);
-      return _withEvidenceMeta(stub, _buildEvidenceMeta({ uploadedText: input.uploadedText, userProfile: input.userProfile, geography: input.organisationContext?.geography || input.currentSettings?.primaryGeography, applicableRegulations: input.currentSettings?.applicableRegulations, organisationContext: input.organisationContext, adminSettings: input.currentSettings, citations: [] }));
+      const fallbackMeta = _buildEvidenceMeta({ uploadedText: input.uploadedText, userProfile: input.userProfile, geography: input.organisationContext?.geography || input.currentSettings?.primaryGeography, applicableRegulations: input.currentSettings?.applicableRegulations, organisationContext: input.organisationContext, adminSettings: input.currentSettings, citations: [] });
+      return _decorateAiResult(_withEvidenceMeta(stub, fallbackMeta), fallbackMeta, { contentFields: ['workingContext', 'preferredOutputs', 'aiInstructions', 'adminContextSummary'], fallbackUsed: true });
     }
   }
 
@@ -1760,7 +1971,7 @@ Instructions:
 
 Evidence quality context:
 ${evidenceMeta.promptBlock}`;
-        const raw = await _callLLM(systemPrompt, userPrompt);
+        const raw = await _callLLM(systemPrompt, userPrompt, { taskName: 'suggestTreatmentImprovement' });
         if (raw) {
           const parsed = JSON.parse(String(raw).replace(/```json\n?|```/g, '').trim());
           const ensureRange = (value, fallbackRange) => ({
@@ -1768,7 +1979,7 @@ ${evidenceMeta.promptBlock}`;
             likely: value?.likely ?? fallbackRange?.likely ?? 0,
             max: value?.max ?? fallbackRange?.max ?? 0,
           });
-          return _withEvidenceMeta({
+          return _decorateAiResult(_withEvidenceMeta({
             summary: _cleanUserFacingText(parsed.summary || stub.summary || '', { maxSentences: 2 }),
             changesSummary: _cleanUserFacingText(parsed.changesSummary || stub.changesSummary || '', { maxSentences: 3 }),
             workflowGuidance: _normaliseGuidance(parsed.workflowGuidance?.length ? parsed.workflowGuidance : stub.workflowGuidance),
@@ -1788,13 +1999,21 @@ ${evidenceMeta.promptBlock}`;
               }
             },
             citations: input.citations || []
-          }, evidenceMeta);
+          }, evidenceMeta), evidenceMeta, {
+            contentFields: ['summary', 'changesSummary', 'benchmarkBasis'],
+            fallbackUsed: false
+          });
         }
       } catch (error) {
+        await _auditAiFallback('suggestTreatmentImprovement', error);
         console.warn('suggestTreatmentImprovement fallback:', error.message);
       }
     }
-    return _withEvidenceMeta(stub, _buildEvidenceMeta({ citations: input.citations || [], businessUnit: input.businessUnit, geography: input.baselineAssessment?.geography || input.businessUnit?.geography, applicableRegulations: input.baselineAssessment?.applicableRegulations, organisationContext: input.baselineAssessment?.narrative, uploadedText: input.improvementRequest, adminSettings: input.adminSettings, userProfile: input.adminSettings?.userProfileSummary }));
+    const fallbackMeta = _buildEvidenceMeta({ citations: input.citations || [], businessUnit: input.businessUnit, geography: input.baselineAssessment?.geography || input.businessUnit?.geography, applicableRegulations: input.baselineAssessment?.applicableRegulations, organisationContext: input.baselineAssessment?.narrative, uploadedText: input.improvementRequest, adminSettings: input.adminSettings, userProfile: input.adminSettings?.userProfileSummary });
+    return _decorateAiResult(_withEvidenceMeta(stub, fallbackMeta), fallbackMeta, {
+      contentFields: ['summary', 'changesSummary', 'benchmarkBasis'],
+      fallbackUsed: true
+    });
   }
 
   function _buildAssessmentChallengeStub(input = {}) {
@@ -1883,23 +2102,30 @@ Instructions:
 
 Evidence quality context:
 ${evidenceMeta.promptBlock}`;
-        const raw = await _callLLM(systemPrompt, userPrompt);
+        const raw = await _callLLM(systemPrompt, userPrompt, { taskName: 'challengeAssessment' });
         if (raw) {
           const parsed = JSON.parse(String(raw).replace(/```json\n?|```/g, '').trim());
-          return _withEvidenceMeta({
+          return _decorateAiResult(_withEvidenceMeta({
             summary: _cleanUserFacingText(parsed.summary || stub.summary || '', { maxSentences: 3 }),
             challengeLevel: _cleanUserFacingText(parsed.challengeLevel || stub.challengeLevel || '', { maxSentences: 1 }),
             weakestAssumptions: (Array.isArray(parsed.weakestAssumptions) ? parsed.weakestAssumptions : stub.weakestAssumptions).slice(0, 4).map(item => _cleanUserFacingText(item || '', { maxSentences: 1 })),
             committeeQuestions: (Array.isArray(parsed.committeeQuestions) ? parsed.committeeQuestions : stub.committeeQuestions).slice(0, 4).map(item => _cleanUserFacingText(item || '', { maxSentences: 1 })),
             evidenceToGather: (Array.isArray(parsed.evidenceToGather) ? parsed.evidenceToGather : stub.evidenceToGather).slice(0, 4).map(item => _cleanUserFacingText(item || '', { maxSentences: 1 })),
             reviewerGuidance: _normaliseGuidance(Array.isArray(parsed.reviewerGuidance) && parsed.reviewerGuidance.length ? parsed.reviewerGuidance : stub.reviewerGuidance)
-          }, evidenceMeta);
+          }, evidenceMeta), evidenceMeta, {
+            contentFields: ['summary', 'challengeLevel'],
+            fallbackUsed: false
+          });
         }
       } catch (error) {
+        await _auditAiFallback('challengeAssessment', error);
         console.warn('challengeAssessment fallback:', error.message);
       }
     }
-    return _withEvidenceMeta(stub, evidenceMeta);
+    return _decorateAiResult(_withEvidenceMeta(stub, evidenceMeta), evidenceMeta, {
+      contentFields: ['summary', 'challengeLevel'],
+      fallbackUsed: true
+    });
   }
 
 
@@ -1915,11 +2141,7 @@ ${evidenceMeta.promptBlock}`;
     const prompt = _cleanUserFacingText(input.userPrompt || '', { maxSentences: 2 });
     const uploadedHint = String(input.uploadedText || '').trim() ? 'Uploaded policy and procedure material was considered in the fallback refinement.' : '';
     const summaryBits = [current.contextSummary, prompt ? `Refinement focus: ${prompt}` : '', uploadedHint].filter(Boolean);
-    return _withEvidenceMeta({
-      ...current,
-      contextSummary: _cleanUserFacingText(summaryBits.join(' '), { maxSentences: String(input.entity?.type || '').toLowerCase() === 'department / function' ? 4 : 5 }),
-      responseMessage: _cleanUserFacingText(`I applied a faster local refinement${prompt ? ` focused on ${prompt.toLowerCase()}` : ''}. Review the updated context and adjust anything that still needs more precision.`, { maxSentences: 2 })
-    }, _buildEvidenceMeta({
+    const evidenceMeta = _buildEvidenceMeta({
       citations: [],
       businessUnit: input.parentEntity,
       geography: current.geography || input.adminSettings?.geography || input.parentLayer?.geography,
@@ -1927,7 +2149,12 @@ ${evidenceMeta.promptBlock}`;
       organisationContext: current.contextSummary || input.parentLayer?.contextSummary || input.parentEntity?.profile,
       adminSettings: input.adminSettings,
       uploadedText: input.uploadedText
-    }));
+    });
+    return _decorateAiResult(_withEvidenceMeta({
+      ...current,
+      contextSummary: _cleanUserFacingText(summaryBits.join(' '), { maxSentences: String(input.entity?.type || '').toLowerCase() === 'department / function' ? 4 : 5 }),
+      responseMessage: _cleanUserFacingText(`I applied a faster local refinement${prompt ? ` focused on ${prompt.toLowerCase()}` : ''}. Review the updated context and adjust anything that still needs more precision.`, { maxSentences: 2 })
+    }, evidenceMeta), evidenceMeta, { contentFields: ['contextSummary', 'responseMessage'], fallbackUsed: true, uploadedDocumentName: input.uploadedDocumentName });
   }
 
   function buildLocalCompanyContextRefinement(input = {}) {
@@ -1942,21 +2169,22 @@ ${evidenceMeta.promptBlock}`;
     };
     const prompt = _cleanUserFacingText(input.userPrompt || '', { maxSentences: 2 });
     const uploadedHint = String(input.uploadedText || '').trim() ? 'Uploaded strategy, policy, or procedure material was folded into this fallback refinement.' : '';
-    return _withEvidenceMeta({
-      ...currentSections,
-      aiGuidance: String(input.currentAiGuidance || '').trim(),
-      suggestedGeography: String(input.currentGeography || '').trim(),
-      regulatorySignals: Array.isArray(input.currentRegulations) ? input.currentRegulations : [],
-      companySummary: _cleanUserFacingText([currentSections.companySummary, prompt ? `Refinement focus: ${prompt}` : '', uploadedHint].filter(Boolean).join(' '), { maxSentences: 4 }),
-      responseMessage: _cleanUserFacingText(`I applied a faster local refinement${prompt ? ` focused on ${prompt.toLowerCase()}` : ''}. Review the updated company context and tighten any remaining sections manually if needed.`, { maxSentences: 2 })
-    }, _buildEvidenceMeta({
+    const evidenceMeta = _buildEvidenceMeta({
       citations: [],
       geography: input.currentGeography,
       applicableRegulations: input.currentRegulations,
       organisationContext: currentSections,
       adminSettings: { aiInstructions: input.currentAiGuidance || '' },
       uploadedText: input.uploadedText
-    }));
+    });
+    return _decorateAiResult(_withEvidenceMeta({
+      ...currentSections,
+      aiGuidance: String(input.currentAiGuidance || '').trim(),
+      suggestedGeography: String(input.currentGeography || '').trim(),
+      regulatorySignals: Array.isArray(input.currentRegulations) ? input.currentRegulations : [],
+      companySummary: _cleanUserFacingText([currentSections.companySummary, prompt ? `Refinement focus: ${prompt}` : '', uploadedHint].filter(Boolean).join(' '), { maxSentences: 4 }),
+      responseMessage: _cleanUserFacingText(`I applied a faster local refinement${prompt ? ` focused on ${prompt.toLowerCase()}` : ''}. Review the updated company context and tighten any remaining sections manually if needed.`, { maxSentences: 2 })
+    }, evidenceMeta), evidenceMeta, { contentFields: ['companySummary', 'responseMessage'], fallbackUsed: true, uploadedDocumentName: input.uploadedDocumentName });
   }
 
   async function testCompassConnection() {

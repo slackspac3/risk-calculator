@@ -235,7 +235,7 @@ function renderUserOnboarding(existingSettings = getUserSettings(), startStep = 
           });
           document.getElementById('onboard-working-context').value = result.workingContext || document.getElementById('onboard-working-context').value;
           document.getElementById('onboard-preferred-outputs').value = result.preferredOutputs || document.getElementById('onboard-preferred-outputs').value;
-          UI.toast(`Drafted this step${onboardingAiSourceName ? ` using ${onboardingAiSourceName}` : ''}.`, 'success');
+          UI.toast(`${result.usedFallback ? 'Loaded a fallback suggested draft' : 'Loaded a suggested draft'} for this step${onboardingAiSourceName ? ` using ${onboardingAiSourceName}` : ''}.`, result.usedFallback ? 'warning' : 'success');
         } catch (error) {
           UI.toast('AI assist failed. Try again in a moment.', 'danger');
         } finally {

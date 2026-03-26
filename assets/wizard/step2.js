@@ -260,7 +260,7 @@ async function runLLMAssist() {
   const previousNarrative = AppState.draft.enhancedNarrative || AppState.draft.narrative || narrative;
   btn.disabled = true; btn.classList.add('loading');
   btnText.textContent = '⏳ Retrieving docs and generating inputs…';
-  if (status) status.textContent = 'AI assist is building a structured draft and loading starting values for the next step.';
+  if (status) status.textContent = 'AI assist is building a suggested draft and loading starting values for the next step.';
   output.innerHTML = `<div class="card mt-4">${UI.skeletonBlock(20)}<div style="margin-top:12px">${UI.skeletonBlock(14,4)}</div><div style="margin-top:8px">${UI.skeletonBlock(14,4)}</div></div>`;
   try {
     const bu = getBUList().find(b => b.id === AppState.draft.buId);
@@ -331,7 +331,9 @@ async function runLLMAssist() {
       inputProvenance: AppState.draft.inputProvenance,
       citations: AppState.draft.citations
     })}<div class="flex items-center gap-3 mt-4" style="flex-wrap:wrap"><button class="btn btn--primary" id="btn-wizard2-ai-continue" type="button">Continue to Loss Estimation</button><button class="btn btn--ghost" id="btn-wizard2-ai-retry" type="button">Run AI Assist Again</button></div><details class="card mt-4 anim-fade-in"><summary style="cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);font-size:.82rem;font-weight:600;color:var(--text-primary)"><span>Show benchmark and evidence detail</span><span class="badge badge--neutral">Optional</span></summary><div style="display:flex;flex-direction:column;gap:var(--sp-4);margin-top:var(--sp-4)">${renderBenchmarkRationaleBlock(AppState.draft.benchmarkBasis, AppState.draft.inputRationale, AppState.draft.benchmarkReferences)}${renderInputProvenanceBlock(AppState.draft.inputProvenance)}${renderCitationBlock(AppState.draft.citations)}${renderEvidenceQualityBlock(AppState.draft.confidenceLabel, AppState.draft.evidenceQuality, AppState.draft.evidenceSummary, AppState.draft.missingInformation, 'Detailed evidence view', { primaryGrounding: AppState.draft.primaryGrounding, supportingReferences: AppState.draft.supportingReferences, inferredAssumptions: AppState.draft.inferredAssumptions })}</div></details>`;
-    if (status) status.textContent = 'AI draft ready. Review the changes below, then continue when you are comfortable with the scenario.';
+    if (status) status.textContent = result.usedFallback
+      ? 'A fallback suggested draft is ready. Review the changes, assumptions, and source basis before continuing.'
+      : 'A suggested draft is ready. Review the changes, assumptions, and source basis before continuing.';
     attachCitationHandlers();
     document.getElementById('btn-wizard2-ai-retry')?.addEventListener('click', runLLMAssist);
     document.getElementById('btn-wizard2-ai-continue')?.addEventListener('click', () => document.getElementById('btn-next-2')?.click());

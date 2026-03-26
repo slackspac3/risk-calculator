@@ -1063,7 +1063,7 @@ function renderResults(id, isShared) {
       });
       const next = updateAssessmentRecord(assessment.id, current => ({ ...current, assessmentChallenge: { ...result, createdAt: Date.now(), confidenceLabel: assessment.confidenceLabel || '', evidenceQuality: assessment.evidenceQuality || '' } }));
       if (!next) throw new Error('Could not update the saved assessment.');
-      UI.toast('Assessment challenge review updated.', 'success');
+      UI.toast(result.usedFallback ? 'Fallback challenge review loaded. Review the suggested questions and evidence gaps.' : 'Suggested challenge review loaded.', result.usedFallback ? 'warning' : 'success', 5000);
       renderResults(assessment.id, isShared || assessment._shared);
     } catch (error) {
       if (status) status.textContent = 'Challenge review could not be generated.';

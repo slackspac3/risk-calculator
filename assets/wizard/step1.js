@@ -853,7 +853,7 @@ async function runIntakeAssist() {
     if (!AppState.draft.scenarioTitle && getSelectedRisks()[0]) AppState.draft.scenarioTitle = getSelectedRisks()[0].title;
     saveDraft();
     renderWizard1();
-    UI.toast('AI intake completed.', 'success');
+    UI.toast(result.usedFallback ? 'Suggested draft loaded with fallback guidance. Review before continuing.' : 'Suggested draft intake completed.', result.usedFallback ? 'warning' : 'success', 5000);
   } catch (e1) {
     output.innerHTML = `<div class="banner banner--danger"><span class="banner-icon">⚠</span><span class="banner-text">AI intake error: ${e1.message}</span></div>`;
   }
@@ -907,7 +907,7 @@ async function enhanceNarrativeWithAI() {
     if (!AppState.draft.scenarioTitle && getSelectedRisks()[0]) AppState.draft.scenarioTitle = getSelectedRisks()[0].title;
     saveDraft();
     renderWizard1();
-    UI.toast('Risk statement enhanced.', 'success');
+    UI.toast(result.usedFallback ? 'Suggested draft enhancement loaded with fallback guidance. Review before continuing.' : 'Suggested draft enhancement loaded.', result.usedFallback ? 'warning' : 'success', 5000);
   } catch (error) {
     output.innerHTML = `<div class="banner banner--danger"><span class="banner-icon">⚠</span><span class="banner-text">AI enhancement is unavailable right now. Try again in a moment.</span></div>`;
   } finally {
@@ -958,7 +958,7 @@ async function analyseUploadedRegister() {
     AppState.draft.missingInformation = Array.isArray(result.missingInformation) ? result.missingInformation : (AppState.draft.missingInformation || []);
     saveDraft();
     renderWizard1();
-    UI.toast('Risk register analysed.', 'success');
+    UI.toast(result.usedFallback ? 'Fallback register analysis loaded. Review the suggested risks before continuing.' : 'Suggested draft register analysis loaded.', result.usedFallback ? 'warning' : 'success', 5000);
   } catch (e2) {
     UI.toast('Register analysis failed: ' + e2.message, 'danger');
   } finally {

@@ -595,7 +595,7 @@ ${request}`, 5);
       AppState.draft.learningNote = result.changesSummary || result.summary || '';
       saveDraft();
       renderWizard3();
-      UI.toast('The better-outcome case has been adjusted. Review the numbers before rerunning.', 'success');
+      UI.toast(result.usedFallback ? 'A fallback suggested better-outcome draft was loaded. Review the numbers before rerunning.' : 'A suggested better-outcome draft was loaded. Review the numbers before rerunning.', result.usedFallback ? 'warning' : 'success', 5000);
     } catch (error) {
       if (statusEl) statusEl.textContent = 'AI assist failed. Keep your current values or try again in a moment.';
       UI.toast('AI assist failed. Try again in a moment.', 'danger');
