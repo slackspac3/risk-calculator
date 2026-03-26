@@ -608,7 +608,9 @@ test('dashboard archive and restore flow works through the real confirm modal', 
     const activeRow = page.locator('.dashboard-assessment-row[data-assessment-id="assess-1"]').first();
     await expect(activeRow).toBeVisible();
     await activeRow.getByRole('button', { name: /^Archive$/ }).click();
-    await page.locator('#confirm-ok').click();
+    const confirmButton = page.getByRole('button', { name: /^Confirm$/ }).last();
+    await expect(confirmButton).toBeVisible();
+    await confirmButton.click();
     await expect.poll(async () => {
       return page.evaluate(() => {
         const stored = JSON.parse(localStorage.getItem('rq_assessments__alex.trafton') || '[]');
