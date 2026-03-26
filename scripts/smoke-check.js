@@ -36,6 +36,7 @@ const resultsRouteJs = read('assets/results/resultsRoute.js');
 const userPreferencesJs = read('assets/settings/userPreferences.js');
 const userOnboardingJs = read('assets/settings/userOnboarding.js');
 const assessmentStateJs = read('assets/state/assessmentState.js');
+const workspaceStateModelJs = read('assets/state/workspaceStateModel.js');
 const auditLogSectionJs = read('assets/admin/auditLogSection.js');
 const e2eSmokeSpecJs = read('tests/e2e/smoke.spec.js');
 const pagesWorkflow = read('.github/workflows/pages.yml');
@@ -59,6 +60,7 @@ expect(indexHtml.includes('assets/services/reportPresentation.js'), 'index.html 
 expect(indexHtml.includes('assets/services/benchmarkService.js'), 'index.html is missing benchmarkService.js');
 expect(indexHtml.indexOf('assets/services/reportPresentation.js') < indexHtml.indexOf('assets/services/exportService.js'), 'reportPresentation.js must load before exportService.js');
 expect(indexHtml.indexOf('assets/services/reportPresentation.js') < indexHtml.indexOf('assets/app.js'), 'reportPresentation.js must load before app.js');
+expect(indexHtml.includes('assets/state/workspaceStateModel.js'), 'index.html is missing workspaceStateModel.js');
 
 expect(appJs.includes('function safeRenderAdminSettings('), 'safeRenderAdminSettings helper missing');
 expect(appJs.includes('function rerenderCurrentAdminSection()'), 'rerenderCurrentAdminSection helper missing from admin renderer');
@@ -89,6 +91,8 @@ expect(assessmentStateJs.includes('primaryGrounding'), 'assessmentState is not p
 expect(assessmentStateJs.includes('supportingReferences'), 'assessmentState is not persisting supportingReferences');
 expect(assessmentStateJs.includes('inferredAssumptions'), 'assessmentState is not persisting inferredAssumptions');
 expect(assessmentStateJs.includes('benchmarkReferences'), 'assessmentState is not persisting benchmarkReferences');
+expect(workspaceStateModelJs.includes('applyWorkspaceSyncStartedTransition'), 'workspace state model is missing explicit sync-start transition');
+expect(workspaceStateModelJs.includes('applySimulationStartedTransition'), 'workspace state model is missing explicit simulation-start transition');
 
 expect(usersApi.includes('Organisation assignment can only be changed by an admin.'), 'users API self-update scope restriction missing');
 expect(usersApi.includes('await deleteUserState(removed.username);'), 'users API delete-user is not clearing shared user state');

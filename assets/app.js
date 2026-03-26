@@ -185,6 +185,11 @@ const AppState = {
   simulation: createSimulationState()
 };
 
+function applyWorkspaceRuntimeState(nextState) {
+  Object.assign(AppState, nextState || {});
+  return AppState;
+}
+
 
 function getSettingsApiUrl() {
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
@@ -557,65 +562,27 @@ function getCurrentSimulationState() {
 }
 
 function resetSimulationState() {
-  resetSimulationLifecycleState();
+  applyWorkspaceRuntimeState(applySimulationState(AppState, createSimulationState()));
 }
 
 function startSimulationState(total = 0) {
-  updateSimulationLifecycleState({
-    status: 'running',
-    canCancel: true,
-    cancelRequested: false,
-    lastRunAt: Date.now(),
-    lastError: '',
-    progress: {
-      completed: 0,
-      total: Number(total || 0),
-      ratio: 0,
-      message: ''
-    }
-  });
+  applyWorkspaceRuntimeState(applySimulationStartedTransition(AppState, total));
 }
 
 function updateSimulationProgressState({ completed = 0, total = 0, ratio = 0, message = '' } = {}) {
-  updateSimulationLifecycleState({
-    status: 'running',
-    canCancel: true,
-    progress: {
-      completed: Number(completed || 0),
-      total: Number(total || 0),
-      ratio: Number(ratio || 0),
-      message: String(message || '').trim()
-    }
-  });
+  applyWorkspaceRuntimeState(applySimulationProgressTransition(AppState, { completed, total, ratio, message }));
 }
 
 function completeSimulationState() {
-  updateSimulationLifecycleState({
-    status: 'completed',
-    canCancel: false,
-    cancelRequested: false,
-    lastError: ''
-  });
+  applyWorkspaceRuntimeState(applySimulationCompletedTransition(AppState));
 }
 
 function failSimulationState(error) {
-  updateSimulationLifecycleState({
-    status: 'failed',
-    canCancel: false,
-    lastError: String(error?.message || error || '').trim()
-  });
+  applyWorkspaceRuntimeState(applySimulationFailedTransition(AppState, error));
 }
 
 function cancelSimulationState(message = 'Cancellation requested…') {
-  updateSimulationLifecycleState({
-    status: 'cancelling',
-    canCancel: false,
-    cancelRequested: true,
-    progress: {
-      ...(getCurrentSimulationState().progress || {}),
-      message: String(message || 'Cancellation requested…').trim()
-    }
-  });
+  applyWorkspaceRuntimeState(applySimulationCancelledTransition(AppState, message));
 }
 
 function openShortcutHelpModal() {
@@ -1013,22 +980,19 @@ function queueSharedUserStateSync(patch = {}, username = AuthService.getCurrentU
   const safeUsername = String(username || '').trim().toLowerCase();
   if (!safeUsername) return;
   const safePatch = patch && typeof patch === 'object' ? { ...patch } : {};
-  AppState.userStateSyncPending = {
-    ...(AppState.userStateSyncPending || {}),
-    ...safePatch
-  };
+  applyWorkspaceRuntimeState(applyWorkspaceSyncQueuedTransition(AppState, safePatch));
   updateWorkspaceSyncState();
   if (AppState.userStateSyncTimer) clearTimeout(AppState.userStateSyncTimer);
-  AppState.userStateSyncTimer = setTimeout(() => {
-    AppState.userStateSyncTimer = null;
+  applyWorkspaceRuntimeState(applyWorkspaceSyncScheduledTransition(AppState, setTimeout(() => {
+    applyWorkspaceRuntimeState(applyWorkspaceSyncScheduledTransition(AppState, null));
     if (AppState.userStateSyncInFlight) {
       queueSharedUserStateSync({}, safeUsername, options);
       return;
     }
     const pendingPatch = AppState.userStateSyncPending ? { ...AppState.userStateSyncPending } : null;
-    AppState.userStateSyncPending = null;
+    applyWorkspaceRuntimeState(applyWorkspaceSyncClearedTransition(AppState));
     if (!pendingPatch || !Object.keys(pendingPatch).length) return;
-    AppState.userStateSyncInFlight = true;
+    applyWorkspaceRuntimeState(applyWorkspaceSyncStartedTransition(AppState));
     updateWizardSaveState();
     updateWorkspaceSyncState();
     requestUserState(
@@ -1042,12 +1006,14 @@ function queueSharedUserStateSync(patch = {}, username = AuthService.getCurrentU
     )
       .then(data => {
         applyUserStateSnapshotLocally(safeUsername, data?.state || {});
-        AppState.userStateSyncInFlight = false;
+        applyWorkspaceRuntimeState(applyWorkspaceSyncFinishedTransition(AppState, data?.state?._meta || {}));
         updateWizardSaveState();
         updateWorkspaceSyncState();
       })
       .catch(async error => {
-        AppState.userStateSyncInFlight = false;
+        applyWorkspaceRuntimeState(error?.code === 'WRITE_CONFLICT'
+          ? applyWorkspaceSyncConflictTransition(AppState, error)
+          : applyWorkspaceSyncFailedTransition(AppState));
         updateWizardSaveState();
         updateWorkspaceSyncState();
         if (error?.code === 'WRITE_CONFLICT') {
@@ -1056,7 +1022,7 @@ function queueSharedUserStateSync(patch = {}, username = AuthService.getCurrentU
         }
         console.warn('queueSharedUserStateSync failed:', error.message);
       });
-  }, 250);
+  }, 250)));
 }
 
 function ensureUserStateCache(username = AuthService.getCurrentUser()?.username || '') {
