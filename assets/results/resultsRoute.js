@@ -650,6 +650,77 @@ function renderResultsExplanationPanel(assessmentIntelligence, comparison, runMe
   </section>`;
 }
 
+function buildResultTrustBasis(assessment, runMetadata) {
+  const assignments = buildLiveInputSourceAssignments(assessment);
+  const userEntered = assignments.filter(item => /user/i.test(String(item.origin || ''))).length;
+  const aiSuggested = assignments.filter(item => /ai/i.test(String(item.origin || ''))).length;
+  const inheritedContext = assignments.filter(item => !/user/i.test(String(item.origin || '')) && !/ai/i.test(String(item.origin || ''))).length;
+  const inferredAssumptions = Array.isArray(assessment.inferredAssumptions) ? assessment.inferredAssumptions.filter(Boolean).length : 0;
+  const citations = Array.isArray(assessment.citations) ? assessment.citations.filter(Boolean).length : 0;
+  const provenance = Array.isArray(assessment.inputProvenance) ? assessment.inputProvenance.filter(Boolean).length : 0;
+  return {
+    userEntered,
+    aiSuggested,
+    inheritedContext,
+    inferredAssumptions,
+    citations,
+    provenance,
+    seed: runMetadata?.seed ?? '—',
+    iterations: Number(runMetadata?.iterations || 0).toLocaleString(),
+    distribution: String(runMetadata?.distributions?.eventModel || 'triangular'),
+    vulnerabilityMode: String(runMetadata?.distributions?.vulnerabilityMode || 'derived')
+  };
+}
+
+function renderModelBasisPanel(assessment, runMetadata, confidenceFrame, thresholdModel) {
+  const basis = buildResultTrustBasis(assessment, runMetadata);
+  return `<section class="results-section-stack">
+    <div class="results-section-heading">Model basis and input origins</div>
+    <div class="results-model-basis">
+      <div class="results-model-basis__intro">
+        <div class="results-driver-label">Plain-language model summary</div>
+        <h3 class="results-model-basis__title">This result comes from structured FAIR inputs run through Monte Carlo simulation, not from a narrative judgement alone.</h3>
+        <p class="results-summary-copy">The platform combines user-entered values, AI-seeded starting points, inherited context/default assumptions, and recorded judgement calls. It then simulates many plausible outcomes so the result shows a range, not a single false-precision answer.</p>
+      </div>
+      <div class="results-model-basis__grid">
+        <div class="results-model-basis-card">
+          <div class="results-driver-label">Input origin mix</div>
+          <div class="results-origin-list">
+            <div><span>User-entered inputs</span><strong>${basis.userEntered}</strong></div>
+            <div><span>AI-suggested starting inputs</span><strong>${basis.aiSuggested}</strong></div>
+            <div><span>Inherited context/default guidance</span><strong>${basis.inheritedContext}</strong></div>
+            <div><span>Inferred assumptions</span><strong>${basis.inferredAssumptions}</strong></div>
+          </div>
+        </div>
+        <div class="results-model-basis-card">
+          <div class="results-driver-label">Confidence posture</div>
+          <strong>${escapeHtml(String(confidenceFrame?.label || 'Moderate confidence'))}</strong>
+          <span>${escapeHtml(String(confidenceFrame?.summary || 'Use this as a working decision view and challenge the largest assumptions.'))}</span>
+          <div class="results-comparison-foot" style="margin-top:var(--sp-3)">${basis.citations} linked reference${basis.citations === 1 ? '' : 's'} · ${basis.provenance} tracked provenance item${basis.provenance === 1 ? '' : 's'}</div>
+        </div>
+        <div class="results-model-basis-card">
+          <div class="results-driver-label">Reproducibility</div>
+          <strong>Seed ${escapeHtml(String(basis.seed))}</strong>
+          <span>${escapeHtml(basis.iterations)} iterations · ${escapeHtml(basis.distribution)} event model · vulnerability ${escapeHtml(basis.vulnerabilityMode)}</span>
+        </div>
+        <div class="results-model-basis-card">
+          <div class="results-driver-label">Threshold interpretation</div>
+          <strong>${escapeHtml(String(thresholdModel?.single?.status || 'Threshold view unavailable'))}</strong>
+          <span>${escapeHtml(String(thresholdModel?.single?.summary || 'The event-loss severe case is compared directly against the current tolerance threshold.'))}</span>
+        </div>
+      </div>
+      <details class="results-detail-disclosure" style="margin-bottom:0">
+        <summary>How this works and what influenced it</summary>
+        <div class="results-detail-disclosure-copy">Open this for the short scientific explanation and the live source audit behind the current result.</div>
+        <div class="results-disclosure-stack">
+          ${renderSimulationEquationFlow()}
+          ${renderInputSourceAuditBlock(buildLiveInputSourceAssignments(assessment))}
+        </div>
+      </details>
+    </div>
+  </section>`;
+}
+
 function renderTechnicalOrientationBlock(rolePresentation, runMetadata, confidenceFrame) {
   const seedText = runMetadata?.seed != null ? `Saved seed ${runMetadata.seed}.` : 'Saved seed not recorded.';
   const iterationText = Number(runMetadata?.iterations || 0) > 0 ? `${Number(runMetadata.iterations).toLocaleString()} iterations.` : '';
@@ -1348,6 +1419,7 @@ function renderResults(id, isShared) {
         supportingReferences,
         missingInformation
       })}
+      ${renderModelBasisPanel(assessment, runMetadata, confidenceFrame, thresholdModel)}
     </section>`;
 
   const technicalTab = `

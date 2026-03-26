@@ -271,6 +271,110 @@ function renderEstimateReadinessCard(draft, validation) {
   </div>`;
 }
 
+function buildQuantReadinessModel(draft, validation) {
+  const selectedRisks = getSelectedRisks();
+  const citations = Array.isArray(draft.citations) ? draft.citations.filter(Boolean) : [];
+  const provenance = Array.isArray(draft.inputProvenance) ? draft.inputProvenance.filter(Boolean) : [];
+  const assumptions = Array.isArray(draft.inferredAssumptions) ? draft.inferredAssumptions.filter(Boolean) : [];
+  const missing = Array.isArray(draft.missingInformation) ? draft.missingInformation.filter(Boolean) : [];
+  const p = draft.fairParams || {};
+  const narrativeReady = !!String(draft.enhancedNarrative || draft.narrative || '').trim();
+  const requiredEstimateFields = [
+    'tefLikely',
+    'threatCapLikely',
+    'controlStrLikely',
+    'irLikely',
+    'biLikely',
+    'dbLikely'
+  ];
+  const estimateCoverage = requiredEstimateFields.filter(key => Number.isFinite(Number(p[key])) && Number(p[key]) > 0).length;
+  const errors = Array.isArray(validation?.errors) ? validation.errors.filter(Boolean) : [];
+  const warnings = Array.isArray(validation?.warnings) ? validation.warnings.filter(Boolean) : [];
+
+  const scenarioScore = narrativeReady ? 15 : 0;
+  const scopeScore = selectedRisks.length ? 10 : 0;
+  const evidenceScore = Math.min(15, citations.length * 5) + Math.min(10, provenance.length * 2);
+  const estimateScore = Math.round((estimateCoverage / requiredEstimateFields.length) * 30);
+  const challengeScore = Math.max(0, 15 - (missing.length * 4) - (errors.length * 8) - (warnings.length * 2)) + Math.min(5, assumptions.length * 2);
+  const totalScore = Math.max(0, Math.min(100, scenarioScore + scopeScore + evidenceScore + estimateScore + challengeScore));
+  const status = totalScore >= 80
+    ? 'Run-ready'
+    : totalScore >= 60
+      ? 'Usable with challenge'
+      : 'Needs more grounding';
+  const tone = totalScore >= 80 ? 'success' : totalScore >= 60 ? 'warning' : 'danger';
+  const nextFocus = errors[0]
+    || missing[0]
+    || warnings[0]
+    || (!narrativeReady ? 'Tighten the scenario wording before relying on the estimate.' : '')
+    || (!selectedRisks.length ? 'Confirm the risk shortlist so the estimate has a clear scope.' : '')
+    || (estimateCoverage < requiredEstimateFields.length ? 'Complete the main frequency, exposure, and cost rows before you run.' : '')
+    || 'The scenario is grounded enough to proceed into review and simulation.';
+  return {
+    totalScore,
+    status,
+    tone,
+    nextFocus,
+    factors: [
+      {
+        label: 'Scenario clarity',
+        value: narrativeReady ? 'Defined' : 'Thin',
+        copy: narrativeReady
+          ? 'The scenario narrative is clear enough to quantify.'
+          : 'Narrative wording is still too thin for a high-trust run.'
+      },
+      {
+        label: 'Scope and context',
+        value: selectedRisks.length ? `${selectedRisks.length} in scope` : 'Scope not locked',
+        copy: selectedRisks.length
+          ? 'Selected risks give the model a cleaner assessment boundary.'
+          : 'Confirm which risks belong in this case before relying on the result.'
+      },
+      {
+        label: 'Evidence posture',
+        value: `${citations.length + provenance.length} basis item${citations.length + provenance.length === 1 ? '' : 's'}`,
+        copy: citations.length || provenance.length
+          ? 'Sources, citations, or tracked provenance are available for challenge.'
+          : 'The model is still relying mainly on working judgement and seeded inputs.'
+      },
+      {
+        label: 'Estimate coverage',
+        value: `${estimateCoverage}/${requiredEstimateFields.length}`,
+        copy: estimateCoverage === requiredEstimateFields.length
+          ? 'The core FAIR input groups are complete enough for a useful pilot run.'
+          : 'Finish the main frequency, exposure, and cost rows for a stronger run.'
+      }
+    ]
+  };
+}
+
+function renderQuantReadinessScoreCard(draft, validation) {
+  const readiness = buildQuantReadinessModel(draft, validation);
+  return `<div class="card card--elevated anim-fade-in">
+    <div class="wizard-premium-head">
+      <div>
+        <div class="context-panel-title">Quant readiness</div>
+        <p class="context-panel-copy" style="margin-top:var(--sp-2)">This is a quick trust check before the run, not a gate. It shows whether the scenario, evidence, and main estimate ranges are grounded enough for a useful result.</p>
+      </div>
+      <span class="badge badge--${readiness.tone}">${readiness.status}</span>
+    </div>
+    <div class="quant-readiness-hero quant-readiness-hero--${readiness.tone}">
+      <div class="quant-readiness-score">${readiness.totalScore}</div>
+      <div class="quant-readiness-copy">
+        <strong>${readiness.status}</strong>
+        <span>${escapeHtml(readiness.nextFocus)}</span>
+      </div>
+    </div>
+    <div class="quant-readiness-grid">
+      ${readiness.factors.map(item => `<div class="quant-readiness-card">
+        <div class="quant-readiness-card__label">${escapeHtml(item.label)}</div>
+        <strong>${escapeHtml(item.value)}</strong>
+        <span>${escapeHtml(item.copy)}</span>
+      </div>`).join('')}
+    </div>
+  </div>`;
+}
+
 function renderEstimateSourceAtGlance(draft) {
   const sources = Array.isArray(draft.inputAssignments) ? draft.inputAssignments.filter(Boolean) : [];
   const citations = Array.isArray(draft.citations) ? draft.citations.filter(Boolean) : [];
@@ -474,6 +578,7 @@ function renderWizard3() {
           ${draft.learningNote ? `<div class="card card--elevated anim-fade-in"><div class="context-panel-title">Template learning</div><p class="context-panel-copy">${draft.learningNote}</p></div>` : ''}
           ${renderEstimateHandoffCard(draft)}
           ${renderEstimateReadinessCard(draft, validation)}
+          ${renderQuantReadinessScoreCard(draft, validation)}
           ${baselineAssessment ? `<div class="card card--elevated anim-fade-in"><div class="wizard-premium-head"><div><div class="context-panel-title">Current assessment baseline</div><p class="context-panel-copy">You are working from <strong>${baselineAssessment.scenarioTitle || 'the original assessment'}</strong>. Adjust the assumptions below to reflect stronger prevention, faster response, or lower disruption impact, then rerun to compare the new result against the current baseline.</p></div><span class="badge badge--gold">Treatment lane</span></div><div class="form-help" style="margin-top:10px">Baseline completed on ${new Date(baselineAssessment.completedAt || baselineAssessment.createdAt || Date.now()).toLocaleDateString('en-AE', { year: 'numeric', month: 'long', day: 'numeric' })}.</div><div class="citation-chips" style="margin-top:12px"><button type="button" class="chip treatment-prompt-chip" data-treatment-prompt="control-strength">Try stronger controls</button><button type="button" class="chip treatment-prompt-chip" data-treatment-prompt="detection-response">Try faster detection</button><button type="button" class="chip treatment-prompt-chip" data-treatment-prompt="resilience">Try lower disruption impact</button></div><div class="form-group" style="margin-top:16px"><label class="form-label" for="treatment-improvement-request">Describe the better outcome you want to test</label><textarea class="form-textarea" id="treatment-improvement-request" rows="3" placeholder="e.g. stronger privileged-access controls, faster containment, better resilience, lower business disruption">${draft.treatmentImprovementRequest || ''}</textarea><span class="form-help">Describe the improvement in plain language and let AI adjust the copied baseline values before you simulate the new case.</span></div><div class="flex items-center gap-3" style="margin-top:12px;flex-wrap:wrap"><button class="btn btn--secondary" id="btn-treatment-ai-assist" type="button">AI Assist This Better Outcome</button><span class="form-help" id="treatment-improvement-status">These are quick starting points. You can still adjust every number manually before rerunning the analysis.</span></div></div>` : ''}
           ${renderEstimateQuickStartBlock(draft, recommendedPresetKey)}
           ${renderEstimateSourceAtGlance(draft)}
