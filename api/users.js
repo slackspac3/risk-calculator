@@ -1,5 +1,7 @@
 const crypto = require('crypto');
 const { appendAuditEvent } = require('./_audit');
+const { sendApiError, resolveAdminActor, requireSession } = require('./_apiAuth');
+const { validatePasswordPolicy, generateStrongPassword } = require('./_passwordPolicy');
 
 const DEFAULT_ACCOUNTS = [];
 
@@ -17,10 +19,16 @@ function getBootstrapAccounts() {
 const USERS_KEY = process.env.USER_STORE_KEY || 'risk_calculator_users';
 const USER_STATE_PREFIX = process.env.USER_STATE_PREFIX || 'risk_calculator_user_state';
 const ADMIN_API_SECRET = process.env.ADMIN_API_SECRET || '';
-const LOGIN_WINDOW_MS = 15 * 60 * 1000;
-const LOGIN_MAX_ATTEMPTS = 10;
+const LOGIN_WINDOW_MS = 30 * 60 * 1000;
+const LOGIN_MAX_ATTEMPTS = 5;
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const loginAttempts = new Map();
+const LOGIN_BACKOFF_STEPS_MS = [
+  2 * 60 * 1000,
+  10 * 60 * 1000,
+  30 * 60 * 1000,
+  60 * 60 * 1000
+];
 
 function getKvUrl() {
   return process.env.APPLE_CAT || process.env.FOO_URL_TEST || process.env.RC_USER_STORE_URL || process.env.USER_STORE_KV_URL || process.env.KV_REST_API_URL || '';
@@ -51,21 +59,8 @@ function sanitiseAccount(account = {}) {
   };
 }
 
-function generatePassword() {
-  return `RiskUser@${Math.floor(1000 + Math.random() * 9000)}`;
-}
-
 function isAdminSecretValid(req) {
   return !!ADMIN_API_SECRET && req.headers['x-admin-secret'] === ADMIN_API_SECRET;
-}
-
-function isAdminSessionValid(req) {
-  const payload = verifySessionToken(req.headers['x-session-token']);
-  return !!payload && payload.role === 'admin';
-}
-
-function isAdminRequest(req) {
-  return isAdminSecretValid(req) || isAdminSessionValid(req);
 }
 
 function canSelfUpdateAccount(session, username) {
@@ -73,16 +68,12 @@ function canSelfUpdateAccount(session, username) {
   return !!session && (session.role === 'admin' || String(session.username || '').trim().toLowerCase() === safeUsername);
 }
 
-function getSessionSigningSecret() {
-  return process.env.SESSION_SIGNING_SECRET || ADMIN_API_SECRET || getKvToken() || '';
-}
-
 function encodeTokenSegment(value) {
   return Buffer.from(value).toString('base64url');
 }
 
 function createSessionToken(account) {
-  const signingSecret = getSessionSigningSecret();
+  const signingSecret = process.env.SESSION_SIGNING_SECRET || ADMIN_API_SECRET || getKvToken() || '';
   if (!signingSecret) throw new Error('Session signing secret is not configured.');
   const payload = JSON.stringify({
     username: account.username,
@@ -96,47 +87,45 @@ function createSessionToken(account) {
   return `${payloadPart}.${signature}`;
 }
 
-function verifySessionToken(token) {
-  const signingSecret = getSessionSigningSecret();
-  if (!signingSecret) return null;
-  const value = String(token || '').trim();
-  if (!value || !value.includes('.')) return null;
-  const [payloadPart, signature] = value.split('.', 2);
-  const expected = crypto.createHmac('sha256', signingSecret).update(payloadPart).digest('base64url');
-  if (signature !== expected) return null;
-  try {
-    const payload = JSON.parse(Buffer.from(payloadPart, 'base64url').toString('utf8'));
-    if (!payload?.username || Number(payload.exp || 0) < Date.now()) return null;
-    return payload;
-  } catch {
-    return null;
-  }
-}
-
 function getLoginThrottleKey(req, username) {
   const forwarded = req.headers['x-forwarded-for'];
   const ip = Array.isArray(forwarded) ? forwarded[0] : String(forwarded || '').split(',')[0].trim();
   return `${String(username || '').trim().toLowerCase()}::${ip || 'unknown'}`;
 }
 
-function isLoginRateLimited(key) {
+function getLoginLockoutMs(count = 0) {
+  if (count < LOGIN_MAX_ATTEMPTS) return 0;
+  const index = Math.min(count - LOGIN_MAX_ATTEMPTS, LOGIN_BACKOFF_STEPS_MS.length - 1);
+  return LOGIN_BACKOFF_STEPS_MS[index];
+}
+
+function getLoginRateLimitState(key) {
   const entry = loginAttempts.get(key);
-  if (!entry) return false;
+  if (!entry) return { limited: false, retryAfterMs: 0, count: 0 };
   if (Date.now() - entry.firstAttemptAt > LOGIN_WINDOW_MS) {
     loginAttempts.delete(key);
-    return false;
+    return { limited: false, retryAfterMs: 0, count: 0 };
   }
-  return entry.count >= LOGIN_MAX_ATTEMPTS;
+  const retryAfterMs = Math.max(0, Number(entry.lockUntil || 0) - Date.now());
+  return {
+    limited: retryAfterMs > 0,
+    retryAfterMs,
+    count: Number(entry.count || 0)
+  };
 }
 
 function recordFailedLogin(key) {
   const now = Date.now();
   const entry = loginAttempts.get(key);
   if (!entry || now - entry.firstAttemptAt > LOGIN_WINDOW_MS) {
-    loginAttempts.set(key, { count: 1, firstAttemptAt: now });
+    const count = 1;
+    const lockMs = getLoginLockoutMs(count);
+    loginAttempts.set(key, { count, firstAttemptAt: now, lockUntil: lockMs ? now + lockMs : 0 });
     return;
   }
   entry.count += 1;
+  const lockMs = getLoginLockoutMs(entry.count);
+  entry.lockUntil = lockMs ? now + lockMs : 0;
   loginAttempts.set(key, entry);
 }
 
@@ -221,14 +210,17 @@ module.exports = async function handler(req, res) {
 
   const origin = req.headers.origin;
   if (origin && origin !== allowedOrigin) {
-    res.status(403).json({ error: 'Origin not allowed' });
+    sendApiError(res, 403, 'FORBIDDEN', 'Request origin is not allowed.');
     return;
   }
 
   try {
     if (req.method === 'GET') {
-      if (!isAdminRequest(req)) {
-        res.status(403).json({ error: 'Not authorised.' });
+      const actor = resolveAdminActor(req, res, {
+        isAdminSecretValid,
+        allowRoles: ['admin']
+      });
+      if (!actor) {
         return;
       }
       const accounts = await readAccounts();
@@ -247,17 +239,36 @@ module.exports = async function handler(req, res) {
         const username = String(body.username || '').trim().toLowerCase();
         const password = String(body.password || '');
         const throttleKey = getLoginThrottleKey(req, username);
-        if (isLoginRateLimited(throttleKey)) {
-          await appendAuditEvent({ category: 'auth', eventType: 'login_rate_limited', actorUsername: username || 'unknown', actorRole: 'anonymous', status: 'blocked', source: 'server', details: { ip: getLoginThrottleKey(req, username).split('::')[1] || 'unknown' } });
-          res.status(429).json({ error: 'Too many login attempts. Please wait and try again.' });
+        const throttle = getLoginRateLimitState(throttleKey);
+        if (throttle.limited) {
+          const retryAfterSeconds = Math.max(1, Math.ceil(throttle.retryAfterMs / 1000));
+          await appendAuditEvent({
+            category: 'auth',
+            eventType: 'login_rate_limited',
+            actorUsername: username || 'unknown',
+            actorRole: 'anonymous',
+            status: 'blocked',
+            source: 'server',
+            details: { retryAfterSeconds }
+          });
+          sendApiError(res, 429, 'ACCOUNT_LOCKED', 'Too many login attempts. Please wait and try again.', { retryAfterSeconds });
           return;
         }
         const accounts = await readAccounts();
         const matched = accounts.find(account => account.username === username && account.password === password);
         if (!matched) {
           recordFailedLogin(throttleKey);
-          await appendAuditEvent({ category: 'auth', eventType: 'login_failure', actorUsername: username || 'unknown', actorRole: 'anonymous', status: 'failed', source: 'server' });
-          res.status(401).json({ error: 'Invalid username or password.' });
+          const state = getLoginRateLimitState(throttleKey);
+          await appendAuditEvent({
+            category: 'auth',
+            eventType: 'login_failure',
+            actorUsername: username || 'unknown',
+            actorRole: 'anonymous',
+            status: 'failed',
+            source: 'server',
+            details: state.limited ? { retryAfterSeconds: Math.max(1, Math.ceil(state.retryAfterMs / 1000)) } : {}
+          });
+          sendApiError(res, 401, 'INVALID_CREDENTIALS', 'Invalid username or password.');
           return;
         }
         clearFailedLogin(throttleKey);
@@ -269,24 +280,32 @@ module.exports = async function handler(req, res) {
         return;
       }
 
-      if (!isAdminRequest(req)) {
-        res.status(403).json({ error: 'Admin authentication required.' });
+      const actor = resolveAdminActor(req, res, {
+        isAdminSecretValid,
+        allowRoles: ['admin']
+      });
+      if (!actor) {
         return;
       }
 
       const accounts = await readAccounts();
       const account = normaliseAccount(body.account || {});
       if (!account.username || !account.password) {
-        res.status(400).json({ error: 'Missing username or password.' });
+        sendApiError(res, 400, 'VALIDATION_ERROR', 'Username and password are required.');
         return;
       }
       if (accounts.some(item => item.username === account.username)) {
-        res.status(409).json({ error: 'Username already exists.' });
+        sendApiError(res, 409, 'USERNAME_EXISTS', 'That username is already in use.');
+        return;
+      }
+      const passwordCheck = validatePasswordPolicy(account.password);
+      if (!passwordCheck.valid) {
+        sendApiError(res, 400, 'PASSWORD_POLICY_FAILED', 'Password does not meet the current policy.');
         return;
       }
       accounts.push(account);
       await writeAccounts(accounts);
-      await appendAuditEvent({ category: 'user_admin', eventType: 'user_created', actorUsername: 'admin', actorRole: 'admin', target: account.username, status: 'success', source: 'server', details: { role: account.role, businessUnitEntityId: account.businessUnitEntityId, departmentEntityId: account.departmentEntityId } });
+      await appendAuditEvent({ category: 'user_admin', eventType: 'user_created', actorUsername: actor.username, actorRole: actor.role, target: account.username, status: 'success', source: 'server', details: { role: account.role, businessUnitEntityId: account.businessUnitEntityId, departmentEntityId: account.departmentEntityId } });
       res.status(201).json({
         account: sanitiseAccount(account),
         password: account.password,
@@ -298,20 +317,21 @@ module.exports = async function handler(req, res) {
     if (req.method === 'PATCH') {
       const username = String(body.username || '').trim().toLowerCase();
       const updates = body.updates || {};
-      const session = verifySessionToken(req.headers['x-session-token']);
       const accounts = await readAccounts();
       const index = accounts.findIndex(account => account.username === username);
       if (index < 0) {
-        res.status(404).json({ error: 'User not found.' });
+        sendApiError(res, 404, 'NOT_FOUND', 'User not found.');
         return;
       }
       if (body.action === 'self-update') {
+        const session = requireSession(req, res);
+        if (!session) return;
         if (!canSelfUpdateAccount(session, username)) {
-          res.status(403).json({ error: 'You are not allowed to modify this account.' });
+          sendApiError(res, 403, 'FORBIDDEN', 'You are not allowed to modify this account.');
           return;
         }
         if (typeof updates.businessUnitEntityId === 'string' || typeof updates.departmentEntityId === 'string') {
-          res.status(403).json({ error: 'Organisation assignment can only be changed by an admin.' });
+          sendApiError(res, 403, 'FORBIDDEN', 'Organisation assignment can only be changed by an admin.');
           return;
         }
         if (typeof updates.displayName === 'string' && updates.displayName.trim()) {
@@ -325,18 +345,25 @@ module.exports = async function handler(req, res) {
         res.status(200).json({ accounts: accounts.map(sanitiseAccount) });
         return;
       }
-      if (!isAdminRequest(req)) {
-        res.status(403).json({ error: 'Admin authentication required.' });
+      const actor = resolveAdminActor(req, res, {
+        isAdminSecretValid,
+        allowRoles: ['admin']
+      });
+      if (!actor) {
         return;
       }
       if (body.action === 'reset-password') {
-        const nextPassword = generatePassword();
+        const nextPassword = generateStrongPassword();
+        const passwordCheck = validatePasswordPolicy(nextPassword);
+        if (!passwordCheck.valid) {
+          throw new Error('Generated password failed policy validation.');
+        }
         accounts[index] = normaliseAccount({
           ...accounts[index],
           password: nextPassword
         });
         await writeAccounts(accounts);
-        await appendAuditEvent({ category: 'user_admin', eventType: 'password_reset', actorUsername: 'admin', actorRole: 'admin', target: accounts[index].username, status: 'success', source: 'server' });
+        await appendAuditEvent({ category: 'user_admin', eventType: 'password_reset', actorUsername: actor.username, actorRole: actor.role, target: accounts[index].username, status: 'success', source: 'server' });
         res.status(200).json({
           account: sanitiseAccount(accounts[index]),
           password: nextPassword,
@@ -348,7 +375,7 @@ module.exports = async function handler(req, res) {
         const removed = accounts.splice(index, 1)[0];
         await writeAccounts(accounts);
         await deleteUserState(removed.username);
-        await appendAuditEvent({ category: 'user_admin', eventType: 'user_deleted', actorUsername: 'admin', actorRole: 'admin', target: removed.username, status: 'success', source: 'server' });
+        await appendAuditEvent({ category: 'user_admin', eventType: 'user_deleted', actorUsername: actor.username, actorRole: actor.role, target: removed.username, status: 'success', source: 'server' });
         res.status(200).json({ accounts: accounts.map(sanitiseAccount) });
         return;
       }
@@ -360,17 +387,13 @@ module.exports = async function handler(req, res) {
         departmentEntityId: typeof updates.departmentEntityId === 'string' ? updates.departmentEntityId : accounts[index].departmentEntityId
       });
       await writeAccounts(accounts);
-      await appendAuditEvent({ category: 'user_admin', eventType: body.action === 'admin-update' ? 'managed_user_updated' : 'user_updated', actorUsername: 'admin', actorRole: 'admin', target: accounts[index].username, status: 'success', source: 'server', details: { role: accounts[index].role, businessUnitEntityId: accounts[index].businessUnitEntityId, departmentEntityId: accounts[index].departmentEntityId } });
+      await appendAuditEvent({ category: 'user_admin', eventType: body.action === 'admin-update' ? 'managed_user_updated' : 'user_updated', actorUsername: actor.username, actorRole: actor.role, target: accounts[index].username, status: 'success', source: 'server', details: { role: accounts[index].role, businessUnitEntityId: accounts[index].businessUnitEntityId, departmentEntityId: accounts[index].departmentEntityId } });
       res.status(200).json({ accounts: accounts.map(sanitiseAccount) });
       return;
     }
 
-    res.status(405).json({ error: 'Method not allowed' });
+    sendApiError(res, 405, 'METHOD_NOT_ALLOWED', 'Method not allowed.');
   } catch (error) {
-    const response = { error: 'User store request failed.' };
-    if (isAdminRequest(req)) {
-      response.detail = error instanceof Error ? error.message : String(error);
-    }
-    res.status(500).json(response);
+    sendApiError(res, 500, 'USER_STORE_REQUEST_FAILED', 'The user request could not be completed.');
   }
 };

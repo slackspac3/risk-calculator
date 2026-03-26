@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const { appendAuditEvent, verifySessionToken } = require('./_audit');
+const { sendApiError, requireSession } = require('./_apiAuth');
 
 const SETTINGS_KEY = process.env.SETTINGS_STORE_KEY || 'risk_calculator_settings';
 const DEFAULT_TYPICAL_DEPARTMENTS = [
@@ -250,7 +251,7 @@ module.exports = async function handler(req, res) {
 
   const origin = req.headers.origin;
   if (origin && origin !== allowedOrigin) {
-    res.status(403).json({ error: 'Origin not allowed' });
+    sendApiError(res, 403, 'FORBIDDEN', 'Request origin is not allowed.');
     return;
   }
 
@@ -269,17 +270,14 @@ module.exports = async function handler(req, res) {
     }
 
     if (req.method === 'PUT') {
-      const session = verifySessionToken(req.headers['x-session-token']);
-      if (!isAdminSecretValid(req) && !session) {
-        res.status(403).json({ error: 'Admin secret or valid session token required.' });
-        return;
-      }
+      const session = isAdminSecretValid(req) ? { username: 'admin', role: 'admin' } : requireSession(req, res);
+      if (!session) return;
       const currentSettings = await readSettings();
       const nextSettings = normaliseSettings(body.settings || {});
       const isAdminActor = isAdminSecretValid(req) || session?.role === 'admin';
       const isScopedBuAdmin = session?.role === 'bu_admin' && canBuAdminWriteSettings(currentSettings, nextSettings, session);
       if (!isAdminActor && !isScopedBuAdmin) {
-        res.status(403).json({ error: 'You are not allowed to modify these shared settings.' });
+        sendApiError(res, 403, 'FORBIDDEN', 'You are not allowed to modify these shared settings.');
         return;
       }
       const settings = await writeSettings(nextSettings);
@@ -288,12 +286,8 @@ module.exports = async function handler(req, res) {
       return;
     }
 
-    res.status(405).json({ error: 'Method not allowed' });
+    sendApiError(res, 405, 'METHOD_NOT_ALLOWED', 'Method not allowed.');
   } catch (error) {
-    const response = { error: 'Settings store request failed.' };
-    if (isAdminSecretValid(req) || verifySessionToken(req.headers['x-session-token'])?.role === 'admin') {
-      response.detail = error instanceof Error ? error.message : String(error);
-    }
-    res.status(500).json(response);
+    sendApiError(res, 500, 'SETTINGS_REQUEST_FAILED', 'The settings request could not be completed.');
   }
 };

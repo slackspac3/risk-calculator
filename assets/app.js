@@ -139,7 +139,8 @@ async function requestSharedSettings(method = 'GET', payload, { includeAdminSecr
     parsed = text ? JSON.parse(text) : null;
   } catch {}
   if (!res.ok) {
-    throw new Error(parsed?.detail || parsed?.error || text || `Settings request failed with HTTP ${res.status}`);
+    AuthService.handleApiAuthFailure(res.status, parsed);
+    throw AuthService.buildApiError(res, parsed, text || `Settings request failed with HTTP ${res.status}`);
   }
   return parsed || {};
 }
@@ -426,7 +427,10 @@ async function requestAuditLog(method = 'GET', payload, { includeAdminSecret = f
   const text = await res.text();
   let parsed = null;
   try { parsed = text ? JSON.parse(text) : null; } catch {}
-  if (!res.ok) throw new Error(parsed?.detail || parsed?.error || text || `Audit request failed with HTTP ${res.status}`);
+  if (!res.ok) {
+    AuthService.handleApiAuthFailure(res.status, parsed);
+    throw AuthService.buildApiError(res, parsed, text || `Audit request failed with HTTP ${res.status}`);
+  }
   return parsed || {};
 }
 
@@ -710,7 +714,8 @@ async function requestUserState(method = 'GET', username, payload, audit = null)
   let parsed = null;
   try { parsed = text ? JSON.parse(text) : null; } catch {}
   if (!res.ok) {
-    throw new Error(parsed?.detail || parsed?.error || text || `User state request failed with HTTP ${res.status}`);
+    AuthService.handleApiAuthFailure(res.status, parsed);
+    throw AuthService.buildApiError(res, parsed, text || `User state request failed with HTTP ${res.status}`);
   }
   return parsed || {};
 }
@@ -3974,6 +3979,11 @@ function renderLogin() {
         </div>
       </div>
     </main>`);
+
+  const sessionNotice = AuthService.consumeSessionNotice();
+  if (sessionNotice) {
+    UI.toast(sessionNotice, 'warning', 5000);
+  }
 
   const login = async () => {
     const username = document.getElementById('login-user').value;

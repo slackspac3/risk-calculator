@@ -11,6 +11,7 @@ const AuthService = (() => {
   const ACCOUNTS_CACHE_KEY = 'rq_auth_accounts_cache';
   const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
   const ADMIN_SECRET_KEY = 'rq_admin_api_secret';
+  const SESSION_NOTICE_KEY = 'rq_auth_notice';
   const DEFAULT_USERS_API_URL = resolveApiUrl('/api/users');
   const DEFAULT_ACCOUNTS = [];
   let accountsCache = DEFAULT_ACCOUNTS.slice();
@@ -95,9 +96,46 @@ function resolveApiUrl(path) {
       parsed = text ? JSON.parse(text) : null;
     } catch {}
     if (!res.ok) {
-      throw new Error(parsed?.detail || parsed?.error || text || `User store request failed with HTTP ${res.status}`);
+      handleApiAuthFailure(res.status, parsed);
+      throw buildApiError(res, parsed, text || `User store request failed with HTTP ${res.status}`);
     }
     return parsed || {};
+  }
+
+  function buildApiError(response, parsed, fallbackMessage = 'The request could not be completed.') {
+    const error = new Error(parsed?.error?.message || parsed?.error || fallbackMessage);
+    error.status = Number(response?.status || 0);
+    error.code = String(parsed?.error?.code || '').trim();
+    error.retryAfterSeconds = Number(parsed?.retryAfterSeconds || 0);
+    return error;
+  }
+
+  function forceSessionExpiry(message = 'Your session expired. Please sign in again.') {
+    logout();
+    try {
+      sessionStorage.setItem(SESSION_NOTICE_KEY, String(message || '').trim());
+    } catch {}
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('rq:session-expired', { detail: { message } }));
+      if (!String(window.location.hash || '').includes('/login')) {
+        window.location.hash = '#/login';
+      }
+    }
+  }
+
+  function handleApiAuthFailure(status, parsed) {
+    const code = String(parsed?.error?.code || '').trim();
+    if (status === 401 && ['SESSION_EXPIRED', 'INVALID_SESSION', 'AUTH_REQUIRED'].includes(code) && getApiSessionToken()) {
+      forceSessionExpiry(parsed?.error?.message || 'Your session expired. Please sign in again.');
+      return true;
+    }
+    return false;
+  }
+
+  function consumeSessionNotice() {
+    const value = sessionStorage.getItem(SESSION_NOTICE_KEY) || '';
+    if (value) sessionStorage.removeItem(SESSION_NOTICE_KEY);
+    return value;
   }
 
   async function refreshManagedAccounts() {
@@ -210,8 +248,8 @@ function resolveApiUrl(path) {
       return { success: true, user: sanitiseAccount(data.user) };
     } catch (error) {
       const message = error instanceof Error ? error.message : '';
-      if (/too many login attempts/i.test(message)) {
-        return { success: false, error: 'Too many login attempts. Please wait and try again.' };
+      if ((error && error.code === 'ACCOUNT_LOCKED') || /too many login attempts/i.test(message)) {
+        return { success: false, error: message || 'Too many login attempts. Please wait and try again.' };
       }
       return { success: false, error: 'Invalid username or password' };
     }
@@ -357,7 +395,11 @@ function resolveApiUrl(path) {
     adminUpdateManagedAccount,
     resetManagedPassword,
     deleteManagedAccount,
+    buildApiError,
+    consumeSessionNotice,
+    forceSessionExpiry,
     getAdminApiSecret,
+    handleApiAuthFailure,
     setAdminApiSecret
   };
 })();

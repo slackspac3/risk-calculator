@@ -1,5 +1,6 @@
 const USER_STATE_PREFIX = process.env.USER_STATE_PREFIX || 'risk_calculator_user_state';
-const { appendAuditEvent, verifySessionToken } = require('./_audit');
+const { appendAuditEvent } = require('./_audit');
+const { sendApiError, requireSession } = require('./_apiAuth');
 
 function getKvUrl() {
   return process.env.APPLE_CAT || process.env.FOO_URL_TEST || process.env.RC_USER_STORE_URL || process.env.USER_STORE_KV_URL || process.env.KV_REST_API_URL || '';
@@ -96,19 +97,20 @@ module.exports = async function handler(req, res) {
 
   const origin = req.headers.origin;
   if (origin && origin !== allowedOrigin) {
-    res.status(403).json({ error: 'Origin not allowed' });
+    sendApiError(res, 403, 'FORBIDDEN', 'Request origin is not allowed.');
     return;
   }
 
   try {
     const username = String(req.method === 'GET' ? req.query?.username : body.username || '').trim().toLowerCase();
-    const session = verifySessionToken(req.headers['x-session-token']);
+    const session = requireSession(req, res);
+    if (!session) return;
     if (!username) {
-      res.status(400).json({ error: 'Username required.' });
+      sendApiError(res, 400, 'VALIDATION_ERROR', 'Username is required.');
       return;
     }
     if (!canAccessUserState(session, username)) {
-      res.status(403).json({ error: 'You are not allowed to access this user state.' });
+      sendApiError(res, 403, 'FORBIDDEN', 'You are not allowed to access this user state.');
       return;
     }
 
@@ -136,12 +138,8 @@ module.exports = async function handler(req, res) {
       return;
     }
 
-    res.status(405).json({ error: 'Method not allowed' });
+    sendApiError(res, 405, 'METHOD_NOT_ALLOWED', 'Method not allowed.');
   } catch (error) {
-    const response = { error: 'User state request failed.' };
-    if (verifySessionToken(req.headers['x-session-token'])?.role === 'admin') {
-      response.detail = error instanceof Error ? error.message : String(error);
-    }
-    res.status(500).json(response);
+    sendApiError(res, 500, 'USER_STATE_REQUEST_FAILED', 'The user-state request could not be completed.');
   }
 };

@@ -131,6 +131,36 @@ test('dashboard route redirects unauthenticated users to login', async ({ page }
   });
 });
 
+test('expired API session forces logout and redirects to login', async ({ page }) => {
+  await seedAuthenticatedUser(page, {
+    userSettings: {
+      userProfile: {
+        fullName: 'Alex Trafton'
+      },
+      onboardedAt: '2026-03-17T00:00:00.000Z',
+      _overrideKeys: []
+    }
+  });
+  await mockSharedApis(page, { settings: {}, skipUsers: false });
+  await page.route('**/api/user-state*', async route => {
+    await route.fulfill({
+      status: 401,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        error: {
+          code: 'SESSION_EXPIRED',
+          message: 'Your session expired. Please sign in again.'
+        }
+      })
+    });
+  });
+
+  await expectNoClientCrashOnRoute(page, '/#/dashboard', async () => {
+    await expect(page).toHaveURL(/#\/login$/);
+    await expect(page.getByRole('button', { name: /sign in/i })).toBeVisible();
+  });
+});
+
 test('admin login route renders without crashing', async ({ page }) => {
   await expectNoClientCrashOnRoute(page, '/#/admin/settings/org', async () => {
     await expect(page.getByRole('button', { name: /sign in/i })).toBeVisible();

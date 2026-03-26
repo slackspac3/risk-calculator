@@ -94,26 +94,35 @@ function getSessionSigningSecret() {
   return process.env.SESSION_SIGNING_SECRET || process.env.ADMIN_API_SECRET || getKvToken() || '';
 }
 
-function verifySessionToken(token) {
+function parseSessionToken(token) {
   const signingSecret = getSessionSigningSecret();
-  if (!signingSecret) return null;
+  if (!signingSecret) return { valid: false, reason: 'unconfigured', payload: null };
   const value = String(token || '').trim();
-  if (!value || !value.includes('.')) return null;
+  if (!value || !value.includes('.')) return { valid: false, reason: 'missing', payload: null };
   const [payloadPart, signature] = value.split('.', 2);
   const expected = crypto.createHmac('sha256', signingSecret).update(payloadPart).digest('base64url');
-  if (signature !== expected) return null;
+  if (signature !== expected) return { valid: false, reason: 'invalid', payload: null };
   try {
     const payload = JSON.parse(Buffer.from(payloadPart, 'base64url').toString('utf8'));
-    if (!payload?.username || Number(payload.exp || 0) < Date.now()) return null;
-    return payload;
+    if (!payload?.username) return { valid: false, reason: 'invalid', payload: null };
+    if (Number(payload.exp || 0) < Date.now()) {
+      return { valid: false, reason: 'expired', payload };
+    }
+    return { valid: true, reason: '', payload };
   } catch {
-    return null;
+    return { valid: false, reason: 'invalid', payload: null };
   }
+}
+
+function verifySessionToken(token) {
+  const parsed = parseSessionToken(token);
+  return parsed.valid ? parsed.payload : null;
 }
 
 module.exports = {
   AUDIT_CAPACITY,
   appendAuditEvent,
+  parseSessionToken,
   readAuditLog,
   summariseAuditLog,
   verifySessionToken

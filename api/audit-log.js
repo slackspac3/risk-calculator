@@ -1,4 +1,5 @@
-const { appendAuditEvent, readAuditLog, summariseAuditLog, verifySessionToken } = require('./_audit');
+const { appendAuditEvent, readAuditLog, summariseAuditLog } = require('./_audit');
+const { sendApiError, requireSession } = require('./_apiAuth');
 
 const ADMIN_API_SECRET = process.env.ADMIN_API_SECRET || '';
 
@@ -23,26 +24,21 @@ module.exports = async function handler(req, res) {
   }
   const origin = req.headers.origin;
   if (origin && origin !== allowedOrigin) {
-    res.status(403).json({ error: 'Origin not allowed' });
+    sendApiError(res, 403, 'FORBIDDEN', 'Request origin is not allowed.');
     return;
   }
 
   try {
-    const session = verifySessionToken(req.headers['x-session-token']);
     if (req.method === 'GET') {
-      if (!isAdminSecretValid(req) && session?.role !== 'admin') {
-        res.status(403).json({ error: 'Admin access required.' });
-        return;
-      }
+      const session = isAdminSecretValid(req) ? { username: 'admin', role: 'admin' } : requireSession(req, res, { roles: ['admin'] });
+      if (!session) return;
       const entries = await readAuditLog();
       res.status(200).json({ entries: [...entries].reverse(), summary: summariseAuditLog(entries) });
       return;
     }
     if (req.method === 'POST') {
-      if (!isAdminSecretValid(req) && !session) {
-        res.status(403).json({ error: 'Valid session required.' });
-        return;
-      }
+      const session = isAdminSecretValid(req) ? { username: 'admin', role: 'admin' } : requireSession(req, res);
+      if (!session) return;
       const entry = await appendAuditEvent({
         category: body.category || 'general',
         eventType: body.eventType || 'event',
@@ -56,8 +52,8 @@ module.exports = async function handler(req, res) {
       res.status(201).json({ entry });
       return;
     }
-    res.status(405).json({ error: 'Method not allowed' });
+    sendApiError(res, 405, 'METHOD_NOT_ALLOWED', 'Method not allowed.');
   } catch (error) {
-    res.status(500).json({ error: 'Audit log request failed.', detail: error instanceof Error ? error.message : String(error) });
+    sendApiError(res, 500, 'AUDIT_REQUEST_FAILED', 'The audit request could not be completed.');
   }
 };
