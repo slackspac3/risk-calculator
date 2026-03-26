@@ -163,6 +163,16 @@ function renderResultsConfidenceNeedsBlock(confidenceFrame, evidenceQuality, mis
 function renderResultsComparisonHighlight(comparison) {
   if (!comparison) return '';
   const treatmentDecision = ReportPresentation.buildTreatmentDecisionSummary(comparison);
+  const outcomeTone = comparison.severeEvent.direction === 'down'
+    ? 'down'
+    : comparison.severeEvent.direction === 'up'
+      ? 'up'
+      : 'flat';
+  const outcomeLabel = comparison.severeEvent.direction === 'down'
+    ? 'Decision delta is improving'
+    : comparison.severeEvent.direction === 'up'
+      ? 'Decision delta is deteriorating'
+      : 'Decision delta is limited';
   return `<section class="results-section-stack">
     <div class="results-section-heading">Treatment comparison</div>
     <div class="results-comparison-card results-comparison-card--spotlight">
@@ -173,11 +183,18 @@ function renderResultsComparisonHighlight(comparison) {
           <p class="results-summary-copy" style="margin-top:var(--sp-3)">${treatmentDecision.summary}</p>
         </div>
         <div class="results-comparison-spotlight__rail">
+          <div class="results-comparison-verdict results-comparison-verdict--${outcomeTone}">
+            <span class="results-driver-label">Treatment verdict</span>
+            <strong>${outcomeLabel}</strong>
+            <span>${comparison.directionTitle || comparison.summary}</span>
+          </div>
           <div class="results-comparison-banner"><strong>Baseline:</strong> ${comparison.baselineTitle} · ${comparison.baselineDate}</div>
           <div class="results-comparison-banner">${comparison.statusShift}</div>
         </div>
       </div>
-      <div class="results-comparison-banner" style="margin-top:var(--sp-4)">${treatmentDecision.action}</div>
+      <div class="results-comparison-banner results-comparison-banner--premium" style="margin-top:var(--sp-4)">
+        <strong>Recommended treatment read:</strong> ${treatmentDecision.action}
+      </div>
       <div class="results-comparison-grid">
         <div class="results-comparison-metric ${comparison.severeEvent.direction}"><div class="results-impact-label">Severe single event</div><div class="results-comparison-value">${comparison.severeEvent.formatted}</div><div class="results-comparison-foot">${comparison.statusShift}</div></div>
         <div class="results-comparison-metric ${comparison.annualExposure.direction}"><div class="results-impact-label">Expected annual exposure</div><div class="results-comparison-value">${comparison.annualExposure.formatted}</div><div class="results-comparison-foot">Average-year delta</div></div>
@@ -192,6 +209,40 @@ function renderResultsComparisonHighlight(comparison) {
           <span class="results-driver-label">Secondary change</span>
           <strong>${comparison.secondaryDriver}</strong>
         </div>
+      </div>
+    </div>
+  </section>`;
+}
+
+function renderAssumptionTraceabilityPanel({ assessment, assessmentIntelligence, citations = [], primaryGrounding = [], supportingReferences = [], missingInformation = [] }) {
+  const assumptions = Array.isArray(assessmentIntelligence?.assumptions) ? assessmentIntelligence.assumptions.slice(0, 4) : [];
+  const provenance = Array.isArray(assessment?.inputProvenance) ? assessment.inputProvenance.filter(Boolean) : [];
+  const traceRows = assumptions.map((item, index) => {
+    const text = escapeHtml(String(item?.text || item || 'Unnamed assumption'));
+    const basis = item?.basis || item?.sourceBasis || provenance[index] || primaryGrounding[index] || supportingReferences[index] || '';
+    const confidence = item?.confidence || item?.strength || '';
+    return `<div class="results-trace-row">
+      <div class="results-trace-row__head">
+        <strong>Assumption ${index + 1}</strong>
+        ${confidence ? `<span class="badge badge--neutral">${escapeHtml(String(confidence))}</span>` : ''}
+      </div>
+      <div class="results-summary-copy">${text}</div>
+      <div class="results-comparison-foot" style="margin-top:var(--sp-2)">${basis ? `Source basis: ${escapeHtml(String(basis))}` : 'Source basis not explicitly recorded for this assumption yet.'}</div>
+    </div>`;
+  }).join('');
+  const topGap = missingInformation[0] || 'No major missing information was recorded for this assessment.';
+  return `<section class="results-section-stack">
+    <div class="results-section-heading">Assumption traceability</div>
+    <div class="results-traceability-grid">
+      <div class="results-summary-card results-summary-card--wide">
+        <div class="results-driver-label">What the result is relying on</div>
+        ${traceRows || '<div class="results-summary-copy">No explicit assumption trace was saved with this assessment yet.</div>'}
+      </div>
+      <div class="results-summary-card">
+        <div class="results-driver-label">Evidence and readiness</div>
+        <div class="results-trace-stat"><strong>${citations.length}</strong><span>linked reference${citations.length === 1 ? '' : 's'}</span></div>
+        <div class="results-trace-stat"><strong>${provenance.length || primaryGrounding.length || supportingReferences.length || 0}</strong><span>tracked basis item${(provenance.length || primaryGrounding.length || supportingReferences.length || 0) === 1 ? '' : 's'}</span></div>
+        <div class="results-comparison-foot" style="margin-top:var(--sp-4)">Biggest missing information: ${escapeHtml(String(topGap))}</div>
       </div>
     </div>
   </section>`;
@@ -221,11 +272,12 @@ function renderExecutiveInsightCluster({ scenarioNarrative, executiveDecision, e
   </section>`;
 }
 
-function renderTrustExplanationLayer({ confidenceNeedsBlock, explanationPanel, impactMix, thresholdModel, results, assessmentIntelligence, assessment }) {
+function renderTrustExplanationLayer({ confidenceNeedsBlock, explanationPanel, impactMix, thresholdModel, results, assessmentIntelligence, assessment, citations, primaryGrounding, supportingReferences, missingInformation }) {
   return `<section class="results-section-stack">
     <div class="results-section-heading">Trust and explanation</div>
     ${confidenceNeedsBlock}
     ${explanationPanel}
+    ${renderAssumptionTraceabilityPanel({ assessment, assessmentIntelligence, citations, primaryGrounding, supportingReferences, missingInformation })}
     <details class="results-detail-disclosure">
       <summary>Show supporting drivers, cost mix, and governance tracks</summary>
       <div class="results-detail-disclosure-copy">Open this when you want the main sensitivities, cost composition, and benchmark context behind the headline view.</div>
@@ -1187,20 +1239,23 @@ function renderResults(id, isShared) {
       ${renderDecisionRail(statusTitle, statusDetail, executiveDecision, executiveAction, assessmentIntelligence.confidence, rolePresentation)}
 
       <div class="results-exec-metrics">
-        <div class="results-impact-card">
+        <div class="results-impact-card results-impact-card--headline">
           <div class="results-impact-label">Conditional loss from one successful event</div>
           <div class="results-impact-value ${r.toleranceBreached ? 'danger' : ''}">${fmtCurrency(r.eventLoss.p90)}</div>
           <div class="results-impact-copy">Severe single-event view</div>
+          <div class="results-impact-foot">${r.toleranceBreached ? 'Above the current event tolerance.' : r.nearTolerance ? 'Above the warning threshold, but below tolerance.' : 'Below the current warning trigger.'}</div>
         </div>
         <div class="results-impact-card">
           <div class="results-impact-label">Expected annualized loss</div>
           <div class="results-impact-value">${fmtCurrency(r.annualLoss.mean)}</div>
           <div class="results-impact-copy">Expected annual exposure</div>
+          <div class="results-impact-foot">Use this as the average-year planning view.</div>
         </div>
         <div class="results-impact-card">
           <div class="results-impact-label">High-stress annualized loss</div>
           <div class="results-impact-value warning">${fmtCurrency(r.annualLoss.p90)}</div>
           <div class="results-impact-copy">Severe annual planning view</div>
+          <div class="results-impact-foot">${r.annualReviewTriggered ? 'At or above the annual review trigger.' : 'Still below the annual review trigger.'}</div>
         </div>
       </div>
 
@@ -1220,7 +1275,11 @@ function renderResults(id, isShared) {
         thresholdModel,
         results: r,
         assessmentIntelligence,
-        assessment
+        assessment,
+        citations,
+        primaryGrounding,
+        supportingReferences,
+        missingInformation
       })}
     </section>`;
 

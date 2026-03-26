@@ -1506,6 +1506,14 @@ canvas { display: block; width: 100%; }
 .results-impact-value.warning { color: var(--color-warning-400); }
 .results-impact-value.danger { color: var(--color-danger-400); }
 .results-impact-copy { margin-top: var(--sp-3); font-size: var(--text-sm); color: var(--text-secondary); line-height: 1.7; }
+.results-impact-foot {
+  margin-top: var(--sp-4);
+  padding-top: var(--sp-3);
+  border-top: 1px solid rgba(214,225,238,.08);
+  font-size: var(--text-xs);
+  line-height: 1.7;
+  color: var(--text-muted);
+}
 .results-visual-grid {
   display: grid;
   grid-template-columns: 1.35fr 1fr 1fr;
@@ -1552,6 +1560,12 @@ canvas { display: block; width: 100%; }
   margin-bottom: var(--sp-6);
 }
 .results-decision-card { padding: var(--sp-5) var(--sp-6); }
+.results-impact-card--headline {
+  background:
+    radial-gradient(circle at top right, rgba(180,138,70,.10), transparent 30%),
+    linear-gradient(180deg, rgba(16,25,37,.96), rgba(10,18,28,.88));
+  border-top: 3px solid rgba(244,193,90,.22);
+}
 .results-decision-points {
   display: grid;
   grid-template-columns: 1fr;
@@ -1683,7 +1697,12 @@ canvas { display: block; width: 100%; }
   color: rgba(211,223,235,0.62);
 }
 @media (max-width: 1100px) {
-  .results-executive-brief, .results-exec-metrics, .results-visual-grid, .results-decision-grid, .results-summary-grid, .results-analyst-summary__grid {
+  .results-executive-brief, .results-exec-metrics, .results-visual-grid, .results-decision-grid, .results-summary-grid, .results-analyst-summary__grid, .results-traceability-grid {
+    grid-template-columns: 1fr;
+  }
+  .results-comparison-spotlight,
+  .results-comparison-grid,
+  .results-comparison-levers {
     grid-template-columns: 1fr;
   }
 }
@@ -1718,6 +1737,37 @@ canvas { display: block; width: 100%; }
   display: flex;
   flex-direction: column;
   gap: var(--sp-3);
+}
+.results-comparison-verdict {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: var(--sp-4) var(--sp-5);
+  border-radius: var(--radius-xl);
+  border: 1px solid rgba(214,225,238,.08);
+  background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+}
+.results-comparison-verdict strong {
+  color: var(--text-primary);
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  line-height: 1.25;
+}
+.results-comparison-verdict span:last-child {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  line-height: 1.7;
+}
+.results-comparison-verdict--down {
+  border-color: rgba(16,185,129,.18);
+  background: linear-gradient(180deg, rgba(16,185,129,.10), rgba(255,255,255,.02));
+}
+.results-comparison-verdict--up {
+  border-color: rgba(239,68,68,.18);
+  background: linear-gradient(180deg, rgba(239,68,68,.10), rgba(255,255,255,.02));
+}
+.results-comparison-verdict--flat {
+  border-color: rgba(148,163,184,.18);
 }
 .results-comparison-head > div { min-width: 0; }
 .results-comparison-grid { align-items: stretch; }
@@ -1841,6 +1891,53 @@ canvas { display: block; width: 100%; }
   background: var(--bg-elevated);
   color: var(--text-secondary);
   font-size: var(--text-sm);
+}
+.results-comparison-banner--premium {
+  border: 1px solid rgba(244,193,90,.12);
+  background: linear-gradient(180deg, rgba(180,138,70,.12), rgba(255,255,255,.02));
+}
+
+.results-traceability-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(280px, .65fr);
+  gap: var(--sp-4);
+}
+.results-trace-row {
+  padding: var(--sp-4);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(214,225,238,.08);
+  background: rgba(255,255,255,.025);
+}
+.results-trace-row + .results-trace-row {
+  margin-top: var(--sp-3);
+}
+.results-trace-row__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-2);
+}
+.results-trace-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--sp-3) 0;
+  border-bottom: 1px solid rgba(214,225,238,.08);
+}
+.results-trace-stat:last-of-type {
+  border-bottom: 0;
+}
+.results-trace-stat strong {
+  font-family: var(--font-display);
+  font-size: clamp(1.3rem, 2vw, 1.8rem);
+  color: var(--text-primary);
+  line-height: 1.1;
+}
+.results-trace-stat span {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  line-height: 1.6;
 }
 
 .results-comparison-grid {
