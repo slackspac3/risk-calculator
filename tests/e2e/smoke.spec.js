@@ -16,15 +16,19 @@ async function seedAuthenticatedUser(page, {
   role = 'user',
   userSettings = null,
   adminSettings = null,
+  draftRecovery = null,
   preferredAdminSection = 'org'
 } = {}) {
-  await page.addInitScript(({ session, userSettings, adminSettings, preferredAdminSection }) => {
+  await page.addInitScript(({ session, userSettings, adminSettings, draftRecovery, preferredAdminSection }) => {
     sessionStorage.setItem('rq_auth_session', JSON.stringify(session));
     if (userSettings) {
       localStorage.setItem(`rq_user_settings__${session.user.username}`, JSON.stringify(userSettings));
     }
     if (adminSettings) {
       localStorage.setItem('rq_admin_settings', JSON.stringify(adminSettings));
+    }
+    if (draftRecovery) {
+      localStorage.setItem(`rq_draft_recovery__${session.user.username}`, JSON.stringify(draftRecovery));
     }
     if (preferredAdminSection) {
       localStorage.setItem('rq_admin_active_section', preferredAdminSection);
@@ -33,6 +37,7 @@ async function seedAuthenticatedUser(page, {
     session: buildSession({ username, displayName, role, businessUnitEntityId: '', departmentEntityId: '' }),
     userSettings,
     adminSettings,
+    draftRecovery,
     preferredAdminSection
   });
 }
@@ -158,6 +163,135 @@ test('expired API session forces logout and redirects to login', async ({ page }
   await expectNoClientCrashOnRoute(page, '/#/dashboard', async () => {
     await expect(page).toHaveURL(/#\/login$/);
     await expect(page.getByRole('button', { name: /sign in/i })).toBeVisible();
+  });
+});
+
+test('stale draft autosave shows a recovery dialog instead of silently overwriting data', async ({ page }) => {
+  const seededUserSettings = {
+    userProfile: {
+      fullName: 'Alex Trafton',
+      jobTitle: 'Risk Manager',
+      businessUnit: 'G42',
+      department: 'Security',
+      focusAreas: ['Resilience'],
+      preferredOutputs: 'Executive summaries',
+      workingContext: 'Support regulated services.'
+    },
+    onboardedAt: '2026-03-17T00:00:00.000Z',
+    _overrideKeys: []
+  };
+  await seedAuthenticatedUser(page, { userSettings: seededUserSettings });
+  await mockSharedApis(page, {
+    settings: {
+      geography: 'United Arab Emirates',
+      applicableRegulations: ['UAE PDPL'],
+      entityContextLayers: [],
+      companyStructure: [],
+      aiInstructions: 'Use British English.',
+      benchmarkStrategy: 'Prefer GCC and UAE benchmark references.',
+      typicalDepartments: ['Security']
+    },
+    userState: {
+      userSettings: seededUserSettings,
+      assessments: [],
+      learningStore: { templates: {} },
+      draft: null,
+      _meta: { revision: 1, updatedAt: Date.now() }
+    }
+  });
+  await page.route('**/api/user-state*', async route => {
+    const request = route.request();
+    if (request.method() === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          state: {
+            userSettings: seededUserSettings,
+            assessments: [],
+            learningStore: { templates: {} },
+            draft: null,
+            _meta: { revision: 1, updatedAt: Date.now() }
+          }
+        })
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 409,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        error: {
+          code: 'WRITE_CONFLICT',
+          message: 'Your workspace changed in another session. Reload the latest version and try again.'
+        },
+        latestState: {
+          userSettings: seededUserSettings,
+          assessments: [],
+          learningStore: { templates: {} },
+          draft: { scenarioTitle: 'Latest shared draft' },
+          _meta: { revision: 2, updatedAt: Date.now() }
+        },
+        latestMeta: { revision: 2, updatedAt: Date.now() },
+        conflictFields: ['draft']
+      })
+    });
+  });
+
+  await expectNoClientCrashOnRoute(page, '/#/wizard/1', async () => {
+    await page.locator('#guided-event').fill('Third-party outage');
+    await expect(page.getByText(/latest version available/i)).toBeVisible();
+    await expect(page.getByRole('button', { name: /load latest/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /try again/i })).toBeVisible();
+  });
+});
+
+test('draft recovery restores the latest local draft after refresh', async ({ page }) => {
+  const seededUserSettings = {
+    userProfile: {
+      fullName: 'Alex Trafton',
+      jobTitle: 'Risk Manager',
+      businessUnit: 'G42',
+      department: 'Security',
+      focusAreas: ['Resilience'],
+      preferredOutputs: 'Executive summaries',
+      workingContext: 'Support regulated services.'
+    },
+    onboardedAt: '2026-03-17T00:00:00.000Z',
+    _overrideKeys: []
+  };
+  await seedAuthenticatedUser(page, {
+    userSettings: seededUserSettings,
+    draftRecovery: {
+      savedAt: Date.now(),
+      draft: {
+        scenarioTitle: 'Recovered pilot draft',
+        guidedInput: { event: 'Identity provider outage', asset: '', cause: '', impact: '', urgency: 'medium' }
+      }
+    }
+  });
+  await mockSharedApis(page, {
+    settings: {
+      geography: 'United Arab Emirates',
+      applicableRegulations: ['UAE PDPL'],
+      entityContextLayers: [],
+      companyStructure: [],
+      aiInstructions: 'Use British English.',
+      benchmarkStrategy: 'Prefer GCC and UAE benchmark references.',
+      typicalDepartments: ['Security']
+    },
+    userState: {
+      userSettings: seededUserSettings,
+      assessments: [],
+      learningStore: { templates: {} },
+      draft: null,
+      _meta: { revision: 1, updatedAt: Date.now() }
+    }
+  });
+
+  await expectNoClientCrashOnRoute(page, '/#/wizard/1', async () => {
+    await expect(page.locator('#guided-event')).toHaveValue(/Identity provider outage/);
+    await expect(page.getByText(/recovered your latest draft from this browser/i)).toBeVisible();
   });
 });
 

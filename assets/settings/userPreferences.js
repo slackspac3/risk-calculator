@@ -311,6 +311,8 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
           <div class="settings-shell__footer">
             <div class="flex items-center gap-3" style="flex-wrap:wrap">
               <button class="btn btn--primary" id="btn-save-user-settings">Save My Settings</button>
+              <button class="btn btn--secondary" id="btn-export-user-settings">Export JSON</button>
+              <button class="btn btn--ghost" id="btn-import-user-settings">Import JSON</button>
               <span class="form-help">These values will be used as your personal defaults in future assessments.</span>
             </div>
             <div class="banner banner--poc mt-6">
@@ -508,7 +510,7 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
   }
 
 
-  function persistUserSettings(showToast = false) {
+  async function persistUserSettings(showToast = false) {
     const { payload, businessUnitEntityId, departmentEntityId } = buildUserSettingsPayload();
     saveUserSettings(payload);
     if (!AppState.draft.geography) AppState.draft.geography = getEffectiveSettings().geography;
@@ -527,7 +529,7 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
       btn.textContent = 'Saving…';
     }
     try {
-      persistUserSettings(true);
+      await persistUserSettings(true);
       await logAuditEvent({ category: 'profile', eventType: 'personal_settings_saved', target: AuthService.getCurrentUser()?.username || '', status: 'success', source: 'client' });
     } finally {
       if (btn) {
@@ -535,6 +537,25 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
         btn.textContent = originalText;
       }
     }
+  });
+
+  document.getElementById('btn-export-user-settings')?.addEventListener('click', () => {
+    ExportService.exportDataAsJson(getUserSettings(), `risk-calculator-user-settings-${AuthService.getCurrentUser()?.username || 'user'}.json`);
+  });
+
+  document.getElementById('btn-import-user-settings')?.addEventListener('click', () => {
+    ExportService.importJsonFile({
+      onData: async parsed => {
+        if (!parsed || typeof parsed !== 'object') {
+          UI.toast('That file does not contain valid personal settings.', 'warning');
+          return;
+        }
+        await saveUserSettings(parsed);
+        renderUserPreferences(getUserSettings());
+        UI.toast('Personal settings imported.', 'success');
+      },
+      onError: () => UI.toast('That JSON file could not be imported.', 'warning')
+    });
   });
 
   document.getElementById('btn-user-add-department')?.addEventListener('click', () => {

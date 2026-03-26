@@ -14,6 +14,16 @@ function sendApiError(res, status, code, message, extra = {}) {
   res.status(Number(status || 500)).json(buildErrorPayload(code, message, extra));
 }
 
+function sendConflictError(res, message, extra = {}) {
+  sendApiError(
+    res,
+    409,
+    'WRITE_CONFLICT',
+    message || 'This information changed somewhere else. Reload the latest version and try again.',
+    extra
+  );
+}
+
 function validateSessionFromRequest(req) {
   const token = String(req.headers['x-session-token'] || '').trim();
   if (!token) {
@@ -69,6 +79,7 @@ function resolveAdminActor(req, res, { isAdminSecretValid, allowRoles = ['admin'
 module.exports = {
   buildErrorPayload,
   sendApiError,
+  sendConflictError,
   validateSessionFromRequest,
   requireSession,
   resolveAdminActor

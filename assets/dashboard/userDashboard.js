@@ -78,6 +78,8 @@ function renderUserDashboard() {
                 <button class="btn btn--primary btn--lg" id="btn-dashboard-new-assessment" aria-label="Start a New Risk Assessment">Start Guided Assessment</button>
                 <button class="btn btn--secondary" id="btn-dashboard-continue-draft" ${hasDraft ? '' : 'disabled'}>Resume Draft</button>
                 <button class="btn btn--ghost" id="btn-dashboard-open-settings">${capability.experience.primaryActionLabel}</button>
+                <button class="btn btn--ghost" id="btn-dashboard-export-assessments">Export Assessments</button>
+                <button class="btn btn--ghost" id="btn-dashboard-import-assessments">Import Assessments</button>
               </div>
             </div>
             <div class="card dashboard-hero-side">
@@ -198,6 +200,33 @@ function renderUserDashboard() {
   document.getElementById('btn-dashboard-open-settings')?.addEventListener('click', () => Router.navigate('/settings'));
   document.getElementById('btn-dashboard-settings-secondary')?.addEventListener('click', () => Router.navigate('/settings'));
   document.getElementById('btn-dashboard-continue-draft')?.addEventListener('click', () => Router.navigate('/wizard/1'));
+  document.getElementById('btn-dashboard-export-assessments')?.addEventListener('click', () => {
+    ExportService.exportDataAsJson(getAssessments(), `risk-calculator-assessments-${user?.username || 'user'}.json`);
+  });
+  document.getElementById('btn-dashboard-import-assessments')?.addEventListener('click', () => {
+    ExportService.importJsonFile({
+      onData: parsed => {
+        if (!Array.isArray(parsed)) {
+          UI.toast('That file does not contain an assessment list.', 'warning');
+          return;
+        }
+        const existing = getAssessments();
+        const merged = [...parsed, ...existing]
+          .filter(item => item && typeof item === 'object' && item.id)
+          .reduce((acc, item) => {
+            if (!acc.find(existingItem => existingItem.id === item.id)) acc.push(item);
+            return acc;
+          }, []);
+        const cache = ensureUserStateCache();
+        cache.assessments = merged;
+        localStorage.setItem(buildUserStorageKey(ASSESSMENTS_STORAGE_PREFIX), JSON.stringify(merged));
+        queueSharedUserStateSync({ assessments: merged });
+        renderUserDashboard();
+        UI.toast('Assessments imported.', 'success');
+      },
+      onError: () => UI.toast('That JSON file could not be imported.', 'warning')
+    });
+  });
   document.querySelector('main.page')?.addEventListener('click', async event => {
     const target = event.target.closest('button');
     if (!target) return;

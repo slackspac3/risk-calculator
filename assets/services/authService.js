@@ -107,6 +107,11 @@ function resolveApiUrl(path) {
     error.status = Number(response?.status || 0);
     error.code = String(parsed?.error?.code || '').trim();
     error.retryAfterSeconds = Number(parsed?.retryAfterSeconds || 0);
+    error.details = parsed || null;
+    if (parsed?.latestState) error.latestState = parsed.latestState;
+    if (parsed?.latestSettings) error.latestSettings = parsed.latestSettings;
+    if (parsed?.latestMeta) error.latestMeta = parsed.latestMeta;
+    if (Array.isArray(parsed?.conflictFields)) error.conflictFields = parsed.conflictFields;
     return error;
   }
 

@@ -1,6 +1,6 @@
 const USER_STATE_PREFIX = process.env.USER_STATE_PREFIX || 'risk_calculator_user_state';
 const { appendAuditEvent } = require('./_audit');
-const { sendApiError, requireSession } = require('./_apiAuth');
+const { sendApiError, requireSession, sendConflictError } = require('./_apiAuth');
 
 function getKvUrl() {
   return process.env.APPLE_CAT || process.env.FOO_URL_TEST || process.env.RC_USER_STORE_URL || process.env.USER_STORE_KV_URL || process.env.KV_REST_API_URL || '';
@@ -57,18 +57,82 @@ async function readUserState(username) {
   }
 }
 
-async function writeUserState(username, state) {
-  const next = normaliseState(state);
-  const current = await readUserState(username);
-  const currentUpdatedAt = Number(current._meta?.updatedAt || 0);
-  const nextUpdatedAt = Number(next._meta?.updatedAt || 0);
-  const currentRevision = Number(current._meta?.revision || 0);
-  const nextRevision = Number(next._meta?.revision || 0);
-  if (currentUpdatedAt > nextUpdatedAt || (currentUpdatedAt === nextUpdatedAt && currentRevision > nextRevision)) {
-    return current;
+function buildConflictDetails(currentState, conflictFields = []) {
+  return {
+    latestState: currentState,
+    latestMeta: currentState?._meta || { revision: 0, updatedAt: 0 },
+    conflictFields: Array.isArray(conflictFields) ? conflictFields : []
+  };
+}
+
+function isStaleWrite(currentState, expectedMeta = {}) {
+  const currentRevision = Number(currentState?._meta?.revision || 0);
+  const expectedRevision = Number(expectedMeta?.revision || 0);
+  return currentRevision !== expectedRevision;
+}
+
+function buildNextState(current, candidateState) {
+  return normaliseState({
+    ...candidateState,
+    _meta: {
+      revision: Number(current?._meta?.revision || 0) + 1,
+      updatedAt: Date.now()
+    }
+  });
+}
+
+function applyStatePatch(current, patch = {}) {
+  const next = normaliseState(current);
+  if (Object.prototype.hasOwnProperty.call(patch, 'userSettings')) {
+    next.userSettings = patch.userSettings && typeof patch.userSettings === 'object' ? patch.userSettings : null;
   }
-  await runKvCommand(['SET', buildStateKey(username), JSON.stringify(next)]);
+  if (Object.prototype.hasOwnProperty.call(patch, 'assessments')) {
+    next.assessments = Array.isArray(patch.assessments) ? patch.assessments : [];
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, 'learningStore')) {
+    next.learningStore = patch.learningStore && typeof patch.learningStore === 'object' ? patch.learningStore : { templates: {} };
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, 'draft')) {
+    next.draft = patch.draft && typeof patch.draft === 'object' ? patch.draft : null;
+  }
   return next;
+}
+
+async function writeUserState(username, state, expectedMeta = {}) {
+  const current = await readUserState(username);
+  if (isStaleWrite(current, expectedMeta)) {
+    return {
+      ok: false,
+      conflict: true,
+      state: current
+    };
+  }
+  const next = buildNextState(current, state);
+  await runKvCommand(['SET', buildStateKey(username), JSON.stringify(next)]);
+  return {
+    ok: true,
+    conflict: false,
+    state: next
+  };
+}
+
+async function patchUserState(username, patch, expectedMeta = {}) {
+  const current = await readUserState(username);
+  if (isStaleWrite(current, expectedMeta)) {
+    return {
+      ok: false,
+      conflict: true,
+      state: current
+    };
+  }
+  const patched = applyStatePatch(current, patch);
+  const next = buildNextState(current, patched);
+  await runKvCommand(['SET', buildStateKey(username), JSON.stringify(next)]);
+  return {
+    ok: true,
+    conflict: false,
+    state: next
+  };
 }
 
 
@@ -86,7 +150,7 @@ module.exports = async function handler(req, res) {
     : (req.body || {});
 
   res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
-  res.setHeader('Access-Control-Allow-Methods', 'GET,PUT,OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,PUT,PATCH,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'content-type,x-session-token');
   res.setHeader('Vary', 'Origin');
 
@@ -121,7 +185,44 @@ module.exports = async function handler(req, res) {
     }
 
     if (req.method === 'PUT') {
-      const state = await writeUserState(username, body.state || {});
+      const writeResult = await writeUserState(username, body.state || {}, body.expectedMeta || body.state?._meta || {});
+      if (writeResult.conflict) {
+        sendConflictError(
+          res,
+          'Your workspace changed in another session. Reload the latest version and try again.',
+          buildConflictDetails(writeResult.state)
+        );
+        return;
+      }
+      const state = writeResult.state;
+      if (body.audit && session) {
+        await appendAuditEvent({
+          category: body.audit.category || 'user_state',
+          eventType: body.audit.eventType || 'user_state_updated',
+          actorUsername: session.username,
+          actorRole: session.role || 'user',
+          target: body.audit.target || username,
+          status: 'success',
+          source: 'server',
+          details: body.audit.details || {}
+        });
+      }
+      res.status(200).json({ state });
+      return;
+    }
+
+    if (req.method === 'PATCH') {
+      const patch = body.patch && typeof body.patch === 'object' ? body.patch : {};
+      const writeResult = await patchUserState(username, patch, body.expectedMeta || {});
+      if (writeResult.conflict) {
+        sendConflictError(
+          res,
+          'Your workspace changed in another session. Reload the latest version and try again.',
+          buildConflictDetails(writeResult.state, Object.keys(patch))
+        );
+        return;
+      }
+      const state = writeResult.state;
       if (body.audit && session) {
         await appendAuditEvent({
           category: body.audit.category || 'user_state',
@@ -143,3 +244,7 @@ module.exports = async function handler(req, res) {
     sendApiError(res, 500, 'USER_STATE_REQUEST_FAILED', 'The user-state request could not be completed.');
   }
 };
+
+module.exports.normaliseState = normaliseState;
+module.exports.writeUserState = writeUserState;
+module.exports.patchUserState = patchUserState;

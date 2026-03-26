@@ -20,7 +20,7 @@ function saveAssessment(a) {
   const cache = ensureUserStateCache();
   cache.assessments = list;
   localStorage.setItem(buildUserStorageKey(ASSESSMENTS_STORAGE_PREFIX), JSON.stringify(list));
-  queueSharedUserStateSync();
+  queueSharedUserStateSync({ assessments: list });
 }
 function updateAssessmentRecord(id, updater) {
   const list = getAssessments().slice();
@@ -32,7 +32,7 @@ function updateAssessmentRecord(id, updater) {
   const cache = ensureUserStateCache();
   cache.assessments = list;
   localStorage.setItem(buildUserStorageKey(ASSESSMENTS_STORAGE_PREFIX), JSON.stringify(list));
-  queueSharedUserStateSync();
+  queueSharedUserStateSync({ assessments: list });
   return next;
 }
 function deleteAssessment(id) {
@@ -42,7 +42,7 @@ function deleteAssessment(id) {
   const cache = ensureUserStateCache();
   cache.assessments = list;
   localStorage.setItem(buildUserStorageKey(ASSESSMENTS_STORAGE_PREFIX), JSON.stringify(list));
-  queueSharedUserStateSync();
+  queueSharedUserStateSync({ assessments: list });
   return true;
 }
 function archiveAssessment(id) {
@@ -105,7 +105,7 @@ function saveLearningStore(store) {
   const cache = ensureUserStateCache();
   cache.learningStore = store && typeof store === 'object' ? store : { templates: {} };
   localStorage.setItem(buildUserStorageKey(LEARNING_STORAGE_PREFIX), JSON.stringify(cache.learningStore));
-  queueSharedUserStateSync();
+  queueSharedUserStateSync({ learningStore: cache.learningStore });
 }
 
 function getTemplateLearningProfile(templateId) {
@@ -162,6 +162,7 @@ function applyLearnedTemplateDraft(tmpl) {
 
 function saveDraft() {
   try { sessionStorage.setItem(buildUserStorageKey(DRAFT_STORAGE_PREFIX), JSON.stringify(AppState.draft)); } catch {}
+  if (typeof persistDraftRecoverySnapshot === 'function') persistDraftRecoverySnapshot(AppState.draft);
   const cache = ensureUserStateCache();
   cache.draft = { ...AppState.draft };
   updateDraftAssessmentState({
@@ -172,28 +173,48 @@ function saveDraft() {
   if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
     window.dispatchEvent(new CustomEvent('rq:draft-saved', { detail: { at: AppState.draftLastSavedAt } }));
   }
-  queueSharedUserStateSync();
+  queueSharedUserStateSync({ draft: cache.draft });
 }
 function loadDraft() {
+  const withDraftIdentity = draft => ({
+    id: draft?.id || ('a_' + Date.now()),
+    ...(draft || {})
+  });
   const cache = ensureUserStateCache();
   if (cache.draft && typeof cache.draft === 'object') {
     updateDraftAssessmentState({
       draft: {
         ...(AppState.draft || {}),
-        ...cache.draft
+        ...withDraftIdentity(cache.draft)
       }
     });
     return;
   }
   try {
     const d = JSON.parse(sessionStorage.getItem(buildUserStorageKey(DRAFT_STORAGE_PREFIX)) || 'null');
-    if (d) {
+    if (d && typeof d === 'object' && Object.keys(d).length) {
       updateDraftAssessmentState({
         draft: {
           ...(AppState.draft || {}),
-          ...d
+          ...withDraftIdentity(d)
         }
       });
+      return;
+    }
+  } catch {}
+  try {
+    const recovered = typeof readDraftRecoverySnapshot === 'function' ? readDraftRecoverySnapshot() : null;
+    if (recovered?.draft) {
+      updateDraftAssessmentState({
+        draft: {
+          ...(AppState.draft || {}),
+          ...withDraftIdentity(recovered.draft)
+        }
+      });
+      if (typeof updateWizardSaveState === 'function') updateWizardSaveState();
+      if (typeof UI?.toast === 'function') {
+        UI.toast('Recovered your latest draft from this browser.', 'info', 4500);
+      }
     }
   } catch {}
 }

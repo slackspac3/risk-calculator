@@ -1,6 +1,6 @@
 const crypto = require('crypto');
 const { appendAuditEvent, verifySessionToken } = require('./_audit');
-const { sendApiError, requireSession } = require('./_apiAuth');
+const { sendApiError, requireSession, sendConflictError } = require('./_apiAuth');
 
 const SETTINGS_KEY = process.env.SETTINGS_STORE_KEY || 'risk_calculator_settings';
 const DEFAULT_TYPICAL_DEPARTMENTS = [
@@ -70,7 +70,11 @@ function getDefaultSettings() {
     annualReviewThresholdUsd: 12000000,
     adminContextSummary: 'Use this workspace to maintain geography, regulations, thresholds, and AI guidance for the platform.',
     escalationGuidance: 'Escalate to leadership when the scenario is above tolerance, close to tolerance, or materially affects regulated services.',
-    typicalDepartments: [...DEFAULT_TYPICAL_DEPARTMENTS]
+    typicalDepartments: [...DEFAULT_TYPICAL_DEPARTMENTS],
+    _meta: {
+      revision: 0,
+      updatedAt: 0
+    }
   };
 }
 
@@ -91,7 +95,11 @@ function normaliseSettings(settings = {}) {
     docOverrides: Array.isArray(settings.docOverrides) ? settings.docOverrides : [],
     typicalDepartments: Array.isArray(settings.typicalDepartments) && settings.typicalDepartments.length
       ? settings.typicalDepartments.map(name => String(name || '').trim()).filter(Boolean)
-      : [...defaults.typicalDepartments]
+      : [...defaults.typicalDepartments],
+    _meta: {
+      revision: Number(settings._meta?.revision || 0),
+      updatedAt: Number(settings._meta?.updatedAt || 0)
+    }
   };
 }
 
@@ -106,13 +114,44 @@ async function readSettings() {
   }
 }
 
-async function writeSettings(settings) {
+function buildConflictDetails(currentSettings) {
+  return {
+    latestSettings: currentSettings,
+    latestMeta: currentSettings?._meta || { revision: 0, updatedAt: 0 }
+  };
+}
+
+function isStaleWrite(currentSettings, expectedMeta = {}) {
+  const currentRevision = Number(currentSettings?._meta?.revision || 0);
+  const expectedRevision = Number(expectedMeta?.revision || 0);
+  return currentRevision !== expectedRevision;
+}
+
+async function writeSettings(settings, expectedMeta = {}) {
   if (!hasWritableKv()) {
-    throw new Error('Shared settings store is not writable. Configure the shared store environment variables in Vercel.');
+    throw new Error('Shared settings store is not writable.');
   }
-  const next = normaliseSettings(settings);
+  const current = await readSettings();
+  if (isStaleWrite(current, expectedMeta)) {
+    return {
+      ok: false,
+      conflict: true,
+      settings: current
+    };
+  }
+  const next = normaliseSettings({
+    ...settings,
+    _meta: {
+      revision: Number(current._meta?.revision || 0) + 1,
+      updatedAt: Date.now()
+    }
+  });
   await runKvCommand(['SET', SETTINGS_KEY, JSON.stringify(next)]);
-  return next;
+  return {
+    ok: true,
+    conflict: false,
+    settings: next
+  };
 }
 
 function isAdminSecretValid(req) {
@@ -280,7 +319,16 @@ module.exports = async function handler(req, res) {
         sendApiError(res, 403, 'FORBIDDEN', 'You are not allowed to modify these shared settings.');
         return;
       }
-      const settings = await writeSettings(nextSettings);
+      const writeResult = await writeSettings(nextSettings, body.expectedMeta || body.settings?._meta || {});
+      if (writeResult.conflict) {
+        sendConflictError(
+          res,
+          'These platform settings changed in another session. Reload the latest version and try again.',
+          buildConflictDetails(writeResult.settings)
+        );
+        return;
+      }
+      const settings = writeResult.settings;
       await appendAuditEvent({ category: body.audit?.category || 'settings', eventType: body.audit?.eventType || 'settings_updated', actorUsername: session?.username || 'admin', actorRole: session?.role || 'admin', target: body.audit?.target || 'global_settings', status: 'success', source: 'server', details: body.audit?.details || {} });
       res.status(200).json({ settings });
       return;
@@ -291,3 +339,6 @@ module.exports = async function handler(req, res) {
     sendApiError(res, 500, 'SETTINGS_REQUEST_FAILED', 'The settings request could not be completed.');
   }
 };
+
+module.exports.normaliseSettings = normaliseSettings;
+module.exports.writeSettings = writeSettings;

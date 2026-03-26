@@ -49,13 +49,41 @@ const ExportService = (() => {
 
   // ─── JSON Export ─────────────────────────────────────────
   function exportJSON(assessment) {
-    const blob = new Blob([JSON.stringify(assessment, null, 2)], { type: 'application/json' });
+    exportDataAsJson(assessment, `G42_RiskAssessment_${assessment.id || Date.now()}.json`);
+  }
+
+  function exportDataAsJson(data, filename = `risk-calculator-export-${Date.now()}.json`) {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
     a.href     = url;
-    a.download = `G42_RiskAssessment_${assessment.id || Date.now()}.json`;
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  function importJsonFile({ onData, onError } = {}) {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'application/json,.json';
+    input.addEventListener('change', () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const parsed = JSON.parse(String(reader.result || 'null'));
+          if (typeof onData === 'function') onData(parsed, file);
+        } catch (error) {
+          if (typeof onError === 'function') onError(error);
+        }
+      };
+      reader.onerror = () => {
+        if (typeof onError === 'function') onError(new Error('Could not read that JSON file.'));
+      };
+      reader.readAsText(file);
+    });
+    input.click();
   }
 
   // ─── Print-Ready HTML Report ─────────────────────────────
@@ -556,5 +584,5 @@ const ExportService = (() => {
     return slideSpec;
   }
 
-  return { exportJSON, exportPDF, exportPPTXSpec };
+  return { exportJSON, exportDataAsJson, importJsonFile, exportPDF, exportPPTXSpec };
 })();

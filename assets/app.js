@@ -14,6 +14,7 @@ const USER_SETTINGS_STORAGE_PREFIX = 'rq_user_settings';
 const ASSESSMENTS_STORAGE_PREFIX = 'rq_assessments';
 const LEARNING_STORAGE_PREFIX = 'rq_learning_store';
 const DRAFT_STORAGE_PREFIX = 'rq_draft';
+const DRAFT_RECOVERY_STORAGE_PREFIX = 'rq_draft_recovery';
 const SESSION_LLM_STORAGE_PREFIX = 'rq_llm_session';
 const DEFAULT_TYPICAL_DEPARTMENTS = [
   'Information Security',
@@ -76,7 +77,11 @@ function normaliseAdminSettings(settings = {}) {
     docOverrides: Array.isArray(settings.docOverrides) ? settings.docOverrides : [],
     typicalDepartments: Array.isArray(settings.typicalDepartments) && settings.typicalDepartments.length
       ? settings.typicalDepartments.map(name => String(name || '').trim()).filter(Boolean)
-      : [...(DEFAULT_ADMIN_SETTINGS.typicalDepartments || [])]
+      : [...(DEFAULT_ADMIN_SETTINGS.typicalDepartments || [])],
+    _meta: {
+      revision: Number(settings._meta?.revision || 0),
+      updatedAt: Number(settings._meta?.updatedAt || 0)
+    }
   };
 }
 
@@ -103,6 +108,9 @@ const AppState = {
   userStateCache: { username: '', userSettings: null, assessments: null, learningStore: null, draft: null, _meta: { revision: 0, updatedAt: 0 } },
   userStateSyncTimer: null,
   userStateSyncRevision: 0,
+  userStateSyncPending: null,
+  userStateSyncInFlight: false,
+  userStateLastConflict: null,
   auditLogCache: { loaded: false, loading: false, entries: [], summary: null, error: '' },
   clientRuntimeErrors: [],
   draftLastSavedAt: 0,
@@ -145,6 +153,52 @@ async function requestSharedSettings(method = 'GET', payload, { includeAdminSecr
   return parsed || {};
 }
 
+function buildExpectedMeta(meta = {}) {
+  return {
+    revision: Number(meta?.revision || 0),
+    updatedAt: Number(meta?.updatedAt || 0)
+  };
+}
+
+function applySharedSettingsLocally(settings = {}) {
+  const normalised = normaliseAdminSettings(settings);
+  updateAdminSettingsState(normalised);
+  localStorage.setItem(GLOBAL_ADMIN_STORAGE_KEY, JSON.stringify(normalised));
+  return normalised;
+}
+
+function applyUserStateSnapshotLocally(username, state = {}) {
+  const safeUsername = String(username || AuthService.getCurrentUser()?.username || '').trim().toLowerCase();
+  if (!safeUsername) return null;
+  const nextCache = {
+    username: safeUsername,
+    userSettings: state.userSettings || null,
+    assessments: Array.isArray(state.assessments) ? state.assessments : [],
+    learningStore: state.learningStore && typeof state.learningStore === 'object' ? state.learningStore : { templates: {} },
+    draft: state.draft && typeof state.draft === 'object' ? state.draft : null,
+    _meta: buildExpectedMeta(state._meta)
+  };
+  updateUserStateCache(nextCache);
+  if (nextCache.userSettings) {
+    localStorage.setItem(buildUserStorageKey(USER_SETTINGS_STORAGE_PREFIX, safeUsername), JSON.stringify(nextCache.userSettings));
+  } else {
+    localStorage.removeItem(buildUserStorageKey(USER_SETTINGS_STORAGE_PREFIX, safeUsername));
+  }
+  localStorage.setItem(buildUserStorageKey(ASSESSMENTS_STORAGE_PREFIX, safeUsername), JSON.stringify(nextCache.assessments));
+  localStorage.setItem(buildUserStorageKey(LEARNING_STORAGE_PREFIX, safeUsername), JSON.stringify(nextCache.learningStore));
+  try {
+    if (nextCache.draft) {
+      sessionStorage.setItem(buildUserStorageKey(DRAFT_STORAGE_PREFIX, safeUsername), JSON.stringify(nextCache.draft));
+    } else {
+      sessionStorage.removeItem(buildUserStorageKey(DRAFT_STORAGE_PREFIX, safeUsername));
+    }
+  } catch {}
+  if (nextCache.draft) {
+    persistDraftRecoverySnapshot(nextCache.draft, safeUsername);
+  }
+  return nextCache;
+}
+
 async function loadSharedAdminSettings() {
   try {
     const data = await requestSharedSettings('GET');
@@ -168,9 +222,7 @@ async function loadSharedAdminSettings() {
         entityContextLayers: sharedHasLayers ? sharedSettings.entityContextLayers : (localHasLayers ? localSaved.entityContextLayers : sharedSettings.entityContextLayers),
         companyContextSections: sharedSettings.companyContextSections || localSaved?.companyContextSections || null
       };
-      const normalisedMerged = normaliseAdminSettings(merged);
-      updateAdminSettingsState(normalisedMerged);
-      localStorage.setItem(GLOBAL_ADMIN_STORAGE_KEY, JSON.stringify(normalisedMerged));
+      const normalisedMerged = applySharedSettingsLocally(merged);
       if ((!sharedHasStructure && localHasStructure) || (!sharedHasLayers && localHasLayers)) {
         syncSharedAdminSettings(normalisedMerged, { category: 'settings', eventType: 'shared_settings_rehydrated', target: 'global_settings', details: { reason: 'local_backup_richer_than_shared' } }).catch(error => console.warn('shared settings rehydrate failed:', error.message));
       }
@@ -183,7 +235,83 @@ async function loadSharedAdminSettings() {
 }
 
 function syncSharedAdminSettings(settings, audit = null) {
-  return requestSharedSettings('PUT', { settings: normaliseAdminSettings(settings), audit }, { includeAdminSecret: true });
+  const normalised = normaliseAdminSettings(settings);
+  return requestSharedSettings(
+    'PUT',
+    {
+      settings: normalised,
+      expectedMeta: buildExpectedMeta(getAdminSettings()._meta),
+      audit
+    },
+    { includeAdminSecret: true }
+  );
+}
+
+function getSafeRetryAfterMs(error) {
+  const seconds = Number(error?.retryAfterSeconds || 0);
+  return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : 800;
+}
+
+function clearDraftRecoverySnapshot(username = AuthService.getCurrentUser()?.username || '') {
+  const safeUsername = String(username || '').trim().toLowerCase();
+  if (!safeUsername) return;
+  try {
+    localStorage.removeItem(buildUserStorageKey(DRAFT_RECOVERY_STORAGE_PREFIX, safeUsername));
+  } catch {}
+}
+
+function persistDraftRecoverySnapshot(draft = AppState.draft, username = AuthService.getCurrentUser()?.username || '') {
+  const safeUsername = String(username || '').trim().toLowerCase();
+  if (!safeUsername) return;
+  try {
+    localStorage.setItem(buildUserStorageKey(DRAFT_RECOVERY_STORAGE_PREFIX, safeUsername), JSON.stringify({
+      savedAt: Date.now(),
+      draft: draft && typeof draft === 'object' ? draft : null
+    }));
+  } catch {}
+}
+
+function readDraftRecoverySnapshot(username = AuthService.getCurrentUser()?.username || '') {
+  const safeUsername = String(username || '').trim().toLowerCase();
+  if (!safeUsername) return null;
+  try {
+    const stored = JSON.parse(localStorage.getItem(buildUserStorageKey(DRAFT_RECOVERY_STORAGE_PREFIX, safeUsername)) || 'null');
+    if (!stored?.draft || typeof stored.draft !== 'object') return null;
+    return stored;
+  } catch {
+    return null;
+  }
+}
+
+function showPersistenceConflictDialog({ message = '', onReloadLatest, onRetry } = {}) {
+  const footer = `
+    <button type="button" class="btn btn--ghost" data-persistence-action="cancel">Keep Current Screen</button>
+    <button type="button" class="btn btn--secondary" data-persistence-action="reload">Load Latest</button>
+    <button type="button" class="btn btn--primary" data-persistence-action="retry">Try Again</button>
+  `;
+  const modal = UI.modal({
+    title: 'Latest version available',
+    body: `
+      <p style="margin:0;color:var(--text-secondary);line-height:1.7">
+        ${escapeHtml(message || 'This information was updated in another session before your changes finished saving.')}
+      </p>
+      <p style="margin:12px 0 0;color:var(--text-secondary);line-height:1.7">
+        Load the latest version first, or try your save again if you want to keep working with your current copy.
+      </p>
+    `,
+    footer
+  });
+  const root = document.querySelector('.modal-backdrop:last-of-type');
+  if (!root) return;
+  root.querySelector('[data-persistence-action="cancel"]')?.addEventListener('click', () => modal.close());
+  root.querySelector('[data-persistence-action="reload"]')?.addEventListener('click', async () => {
+    modal.close();
+    if (typeof onReloadLatest === 'function') await onReloadLatest();
+  });
+  root.querySelector('[data-persistence-action="retry"]')?.addEventListener('click', async () => {
+    modal.close();
+    if (typeof onRetry === 'function') await onRetry();
+  });
 }
 
 
@@ -296,6 +424,8 @@ function handleGlobalDesktopShortcut(event) {
 
 
 function formatDraftSaveState() {
+  if (AppState.userStateSyncInFlight) return 'Saving draft…';
+  if (AppState.draftSaveTimer) return 'Saving draft soon…';
   if (AppState.draftDirty) return 'Changes not saved yet';
   if (!AppState.draftLastSavedAt) return 'Draft will save automatically';
   const elapsedMs = Math.max(0, Date.now() - AppState.draftLastSavedAt);
@@ -316,6 +446,7 @@ function updateWizardSaveState() {
 
 function markDraftDirty() {
   updateDraftAssessmentState({ draftDirty: true });
+  persistDraftRecoverySnapshot();
   updateWizardSaveState();
 }
 
@@ -708,7 +839,23 @@ async function requestUserState(method = 'GET', username, payload, audit = null)
   const res = await fetch(url, {
     method,
     headers,
-    body: method === 'GET' ? undefined : JSON.stringify({ username: safeUsername, state: payload, audit })
+    body: method === 'GET'
+      ? undefined
+      : JSON.stringify(
+          method === 'PATCH'
+            ? {
+                username: safeUsername,
+                patch: payload?.patch && typeof payload.patch === 'object' ? payload.patch : (payload || {}),
+                expectedMeta: buildExpectedMeta(payload?.expectedMeta),
+                audit
+              }
+            : {
+                username: safeUsername,
+                state: payload?.state && typeof payload.state === 'object' ? payload.state : (payload || {}),
+                expectedMeta: buildExpectedMeta(payload?.expectedMeta || payload?.state?._meta),
+                audit
+              }
+        )
   });
   const text = await res.text();
   let parsed = null;
@@ -726,23 +873,7 @@ async function loadSharedUserState(username = AuthService.getCurrentUser()?.user
   try {
     const data = await requestUserState('GET', safeUsername);
     const state = data?.state || {};
-    updateUserStateCache({
-      username: safeUsername,
-      userSettings: state.userSettings || null,
-      assessments: Array.isArray(state.assessments) ? state.assessments : [],
-      learningStore: state.learningStore && typeof state.learningStore === 'object' ? state.learningStore : { templates: {} },
-      draft: state.draft && typeof state.draft === 'object' ? state.draft : null,
-      _meta: {
-        revision: Number(state._meta?.revision || 0),
-        updatedAt: Number(state._meta?.updatedAt || 0)
-      }
-    });
-    if (state.userSettings) {
-      localStorage.setItem(buildUserStorageKey(USER_SETTINGS_STORAGE_PREFIX, safeUsername), JSON.stringify(state.userSettings));
-    }
-    localStorage.setItem(buildUserStorageKey(ASSESSMENTS_STORAGE_PREFIX, safeUsername), JSON.stringify(AppState.userStateCache.assessments));
-    localStorage.setItem(buildUserStorageKey(LEARNING_STORAGE_PREFIX, safeUsername), JSON.stringify(AppState.userStateCache.learningStore));
-    sessionStorage.setItem(buildUserStorageKey(DRAFT_STORAGE_PREFIX, safeUsername), JSON.stringify(AppState.userStateCache.draft || {}));
+    applyUserStateSnapshotLocally(safeUsername, state);
     return AppState.userStateCache;
   } catch (error) {
     console.warn('loadSharedUserState fallback:', error.message);
@@ -750,25 +881,72 @@ async function loadSharedUserState(username = AuthService.getCurrentUser()?.user
   }
 }
 
-function queueSharedUserStateSync(username = AuthService.getCurrentUser()?.username || '') {
+async function handleUserStateConflict(error, retry) {
+  const safeUsername = String(AuthService.getCurrentUser()?.username || AppState.userStateCache.username || '').trim().toLowerCase();
+  AppState.userStateLastConflict = error;
+  showPersistenceConflictDialog({
+    message: 'Your saved workspace was updated somewhere else before this save finished.',
+    onReloadLatest: async () => {
+      if (error?.latestState && safeUsername) applyUserStateSnapshotLocally(safeUsername, error.latestState);
+      else if (safeUsername) await loadSharedUserState(safeUsername);
+      if (typeof window !== 'undefined') {
+        Router.render?.();
+      }
+      UI.toast('Loaded the latest saved workspace.', 'info');
+    },
+    onRetry: async () => {
+      if (error?.latestState && safeUsername) {
+        applyUserStateSnapshotLocally(safeUsername, error.latestState);
+      }
+      await new Promise(resolve => window.setTimeout(resolve, getSafeRetryAfterMs(error)));
+      if (typeof retry === 'function') await retry();
+    }
+  });
+}
+
+function queueSharedUserStateSync(patch = {}, username = AuthService.getCurrentUser()?.username || '', options = {}) {
   const safeUsername = String(username || '').trim().toLowerCase();
   if (!safeUsername) return;
+  const safePatch = patch && typeof patch === 'object' ? { ...patch } : {};
+  AppState.userStateSyncPending = {
+    ...(AppState.userStateSyncPending || {}),
+    ...safePatch
+  };
   if (AppState.userStateSyncTimer) clearTimeout(AppState.userStateSyncTimer);
-  const revision = ++AppState.userStateSyncRevision;
-  const updatedAt = Date.now();
-  updateUserStateCache({
-    ...AppState.userStateCache,
-    _meta: { revision, updatedAt }
-  });
   AppState.userStateSyncTimer = setTimeout(() => {
-    const payload = {
-      userSettings: AppState.userStateCache.userSettings,
-      assessments: Array.isArray(AppState.userStateCache.assessments) ? AppState.userStateCache.assessments : [],
-      learningStore: AppState.userStateCache.learningStore && typeof AppState.userStateCache.learningStore === 'object' ? AppState.userStateCache.learningStore : { templates: {} },
-      draft: AppState.userStateCache.draft && typeof AppState.userStateCache.draft === 'object' ? AppState.userStateCache.draft : null,
-      _meta: { revision, updatedAt }
-    };
-    requestUserState('PUT', safeUsername, payload).catch(error => console.warn('queueSharedUserStateSync failed:', error.message));
+    AppState.userStateSyncTimer = null;
+    if (AppState.userStateSyncInFlight) {
+      queueSharedUserStateSync({}, safeUsername, options);
+      return;
+    }
+    const pendingPatch = AppState.userStateSyncPending ? { ...AppState.userStateSyncPending } : null;
+    AppState.userStateSyncPending = null;
+    if (!pendingPatch || !Object.keys(pendingPatch).length) return;
+    AppState.userStateSyncInFlight = true;
+    updateWizardSaveState();
+    requestUserState(
+      'PATCH',
+      safeUsername,
+      {
+        patch: pendingPatch,
+        expectedMeta: buildExpectedMeta(AppState.userStateCache._meta)
+      },
+      options.audit || null
+    )
+      .then(data => {
+        applyUserStateSnapshotLocally(safeUsername, data?.state || {});
+        AppState.userStateSyncInFlight = false;
+        updateWizardSaveState();
+      })
+      .catch(async error => {
+        AppState.userStateSyncInFlight = false;
+        updateWizardSaveState();
+        if (error?.code === 'WRITE_CONFLICT') {
+          await handleUserStateConflict(error, () => queueSharedUserStateSync(pendingPatch, safeUsername, options));
+          return;
+        }
+        console.warn('queueSharedUserStateSync failed:', error.message);
+      });
   }, 250);
 }
 
@@ -922,12 +1100,17 @@ function clearUserPersistentState(username) {
   localStorage.removeItem(buildUserStorageKey(USER_SETTINGS_STORAGE_PREFIX, safeUsername));
   localStorage.removeItem(buildUserStorageKey(ASSESSMENTS_STORAGE_PREFIX, safeUsername));
   localStorage.removeItem(buildUserStorageKey(LEARNING_STORAGE_PREFIX, safeUsername));
+  localStorage.removeItem(buildUserStorageKey(DRAFT_RECOVERY_STORAGE_PREFIX, safeUsername));
   sessionStorage.removeItem(buildUserStorageKey(DRAFT_STORAGE_PREFIX, safeUsername));
   sessionStorage.removeItem(buildUserStorageKey(SESSION_LLM_STORAGE_PREFIX, safeUsername));
+  const expectedMeta = buildExpectedMeta(AppState.userStateCache.username === safeUsername ? AppState.userStateCache._meta : {});
   if (AppState.userStateCache.username === safeUsername) {
     resetUserStateCache(safeUsername);
   }
-  requestUserState('PUT', safeUsername, { userSettings: null, assessments: [], learningStore: { templates: {} }, draft: null }, { category: 'user_admin', eventType: 'user_state_reset', target: safeUsername }).catch(error => console.warn('clearUserPersistentState sync failed:', error.message));
+  requestUserState('PUT', safeUsername, {
+    state: { userSettings: null, assessments: [], learningStore: { templates: {} }, draft: null },
+    expectedMeta
+  }, { category: 'user_admin', eventType: 'user_state_reset', target: safeUsername }).catch(error => console.warn('clearUserPersistentState sync failed:', error.message));
 }
 
 function getUserSettingsDefaults(globalSettings = getAdminSettings()) {
@@ -1271,13 +1454,40 @@ function applyManagedAccountAssignmentToSettings(account, updates = {}, baseSett
   };
 }
 
-function saveAdminSettings(settings, options = {}) {
+async function saveAdminSettings(settings, options = {}) {
   const merged = normaliseAdminSettings(settings);
   updateAdminSettingsState(merged);
   localStorage.setItem(GLOBAL_ADMIN_STORAGE_KEY, JSON.stringify(merged));
   if (AuthService.getAdminApiSecret() || AuthService.getApiSessionToken()) {
-    syncSharedAdminSettings(merged, options.audit || null).catch(error => console.warn('syncSharedAdminSettings failed:', error.message));
+    try {
+      const result = await syncSharedAdminSettings(merged, options.audit || null);
+      if (result?.settings) {
+        applySharedSettingsLocally(result.settings);
+      }
+    } catch (error) {
+      if (error?.code === 'WRITE_CONFLICT') {
+        showPersistenceConflictDialog({
+          message: 'These platform settings were updated in another session before this save finished.',
+          onReloadLatest: async () => {
+            if (error?.latestSettings) applySharedSettingsLocally(error.latestSettings);
+            else await loadSharedAdminSettings();
+            Router.navigate(window.location.hash.replace(/^#/, '') || '/admin/settings/org');
+            UI.toast('Loaded the latest platform settings.', 'info');
+          },
+          onRetry: async () => {
+            if (error?.latestSettings) applySharedSettingsLocally(error.latestSettings);
+            else await loadSharedAdminSettings();
+            await new Promise(resolve => window.setTimeout(resolve, getSafeRetryAfterMs(error)));
+            await saveAdminSettings(settings, options);
+          }
+        });
+        return false;
+      }
+      console.warn('syncSharedAdminSettings failed:', error.message);
+      return false;
+    }
   }
+  return true;
 }
 
 function normaliseComparableUserSettingValue(key, value) {
@@ -1396,7 +1606,7 @@ function saveUserSettings(settings) {
   const cache = ensureUserStateCache();
   cache.userSettings = stored;
   localStorage.setItem(buildUserStorageKey(USER_SETTINGS_STORAGE_PREFIX), JSON.stringify(stored));
-  queueSharedUserStateSync();
+  queueSharedUserStateSync({ userSettings: stored });
 }
 
 function getEffectiveSettings() {
@@ -4311,6 +4521,8 @@ function renderAdminSettings(activeSection = 'org') {
         <div class="flex items-center gap-3 mt-4" style="flex-wrap:wrap">
           <button class="btn btn--secondary" id="btn-assess-admin-impact">Assess End-User Impact</button>
           <button class="btn btn--primary" id="btn-save-settings">Save Settings</button>
+          <button class="btn btn--secondary" id="btn-export-platform-settings">Export JSON</button>
+          <button class="btn btn--ghost" id="btn-import-platform-settings">Import JSON</button>
           <span class="form-help">Assess likely downstream impact first, then save admin configuration and user access changes for the platform.</span>
         </div>
       </div>
@@ -4482,11 +4694,12 @@ function renderAdminSettings(activeSection = 'org') {
     return assessment;
   }
 
-  function persistAdminSettings(showToast = false) {
+  async function persistAdminSettings(showToast = false) {
     const { warningThresholdUsd, toleranceThresholdUsd, annualReviewThresholdUsd, payload } = buildAdminSettingsPayload();
     if (warningThresholdUsd > toleranceThresholdUsd) return false;
     if (annualReviewThresholdUsd < toleranceThresholdUsd) return false;
-    saveAdminSettings(payload);
+    const saved = await saveAdminSettings(payload);
+    if (!saved) return false;
     if (!AppState.draft.geography) AppState.draft.geography = getAdminSettings().geography;
     saveDraft();
     if (showToast) UI.toast('Settings saved.', 'success');
@@ -4503,6 +4716,26 @@ function renderAdminSettings(activeSection = 'org') {
   document.getElementById('btn-assess-admin-impact')?.addEventListener('click', () => {
     assessAdminSettingsImpact();
     UI.toast('End-user impact review updated.', 'info');
+  });
+
+  document.getElementById('btn-export-platform-settings')?.addEventListener('click', () => {
+    ExportService.exportDataAsJson(getAdminSettings(), 'risk-calculator-platform-settings.json');
+  });
+
+  document.getElementById('btn-import-platform-settings')?.addEventListener('click', () => {
+    ExportService.importJsonFile({
+      onData: async parsed => {
+        if (!parsed || typeof parsed !== 'object') {
+          UI.toast('That file does not contain valid platform settings.', 'warning');
+          return;
+        }
+        const saved = await saveAdminSettings(parsed);
+        if (!saved) return;
+        safeRenderAdminSettings(currentSettingsSection);
+        UI.toast('Platform settings imported.', 'success');
+      },
+      onError: () => UI.toast('That JSON file could not be imported.', 'warning')
+    });
   });
 
   document.getElementById('btn-save-settings')?.addEventListener('click', async () => {
@@ -4524,7 +4757,7 @@ ${topItems}${impactAssessment.impacts.length > 3 ? `\n- +${impactAssessment.impa
     }
     const accessSaved = await AdminUserAccountsSection.applyPendingChanges();
     if (!accessSaved) return;
-    persistAdminSettings(true);
+    await persistAdminSettings(true);
   });
   if (currentSettingsSection === 'company') document.getElementById('btn-build-company-context')?.addEventListener('click', async () => {
     const btn = document.getElementById('btn-build-company-context');
