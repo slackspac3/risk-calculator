@@ -36,6 +36,7 @@ const resultsRouteJs = read('assets/results/resultsRoute.js');
 const userPreferencesJs = read('assets/settings/userPreferences.js');
 const userOnboardingJs = read('assets/settings/userOnboarding.js');
 const assessmentStateJs = read('assets/state/assessmentState.js');
+const assessmentLifecycleJs = read('assets/state/assessmentLifecycle.js');
 const appStateStoreJs = read('assets/state/appStateStore.js');
 const workspaceStateModelJs = read('assets/state/workspaceStateModel.js');
 const auditLogSectionJs = read('assets/admin/auditLogSection.js');
@@ -63,6 +64,7 @@ expect(indexHtml.includes('assets/admin/documentLibrarySection.js'), 'index.html
 expect(indexHtml.indexOf('assets/services/reportPresentation.js') < indexHtml.indexOf('assets/services/exportService.js'), 'reportPresentation.js must load before exportService.js');
 expect(indexHtml.indexOf('assets/services/reportPresentation.js') < indexHtml.indexOf('assets/app.js'), 'reportPresentation.js must load before app.js');
 expect(indexHtml.includes('assets/state/workspaceStateModel.js'), 'index.html is missing workspaceStateModel.js');
+expect(indexHtml.includes('assets/state/assessmentLifecycle.js'), 'index.html is missing assessmentLifecycle.js');
 
 expect(appJs.includes('function safeRenderAdminSettings('), 'safeRenderAdminSettings helper missing');
 expect(appJs.includes('function rerenderCurrentAdminSection()'), 'rerenderCurrentAdminSection helper missing from admin renderer');
@@ -95,6 +97,9 @@ expect(assessmentStateJs.includes('primaryGrounding'), 'assessmentState is not p
 expect(assessmentStateJs.includes('supportingReferences'), 'assessmentState is not persisting supportingReferences');
 expect(assessmentStateJs.includes('inferredAssumptions'), 'assessmentState is not persisting inferredAssumptions');
 expect(assessmentStateJs.includes('benchmarkReferences'), 'assessmentState is not persisting benchmarkReferences');
+expect(assessmentLifecycleJs.includes('ASSESSMENT_LIFECYCLE_STATUS'), 'assessmentLifecycle is missing lifecycle status constants');
+expect(assessmentLifecycleJs.includes('transitionAssessmentLifecycle'), 'assessmentLifecycle is missing centralized transition rules');
+expect(assessmentStateJs.includes('prepareAssessmentForSave'), 'assessmentState is not using lifecycle-aware assessment persistence');
 expect(workspaceStateModelJs.includes('applyWorkspaceSyncStartedTransition'), 'workspace state model is missing explicit sync-start transition');
 expect(workspaceStateModelJs.includes('applySimulationStartedTransition'), 'workspace state model is missing explicit simulation-start transition');
 

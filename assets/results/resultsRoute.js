@@ -233,18 +233,25 @@ function createTreatmentDraftFromAssessment(assessment) {
   delete clone.archivedAt;
   delete clone._shared;
   delete clone.assessmentIntelligence;
-  AppState.draft = {
+  updateAssessmentRecord(assessment.id, current => current, {
+    targetStatus: ASSESSMENT_LIFECYCLE_STATUS.BASELINE_LOCKED,
+    at: new Date().toISOString()
+  });
+  dispatchDraftAction('SET_DRAFT', {
+    draft: {
     ...clone,
     id: 'a_' + Date.now(),
     scenarioTitle: `${originalTitle} — Treatment case`,
     learningNote: `Cloned from ${originalTitle} so you can compare a stronger future-state view against the current baseline.`,
     comparisonBaselineId: assessment.id,
+    lifecycleStatus: ASSESSMENT_LIFECYCLE_STATUS.TREATMENT_VARIANT,
     treatmentImprovementRequest: '',
     results: null,
     completedAt: null
-  };
+    }
+  });
   if (AppState.draft.fairParams && typeof AppState.draft.fairParams === 'object') {
-    AppState.draft.fairParams = { ...AppState.draft.fairParams };
+    dispatchDraftAction('MERGE_DRAFT', { patch: { fairParams: { ...AppState.draft.fairParams } } });
   }
   saveDraft();
 }
@@ -675,11 +682,23 @@ async function runSimulation() {
     p.seed = results.runMetadata.seed;
     await yieldToUI();
     if (!AppState.draft.id) AppState.draft.id = 'a_' + Date.now();
-    const assessment = { ...AppState.draft, inputAssignments: buildLiveInputSourceAssignments(AppState.draft), results, assessmentIntelligence, completedAt: Date.now() };
+    const assessment = {
+      ...AppState.draft,
+      inputAssignments: buildLiveInputSourceAssignments(AppState.draft),
+      results,
+      assessmentIntelligence,
+      completedAt: Date.now()
+    };
     if (progressText) progressText.textContent = 'Saving the assessment and opening results…';
     await yieldToUI();
     await new Promise(requestAnimationFrame);
-    saveAssessment(assessment);
+    saveAssessment(assessment, {
+      targetStatus: needsReview(assessment)
+        ? ASSESSMENT_LIFECYCLE_STATUS.READY_FOR_REVIEW
+        : isTreatmentVariantAssessment(assessment)
+          ? ASSESSMENT_LIFECYCLE_STATUS.TREATMENT_VARIANT
+          : ASSESSMENT_LIFECYCLE_STATUS.SIMULATED
+    });
     recordLearningFromAssessment(assessment);
     saveDraft();
     completeSimulationState();
@@ -862,6 +881,7 @@ function renderResults(id, isShared) {
     : `${r.selectedRiskCount || assessment.selectedRisks?.length || 1} risks are being assessed together without linked uplift.`;
   const exceedancePct = ((r.toleranceDetail?.lmExceedProb || 0) * 100).toFixed(1);
   const completedLabel = new Date(assessment.completedAt || Date.now()).toLocaleDateString('en-AE', { year: 'numeric', month: 'long', day: 'numeric' });
+  const lifecycle = getAssessmentLifecyclePresentation(assessment);
   const scenarioNarrative = ReportPresentation.buildExecutiveScenarioSummary(assessment) || 'No scenario narrative available.';
   const technicalInputs = r.inputs || assessment.fairParams || {};
   const runMetadata = rawResults.runMetadata || (rawResults.runConfig ? RiskEngine.createRunMetadata({
@@ -897,7 +917,7 @@ function renderResults(id, isShared) {
   const thresholdModel = ReportPresentation.buildExecutiveThresholdModel(r, fmtCurrency);
   const impactMix = ReportPresentation.buildExecutiveImpactMix(technicalInputs);
   const comparisonOptions = getAssessments()
-    .filter(item => !item?.archivedAt && item.id !== assessment.id && item.results)
+    .filter(item => deriveAssessmentLifecycleStatus(item) !== ASSESSMENT_LIFECYCLE_STATUS.ARCHIVED && item.id !== assessment.id && item.results)
     .sort((a, b) => new Date(b.completedAt || b.createdAt || 0).getTime() - new Date(a.completedAt || a.createdAt || 0).getTime())
     .slice(0, 12)
     .map(item => ({
@@ -921,6 +941,7 @@ function renderResults(id, isShared) {
           <p class="results-hero-copy">${statusDetail}</p>
           <div class="results-hero-tags">
             <span class="badge ${r.toleranceBreached ? 'badge--danger' : r.nearTolerance ? 'badge--warning' : 'badge--success'}">${statusTitle}</span>
+            <span class="badge badge--${lifecycle.tone}">${lifecycle.label}</span>
             <span class="badge badge--neutral">${assessment.buName || 'No business unit'}</span>
             <span class="badge badge--neutral">${assessment.geography || 'No geography'}</span>
             <span class="badge badge--neutral">${completedLabel}</span>

@@ -3865,7 +3865,10 @@ function renderLanding() {
                   <div class="assessment-title">${a.scenarioTitle || 'Untitled'}</div>
                   <div class="assessment-detail">${a.buName || '—'} · ${new Date(parseInt((a.id||'0').replace('a_',''))).toLocaleDateString('en-AE')}</div>
                 </div>
-                ${a.results ? `<span class="badge ${a.results.toleranceBreached?'badge--danger':'badge--success'}">${a.results.toleranceBreached?'Above Tolerance':'Within Tolerance'}</span>` : '<span class="badge badge--neutral">Draft</span>'}
+                ${(() => {
+                  const lifecycle = typeof getAssessmentLifecyclePresentation === 'function' ? getAssessmentLifecyclePresentation(a) : { label: a.results ? 'Simulated' : 'Draft', tone: a.results && a.results.toleranceBreached ? 'danger' : a.results ? 'success' : 'neutral' };
+                  return `<span class="badge badge--${lifecycle.tone}">${lifecycle.label}</span>`;
+                })()}
                 <span style="color:var(--text-muted);font-size:20px">→</span>
               </div>`).join('')}
           </div>

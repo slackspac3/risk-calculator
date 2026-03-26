@@ -17,7 +17,7 @@ const ShareService = (() => {
   const SHARE_FIELDS = [
     'id', 'scenarioTitle', 'buName', 'narrative',
     'structuredScenario', 'citations', 'recommendations',
-    'completedAt', 'results'
+    'completedAt', 'results', 'lifecycleStatus', 'comparisonBaselineId'
   ];
 
   function _pick(obj, keys) {

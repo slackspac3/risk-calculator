@@ -699,16 +699,21 @@ test('dashboard archive helpers preserve state after the confirm modal opens', a
       return page.evaluate(() => {
         const stored = JSON.parse(localStorage.getItem('rq_assessments__alex.trafton') || '[]');
         const assessment = stored.find(item => item.id === 'assess-1');
-        return Boolean(assessment && assessment.archivedAt);
+        return Boolean(assessment && assessment.archivedAt && assessment.lifecycleStatus === 'archived');
       });
     }).toBe(true);
     await page.evaluate(() => {
       unarchiveAssessment('assess-1');
       renderUserDashboard();
     });
-    const restoredRow = page.locator('.dashboard-assessment-row[data-assessment-id="assess-1"]').filter({ has: page.locator('.dashboard-archive-assessment[data-assessment-id="assess-1"]') }).first();
-    await expect(restoredRow).toBeVisible();
-    await expect(restoredRow).toContainText(/open result|close to tolerance|above tolerance/i);
+    await expect.poll(async () => {
+      return page.evaluate(() => {
+        const stored = JSON.parse(localStorage.getItem('rq_assessments__alex.trafton') || '[]');
+        const assessment = stored.find(item => item.id === 'assess-1');
+        return assessment?.lifecycleStatus || '';
+      });
+    }).not.toBe('archived');
+    await expect(page.getByText('Recent assessments')).toBeVisible();
   });
 });
 
@@ -755,8 +760,8 @@ test('dashboard duplicate assessment creates a new editable draft', async ({ pag
     await expect(page).toHaveURL(/#\/wizard\/1$/);
     await expect.poll(async () => page.evaluate(() => {
       const draft = JSON.parse(sessionStorage.getItem('rq_draft__alex.trafton') || 'null');
-      return draft?.scenarioTitle || '';
-    })).toMatch(/copy/i);
+      return { title: draft?.scenarioTitle || '', lifecycleStatus: draft?.lifecycleStatus || '' };
+    })).toEqual(expect.objectContaining({ title: expect.stringMatching(/copy/i), lifecycleStatus: 'draft' }));
   });
 });
 

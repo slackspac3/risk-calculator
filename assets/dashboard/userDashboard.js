@@ -17,11 +17,11 @@ function renderUserDashboard() {
   const capability = getNonAdminCapabilityState(user, settings, globalSettings);
   const allAssessments = getAssessments();
   const assessments = allAssessments
-    .filter(a => !a?.archivedAt)
+    .filter(a => deriveAssessmentLifecycleStatus(a) !== ASSESSMENT_LIFECYCLE_STATUS.ARCHIVED)
     .slice()
     .sort((a, b) => new Date(b.completedAt || b.createdAt || 0).getTime() - new Date(a.completedAt || a.createdAt || 0).getTime());
   const archivedAssessments = allAssessments
-    .filter(a => a?.archivedAt)
+    .filter(a => deriveAssessmentLifecycleStatus(a) === ASSESSMENT_LIFECYCLE_STATUS.ARCHIVED)
     .slice()
     .sort((a, b) => new Date(b.archivedAt || b.completedAt || b.createdAt || 0).getTime() - new Date(a.archivedAt || a.completedAt || a.createdAt || 0).getTime())
     .slice(0, 6);
@@ -29,25 +29,31 @@ function renderUserDashboard() {
   const latestAssessment = recentAssessments[0] || null;
   const draftTitle = String(AppState.draft?.scenarioTitle || AppState.draft?.narrative || '').trim();
   const hasDraft = Boolean(draftTitle);
+  const draftLifecycle = getAssessmentLifecyclePresentation(AppState.draft || {});
   const focusAreas = Array.isArray(profile.focusAreas) ? profile.focusAreas.filter(Boolean) : [];
   const assessmentsNeedingReview = assessments.filter(a => a?.results && (a.results.toleranceBreached || a.results.nearTolerance || a.results.annualReviewTriggered)).slice(0, 3);
   const openAssessmentRows = [
     ...(hasDraft ? [{
       id: 'draft',
       title: draftTitle || 'Untitled draft',
-      status: 'Draft in progress',
+      status: draftLifecycle.label,
       detail: 'Continue from where you left off and complete the next assessment step.',
       actionLabel: 'Resume Draft',
       action: 'draft'
     }] : []),
-    ...assessmentsNeedingReview.map(a => ({
+    ...assessmentsNeedingReview.map(a => {
+      const lifecycle = getAssessmentLifecyclePresentation(a);
+      return ({
       id: a.id,
       title: a.scenarioTitle || 'Untitled assessment',
-      status: a.results?.toleranceBreached ? 'Above tolerance' : a.results?.nearTolerance ? 'Needs management review' : 'Annual review triggered',
+      status: lifecycle.status === ASSESSMENT_LIFECYCLE_STATUS.READY_FOR_REVIEW
+        ? lifecycle.label
+        : a.results?.toleranceBreached ? 'Above tolerance' : a.results?.nearTolerance ? 'Needs management review' : 'Annual review triggered',
       detail: `${a.buName || profile.businessUnit || user?.businessUnit || 'Business unit not set'} · ${new Date(a.completedAt || a.createdAt || Date.now()).toLocaleDateString('en-AE', { year: 'numeric', month: 'short', day: 'numeric' })}`,
       actionLabel: 'Open Result',
       action: a.id
-    }))
+    });
+    })
   ].slice(0, 4);
   const quickStatus = hasDraft
     ? 'You have a draft in progress and can resume it immediately.'
@@ -152,19 +158,22 @@ function renderUserDashboard() {
               title: 'Recent assessments',
               description: 'Your latest saved analysis outputs.',
               badge: recentAssessments.length,
-              body: recentAssessments.length ? recentAssessments.map(assessment => UI.dashboardAssessmentRow({
+              body: recentAssessments.length ? recentAssessments.map(assessment => {
+                const lifecycle = getAssessmentLifecyclePresentation(assessment);
+                return UI.dashboardAssessmentRow({
                 assessmentId: assessment.id,
                 title: assessment.scenarioTitle || 'Untitled assessment',
                 detail: `${assessment.buName || profile.businessUnit || user?.businessUnit || 'Business unit not set'} · ${new Date(assessment.completedAt || assessment.createdAt || Date.now()).toLocaleDateString('en-AE', { year: 'numeric', month: 'short', day: 'numeric' })}`,
-                badgeClass: assessment.results?.toleranceBreached ? 'badge--danger' : assessment.results?.nearTolerance ? 'badge--warning' : 'badge--gold',
-                badgeLabel: assessment.results?.toleranceBreached ? 'Above tolerance' : assessment.results?.nearTolerance ? 'Close to tolerance' : 'Open result',
+                badgeClass: lifecycle.status === ASSESSMENT_LIFECYCLE_STATUS.BASELINE_LOCKED ? 'badge--gold' : assessment.results?.toleranceBreached ? 'badge--danger' : assessment.results?.nearTolerance ? 'badge--warning' : lifecycle.status === ASSESSMENT_LIFECYCLE_STATUS.TREATMENT_VARIANT ? 'badge--gold' : 'badge--success',
+                badgeLabel: lifecycle.status === ASSESSMENT_LIFECYCLE_STATUS.BASELINE_LOCKED || lifecycle.status === ASSESSMENT_LIFECYCLE_STATUS.TREATMENT_VARIANT ? lifecycle.label : assessment.results?.toleranceBreached ? 'Above tolerance' : assessment.results?.nearTolerance ? 'Close to tolerance' : lifecycle.label,
                 actions: `
                   <button type="button" class="btn btn--ghost btn--sm dashboard-open-action" data-assessment-id="${assessment.id}">Open Result</button>
                   <button type="button" class="btn btn--ghost btn--sm dashboard-duplicate-assessment" data-assessment-id="${assessment.id}">Duplicate</button>
                   <button type="button" class="btn btn--ghost btn--sm dashboard-archive-assessment" data-assessment-id="${assessment.id}">Archive</button>
                   <button type="button" class="btn btn--ghost btn--sm dashboard-delete-assessment" data-assessment-id="${assessment.id}">Delete</button>
                 `
-              })).join('') : renderDashboardEmptyState({
+                });
+              }).join('') : renderDashboardEmptyState({
                 title: 'No completed assessments yet.',
                 body: 'Use a template if you want a structured starting point, or run the sample path once to see the full pilot workflow.',
                 primaryId: 'btn-empty-recent-template',
@@ -205,12 +214,12 @@ function renderUserDashboard() {
               <div class="dashboard-disclosure-copy">Stored out of the way, but still available if you need them again.</div>
               <div class="dashboard-disclosure-body">${archivedAssessments.length ? archivedAssessments.map(assessment => UI.dashboardAssessmentRow({
                 title: assessment.scenarioTitle || 'Untitled scenario',
-                detail: `Archived ${new Date(assessment.archivedAt || assessment.completedAt || assessment.createdAt || Date.now()).toLocaleDateString('en-AE', { year: 'numeric', month: 'short', day: 'numeric' })}${assessment.results ? ' · Completed assessment' : ' · Draft snapshot'}`,
+                detail: `Archived ${new Date(assessment.archivedAt || assessment.completedAt || assessment.createdAt || Date.now()).toLocaleDateString('en-AE', { year: 'numeric', month: 'short', day: 'numeric' })}${hasResults(assessment) ? ' · Completed assessment' : ' · Draft snapshot'}`,
                 badgeClass: 'badge--neutral',
                 badgeLabel: 'Archived',
                 actions: `
-                  <button type="button" class="btn btn--ghost btn--sm dashboard-restore-assessment" data-assessment-id="${assessment.id}">${assessment.results ? 'Restore to Dashboard' : 'Resume as Draft'}</button>
-                  ${assessment.results ? `<button type="button" class="btn btn--ghost btn--sm dashboard-open-action" data-assessment-id="${assessment.id}">Open Result</button>` : ''}
+                  <button type="button" class="btn btn--ghost btn--sm dashboard-restore-assessment" data-assessment-id="${assessment.id}">${hasResults(assessment) ? 'Restore to Dashboard' : 'Resume as Draft'}</button>
+                  ${hasResults(assessment) ? `<button type="button" class="btn btn--ghost btn--sm dashboard-open-action" data-assessment-id="${assessment.id}">Open Result</button>` : ''}
                   <button type="button" class="btn btn--ghost btn--sm dashboard-delete-assessment" data-assessment-id="${assessment.id}">Delete</button>
                 `
               })).join('') : renderDashboardEmptyState({
@@ -362,7 +371,7 @@ function renderUserDashboard() {
         if (!id) return;
         const assessment = getAssessmentById(id);
         if (!assessment) return;
-        if (assessment.results) {
+        if (hasResults(assessment)) {
           unarchiveAssessment(id);
           renderUserDashboard();
           UI.toast('Archived assessment restored to your dashboard.', 'success');

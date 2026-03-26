@@ -4,30 +4,45 @@
 
 function getAssessments() {
   const cache = ensureUserStateCache();
-  if (Array.isArray(cache.assessments)) return cache.assessments;
+  if (Array.isArray(cache.assessments)) {
+    cache.assessments = cache.assessments.map(item => normaliseAssessmentRecord(item));
+    return cache.assessments;
+  }
   try {
     const saved = JSON.parse(localStorage.getItem(buildUserStorageKey(ASSESSMENTS_STORAGE_PREFIX)) || '[]');
-    cache.assessments = Array.isArray(saved) ? saved : [];
+    cache.assessments = Array.isArray(saved) ? saved.map(item => normaliseAssessmentRecord(item)) : [];
   } catch {
     cache.assessments = [];
   }
   return cache.assessments;
 }
-function saveAssessment(a) {
+function saveAssessment(a, options = {}) {
   const list = getAssessments().slice();
   const idx = list.findIndex(x => x.id === a.id);
-  if (idx > -1) list[idx] = a; else list.unshift(a);
+  const current = idx > -1 ? list[idx] : null;
+  const nextAssessment = prepareAssessmentForSave(a, {
+    existingAssessment: current,
+    targetStatus: options.targetStatus || '',
+    at: options.at
+  });
+  if (idx > -1) list[idx] = nextAssessment; else list.unshift(nextAssessment);
   const cache = ensureUserStateCache();
   cache.assessments = list;
   localStorage.setItem(buildUserStorageKey(ASSESSMENTS_STORAGE_PREFIX), JSON.stringify(list));
   queueSharedUserStateSync({ assessments: list });
+  return nextAssessment;
 }
-function updateAssessmentRecord(id, updater) {
+function updateAssessmentRecord(id, updater, options = {}) {
   const list = getAssessments().slice();
   const idx = list.findIndex(item => item.id === id);
   if (idx < 0) return null;
   const current = list[idx];
-  const next = typeof updater === 'function' ? updater(current) : { ...current, ...(updater || {}) };
+  const candidate = typeof updater === 'function' ? updater(current) : { ...current, ...(updater || {}) };
+  const next = prepareAssessmentForSave(candidate, {
+    existingAssessment: current,
+    targetStatus: options.targetStatus || '',
+    at: options.at
+  });
   list[idx] = next;
   const cache = ensureUserStateCache();
   cache.assessments = list;
@@ -46,27 +61,30 @@ function deleteAssessment(id) {
   return true;
 }
 function archiveAssessment(id) {
-  return Boolean(updateAssessmentRecord(id, assessment => ({ ...assessment, archivedAt: new Date().toISOString() })));
+  return Boolean(updateAssessmentRecord(id, assessment => assessment, {
+    targetStatus: ASSESSMENT_LIFECYCLE_STATUS.ARCHIVED,
+    at: new Date().toISOString()
+  }));
 }
 function unarchiveAssessment(id) {
-  return updateAssessmentRecord(id, assessment => {
-    const next = { ...assessment };
-    delete next.archivedAt;
-    return next;
-  });
+  return updateAssessmentRecord(id, assessment => restoreAssessmentLifecycle(assessment, {
+    at: new Date().toISOString()
+  }));
 }
 function archiveCurrentDraft() {
   ensureDraftShape();
   const draftTitle = String(AppState.draft?.scenarioTitle || AppState.draft?.narrative || '').trim();
   if (!draftTitle) return null;
-  const archived = {
+  const archived = prepareAssessmentForSave({
     ...JSON.parse(JSON.stringify(AppState.draft)),
     id: AppState.draft.id || ('a_' + Date.now()),
     scenarioTitle: draftTitle,
-    archivedAt: new Date().toISOString(),
     completedAt: null,
     results: null
-  };
+  }, {
+    targetStatus: ASSESSMENT_LIFECYCLE_STATUS.ARCHIVED,
+    at: new Date().toISOString()
+  });
   saveAssessment(archived);
   resetDraft();
   saveDraft();
@@ -78,9 +96,12 @@ function deleteCurrentDraft() {
 }
 function restoreArchivedDraftToWorkspace(id) {
   const archived = getAssessmentById(id);
-  if (!archived || archived.results) return null;
+  if (!archived || hasResults(archived)) return null;
   const restored = JSON.parse(JSON.stringify(archived));
   delete restored.archivedAt;
+  delete restored.lifecycleMeta;
+  delete restored.lifecycleUpdatedAt;
+  restored.lifecycleStatus = deriveAssessmentLifecycleStatus(restored);
   dispatchDraftAction('SET_DRAFT', {
     draft: { ...ensureDraftShape(), ...restored, results: null, completedAt: null }
   });
@@ -101,9 +122,12 @@ function duplicateAssessmentToDraft(id) {
   delete duplicate.archivedAt;
   delete duplicate.assessmentIntelligence;
   delete duplicate._shared;
+  delete duplicate.lifecycleMeta;
+  delete duplicate.lifecycleUpdatedAt;
   duplicate.id = 'a_' + Date.now();
   duplicate.scenarioTitle = `${duplicate.scenarioTitle || 'Untitled assessment'} copy`;
   duplicate.treatmentImprovementRequest = '';
+  duplicate.lifecycleStatus = deriveAssessmentLifecycleStatus(duplicate);
   dispatchDraftAction('SET_DRAFT', {
     draft: { ...ensureDraftShape(), ...duplicate }
   });
@@ -196,7 +220,8 @@ function saveDraft() {
 function loadDraft() {
   const withDraftIdentity = draft => ({
     id: draft?.id || ('a_' + Date.now()),
-    ...(draft || {})
+    ...(draft || {}),
+    lifecycleStatus: deriveAssessmentLifecycleStatus(draft || {})
   });
   const cache = ensureUserStateCache();
   if (cache.draft && typeof cache.draft === 'object') {
@@ -240,6 +265,7 @@ function resetDraft() {
   dispatchDraftAction('RESET_DRAFT', {
     draft: {
     id: 'a_' + Date.now(),
+    lifecycleStatus: ASSESSMENT_LIFECYCLE_STATUS.DRAFT,
     templateId: null,
     buId: null, buName: null, contextNotes: '',
     narrative: '', structuredScenario: null,
@@ -273,6 +299,7 @@ function resetDraft() {
     inferredAssumptions: [],
     missingInformation: [],
     learningNote: '',
+    comparisonBaselineId: '',
     treatmentImprovementRequest: '',
     guidedInput: {
       event: '',
