@@ -100,6 +100,139 @@ const ReportPresentation = (() => {
     };
   }
 
+  function buildExecutiveConfidenceFrame(confidence, evidenceQuality, missingInformation = [], citations = []) {
+    const label = confidence?.label || 'Moderate confidence';
+    const evidenceCount = Array.isArray(citations) ? citations.length : 0;
+    const topGap = Array.isArray(missingInformation) && missingInformation.length ? missingInformation[0] : '';
+    const implication = /low/i.test(label)
+      ? 'Use this as a directional management view and close the biggest evidence gap before relying on it for longer-term decisions.'
+      : /high/i.test(label)
+        ? 'The result is grounded enough for management action, but the main assumptions should still be reviewed before escalation.'
+        : 'Use this as a working management view and challenge the most material assumptions before treating it as settled.'
+    ;
+    const evidenceSummary = evidenceQuality
+      ? `${evidenceQuality}. ${evidenceCount} supporting reference${evidenceCount === 1 ? '' : 's'} attached.`
+      : `${evidenceCount} supporting reference${evidenceCount === 1 ? '' : 's'} attached.`;
+    return {
+      label,
+      summary: confidence?.summary || implication,
+      implication,
+      evidenceSummary,
+      topGap: topGap || 'No major evidence gap has been recorded yet.'
+    };
+  }
+
+  function buildLifecycleNextStepPlan({ lifecycle, results, executiveDecision, comparison, confidenceFrame, missingInformation = [] } = {}) {
+    const lifecycleStatus = String(lifecycle?.status || '').trim().toLowerCase();
+    const topGap = Array.isArray(missingInformation) && missingInformation.length ? missingInformation[0] : confidenceFrame?.topGap;
+    const isAboveTolerance = !!results?.toleranceBreached;
+    const isNearTolerance = !!results?.nearTolerance;
+    const needsAnnualReview = !!results?.annualReviewTriggered;
+    const treatmentImproved = comparison?.severeEvent?.direction === 'down';
+
+    if (lifecycleStatus === 'treatment_variant') {
+      return [
+        {
+          label: 'Decision now',
+          title: treatmentImproved ? 'Decide whether to sponsor this improvement path' : 'Refine the treatment before using it for a decision',
+          copy: treatmentImproved
+            ? (comparison?.treatmentNarrative || 'The treatment case is improving the current position enough to justify a management decision on whether to implement it.')
+            : (comparison?.treatmentNarrative || 'The treatment case is not yet materially improving the current position, so the assumed improvement needs to be refined.')
+        },
+        {
+          label: 'Validate next',
+          title: 'Check the treatment assumptions',
+          copy: topGap || 'Validate the assumptions behind the treatment case before relying on it for investment or prioritisation.'
+        },
+        {
+          label: 'Lifecycle move',
+          title: 'Keep the baseline protected',
+          copy: 'Use the locked baseline as the comparison anchor, rerun this treatment case if assumptions change, then decide whether to promote it into a real action plan.'
+        }
+      ];
+    }
+
+    if (lifecycleStatus === 'baseline_locked') {
+      return [
+        {
+          label: 'Decision now',
+          title: 'Use this as the approved comparison baseline',
+          copy: executiveDecision?.priority || 'This result is best used as the protected current-state view for future treatment comparisons.'
+        },
+        {
+          label: 'Validate next',
+          title: 'Keep the baseline evidence current',
+          copy: topGap || 'Refresh the main evidence gap if this baseline is going to be used for governance or investment comparison.'
+        },
+        {
+          label: 'Lifecycle move',
+          title: 'Create treatment variants from this point',
+          copy: 'Keep this record stable and compare alternative prevention, detection, response, or resilience actions against it.'
+        }
+      ];
+    }
+
+    if (isAboveTolerance || lifecycleStatus === 'ready_for_review') {
+      return [
+        {
+          label: 'Decision now',
+          title: 'Escalate with a named owner and timing',
+          copy: executiveDecision?.rationale || 'This scenario is above tolerance or close enough to require explicit management review and action.'
+        },
+        {
+          label: 'Validate next',
+          title: 'Reduce the biggest uncertainty before formal escalation',
+          copy: topGap || confidenceFrame?.implication || 'Tighten the broadest assumption before relying on this for follow-on decisions.'
+        },
+        {
+          label: 'Lifecycle move',
+          title: needsAnnualReview ? 'Schedule the annual review now' : 'Re-run after the first action lands',
+          copy: needsAnnualReview
+            ? 'The annual view is already strong enough to justify formal review cadence and follow-up.'
+            : 'Use this saved result as the current-state view, then re-run once the first response action changes the assumptions.'
+        }
+      ];
+    }
+
+    if (isNearTolerance) {
+      return [
+        {
+          label: 'Decision now',
+          title: 'Assign a targeted reduction action',
+          copy: executiveDecision?.priority || 'The scenario is near tolerance, so one targeted action should be agreed before the position worsens.'
+        },
+        {
+          label: 'Validate next',
+          title: 'Challenge the main upward driver',
+          copy: topGap || 'Tighten the evidence behind the biggest upward driver before treating this as stable.'
+        },
+        {
+          label: 'Lifecycle move',
+          title: 'Keep it review-ready',
+          copy: 'Treat this as an actively monitored scenario and re-run it if the threat, control posture, or business dependence changes.'
+        }
+      ];
+    }
+
+    return [
+      {
+        label: 'Decision now',
+        title: 'Monitor and preserve what is working',
+        copy: executiveDecision?.managementFocus || 'The scenario is within tolerance today, so the main job is to preserve the strongest current controls and resilience measures.'
+      },
+      {
+        label: 'Validate next',
+        title: 'Close the highest-value evidence gap',
+        copy: topGap || confidenceFrame?.implication || 'Improve the evidence behind the broadest assumption so the next review is better grounded.'
+      },
+      {
+        label: 'Lifecycle move',
+        title: 'Use this as the current monitored baseline',
+        copy: 'Keep this saved result as the current view and refresh it if conditions change materially or a new treatment option is proposed.'
+      }
+    ];
+  }
+
   function buildExecutiveThresholdModel(results, formatCurrency) {
     const singleCurrent = Number(results?.lm?.p90 || 0);
     const warning = Number(results?.warningThreshold || results?.threshold || 0);
@@ -159,6 +292,8 @@ const ReportPresentation = (() => {
     cleanExecutiveNarrativeText,
     buildExecutiveScenarioSummary,
     buildExecutiveDecisionSupport,
+    buildExecutiveConfidenceFrame,
+    buildLifecycleNextStepPlan,
     buildExecutiveThresholdModel,
     buildExecutiveImpactMix
   };

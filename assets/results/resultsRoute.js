@@ -82,39 +82,52 @@ function renderDecisionRail(statusTitle, statusDetail, executiveDecision, execut
   const confidenceCopy = confidence?.summary || 'Use this result as a management starting point, then challenge the biggest assumptions.';
   return `<div class="results-executive-brief">
     ${UI.resultsBriefCard({ label: 'Current position', value: statusTitle, copy: statusDetail })}
-    ${UI.resultsBriefCard({ label: 'Recommended action', value: executiveDecision?.decision || 'Review', copy: executiveAction || executiveDecision?.priority || '' })}
+    ${UI.resultsBriefCard({ label: 'Management action', value: executiveDecision?.decision || 'Review', copy: executiveAction || executiveDecision?.priority || '' })}
     ${UI.resultsBriefCard({ label: 'Confidence', value: confidenceValue, copy: confidenceCopy })}
     ${UI.resultsBriefCard({ label: 'Role focus', value: rolePresentation.executiveNoteTitle, copy: rolePresentation.executiveNote })}
   </div>`;
 }
 
-function buildResultsActionBuckets(recommendations, executiveAction, missingInformation) {
-  const doNow = recommendations?.[0]?.title || executiveAction || 'Confirm the immediate management response for this scenario.';
-  const validateNext = missingInformation?.[0] || recommendations?.[1]?.why || 'Challenge the main assumption driving the current result.';
-  const monitor = recommendations?.[2]?.title || 'Watch for changes in threat conditions, controls, or business dependence.';
-  return { doNow, validateNext, monitor };
+function renderLifecycleNextStepCards(nextStepPlan = []) {
+  if (!nextStepPlan.length) return '';
+  return `<div class="results-recommendations-grid">
+    ${nextStepPlan.map(item => `<div class="results-priority-card"><div><div class="results-priority-title">${escapeHtml(String(item.label || 'Next step'))}</div><div class="results-priority-copy"><strong>${escapeHtml(String(item.title || ''))}</strong>${item.copy ? `<div style="margin-top:8px">${escapeHtml(String(item.copy))}</div>` : ''}</div></div></div>`).join('')}
+  </div>`;
 }
 
-function renderResultsActionBlock(recommendations, executiveAction, missingInformation) {
-  const actions = buildResultsActionBuckets(recommendations, executiveAction, missingInformation);
+function renderResultsActionBlock(recommendations, executiveAction, missingInformation, nextStepPlan = []) {
+  const fallbackCards = [
+    {
+      label: 'Decision now',
+      title: recommendations?.[0]?.title || executiveAction || 'Confirm the immediate management response for this scenario.',
+      copy: recommendations?.[0]?.why || 'Use the current result to agree the next concrete action.'
+    },
+    {
+      label: 'Validate next',
+      title: 'Close the biggest evidence gap',
+      copy: missingInformation?.[0] || recommendations?.[1]?.why || 'Challenge the main assumption driving the current result.'
+    },
+    {
+      label: 'Monitor over time',
+      title: recommendations?.[2]?.title || 'Watch for change',
+      copy: 'Refresh this assessment if the threat, controls, or business dependence changes materially.'
+    }
+  ];
+  const cards = nextStepPlan.length ? nextStepPlan : fallbackCards;
   return `<section class="results-section-stack">
     <div class="results-section-heading">What to do next</div>
-    <div class="results-recommendations-grid">
-      <div class="results-priority-card"><div><div class="results-priority-title">Do now</div><div class="results-priority-copy">${actions.doNow}</div></div></div>
-      <div class="results-priority-card"><div><div class="results-priority-title">Validate next</div><div class="results-priority-copy">${actions.validateNext}</div></div></div>
-      <div class="results-priority-card"><div><div class="results-priority-title">Monitor over time</div><div class="results-priority-copy">${actions.monitor}</div></div></div>
-    </div>
+    ${renderLifecycleNextStepCards(cards)}
   </section>`;
 }
 
-function renderResultsConfidenceNeedsBlock(confidence, evidenceQuality, missingInformation = [], citations = []) {
-  const topGap = missingInformation[0] || 'No major evidence gap has been recorded yet.';
+function renderResultsConfidenceNeedsBlock(confidenceFrame, evidenceQuality, missingInformation = [], citations = []) {
+  const topGap = confidenceFrame?.topGap || missingInformation[0] || 'No major evidence gap has been recorded yet.';
   return `<section class="results-section-stack">
     <div class="results-section-heading">Confidence and evidence needs</div>
     <div class="results-summary-grid results-summary-grid--primary">
-      <div class="results-summary-card"><div class="results-driver-label">Confidence level</div><p class="results-summary-copy"><strong>${confidence?.label || 'Moderate confidence'}</strong></p><div class="results-comparison-foot">${confidence?.summary || 'Use this as a working decision view, then challenge the largest assumptions.'}</div></div>
-      <div class="results-summary-card"><div class="results-driver-label">Evidence quality</div><p class="results-summary-copy"><strong>${evidenceQuality || 'Useful but incomplete evidence base'}</strong></p><div class="results-comparison-foot">${citations.length} supporting reference${citations.length === 1 ? '' : 's'} attached</div></div>
-      <div class="results-summary-card results-summary-card--wide"><div class="results-driver-label">Best next evidence to collect</div><p class="results-summary-copy">${topGap}</p></div>
+      <div class="results-summary-card"><div class="results-driver-label">Confidence for decisions</div><p class="results-summary-copy"><strong>${confidenceFrame?.label || 'Moderate confidence'}</strong></p><div class="results-comparison-foot">${confidenceFrame?.summary || 'Use this as a working decision view, then challenge the largest assumptions.'}</div></div>
+      <div class="results-summary-card"><div class="results-driver-label">Evidence base</div><p class="results-summary-copy"><strong>${evidenceQuality || 'Useful but incomplete evidence base'}</strong></p><div class="results-comparison-foot">${confidenceFrame?.evidenceSummary || `${citations.length} supporting reference${citations.length === 1 ? '' : 's'} attached`}</div></div>
+      <div class="results-summary-card results-summary-card--wide"><div class="results-driver-label">Management implication</div><p class="results-summary-copy">${confidenceFrame?.implication || topGap}</p><div class="results-comparison-foot" style="margin-top:var(--sp-3)">Best next evidence to collect: ${topGap}</div></div>
     </div>
   </section>`;
 }
@@ -122,10 +135,11 @@ function renderResultsConfidenceNeedsBlock(confidence, evidenceQuality, missingI
 function renderResultsComparisonHighlight(comparison) {
   if (!comparison) return '';
   return `<section class="results-section-stack">
-    <div class="results-section-heading">What changed versus the baseline</div>
+    <div class="results-section-heading">Decision view versus the baseline</div>
     <div class="results-comparison-card">
       <div class="results-comparison-banner"><strong>Baseline:</strong> ${comparison.baselineTitle} · ${comparison.baselineDate}</div>
       <p class="results-summary-copy" style="margin-top:var(--sp-3)">${comparison.summary}</p>
+      <div class="results-comparison-banner" style="margin-top:var(--sp-3)">${comparison.treatmentNarrative || comparison.keyDriver}</div>
       <div class="results-comparison-grid">
         <div class="results-comparison-metric ${comparison.severeEvent.direction}"><div class="results-impact-label">Severe single event</div><div class="results-comparison-value">${comparison.severeEvent.formatted}</div><div class="results-comparison-foot">${comparison.statusShift}</div></div>
         <div class="results-comparison-metric ${comparison.annualExposure.direction}"><div class="results-impact-label">Expected annual exposure</div><div class="results-comparison-value">${comparison.annualExposure.formatted}</div><div class="results-comparison-foot">Average-year delta</div></div>
@@ -201,10 +215,10 @@ function buildAssessmentComparison(currentAssessment, baselineAssessment) {
     secondaryDriver,
     treatmentNarrative,
     summary: severeEvent.direction === 'up'
-      ? 'This scenario is currently running hotter than the selected baseline on the severe single-event view.'
+      ? 'This scenario is currently running hotter than the selected baseline on the severe single-event view, so the current assumptions are not yet delivering a better management outcome.'
       : severeEvent.direction === 'down'
-        ? 'This scenario is currently less severe than the selected baseline on the severe single-event view.'
-        : 'This scenario is broadly aligned with the selected baseline on the severe single-event view.'
+        ? 'This scenario is currently less severe than the selected baseline on the severe single-event view, which suggests the treatment assumptions are improving the management posture.'
+        : 'This scenario is broadly aligned with the selected baseline on the severe single-event view, so the proposed change is not yet materially shifting the management position.'
   };
 }
 
@@ -310,7 +324,7 @@ function renderAssessmentComparisonBlock(comparisonOptions, activeComparisonId, 
         </div>
         <p class="results-summary-copy" style="margin-top:var(--sp-3)">${comparison.summary}</p>
         <div class="results-comparison-banner" style="margin-top:var(--sp-3)">${comparison.statusShift}</div>
-        <div class="results-comparison-banner" style="margin-top:var(--sp-3)">${comparison.keyDriver}</div>
+        <div class="results-comparison-banner" style="margin-top:var(--sp-3)">${comparison.treatmentNarrative || comparison.keyDriver}</div>
         <div class="results-comparison-grid">
           <div class="results-comparison-metric ${comparison.severeEvent.direction}">
             <div class="results-impact-label">Severe single event</div>
@@ -417,6 +431,18 @@ function renderResultsExplanationPanel(assessmentIntelligence, comparison, runMe
       <div class="results-summary-card results-summary-card--wide"><div class="results-driver-label">Treatment delta explanation</div><div class="results-summary-copy">${escapeHtml(String(treatmentDelta))}</div>${comparison?.secondaryDriver ? `<div class="results-comparison-foot" style="margin-top:var(--sp-3)">${escapeHtml(String(comparison.secondaryDriver))}</div>` : ''}<div class="results-comparison-foot" style="margin-top:var(--sp-3)">${escapeHtml(String(runtimeNote))}</div></div>
     </div>
   </section>`;
+}
+
+function renderTechnicalOrientationBlock(rolePresentation, runMetadata, confidenceFrame) {
+  const seedText = runMetadata?.seed != null ? `Saved seed ${runMetadata.seed}.` : 'Saved seed not recorded.';
+  const iterationText = Number(runMetadata?.iterations || 0) > 0 ? `${Number(runMetadata.iterations).toLocaleString()} iterations.` : '';
+  return `<div class="results-summary-grid results-summary-grid--primary">
+    <div class="results-summary-card results-summary-card--wide">
+      <div class="results-section-heading">${rolePresentation.technicalNoteTitle}</div>
+      <p class="results-summary-copy">${rolePresentation.technicalNote}</p>
+      <div class="results-comparison-foot" style="margin-top:var(--sp-3)">This view is for challenge, peer review, and evidence validation. ${seedText} ${iterationText} ${escapeHtml(String(confidenceFrame?.implication || ''))}</div>
+    </div>
+  </div>`;
 }
 
 function renderRunMetadataPanel(runMetadata, metricSemantics) {
@@ -940,6 +966,7 @@ function renderResults(id, isShared) {
   const assessmentIntelligence = assessment.assessmentIntelligence || buildAssessmentIntelligence(assessment, r, technicalInputs, r.portfolioMeta || {});
   const assessmentChallenge = assessment.assessmentChallenge || null;
   const executiveDecision = ReportPresentation.buildExecutiveDecisionSupport(assessment, r, assessmentIntelligence);
+  const confidenceFrame = ReportPresentation.buildExecutiveConfidenceFrame(assessmentIntelligence.confidence, assessment.evidenceQuality, missingInformation, citations);
   const thresholdModel = ReportPresentation.buildExecutiveThresholdModel(r, fmtCurrency);
   const impactMix = ReportPresentation.buildExecutiveImpactMix(technicalInputs);
   const comparisonOptions = getAssessments()
@@ -953,8 +980,16 @@ function renderResults(id, isShared) {
   const activeComparisonId = AppState.resultsComparisonId || assessment.comparisonBaselineId || '';
   const baselineAssessment = activeComparisonId ? getAssessmentById(activeComparisonId) : null;
   const comparison = baselineAssessment ? buildAssessmentComparison(assessment, baselineAssessment) : null;
-  const recommendationCards = renderResultsActionBlock(recommendations, executiveAction, missingInformation);
-  const confidenceNeedsBlock = renderResultsConfidenceNeedsBlock(assessmentIntelligence.confidence, assessment.evidenceQuality, missingInformation, citations);
+  const nextStepPlan = ReportPresentation.buildLifecycleNextStepPlan({
+    lifecycle,
+    results: r,
+    executiveDecision,
+    comparison,
+    confidenceFrame,
+    missingInformation
+  });
+  const recommendationCards = renderResultsActionBlock(recommendations, executiveAction, missingInformation, nextStepPlan);
+  const confidenceNeedsBlock = renderResultsConfidenceNeedsBlock(confidenceFrame, assessment.evidenceQuality, missingInformation, citations);
   const comparisonHighlight = renderResultsComparisonHighlight(comparison);
   const explanationPanel = renderResultsExplanationPanel(assessmentIntelligence, comparison, runMetadata);
 
@@ -1011,6 +1046,7 @@ function renderResults(id, isShared) {
           <div class="results-decision-points">
             <div class="results-decision-point"><span class="results-decision-label">Why this matters</span><div class="results-decision-copy">${executiveDecision.rationale}</div></div>
             <div class="results-decision-point"><span class="results-decision-label">Main management priority</span><div class="results-decision-copy">${executiveDecision.priority}</div></div>
+            <div class="results-decision-point"><span class="results-decision-label">Management focus next</span><div class="results-decision-copy">${executiveDecision.managementFocus}</div></div>
           </div>
         </div>
         <div class="results-decision-card results-decision-card--compact">
@@ -1022,6 +1058,7 @@ function renderResults(id, isShared) {
             <div class="results-threshold-row"><span>Annual review exceedance</span><strong>${((r.annualReviewDetail?.annualExceedProb || 0) * 100).toFixed(1)}%</strong></div>
           </div>
           <div class="results-decision-row"><span class="results-decision-label">Current position</span><div class="results-decision-copy">${executiveAnnualView}</div></div>
+          <div class="results-decision-row"><span class="results-decision-label">Confidence implication</span><div class="results-decision-copy">${confidenceFrame.implication}</div></div>
         </div>
       </div>
 
@@ -1053,12 +1090,7 @@ function renderResults(id, isShared) {
 
   const technicalTab = `
     <section class="results-technical-view ${activeTab === 'technical' ? '' : 'hidden'}" id="results-tab-technical">
-      <div class="results-summary-grid results-summary-grid--primary">
-        <div class="results-summary-card results-summary-card--wide">
-          <div class="results-section-heading">${rolePresentation.technicalNoteTitle}</div>
-          <p class="results-summary-copy">${rolePresentation.technicalNote}</p>
-        </div>
-      </div>
+      ${renderTechnicalOrientationBlock(rolePresentation, runMetadata, confidenceFrame)}
 
       ${confidenceNeedsBlock}
       ${renderSimulationEquationFlow()}

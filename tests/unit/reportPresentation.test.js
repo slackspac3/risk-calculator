@@ -39,3 +39,38 @@ test('buildExecutiveDecisionSupport uses uncertainty-aware business wording', ()
   assert.equal(decision.decision, 'Actively reduce and review');
   assert.match(decision.managementFocus, /Business interruption range/i);
 });
+
+test('buildExecutiveConfidenceFrame explains decision implications and evidence state', () => {
+  const frame = ReportPresentation.buildExecutiveConfidenceFrame(
+    { label: 'Low confidence', summary: 'Broad assumptions are still in play.' },
+    'Useful but incomplete evidence base',
+    ['Validate the current business interruption range with finance and operations input.'],
+    [{ id: 'c1' }, { id: 'c2' }]
+  );
+
+  assert.equal(frame.label, 'Low confidence');
+  assert.match(frame.implication, /directional management view/i);
+  assert.match(frame.evidenceSummary, /2 supporting references attached/i);
+  assert.match(frame.topGap, /business interruption range/i);
+});
+
+test('buildLifecycleNextStepPlan adapts guidance for treatment variants', () => {
+  const plan = ReportPresentation.buildLifecycleNextStepPlan({
+    lifecycle: { status: 'treatment_variant' },
+    results: { toleranceBreached: false, nearTolerance: false, annualReviewTriggered: false },
+    executiveDecision: { priority: 'Test stronger prevention and resilience actions.' },
+    comparison: {
+      severeEvent: { direction: 'down' },
+      treatmentNarrative: 'The treatment case is improving the position through stronger controls and lower disruption.'
+    },
+    confidenceFrame: {
+      topGap: 'Validate the treatment assumptions with the service owner.'
+    },
+    missingInformation: ['Validate the treatment assumptions with the service owner.']
+  });
+
+  assert.equal(plan.length, 3);
+  assert.match(plan[0].title, /sponsor this improvement path/i);
+  assert.match(plan[1].copy, /service owner/i);
+  assert.match(plan[2].copy, /locked baseline/i);
+});
