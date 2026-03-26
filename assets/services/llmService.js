@@ -1347,6 +1347,12 @@ ${evidenceMeta.promptBlock}`;
       organisationContext: input.adminSettings?.companyStructureContext,
       adminSettings: input.adminSettings
     });
+    const compactRegisterText = _truncateText(input.registerText || '', 9000);
+    const compactContextSummary = _truncateText(input.businessUnit?.contextSummary || input.businessUnit?.notes || '(none)', 320);
+    const compactAdminSummary = _truncateText(input.adminSettings?.adminContextSummary || '', 220);
+    const compactUserProfile = _truncateText(input.adminSettings?.userProfileSummary || '(none)', 220);
+    const compactOrgContext = _truncateText(input.adminSettings?.companyStructureContext || '(none)', 320);
+    const compactLiveContext = _truncateText(_buildContextPromptBlock(input.adminSettings, input.businessUnit), 320);
     if (_compassApiKey || !_isDirectCompassUrl(_compassApiUrl)) {
       try {
         const systemPrompt = `You are a senior enterprise risk analyst. You will receive a risk register that may contain multiple sheets, multiple columns, and contextual metadata. Return JSON only with this schema:
@@ -1361,34 +1367,38 @@ ${evidenceMeta.promptBlock}`;
 }`;
         const userPrompt = `Business unit: ${input.businessUnit?.name || 'Unknown'}
 Geography: ${input.geography || 'Unknown'}
-BU context summary: ${input.businessUnit?.contextSummary || input.businessUnit?.notes || '(none)'}
+BU context summary: ${compactContextSummary}
 BU-specific AI guidance: ${input.businessUnit?.aiGuidance || '(none)'}
 Applicable regulations: ${(input.applicableRegulations || []).join(', ')}
 Register metadata: ${input.registerMeta ? JSON.stringify(input.registerMeta) : '(none)'}
 Benchmark strategy: ${input.adminSettings?.benchmarkStrategy || 'Prefer GCC and UAE references where possible, then use best global data with clear explanation.'}
-Admin context summary: ${input.adminSettings?.adminContextSummary || ''}
-Company context profile: ${input.adminSettings?.companyContextProfile || ''}
+Admin context summary: ${compactAdminSummary || '(none)'}
 User profile context:
-${input.adminSettings?.userProfileSummary || '(none)'}
+${compactUserProfile}
 Organisation structure context:
-${input.adminSettings?.companyStructureContext || '(none)'}
+${compactOrgContext}
 Live scoped context:
-${_buildContextPromptBlock(input.adminSettings, input.businessUnit)}
+${compactLiveContext}
 
 Risk register content:
-${input.registerText || '(none)'}
+${compactRegisterText || '(none)'}
 
 Instructions:
-- use the whole workbook context, including sheet names and column headers
+- focus on risk rows, sheet names, and column headers; ignore generic instructional template text
 - deduplicate overlapping risks
 - produce concise risk titles suitable for selection cards
 - preserve important contextual detail in the descriptions
-- extract up to 15 material risks if the register supports them
+- extract up to 12 material risks if the register supports them
 - include workflow guidance that tells a non-risk practitioner what to do after extraction
 
 Evidence quality context:
 ${evidenceMeta.promptBlock}`;
-        const raw = await _callLLM(systemPrompt, userPrompt, { taskName: 'analyseRiskRegister' });
+        const raw = await _callLLM(systemPrompt, userPrompt, {
+          taskName: 'analyseRiskRegister',
+          maxCompletionTokens: 2200,
+          maxPromptChars: 12000,
+          timeoutMs: 45000
+        });
         if (raw) {
           const parsed = JSON.parse(raw.replace(/```json\n?|```/g, '').trim());
           return _decorateAiResult(_withEvidenceMeta({
