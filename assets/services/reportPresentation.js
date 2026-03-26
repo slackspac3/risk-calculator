@@ -287,6 +287,52 @@ const ReportPresentation = (() => {
     }));
   }
 
+  function buildTreatmentDecisionSummary(comparison) {
+    if (!comparison) {
+      return {
+        title: 'No treatment comparison selected yet',
+        summary: 'Select a baseline or treatment case to show whether the proposed change is materially improving the management position.',
+        action: 'Use a saved current-state assessment as the comparison anchor before discussing investment or prioritisation.'
+      };
+    }
+
+    const severeDirection = String(comparison?.severeEvent?.direction || 'flat');
+    const annualDirection = String(comparison?.annualExposure?.direction || 'flat');
+    const severeAnnualDirection = String(comparison?.severeAnnual?.direction || 'flat');
+    const keyDriver = comparison?.keyDriver || 'No dominant change driver has been recorded yet.';
+    const secondaryDriver = comparison?.secondaryDriver || 'No secondary change driver has been recorded yet.';
+
+    if (severeDirection === 'down' && (annualDirection === 'down' || severeAnnualDirection === 'down')) {
+      return {
+        title: 'The treatment path is materially improving the management position',
+        summary: comparison?.treatmentNarrative || 'The treated case is reducing both the severe event burden and the annual exposure profile relative to the baseline.',
+        action: `Validate the treatment assumptions, then decide whether to sponsor this path. Primary lever: ${keyDriver} Secondary lever: ${secondaryDriver}`
+      };
+    }
+
+    if (severeDirection === 'down') {
+      return {
+        title: 'The treatment path improves the severe case, but not the whole annual picture yet',
+        summary: comparison?.treatmentNarrative || 'The treated case is improving the single-event position, but the annual exposure still needs more work before this becomes a clear management move.',
+        action: `Keep the stronger severe-event assumptions, then refine the annual drivers before relying on this as the preferred path. Primary lever: ${keyDriver}`
+      };
+    }
+
+    if (severeDirection === 'up' || annualDirection === 'up' || severeAnnualDirection === 'up') {
+      return {
+        title: 'The current treatment assumptions are not yet improving the baseline',
+        summary: comparison?.treatmentNarrative || 'The current case remains heavier than the baseline, so the proposed treatment path should be refined before it is taken forward.',
+        action: `Challenge the assumptions that are still keeping the case above the baseline. Primary lever: ${keyDriver} Secondary lever: ${secondaryDriver}`
+      };
+    }
+
+    return {
+      title: 'The treatment path is not yet materially changing the position',
+      summary: comparison?.treatmentNarrative || 'The current case and baseline are directionally similar, so the proposed change is not yet creating a clear decision delta.',
+      action: `Adjust the assumptions that should move the result most, then rerun the comparison. Primary lever: ${keyDriver}`
+    };
+  }
+
   const exported = {
     clampNumber,
     cleanExecutiveNarrativeText,
@@ -295,7 +341,8 @@ const ReportPresentation = (() => {
     buildExecutiveConfidenceFrame,
     buildLifecycleNextStepPlan,
     buildExecutiveThresholdModel,
-    buildExecutiveImpactMix
+    buildExecutiveImpactMix,
+    buildTreatmentDecisionSummary
   };
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = exported;

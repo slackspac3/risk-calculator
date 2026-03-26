@@ -134,21 +134,22 @@ function renderResultsConfidenceNeedsBlock(confidenceFrame, evidenceQuality, mis
 
 function renderResultsComparisonHighlight(comparison) {
   if (!comparison) return '';
+  const treatmentDecision = ReportPresentation.buildTreatmentDecisionSummary(comparison);
   return `<section class="results-section-stack">
     <div class="results-section-heading">Treatment comparison</div>
     <div class="results-comparison-card results-comparison-card--spotlight">
       <div class="results-comparison-spotlight">
         <div>
           <div class="results-driver-label">Decision signal versus the baseline</div>
-          <h3 class="results-comparison-spotlight__title">${comparison.directionTitle}</h3>
-          <p class="results-summary-copy" style="margin-top:var(--sp-3)">${comparison.summary}</p>
+          <h3 class="results-comparison-spotlight__title">${treatmentDecision.title}</h3>
+          <p class="results-summary-copy" style="margin-top:var(--sp-3)">${treatmentDecision.summary}</p>
         </div>
         <div class="results-comparison-spotlight__rail">
           <div class="results-comparison-banner"><strong>Baseline:</strong> ${comparison.baselineTitle} · ${comparison.baselineDate}</div>
           <div class="results-comparison-banner">${comparison.statusShift}</div>
         </div>
       </div>
-      <div class="results-comparison-banner" style="margin-top:var(--sp-4)">${comparison.treatmentNarrative || comparison.keyDriver}</div>
+      <div class="results-comparison-banner" style="margin-top:var(--sp-4)">${treatmentDecision.action}</div>
       <div class="results-comparison-grid">
         <div class="results-comparison-metric ${comparison.severeEvent.direction}"><div class="results-impact-label">Severe single event</div><div class="results-comparison-value">${comparison.severeEvent.formatted}</div><div class="results-comparison-foot">${comparison.statusShift}</div></div>
         <div class="results-comparison-metric ${comparison.annualExposure.direction}"><div class="results-impact-label">Expected annual exposure</div><div class="results-comparison-value">${comparison.annualExposure.formatted}</div><div class="results-comparison-foot">Average-year delta</div></div>
@@ -329,6 +330,7 @@ function renderAssessmentComparisonBlock(comparisonOptions, activeComparisonId, 
       </div>
     </section>`;
   }
+  const treatmentDecision = comparison ? ReportPresentation.buildTreatmentDecisionSummary(comparison) : null;
   return `<section class="results-section-stack">
     <div class="results-section-heading">Compare against another assessment</div>
     <div class="results-comparison-card">
@@ -343,13 +345,13 @@ function renderAssessmentComparisonBlock(comparisonOptions, activeComparisonId, 
         </select>
       </div>
       ${comparison ? `
-        <div class="results-comparison-banner" style="margin-top:var(--sp-3)"><strong>Decision read:</strong> ${comparison.directionTitle}</div>
+        <div class="results-comparison-banner" style="margin-top:var(--sp-3)"><strong>Decision read:</strong> ${treatmentDecision.title}</div>
         <div class="results-comparison-banner">
           <strong>Comparing against:</strong> ${comparison.baselineTitle} · ${comparison.baselineDate}
         </div>
-        <p class="results-summary-copy" style="margin-top:var(--sp-3)">${comparison.summary}</p>
+        <p class="results-summary-copy" style="margin-top:var(--sp-3)">${treatmentDecision.summary}</p>
         <div class="results-comparison-banner" style="margin-top:var(--sp-3)">${comparison.statusShift}</div>
-        <div class="results-comparison-banner" style="margin-top:var(--sp-3)">${comparison.treatmentNarrative || comparison.keyDriver}</div>
+        <div class="results-comparison-banner" style="margin-top:var(--sp-3)">${treatmentDecision.action}</div>
         <div class="results-comparison-grid">
           <div class="results-comparison-metric ${comparison.severeEvent.direction}">
             <div class="results-impact-label">Severe single event</div>

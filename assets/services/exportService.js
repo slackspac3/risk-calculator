@@ -47,6 +47,14 @@ const ExportService = (() => {
     return ReportPresentation.buildExecutiveDecisionSupport(assessment, results, intelligence);
   }
 
+  function _buildExecutiveConfidenceFrame(confidence, evidenceQuality, missingInformation = [], citations = []) {
+    return ReportPresentation.buildExecutiveConfidenceFrame(confidence, evidenceQuality, missingInformation, citations);
+  }
+
+  function _buildTreatmentDecisionSummary(comparison) {
+    return ReportPresentation.buildTreatmentDecisionSummary(comparison);
+  }
+
   // ─── JSON Export ─────────────────────────────────────────
   function exportJSON(assessment) {
     exportDataAsJson(assessment, `G42_RiskAssessment_${assessment.id || Date.now()}.json`);
@@ -119,12 +127,33 @@ const ExportService = (() => {
     const technicalInputs = r.inputs || assessment.fairParams || {};
     const intelligence = assessment.assessmentIntelligence || null;
     const executiveDecision = _buildExecutiveDecisionSupport(assessment, r, intelligence);
+    const confidenceFrame = _buildExecutiveConfidenceFrame(intelligence?.confidence, assessment.evidenceQuality, assessment.missingInformation, citations);
     const confidence = intelligence?.confidence || null;
     const drivers = intelligence?.drivers || null;
     const assumptions = Array.isArray(intelligence?.assumptions) ? intelligence.assumptions : [];
     const challenge = assessment.assessmentChallenge || null;
     const thresholdModel = _buildExecutiveThresholdModel(r, fmt);
     const impactMix = _buildExecutiveImpactMix(technicalInputs);
+    const treatmentComparison = assessment.comparisonBaseline?.results
+      ? (() => {
+          const baseline = assessment.comparisonBaseline;
+          const current = assessment.results || {};
+          const baselineResults = baseline.results || {};
+          const severeDirection = Number(current.lm?.p90 || 0) < Number(baselineResults.lm?.p90 || 0) ? 'down' : Number(current.lm?.p90 || 0) > Number(baselineResults.lm?.p90 || 0) ? 'up' : 'flat';
+          const annualDirection = Number(current.ale?.mean || 0) < Number(baselineResults.ale?.mean || 0) ? 'down' : Number(current.ale?.mean || 0) > Number(baselineResults.ale?.mean || 0) ? 'up' : 'flat';
+          const severeAnnualDirection = Number(current.ale?.p90 || 0) < Number(baselineResults.ale?.p90 || 0) ? 'down' : Number(current.ale?.p90 || 0) > Number(baselineResults.ale?.p90 || 0) ? 'up' : 'flat';
+          return _buildTreatmentDecisionSummary({
+            baselineTitle: baseline.scenarioTitle || 'Selected baseline',
+            baselineDate: new Date(baseline.completedAt || baseline.createdAt || Date.now()).toLocaleDateString('en-AE', { year: 'numeric', month: 'short', day: 'numeric' }),
+            severeEvent: { direction: severeDirection },
+            annualExposure: { direction: annualDirection },
+            severeAnnual: { direction: severeAnnualDirection },
+            treatmentNarrative: assessment.comparisonNarrative || assessment.treatmentImprovementRequest || '',
+            keyDriver: assessment.comparisonKeyDriver || 'Review the changed assumptions versus the saved baseline.',
+            secondaryDriver: assessment.comparisonSecondaryDriver || ''
+          });
+        })()
+      : null;
 
     const html = `<!DOCTYPE html>
 <html lang="en">
@@ -323,6 +352,7 @@ const ExportService = (() => {
           <div class="decision-row"><div class="section-label">What should happen now</div><div class="body-copy">${executiveAction}</div></div>
           <div class="decision-row"><div class="section-label">Main priority</div><div class="body-copy">${executiveDecision.priority}</div></div>
           <div class="decision-row"><div class="section-label">Management focus area</div><div class="body-copy">${executiveDecision.managementFocus}</div></div>
+          ${treatmentComparison ? `<div class="decision-row"><div class="section-label">Treatment decision read</div><div class="body-copy"><strong>${treatmentComparison.title}</strong><br>${treatmentComparison.summary}</div></div>` : ''}
         </div>
         <div class="card">
           <div class="section-label">Threshold position</div>
@@ -366,8 +396,10 @@ const ExportService = (() => {
         </div>
         <div class="card">
           <div class="section-label">What is pushing the result up or down</div>
+          <div class="body-copy">${confidenceFrame.implication}</div>
           ${drivers?.upward?.length ? `<div class="driver-block"><div class="driver-label">Main upward drivers</div><div class="body-copy">${drivers.upward.map(item => `• ${item}`).join('<br>')}</div></div>` : ''}
           ${drivers?.stabilisers?.length ? `<div class="driver-block"><div class="driver-label">Main stabilisers</div><div class="body-copy">${drivers.stabilisers.map(item => `• ${item}`).join('<br>')}</div></div>` : ''}
+          <div class="driver-block"><div class="driver-label">Best next evidence to collect</div><div class="body-copy">${confidenceFrame.topGap}</div></div>
         </div>
       </div>` : ''}
 
@@ -506,10 +538,12 @@ const ExportService = (() => {
   function exportPPTXSpec(assessment, currency = 'USD', fxRate = 3.6725) {
     const r = assessment.results;
     const fmt = v => _formatCurrency(v, currency, fxRate);
+    const intelligence = assessment.assessmentIntelligence || {};
+    const confidenceFrame = _buildExecutiveConfidenceFrame(intelligence.confidence, assessment.evidenceQuality, assessment.missingInformation, assessment.citations || []);
 
     const slideSpec = {
       _note: 'Feed this JSON into pptxgenjs to generate a real PPTX. See README for integration instructions.',
-      title: `G42 Cyber Risk Assessment: ${assessment.scenarioTitle || 'Assessment'}`,
+      title: `Risk Intelligence Platform Assessment: ${assessment.scenarioTitle || 'Assessment'}`,
       slides: [
         {
           slideIndex: 1,
@@ -517,7 +551,7 @@ const ExportService = (() => {
           title: assessment.scenarioTitle || 'Risk Assessment',
           subtitle: `Business Unit: ${assessment.buName || '—'}`,
           date: new Date().toLocaleDateString('en-AE'),
-          footer: 'G42 Tech & Cyber Risk Quantifier | PoC'
+          footer: 'Risk Intelligence Platform | Pilot report'
         },
         {
           slideIndex: 2,
@@ -525,12 +559,19 @@ const ExportService = (() => {
           title: 'Executive Summary',
           tolerance: r.toleranceBreached ? 'ABOVE TOLERANCE' : 'WITHIN TOLERANCE',
           toleranceColor: r.toleranceBreached ? '#dc2626' : '#059669',
+          decisionRead: r.toleranceBreached
+            ? 'Escalate and reduce now'
+            : r.nearTolerance
+              ? 'Actively reduce and review'
+              : 'Monitor and improve selectively',
           keyStats: [
             { label: 'Per-Event P90', value: fmt(r.lm.p90) },
             { label: 'Annual P90', value: fmt(r.ale.p90) },
             { label: 'Tolerance Threshold', value: fmt(r.threshold) },
             { label: 'Breach Probability', value: (r.toleranceDetail.lmExceedProb * 100).toFixed(1) + '%' }
-          ]
+          ],
+          confidence: confidenceFrame.label,
+          confidenceImplication: confidenceFrame.implication
         },
         {
           slideIndex: 3,
@@ -567,7 +608,7 @@ const ExportService = (() => {
             'Input ranges should be validated through expert elicitation for production decisions.',
             'Loss estimates are probabilistic, not deterministic.',
             `Assessment ID: ${assessment.id} | Generated: ${new Date().toLocaleDateString('en-AE')}`,
-            'This is a Proof of Concept tool. Replace shared password auth with Entra ID before production use.'
+            'This is a pilot-stage product. Management conclusions should be reviewed against evidence quality, assumptions, and lifecycle status before formal commitment.'
           ]
         }
       ]

@@ -74,3 +74,30 @@ test('buildLifecycleNextStepPlan adapts guidance for treatment variants', () => 
   assert.match(plan[1].copy, /service owner/i);
   assert.match(plan[2].copy, /locked baseline/i);
 });
+
+test('buildTreatmentDecisionSummary explains materially improved treatment paths', () => {
+  const summary = ReportPresentation.buildTreatmentDecisionSummary({
+    severeEvent: { direction: 'down' },
+    annualExposure: { direction: 'down' },
+    severeAnnual: { direction: 'down' },
+    treatmentNarrative: 'The treatment case is reducing both the severe event and the annual burden.',
+    keyDriver: 'Stronger prevention and response controls are reducing the main loss path.',
+    secondaryDriver: 'Lower business interruption is improving the severe annual view.'
+  });
+
+  assert.match(summary.title, /materially improving the management position/i);
+  assert.match(summary.summary, /reducing both the severe event and the annual burden/i);
+  assert.match(summary.action, /Stronger prevention and response controls/i);
+});
+
+test('buildTreatmentDecisionSummary explains stalled treatment paths', () => {
+  const summary = ReportPresentation.buildTreatmentDecisionSummary({
+    severeEvent: { direction: 'flat' },
+    annualExposure: { direction: 'flat' },
+    severeAnnual: { direction: 'flat' },
+    keyDriver: 'No single control or resilience lever is moving the baseline yet.'
+  });
+
+  assert.match(summary.title, /not yet materially changing the position/i);
+  assert.match(summary.action, /Adjust the assumptions/i);
+});
