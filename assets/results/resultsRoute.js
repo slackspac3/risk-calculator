@@ -88,6 +88,34 @@ function renderDecisionRail(statusTitle, statusDetail, executiveDecision, execut
   </div>`;
 }
 
+function renderAnalystSummaryBlock(summary) {
+  if (!summary) return '';
+  return `<section class="results-section-stack">
+    <div class="results-section-heading">${escapeHtml(String(summary.title || 'Analyst Summary'))}</div>
+    <div class="results-analyst-summary">
+      <div class="results-analyst-summary__main">
+        <h3 class="results-analyst-summary__title">${escapeHtml(String(summary.opening || 'This result should be read as a decision-support view.'))}</h3>
+        <p class="results-summary-copy">${escapeHtml(String(summary.meaning || ''))}</p>
+      </div>
+      <div class="results-analyst-summary__grid">
+        <div class="results-summary-card">
+          <div class="results-driver-label">Confidence read</div>
+          <div class="results-summary-copy">${escapeHtml(String(summary.confidence || ''))}</div>
+        </div>
+        <div class="results-summary-card">
+          <div class="results-driver-label">Best next evidence move</div>
+          <div class="results-summary-copy">${escapeHtml(String(summary.evidence || ''))}</div>
+        </div>
+        <div class="results-summary-card results-summary-card--wide">
+          <div class="results-driver-label">Treatment read</div>
+          <div class="results-summary-copy">${escapeHtml(String(summary.treatment || ''))}</div>
+          <div class="results-comparison-foot" style="margin-top:var(--sp-3)">${escapeHtml(String(summary.close || ''))}</div>
+        </div>
+      </div>
+    </div>
+  </section>`;
+}
+
 function renderLifecycleNextStepCards(nextStepPlan = []) {
   if (!nextStepPlan.length) return '';
   return `<div class="results-recommendations-grid">
@@ -166,6 +194,50 @@ function renderResultsComparisonHighlight(comparison) {
         </div>
       </div>
     </div>
+  </section>`;
+}
+
+function renderExecutiveInsightCluster({ scenarioNarrative, executiveDecision, executiveAnnualView, analystSummary, comparisonHighlight, recommendationCards }) {
+  return `<section class="results-section-stack">
+    <div class="results-section-heading">Executive meaning</div>
+    <div class="results-summary-grid results-summary-grid--primary">
+      <div class="results-summary-card results-summary-card--wide">
+        <div class="results-driver-label">What this means in plain language</div>
+        <p class="results-summary-copy">${scenarioNarrative}</p>
+      </div>
+      <div class="results-summary-card">
+        <div class="results-driver-label">Management posture</div>
+        <p class="results-summary-copy"><strong>${escapeHtml(String(executiveDecision?.decision || 'Review'))}</strong></p>
+        <div class="results-comparison-foot">${escapeHtml(String(executiveAnnualView || ''))}</div>
+      </div>
+      <div class="results-summary-card">
+        <div class="results-driver-label">Recommended next move</div>
+        <p class="results-summary-copy">${escapeHtml(String(executiveDecision?.priority || executiveDecision?.managementFocus || 'Confirm the next management step for this scenario.'))}</p>
+      </div>
+    </div>
+    ${renderAnalystSummaryBlock(analystSummary)}
+    ${comparisonHighlight}
+    ${recommendationCards}
+  </section>`;
+}
+
+function renderTrustExplanationLayer({ confidenceNeedsBlock, explanationPanel, impactMix, thresholdModel, results, assessmentIntelligence, assessment }) {
+  return `<section class="results-section-stack">
+    <div class="results-section-heading">Trust and explanation</div>
+    ${confidenceNeedsBlock}
+    ${explanationPanel}
+    <details class="results-detail-disclosure">
+      <summary>Show supporting drivers, cost mix, and governance tracks</summary>
+      <div class="results-detail-disclosure-copy">Open this when you want the main sensitivities, cost composition, and benchmark context behind the headline view.</div>
+      <div class="results-disclosure-stack">
+        ${renderExecutiveDriversSummary(assessmentIntelligence.drivers, assessment)}
+        <div class="results-visual-grid">
+          ${renderExecutiveImpactMix(impactMix)}
+          ${renderExecutiveThresholdTracks(thresholdModel)}
+        </div>
+        ${renderExecutiveSignalCard(results)}
+      </div>
+    </details>
   </section>`;
 }
 
@@ -1079,6 +1151,15 @@ function renderResults(id, isShared) {
   const confidenceNeedsBlock = renderResultsConfidenceNeedsBlock(confidenceFrame, assessment.evidenceQuality, missingInformation, citations);
   const comparisonHighlight = renderResultsComparisonHighlight(comparison);
   const explanationPanel = renderResultsExplanationPanel(assessmentIntelligence, comparison, runMetadata);
+  const analystSummary = ReportPresentation.buildAnalystAdvisorySummary({
+    assessment,
+    results: r,
+    executiveDecision,
+    confidenceFrame,
+    comparison,
+    missingInformation,
+    lifecycle
+  });
 
   const executiveTab = `
     <section class="results-executive-view" id="results-tab-executive">
@@ -1123,74 +1204,90 @@ function renderResults(id, isShared) {
         </div>
       </div>
 
-      <div class="results-decision-grid">
-        <div class="results-decision-card">
-          <div class="results-section-heading">Recommended management decision</div>
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);flex-wrap:wrap">
-            <strong style="font-family:var(--font-display);font-size:var(--text-xl);color:var(--text-primary)">${executiveDecision.decision}</strong>
-            <span class="badge ${r.toleranceBreached ? 'badge--danger' : r.nearTolerance ? 'badge--warning' : 'badge--success'}">${statusTitle}</span>
-          </div>
-          <div class="results-decision-points">
-            <div class="results-decision-point"><span class="results-decision-label">Why this matters</span><div class="results-decision-copy">${executiveDecision.rationale}</div></div>
-            <div class="results-decision-point"><span class="results-decision-label">Main management priority</span><div class="results-decision-copy">${executiveDecision.priority}</div></div>
-            <div class="results-decision-point"><span class="results-decision-label">Management focus next</span><div class="results-decision-copy">${executiveDecision.managementFocus}</div></div>
-          </div>
-        </div>
-        <div class="results-decision-card results-decision-card--compact">
-          <div class="results-section-heading">Threshold position</div>
-          <div class="results-threshold-stack">
-            <div class="results-threshold-row"><span>Warning</span><strong>${fmtCurrency(r.warningThreshold || getWarningThreshold())}</strong></div>
-            <div class="results-threshold-row"><span>Tolerance</span><strong>${fmtCurrency(r.threshold)}</strong></div>
-            <div class="results-threshold-row"><span>Annual review</span><strong>${fmtCurrency(r.annualReviewThreshold || getAnnualReviewThreshold())}</strong></div>
-            <div class="results-threshold-row"><span>Annual review exceedance</span><strong>${((r.annualReviewDetail?.annualExceedProb || 0) * 100).toFixed(1)}%</strong></div>
-          </div>
-          <div class="results-decision-row"><span class="results-decision-label">Current position</span><div class="results-decision-copy">${executiveAnnualView}</div></div>
-          <div class="results-decision-row"><span class="results-decision-label">Confidence implication</span><div class="results-decision-copy">${confidenceFrame.implication}</div></div>
-        </div>
-      </div>
+      ${renderExecutiveInsightCluster({
+        scenarioNarrative,
+        executiveDecision,
+        executiveAnnualView,
+        analystSummary,
+        comparisonHighlight,
+        recommendationCards
+      })}
 
-      ${recommendationCards}
-      ${confidenceNeedsBlock}
-      ${comparisonHighlight}
-      ${explanationPanel}
-
-      <div class="results-summary-grid results-summary-grid--primary">
-        <div class="results-summary-card results-summary-card--wide">
-          <div class="results-section-heading">What this scenario means in practice</div>
-          <p class="results-summary-copy">${scenarioNarrative}</p>
-        </div>
-      </div>
-
-      <details class="results-detail-disclosure">
-        <summary>Show why the result looks this way</summary>
-        <div class="results-detail-disclosure-copy">Use this when you need the drivers, benchmark logic, and supporting signals behind the headline view.</div>
-        <div class="results-disclosure-stack">
-          ${renderExecutiveDriversSummary(assessmentIntelligence.drivers, assessment)}
-          <div class="results-visual-grid">
-            ${renderExecutiveImpactMix(impactMix)}
-            ${renderExecutiveThresholdTracks(thresholdModel)}
-          </div>
-          ${renderExecutiveSignalCard(r)}
-        </div>
-      </details>
+      ${renderTrustExplanationLayer({
+        confidenceNeedsBlock,
+        explanationPanel,
+        impactMix,
+        thresholdModel,
+        results: r,
+        assessmentIntelligence,
+        assessment
+      })}
     </section>`;
 
   const technicalTab = `
     <section class="results-technical-view ${activeTab === 'technical' ? '' : 'hidden'}" id="results-tab-technical">
       ${renderTechnicalOrientationBlock(rolePresentation, runMetadata, confidenceFrame)}
 
-      ${confidenceNeedsBlock}
-      ${renderSimulationEquationFlow()}
-      ${renderInputSourceAuditBlock(buildLiveInputSourceAssignments(assessment))}
+      <details class="results-detail-disclosure" open>
+        <summary>Model outputs and review-ready metrics</summary>
+        <div class="results-detail-disclosure-copy">These are the main event and annual exposure outputs most teams review first when challenging or validating the result.</div>
+        <div class="results-disclosure-stack">
+          <div class="grid-3 mb-6 anim-fade-in">
+            <div class="metric-card"><div class="metric-label">Typical conditional event loss</div><div class="metric-value">${fmtCurrency(r.eventLoss.p50)}</div><div class="metric-sub">Midpoint successful-event view</div></div>
+            <div class="metric-card"><div class="metric-label">Severe conditional event loss</div><div class="metric-value ${r.toleranceBreached ? 'danger' : ''}">${fmtCurrency(r.eventLoss.p90)}</div><div class="metric-sub">Used for tolerance check</div></div>
+            <div class="metric-card"><div class="metric-label">Expected conditional event loss</div><div class="metric-value">${fmtCurrency(r.eventLoss.mean)}</div><div class="metric-sub">Average successful-event loss</div></div>
+          </div>
+          <div class="grid-3 anim-fade-in anim-delay-1">
+            <div class="metric-card"><div class="metric-label">Typical annualized loss</div><div class="metric-value">${fmtCurrency(r.annualLoss.p50)}</div><div class="metric-sub">Midpoint annual view</div></div>
+            <div class="metric-card"><div class="metric-label">Severe annualized loss</div><div class="metric-value warning">${fmtCurrency(r.annualLoss.p90)}</div><div class="metric-sub">Annual severe-but-plausible view</div></div>
+            <div class="metric-card"><div class="metric-label">Expected annualized loss</div><div class="metric-value">${fmtCurrency(r.annualLoss.mean)}</div><div class="metric-sub">Average annual loss</div></div>
+          </div>
+        </div>
+      </details>
 
-      <div class="results-decision-grid mb-6 anim-fade-in">
-        ${renderAssessmentConfidenceBlock(assessmentIntelligence.confidence)}
-        ${renderAssessmentDriversBlock(assessmentIntelligence.drivers)}
-      </div>
-      ${renderSensitivitySummary(assessmentIntelligence.drivers)}
+      <details class="results-detail-disclosure">
+        <summary>Confidence, drivers, and input provenance</summary>
+        <div class="results-detail-disclosure-copy">Use this when you want to challenge the evidence posture, dominant sensitivities, and the origin of the main inputs.</div>
+        <div class="results-disclosure-stack">
+          <div class="results-decision-grid mb-6 anim-fade-in">
+            ${renderAssessmentConfidenceBlock(assessmentIntelligence.confidence)}
+            ${renderAssessmentDriversBlock(assessmentIntelligence.drivers)}
+          </div>
+          ${renderSensitivitySummary(assessmentIntelligence.drivers)}
+          ${renderInputSourceAuditBlock(buildLiveInputSourceAssignments(assessment))}
+        </div>
+      </details>
 
-      ${comparisonHighlight}
-      ${explanationPanel}
+      <details class="results-detail-disclosure">
+        <summary>Model logic, settings, and saved run metadata</summary>
+        <div class="results-detail-disclosure-copy">Open this when you need the technical appendix view: distributions, thresholds, assumptions, simulation settings, and reproducibility details.</div>
+        <div class="results-disclosure-stack">
+          ${renderSimulationEquationFlow()}
+          <div class="card anim-fade-in">
+            <h3 style="font-size:var(--text-base);margin-bottom:var(--sp-4)">Simulation context</h3>
+            <div class="grid-3">
+              <div style="background:var(--bg-elevated);padding:var(--sp-4);border-radius:var(--radius-lg)"><div style="font-size:.7rem;text-transform:uppercase;color:var(--text-muted)">Event frequency</div><div style="font-size:.9rem;font-weight:600;margin-top:4px">${technicalInputs.tefMin ?? '—'}–${technicalInputs.tefLikely ?? '—'}–${technicalInputs.tefMax ?? '—'}</div><div style="font-size:.7rem;color:var(--text-muted)">events/year</div></div>
+              <div style="background:var(--bg-elevated);padding:var(--sp-4);border-radius:var(--radius-lg)"><div style="font-size:.7rem;text-transform:uppercase;color:var(--text-muted)">Threat capability</div><div style="font-size:.9rem;font-weight:600;margin-top:4px">${technicalInputs.threatCapMin ?? '—'}–${technicalInputs.threatCapLikely ?? '—'}–${technicalInputs.threatCapMax ?? '—'}</div><div style="font-size:.7rem;color:var(--text-muted)">0–1 scale</div></div>
+              <div style="background:var(--bg-elevated);padding:var(--sp-4);border-radius:var(--radius-lg)"><div style="font-size:.7rem;text-transform:uppercase;color:var(--text-muted)">Control strength</div><div style="font-size:.9rem;font-weight:600;margin-top:4px">${technicalInputs.controlStrMin ?? '—'}–${technicalInputs.controlStrLikely ?? '—'}–${technicalInputs.controlStrMax ?? '—'}</div><div style="font-size:.7rem;color:var(--text-muted)">0–1 scale</div></div>
+            </div>
+            <div class="mt-4" style="font-size:.78rem;color:var(--text-muted)">Iterations: <strong>${r.iterations.toLocaleString()}</strong> · Distribution: <strong>${r.distType || assessment.fairParams?.distType || 'triangular'}</strong> · Event tolerance: <strong>${fmtCurrency(r.threshold)}</strong> · Annual review: <strong>${fmtCurrency(r.annualReviewThreshold || getAnnualReviewThreshold())}</strong></div>
+            <div class="form-help" style="margin-top:6px">${escapeHtml(String(r.metricSemantics?.eventLoss || ''))} ${escapeHtml(String(r.metricSemantics?.annualLoss || ''))}</div>
+          </div>
+          ${renderRunMetadataPanel(runMetadata, r.metricSemantics)}
+          ${assessment.structuredScenario ? `
+          <div class="card anim-fade-in">
+            <h3 style="font-size:var(--text-base);margin-bottom:var(--sp-4)">Scenario details</h3>
+            <div class="grid-2">
+              ${Object.entries({
+                'Asset / Service': assessment.structuredScenario.assetService,
+                'Threat Community': assessment.structuredScenario.threatCommunity,
+                'Attack Type': assessment.structuredScenario.attackType,
+                'Effect': assessment.structuredScenario.effect
+              }).map(([k, v]) => `<div style="background:var(--bg-elevated);padding:var(--sp-3) var(--sp-4);border-radius:var(--radius-lg)"><div style="font-size:.68rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted)">${k}</div><div style="font-size:.85rem;color:var(--text-secondary);margin-top:4px">${v || '—'}</div></div>`).join('')}
+            </div>
+          </div>` : ''}
+        </div>
+      </details>
 
       <details class="results-detail-disclosure">
         <summary>Show challenge and review tools</summary>
@@ -1207,23 +1304,6 @@ function renderResults(id, isShared) {
             <div id="assessment-challenge-status" class="form-help" style="margin-top:12px">${assessmentChallenge ? 'Latest challenge review saved with this assessment.' : 'No challenge review has been generated yet.'}</div>
           </div>
           ${assessmentChallenge ? renderAssessmentChallengeBlock(assessmentChallenge) : ''}
-        </div>
-      </details>
-
-      <details class="results-detail-disclosure" open>
-        <summary>${rolePresentation.coreSummary}</summary>
-        <div class="results-detail-disclosure-copy">These are the main event and annual exposure outputs most teams review first.</div>
-        <div class="results-disclosure-stack">
-          <div class="grid-3 mb-6 anim-fade-in">
-            <div class="metric-card"><div class="metric-label">Typical conditional event loss</div><div class="metric-value">${fmtCurrency(r.eventLoss.p50)}</div><div class="metric-sub">Midpoint successful-event view</div></div>
-            <div class="metric-card"><div class="metric-label">Severe conditional event loss</div><div class="metric-value ${r.toleranceBreached ? 'danger' : ''}">${fmtCurrency(r.eventLoss.p90)}</div><div class="metric-sub">Used for tolerance check</div></div>
-            <div class="metric-card"><div class="metric-label">Expected conditional event loss</div><div class="metric-value">${fmtCurrency(r.eventLoss.mean)}</div><div class="metric-sub">Average successful-event loss</div></div>
-          </div>
-          <div class="grid-3 anim-fade-in anim-delay-1">
-            <div class="metric-card"><div class="metric-label">Typical annualized loss</div><div class="metric-value">${fmtCurrency(r.annualLoss.p50)}</div><div class="metric-sub">Midpoint annual view</div></div>
-            <div class="metric-card"><div class="metric-label">Severe annualized loss</div><div class="metric-value warning">${fmtCurrency(r.annualLoss.p90)}</div><div class="metric-sub">Annual severe-but-plausible view</div></div>
-            <div class="metric-card"><div class="metric-label">Expected annualized loss</div><div class="metric-value">${fmtCurrency(r.annualLoss.mean)}</div><div class="metric-sub">Average annual loss</div></div>
-          </div>
         </div>
       </details>
 
@@ -1259,31 +1339,6 @@ function renderResults(id, isShared) {
               <canvas id="chart-lec"></canvas>
             </div>
           </div>
-
-          ${assessment.structuredScenario ? `
-          <div class="card anim-fade-in">
-            <h3 style="font-size:var(--text-base);margin-bottom:var(--sp-4)">Scenario details</h3>
-            <div class="grid-2">
-              ${Object.entries({
-                'Asset / Service': assessment.structuredScenario.assetService,
-                'Threat Community': assessment.structuredScenario.threatCommunity,
-                'Attack Type': assessment.structuredScenario.attackType,
-                'Effect': assessment.structuredScenario.effect
-              }).map(([k, v]) => `<div style="background:var(--bg-elevated);padding:var(--sp-3) var(--sp-4);border-radius:var(--radius-lg)"><div style="font-size:.68rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted)">${k}</div><div style="font-size:.85rem;color:var(--text-secondary);margin-top:4px">${v || '—'}</div></div>`).join('')}
-            </div>
-          </div>` : ''}
-
-          <div class="card anim-fade-in">
-            <h3 style="font-size:var(--text-base);margin-bottom:var(--sp-4)">Simulation context</h3>
-            <div class="grid-3">
-              <div style="background:var(--bg-elevated);padding:var(--sp-4);border-radius:var(--radius-lg)"><div style="font-size:.7rem;text-transform:uppercase;color:var(--text-muted)">Event frequency</div><div style="font-size:.9rem;font-weight:600;margin-top:4px">${technicalInputs.tefMin ?? '—'}–${technicalInputs.tefLikely ?? '—'}–${technicalInputs.tefMax ?? '—'}</div><div style="font-size:.7rem;color:var(--text-muted)">events/year</div></div>
-              <div style="background:var(--bg-elevated);padding:var(--sp-4);border-radius:var(--radius-lg)"><div style="font-size:.7rem;text-transform:uppercase;color:var(--text-muted)">Threat capability</div><div style="font-size:.9rem;font-weight:600;margin-top:4px">${technicalInputs.threatCapMin ?? '—'}–${technicalInputs.threatCapLikely ?? '—'}–${technicalInputs.threatCapMax ?? '—'}</div><div style="font-size:.7rem;color:var(--text-muted)">0–1 scale</div></div>
-              <div style="background:var(--bg-elevated);padding:var(--sp-4);border-radius:var(--radius-lg)"><div style="font-size:.7rem;text-transform:uppercase;color:var(--text-muted)">Control strength</div><div style="font-size:.9rem;font-weight:600;margin-top:4px">${technicalInputs.controlStrMin ?? '—'}–${technicalInputs.controlStrLikely ?? '—'}–${technicalInputs.controlStrMax ?? '—'}</div><div style="font-size:.7rem;color:var(--text-muted)">0–1 scale</div></div>
-            </div>
-            <div class="mt-4" style="font-size:.78rem;color:var(--text-muted)">Iterations: <strong>${r.iterations.toLocaleString()}</strong> · Distribution: <strong>${r.distType || assessment.fairParams?.distType || 'triangular'}</strong> · Event tolerance: <strong>${fmtCurrency(r.threshold)}</strong> · Annual review: <strong>${fmtCurrency(r.annualReviewThreshold || getAnnualReviewThreshold())}</strong></div>
-            <div class="form-help" style="margin-top:6px">${escapeHtml(String(r.metricSemantics?.eventLoss || ''))} ${escapeHtml(String(r.metricSemantics?.annualLoss || ''))}</div>
-          </div>
-          ${renderRunMetadataPanel(runMetadata, r.metricSemantics)}
         </div>
       </details>
 

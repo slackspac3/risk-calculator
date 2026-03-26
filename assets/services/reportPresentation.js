@@ -333,6 +333,34 @@ const ReportPresentation = (() => {
     };
   }
 
+  function buildAnalystAdvisorySummary({ assessment, results, executiveDecision, confidenceFrame, comparison, missingInformation = [], lifecycle } = {}) {
+    const severeEvent = Number(results?.eventLoss?.p90 || results?.lm?.p90 || 0);
+    const annualExposure = Number(results?.annualLoss?.mean || results?.ale?.mean || 0);
+    const posture = results?.toleranceBreached
+      ? 'is above tolerance'
+      : results?.nearTolerance
+        ? 'is close to tolerance'
+        : 'is currently within tolerance';
+    const lifecycleLabel = lifecycle?.label || 'Saved assessment';
+    const topGap = Array.isArray(missingInformation) && missingInformation.length
+      ? missingInformation[0]
+      : confidenceFrame?.topGap || 'No material evidence gap has been recorded yet.';
+    const confidenceLabel = confidenceFrame?.label || 'Moderate confidence';
+    const treatmentRead = comparison
+      ? `Treatment comparison indicates that the proposed change ${comparison.severeEvent?.direction === 'down' ? 'improves the severe-event position' : comparison.severeEvent?.direction === 'up' ? 'worsens the severe-event position' : 'does not yet materially change the severe-event position'}, with ${comparison.keyDriver || 'no single change driver called out yet'}.`
+      : 'No treatment comparison is currently selected, so this read reflects the current-state scenario only.';
+
+    return {
+      title: 'Analyst Summary',
+      opening: `This scenario ${posture}, with a severe single-event view of ${severeEvent > 0 ? 'the recorded high-stress loss' : 'the current saved loss view'} and an expected annual exposure that should be read as a management planning range rather than a precise forecast.`,
+      meaning: executiveDecision?.rationale || 'The result should be used to support a management decision on whether to monitor, reduce, or escalate the scenario.',
+      confidence: `${confidenceLabel} confidence. ${confidenceFrame?.implication || 'The broadest assumptions should still be challenged before relying on this for higher-stakes decisions.'}`,
+      evidence: `Best next evidence move: ${topGap}`,
+      treatment: treatmentRead,
+      close: `${lifecycleLabel} status means the next best move is to ${String(executiveDecision?.decision || 'review the result').toLowerCase()} and preserve the saved result as the current reference point.`
+    };
+  }
+
   const exported = {
     clampNumber,
     cleanExecutiveNarrativeText,
@@ -342,7 +370,8 @@ const ReportPresentation = (() => {
     buildLifecycleNextStepPlan,
     buildExecutiveThresholdModel,
     buildExecutiveImpactMix,
-    buildTreatmentDecisionSummary
+    buildTreatmentDecisionSummary,
+    buildAnalystAdvisorySummary
   };
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = exported;

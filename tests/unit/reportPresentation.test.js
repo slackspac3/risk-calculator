@@ -101,3 +101,37 @@ test('buildTreatmentDecisionSummary explains stalled treatment paths', () => {
   assert.match(summary.title, /not yet materially changing the position/i);
   assert.match(summary.action, /Adjust the assumptions/i);
 });
+
+test('buildAnalystAdvisorySummary layers meaning confidence and treatment context', () => {
+  const summary = ReportPresentation.buildAnalystAdvisorySummary({
+    assessment: { scenarioTitle: 'Identity compromise' },
+    results: {
+      toleranceBreached: false,
+      nearTolerance: true,
+      eventLoss: { p90: 1450000 },
+      annualLoss: { mean: 620000 }
+    },
+    executiveDecision: {
+      decision: 'Actively reduce and review',
+      rationale: 'The scenario is near tolerance and should be actively reduced before it worsens.'
+    },
+    confidenceFrame: {
+      label: 'Moderate confidence',
+      implication: 'Use this as a working management view and challenge the largest assumptions first.',
+      topGap: 'Validate the business interruption range with finance.'
+    },
+    comparison: {
+      severeEvent: { direction: 'down' },
+      keyDriver: 'Stronger response coverage reduces interruption duration.'
+    },
+    missingInformation: ['Validate the business interruption range with finance.'],
+    lifecycle: { label: 'Simulated' }
+  });
+
+  assert.equal(summary.title, 'Analyst Summary');
+  assert.match(summary.opening, /close to tolerance/i);
+  assert.match(summary.confidence, /Moderate confidence/i);
+  assert.match(summary.evidence, /business interruption range/i);
+  assert.match(summary.treatment, /improves the severe-event position/i);
+  assert.match(summary.close, /simulated status/i);
+});
