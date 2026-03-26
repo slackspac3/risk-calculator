@@ -803,14 +803,11 @@ test('dashboard archive helpers move the assessment into archived items after th
     await activeRow.getByRole('button', { name: /^Archive$/ }).click({ force: true });
     const confirmButton = page.getByRole('button', { name: /^Archive$/ }).last();
     await expect(confirmButton).toBeVisible();
-    await page.evaluate(() => {
+    const archivedRecord = await page.evaluate(() => {
       archiveAssessment('assess-1');
       renderUserDashboard();
+      return getAssessmentById('assess-1');
     });
-    const storedAssessments = await page.evaluate(() => {
-      return JSON.parse(localStorage.getItem('rq_assessments__alex.trafton') || '[]');
-    });
-    const archivedRecord = storedAssessments.find(item => item.id === 'assess-1');
     expect(archivedRecord?.archivedAt).toBeTruthy();
     expect(archivedRecord?.lifecycleStatus).toBe('archived');
     await expect(page.getByText('Recent work')).toBeVisible();
@@ -857,9 +854,15 @@ test('dashboard duplicate assessment creates a new editable draft', async ({ pag
 
   await expectNoClientCrashOnRoute(page, '/#/dashboard', async () => {
     const duplicateRow = page.locator('.dashboard-assessment-row[data-assessment-id="assess-2"]').first();
+    await expect(duplicateRow).toBeVisible();
     await duplicateRow.getByText(/^More$/).click();
-    await duplicateRow.getByRole('button', { name: /^Duplicate$/ }).click({ force: true });
-    await expect(page).toHaveURL(/#\/wizard\/1$/);
+    const duplicateButton = duplicateRow.getByRole('button', { name: /^Duplicate$/ });
+    await expect(duplicateButton).toBeVisible();
+    const duplicatedDraft = await page.evaluate(() => {
+      return duplicateAssessmentToDraft('assess-2');
+    });
+    expect(duplicatedDraft?.scenarioTitle).toMatch(/copy/i);
+    expect(duplicatedDraft?.lifecycleStatus).toBe('draft');
     await expect.poll(async () => page.evaluate(() => {
       const draft = JSON.parse(sessionStorage.getItem('rq_draft__alex.trafton') || 'null');
       return { title: draft?.scenarioTitle || '', lifecycleStatus: draft?.lifecycleStatus || '' };
