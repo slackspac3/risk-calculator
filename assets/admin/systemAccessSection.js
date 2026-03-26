@@ -23,9 +23,14 @@ const AdminSystemAccessSection = (() => {
         <span class="form-help">Leave blank when using the hosted proxy. Only use a browser key for temporary direct testing.</span>
       </div>
       <div class="flex items-center gap-3 mt-4" style="flex-wrap:wrap">
-        <button class="btn btn--secondary" id="btn-save-session-llm">Save Session Key</button>
         <button class="btn btn--secondary" id="btn-test-session-llm">Test Connection</button>
-        <button class="btn btn--ghost" id="btn-clear-session-llm">Clear Session Key</button>
+        <details class="results-actions-disclosure admin-footer-overflow">
+          <summary class="btn btn--ghost btn--sm">Direct testing overrides</summary>
+          <div class="results-actions-disclosure-menu">
+            <button class="btn btn--secondary btn--sm" id="btn-save-session-llm">Save Session Key</button>
+            <button class="btn btn--secondary btn--sm" id="btn-clear-session-llm">Clear Session Key</button>
+          </div>
+        </details>
         <span class="form-help">Stored in this admin browser for the PoC until you clear it.</span>
       </div>
       <div class="card card--elevated mt-6">

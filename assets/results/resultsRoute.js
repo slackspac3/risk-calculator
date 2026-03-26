@@ -1105,18 +1105,23 @@ function renderResults(id, isShared) {
       ${comparisonHighlight}
       ${explanationPanel}
 
-      <div class="card mb-6 anim-fade-in">
-        <div class="flex items-center justify-between" style="gap:var(--sp-4);flex-wrap:wrap">
-          <div>
-            <h3 style="font-size:var(--text-base);margin:0">Challenge this assessment</h3>
-            <div class="form-help" style="margin-top:6px">Ask AI to review the weakest assumptions, likely committee questions, and the evidence that would strengthen this result.</div>
+      <details class="results-detail-disclosure">
+        <summary>Show challenge and review tools</summary>
+        <div class="results-detail-disclosure-copy">Open this only when you want to pressure-test the assumptions, evidence quality, and committee questions behind the result.</div>
+        <div class="results-disclosure-stack">
+          <div class="card mb-2 anim-fade-in">
+            <div class="flex items-center justify-between" style="gap:var(--sp-4);flex-wrap:wrap">
+              <div>
+                <h3 style="font-size:var(--text-base);margin:0">Challenge this assessment</h3>
+                <div class="form-help" style="margin-top:6px">Ask AI to review the weakest assumptions, likely committee questions, and the evidence that would strengthen this result.</div>
+              </div>
+              <button class="btn btn--secondary btn--sm" id="btn-challenge-assessment" type="button">AI Challenge This Assessment</button>
+            </div>
+            <div id="assessment-challenge-status" class="form-help" style="margin-top:12px">${assessmentChallenge ? 'Latest challenge review saved with this assessment.' : 'No challenge review has been generated yet.'}</div>
           </div>
-          <button class="btn btn--secondary btn--sm" id="btn-challenge-assessment" type="button">AI Challenge This Assessment</button>
+          ${assessmentChallenge ? renderAssessmentChallengeBlock(assessmentChallenge) : ''}
         </div>
-        <div id="assessment-challenge-status" class="form-help" style="margin-top:12px">${assessmentChallenge ? 'Latest challenge review saved with this assessment.' : 'No challenge review has been generated yet.'}</div>
-      </div>
-
-      ${assessmentChallenge ? renderAssessmentChallengeBlock(assessmentChallenge) : ''}
+      </details>
 
       <details class="results-detail-disclosure" open>
         <summary>${rolePresentation.coreSummary}</summary>
@@ -1229,15 +1234,16 @@ function renderResults(id, isShared) {
             <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:4px">${assessment.buName || '—'} · ${assessment.geography || '—'} · ${completedLabel}</div>
           </div>
           <div class="flex items-center gap-3" style="flex-wrap:wrap">
-            <button class="btn btn--secondary btn--sm" id="btn-create-treatment-case">Compare a Better Outcome</button>
-            <button class="btn btn--secondary btn--sm" id="btn-duplicate-assessment">Duplicate Assessment</button>
             <button class="btn btn--primary btn--sm" id="btn-export-pdf">↓ PDF Report</button>
+            <button class="btn btn--secondary btn--sm" id="btn-create-treatment-case">Compare a Better Outcome</button>
             <details class="results-actions-disclosure">
               <summary class="btn btn--ghost btn--sm">More actions</summary>
               <div class="results-actions-disclosure-menu">
+                <button class="btn btn--secondary btn--sm" id="btn-duplicate-assessment">Duplicate Assessment</button>
                 <button class="btn btn--secondary btn--sm" id="btn-share-results">Share</button>
                 <button class="btn btn--secondary btn--sm" id="btn-export-json">↓ JSON</button>
                 <button class="btn btn--secondary btn--sm" id="btn-export-pptx">↓ PPTX Spec</button>
+                <button class="btn btn--secondary btn--sm" id="btn-new-assess-top">New Assessment</button>
               </div>
             </details>
           </div>
@@ -1393,6 +1399,7 @@ function renderResults(id, isShared) {
     Router.navigate('/wizard/1');
   });
   document.getElementById('btn-new-assess').addEventListener('click', () => { resetDraft(); Router.navigate('/wizard/1'); });
+  document.getElementById('btn-new-assess-top')?.addEventListener('click', () => { resetDraft(); Router.navigate('/wizard/1'); });
   } catch (error) {
     console.error('renderResults failed:', error);
     setPage(`

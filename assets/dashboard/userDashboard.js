@@ -71,6 +71,12 @@ function renderUserDashboard() {
     ? `Focus areas: ${focusAreas.slice(0, 3).join(', ')}${focusAreas.length > 3 ? ', and more.' : '.'}`
     : 'No focus areas saved yet.';
   const recommendedTemplate = Array.isArray(ScenarioTemplates) ? ScenarioTemplates[0] : null;
+  const primarySettingsLabel = capability.canManageBusinessUnit || capability.canManageDepartment
+    ? capability.experience.primaryActionLabel
+    : 'Personal Settings';
+  const roleHeroHint = capability.canManageBusinessUnit || capability.canManageDepartment
+    ? 'Keep the main path focused on review and context management. Everything else is still available under workspace tools.'
+    : 'Use the guided path first. Templates, imports, and sample paths are still available when you need them.'
   const renderDashboardEmptyState = ({ title, body, primaryId, primaryLabel, secondaryId = '', secondaryLabel = '' }) => `<div class="empty-state">
     <strong>${title}</strong>
     <div style="margin-top:8px">${body}</div>
@@ -91,13 +97,19 @@ function renderUserDashboard() {
               <p style="margin-top:10px;color:rgba(255,255,255,.74);max-width:680px">This is your main working space. Start a new assessment, resume unfinished work, or review completed results from here.</p>
               <div class="dashboard-hero-actions flex items-center gap-3 mt-6" style="flex-wrap:wrap">
                 <button class="btn btn--primary btn--lg" id="btn-dashboard-new-assessment" aria-label="Start a New Risk Assessment">Start Guided Assessment</button>
-                <button class="btn btn--secondary" id="btn-dashboard-start-template">Start from Template</button>
-                <button class="btn btn--ghost" id="btn-dashboard-start-sample">Try Sample Assessment</button>
-                <button class="btn btn--secondary" id="btn-dashboard-continue-draft" ${hasDraft ? '' : 'disabled'}>Resume Draft</button>
-                <button class="btn btn--ghost" id="btn-dashboard-open-settings">${capability.experience.primaryActionLabel}</button>
-                <button class="btn btn--ghost" id="btn-dashboard-export-assessments">Export Assessments</button>
-                <button class="btn btn--ghost" id="btn-dashboard-import-assessments">Import Assessments</button>
+                <button class="btn btn--secondary" id="btn-dashboard-continue-draft" ${hasDraft ? '' : 'disabled'}>${hasDraft ? 'Resume Draft' : 'No Draft Yet'}</button>
+                <button class="btn btn--secondary" id="btn-dashboard-open-settings">${primarySettingsLabel}</button>
+                <details class="results-actions-disclosure dashboard-hero-overflow">
+                  <summary class="btn btn--ghost">More workspace tools</summary>
+                  <div class="results-actions-disclosure-menu">
+                    <button class="btn btn--secondary btn--sm" id="btn-dashboard-start-template">Start from Template</button>
+                    <button class="btn btn--secondary btn--sm" id="btn-dashboard-start-sample">Try Sample Assessment</button>
+                    <button class="btn btn--secondary btn--sm" id="btn-dashboard-export-assessments">Export Assessments</button>
+                    <button class="btn btn--secondary btn--sm" id="btn-dashboard-import-assessments">Import Assessments</button>
+                  </div>
+                </details>
               </div>
+              <div class="form-help" style="margin-top:12px;color:rgba(255,255,255,.65)">${roleHeroHint}</div>
             </div>
             <div class="card dashboard-hero-side">
               <div class="context-panel-title">What to do next</div>
@@ -140,9 +152,14 @@ function renderUserDashboard() {
                 badgeLabel: item.status,
                 actions: `
                   <button type="button" class="btn btn--ghost btn--sm dashboard-open-action" data-assessment-id="${item.action}">${item.actionLabel}</button>
-                  ${item.action === 'draft'
-                    ? '<button type="button" class="btn btn--ghost btn--sm dashboard-archive-draft">Archive</button><button type="button" class="btn btn--ghost btn--sm dashboard-delete-draft">Delete</button>'
-                    : `<button type="button" class="btn btn--ghost btn--sm dashboard-duplicate-assessment" data-assessment-id="${item.action}">Duplicate</button><button type="button" class="btn btn--ghost btn--sm dashboard-archive-assessment" data-assessment-id="${item.action}">Archive</button><button type="button" class="btn btn--ghost btn--sm dashboard-delete-assessment" data-assessment-id="${item.action}">Delete</button>`}
+                  <details class="results-actions-disclosure dashboard-row-overflow">
+                    <summary class="btn btn--ghost btn--sm">More</summary>
+                    <div class="results-actions-disclosure-menu">
+                      ${item.action === 'draft'
+                        ? '<button type="button" class="btn btn--secondary btn--sm dashboard-archive-draft">Archive</button><button type="button" class="btn btn--secondary btn--sm dashboard-delete-draft">Delete</button>'
+                        : `<button type="button" class="btn btn--secondary btn--sm dashboard-duplicate-assessment" data-assessment-id="${item.action}">Duplicate</button><button type="button" class="btn btn--secondary btn--sm dashboard-archive-assessment" data-assessment-id="${item.action}">Archive</button><button type="button" class="btn btn--secondary btn--sm dashboard-delete-assessment" data-assessment-id="${item.action}">Delete</button>`}
+                    </div>
+                  </details>
                 `
               })).join('') : renderDashboardEmptyState({
                 title: 'Nothing needs attention right now.',
@@ -168,9 +185,14 @@ function renderUserDashboard() {
                 badgeLabel: lifecycle.status === ASSESSMENT_LIFECYCLE_STATUS.BASELINE_LOCKED || lifecycle.status === ASSESSMENT_LIFECYCLE_STATUS.TREATMENT_VARIANT ? lifecycle.label : assessment.results?.toleranceBreached ? 'Above tolerance' : assessment.results?.nearTolerance ? 'Close to tolerance' : lifecycle.label,
                 actions: `
                   <button type="button" class="btn btn--ghost btn--sm dashboard-open-action" data-assessment-id="${assessment.id}">Open Result</button>
-                  <button type="button" class="btn btn--ghost btn--sm dashboard-duplicate-assessment" data-assessment-id="${assessment.id}">Duplicate</button>
-                  <button type="button" class="btn btn--ghost btn--sm dashboard-archive-assessment" data-assessment-id="${assessment.id}">Archive</button>
-                  <button type="button" class="btn btn--ghost btn--sm dashboard-delete-assessment" data-assessment-id="${assessment.id}">Delete</button>
+                  <details class="results-actions-disclosure dashboard-row-overflow">
+                    <summary class="btn btn--ghost btn--sm">More</summary>
+                    <div class="results-actions-disclosure-menu">
+                      <button type="button" class="btn btn--secondary btn--sm dashboard-duplicate-assessment" data-assessment-id="${assessment.id}">Duplicate</button>
+                      <button type="button" class="btn btn--secondary btn--sm dashboard-archive-assessment" data-assessment-id="${assessment.id}">Archive</button>
+                      <button type="button" class="btn btn--secondary btn--sm dashboard-delete-assessment" data-assessment-id="${assessment.id}">Delete</button>
+                    </div>
+                  </details>
                 `
                 });
               }).join('') : renderDashboardEmptyState({
@@ -219,8 +241,13 @@ function renderUserDashboard() {
                 badgeLabel: 'Archived',
                 actions: `
                   <button type="button" class="btn btn--ghost btn--sm dashboard-restore-assessment" data-assessment-id="${assessment.id}">${hasResults(assessment) ? 'Restore to Dashboard' : 'Resume as Draft'}</button>
-                  ${hasResults(assessment) ? `<button type="button" class="btn btn--ghost btn--sm dashboard-open-action" data-assessment-id="${assessment.id}">Open Result</button>` : ''}
-                  <button type="button" class="btn btn--ghost btn--sm dashboard-delete-assessment" data-assessment-id="${assessment.id}">Delete</button>
+                  <details class="results-actions-disclosure dashboard-row-overflow">
+                    <summary class="btn btn--ghost btn--sm">More</summary>
+                    <div class="results-actions-disclosure-menu">
+                      ${hasResults(assessment) ? `<button type="button" class="btn btn--secondary btn--sm dashboard-open-action" data-assessment-id="${assessment.id}">Open Result</button>` : ''}
+                      <button type="button" class="btn btn--secondary btn--sm dashboard-delete-assessment" data-assessment-id="${assessment.id}">Delete</button>
+                    </div>
+                  </details>
                 `
               })).join('') : renderDashboardEmptyState({
                 title: 'Nothing is archived right now.',

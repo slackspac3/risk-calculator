@@ -4681,10 +4681,16 @@ function renderAdminSettings(activeSection = 'org') {
       <div class="settings-shell__footer">
         <div id="admin-impact-assessment">${renderAdminImpactAssessment(buildAdminImpactAssessment(settings, settings))}</div>
         <div class="flex items-center gap-3 mt-4" style="flex-wrap:wrap">
-          <button class="btn btn--secondary" id="btn-assess-admin-impact">Assess End-User Impact</button>
           <button class="btn btn--primary" id="btn-save-settings">Save Settings</button>
-          <button class="btn btn--secondary" id="btn-export-platform-settings">Export JSON</button>
-          <button class="btn btn--ghost" id="btn-import-platform-settings">Import JSON</button>
+          <button class="btn btn--secondary" id="btn-assess-admin-impact">Assess End-User Impact</button>
+          <details class="results-actions-disclosure admin-footer-overflow">
+            <summary class="btn btn--ghost btn--sm">Advanced admin actions</summary>
+            <div class="results-actions-disclosure-menu">
+              <button class="btn btn--secondary btn--sm" id="btn-export-platform-settings">Export JSON</button>
+              <button class="btn btn--secondary btn--sm" id="btn-import-platform-settings">Import JSON</button>
+              <button class="btn btn--secondary btn--sm" id="btn-reset-settings">Reset Defaults</button>
+            </div>
+          </details>
           <span class="form-help">Assess likely downstream impact first, then save admin configuration and user access changes for the platform.</span>
         </div>
       </div>

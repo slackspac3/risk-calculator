@@ -479,9 +479,10 @@ test('authenticated user dashboard renders without crashing', async ({ page }) =
   await expectNoClientCrashOnRoute(page, '/#/dashboard', async () => {
     await expect(page).toHaveURL(/#\/dashboard$/);
     await expect(page.getByRole('button', { name: /start a new risk assessment/i })).toBeVisible();
+    await page.getByText(/more workspace tools/i).click();
     await expect(page.locator('#btn-dashboard-start-template')).toBeVisible();
     await expect(page.locator('#btn-dashboard-start-sample')).toBeVisible();
-    await expect(page.getByRole('button', { name: /open personal settings/i })).toBeVisible();
+    await expect(page.locator('#btn-dashboard-open-settings')).toBeVisible();
   });
 });
 
@@ -736,7 +737,8 @@ test('dashboard archive helpers preserve state after the confirm modal opens', a
   await expectNoClientCrashOnRoute(page, '/#/dashboard', async () => {
     const activeRow = page.locator('.dashboard-assessment-row[data-assessment-id="assess-1"]').first();
     await expect(activeRow).toBeVisible();
-    await activeRow.getByRole('button', { name: /^Archive$/ }).click();
+    await activeRow.getByText(/^More$/).click();
+    await activeRow.getByRole('button', { name: /^Archive$/ }).click({ force: true });
     const confirmButton = page.getByRole('button', { name: /^Archive$/ }).last();
     await expect(confirmButton).toBeVisible();
     await page.evaluate(() => {
@@ -804,7 +806,9 @@ test('dashboard duplicate assessment creates a new editable draft', async ({ pag
   });
 
   await expectNoClientCrashOnRoute(page, '/#/dashboard', async () => {
-    await page.locator('.dashboard-assessment-row[data-assessment-id="assess-2"]').getByRole('button', { name: /^Duplicate$/ }).click();
+    const duplicateRow = page.locator('.dashboard-assessment-row[data-assessment-id="assess-2"]').first();
+    await duplicateRow.getByText(/^More$/).click();
+    await duplicateRow.getByRole('button', { name: /^Duplicate$/ }).click({ force: true });
     await expect(page).toHaveURL(/#\/wizard\/1$/);
     await expect.poll(async () => page.evaluate(() => {
       const draft = JSON.parse(sessionStorage.getItem('rq_draft__alex.trafton') || 'null');

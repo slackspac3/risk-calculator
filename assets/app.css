@@ -2075,6 +2075,20 @@ canvas { display: block; width: 100%; }
   transform: translateY(-1px);
   border-color: rgba(157,190,214,.26);
 }
+.dashboard-hero-overflow,
+.dashboard-row-overflow,
+.admin-footer-overflow {
+  position: relative;
+}
+.dashboard-hero-overflow .results-actions-disclosure-menu,
+.dashboard-row-overflow .results-actions-disclosure-menu,
+.admin-footer-overflow .results-actions-disclosure-menu {
+  min-width: 220px;
+}
+.dashboard-row-overflow .results-actions-disclosure-menu {
+  right: 0;
+  top: calc(100% + 6px);
+}
 
 /* ── Results Shell ─────────────────────────────────────────── */
 .results-tabbar {
