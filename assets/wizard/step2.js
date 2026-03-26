@@ -1,6 +1,7 @@
 function renderWizard2() {
   const draft = AppState.draft;
   const selectedRisks = getSelectedRisks();
+  const scenarioGeographies = getScenarioGeographies();
   setPage(`
     <main class="page">
       <div class="wizard-layout container container--narrow">
@@ -11,8 +12,10 @@ function renderWizard2() {
           <p class="wizard-step-desc">Review the AI-built context, refine the narrative, and confirm how the selected risks should be quantified together.</p>
           <div class="form-help" data-draft-save-state style="margin-top:10px">Draft will save automatically</div>
           ${renderPilotWarningBanner('ai', { compact: true })}
+          ${renderStep2ReadinessBanner(draft, selectedRisks, scenarioGeographies)}
         </div>
         <div class="wizard-body">
+          ${renderStep2QuantBridge(draft, selectedRisks, scenarioGeographies)}
           ${UI.disclosureSection({
             title: 'What to do on this step',
             badgeLabel: 'Optional guide',
@@ -140,6 +143,76 @@ function renderWizard2() {
     saveDraft(); Router.navigate('/wizard/3');
   });
   attachCitationHandlers();
+}
+
+function getStep2NarrativeReadiness(draft, selectedRisks, scenarioGeographies) {
+  const narrative = String(draft.enhancedNarrative || draft.narrative || '').trim();
+  const structured = draft.structuredScenario || {};
+  const warnings = [];
+  if (!narrative) warnings.push('The scenario still needs a plain-English narrative before it can flow cleanly into the estimate step.');
+  if (narrative && narrative.split(/\s+/).filter(Boolean).length < 18) warnings.push('The scenario wording is still thin. Add what is affected, what causes it, and the impact you want to estimate.');
+  if (!selectedRisks.length) warnings.push('No risks are in scope yet. Select at least one risk so the estimate stays focused.');
+  if (!scenarioGeographies.length) warnings.push('Add the relevant geography so regulations and benchmark context are not too generic.');
+  if (!String(structured.assetService || '').trim() && !/platform|service|system|application|environment|identity|data|supplier/i.test(narrative)) {
+    warnings.push('The affected asset or service is still unclear. Add it in the narrative or the optional structured field.');
+  }
+  return warnings;
+}
+
+function renderStep2ReadinessBanner(draft, selectedRisks, scenarioGeographies) {
+  const warnings = getStep2NarrativeReadiness(draft, selectedRisks, scenarioGeographies);
+  if (!warnings.length) return '';
+  return renderPilotWarningBanner('lowConfidence', {
+    compact: true,
+    text: warnings[0]
+  });
+}
+
+function inferStep2CostFocus(draft) {
+  const text = [
+    draft.enhancedNarrative,
+    draft.narrative,
+    draft.structuredScenario?.attackType,
+    draft.structuredScenario?.assetService,
+    ...(getSelectedRisks().map(risk => risk.title || ''))
+  ].join(' ').toLowerCase();
+  const focus = [];
+  if (/(outage|disrupt|recovery|continuity|resilien|availability)/.test(text)) focus.push('Business disruption and response cost will likely matter most.');
+  if (/(breach|privacy|data|exfiltrat|notification|pii|phi)/.test(text)) focus.push('Data remediation and regulatory cost look more material here.');
+  if (/(supplier|third.?party|contract|customer|partner)/.test(text)) focus.push('Third-party, contractual, or reputation impacts may matter more than a pure technology-only view.');
+  if (/(identity|privileged|admin|fraud|payment)/.test(text)) focus.push('Fraud, response, and control-strength assumptions are likely to move the result most.');
+  return focus.length ? focus.slice(0, 2) : ['Start with frequency, attacker strength, control strength, and the biggest cost rows first.'];
+}
+
+function renderStep2QuantBridge(draft, selectedRisks, scenarioGeographies) {
+  const warnings = getStep2NarrativeReadiness(draft, selectedRisks, scenarioGeographies);
+  const structured = draft.structuredScenario || {};
+  const costFocus = inferStep2CostFocus(draft);
+  const scopeChips = [
+    structured.assetService ? `Asset / service: ${structured.assetService}` : '',
+    structured.attackType ? `Threat type: ${structured.attackType}` : '',
+    scenarioGeographies.length ? `Geography: ${scenarioGeographies.join(', ')}` : '',
+    Array.isArray(draft.applicableRegulations) && draft.applicableRegulations.length ? `Regulations: ${draft.applicableRegulations.slice(0, 3).join(', ')}` : ''
+  ].filter(Boolean);
+  return `<div class="card card--elevated anim-fade-in">
+    <div class="context-panel-title">What will carry into the estimate</div>
+    <div class="context-grid" style="margin-top:var(--sp-4)">
+      <div class="context-chip-panel">
+        <div class="context-panel-title">Scope</div>
+        <p class="context-panel-copy">${selectedRisks.length ? `${selectedRisks.length} selected risk${selectedRisks.length === 1 ? '' : 's'} will move forward as one assessment scope.` : 'The estimate step works best once at least one risk is clearly in scope.'}</p>
+      </div>
+      <div class="context-chip-panel">
+        <div class="context-panel-title">What you will estimate next</div>
+        <p class="context-panel-copy">The next step turns this narrative into frequency, exposure, and cost ranges. You do not need precise numbers yet.</p>
+      </div>
+      <div class="context-chip-panel">
+        <div class="context-panel-title">Likely focus areas</div>
+        <p class="context-panel-copy">${escapeHtml(costFocus.join(' '))}</p>
+      </div>
+    </div>
+    ${scopeChips.length ? `<div class="citation-chips" style="margin-top:var(--sp-4)">${scopeChips.map(item => `<span class="badge badge--neutral">${escapeHtml(item)}</span>`).join('')}</div>` : ''}
+    <div class="context-panel-foot" style="margin-top:var(--sp-4)">${warnings.length ? `Tighten this before continuing: ${escapeHtml(warnings[0])}` : 'If the wording is broadly right, continue. You can still challenge the AI numbers and edit the scenario later.'}</div>
+  </div>`;
 }
 
 

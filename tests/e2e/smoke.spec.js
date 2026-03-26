@@ -351,6 +351,7 @@ test('wizard step 1 dry-run examples prefill the scenario and shortlist', async 
   });
 
   await expectNoClientCrashOnRoute(page, '/#/wizard/1', async () => {
+    await expect(page.getByText(/current context shaping this assessment/i)).toBeVisible();
     await page.getByRole('button', { name: 'Load Example' }).first().click();
     await expect(page.locator('#btn-clear-dry-run')).toBeVisible();
     await expect(page.locator('.card').filter({ has: page.locator('#btn-clear-dry-run') }).getByText('Supplier outage on a regulated platform')).toBeVisible();
@@ -358,6 +359,53 @@ test('wizard step 1 dry-run examples prefill the scenario and shortlist', async 
     await expect(page.locator('#intake-risk-statement')).toContainText('critical supplier');
     await expect(page.locator('.risk-select-checkbox:checked')).toHaveCount(3);
     await expect(page.getByRole('button', { name: /Continue with 3 selected risks/i })).toBeVisible();
+  });
+});
+
+test('wizard handoff guidance carries the scenario cleanly into steps 2 and 3', async ({ page }) => {
+  const seededUserSettings = {
+    userProfile: {
+      fullName: 'Alex Trafton',
+      jobTitle: 'Risk Manager',
+      businessUnit: 'G42',
+      department: 'Security',
+      focusAreas: ['Resilience'],
+      preferredOutputs: 'Executive summaries',
+      workingContext: 'Support regulated services.'
+    },
+    onboardedAt: '2026-03-17T00:00:00.000Z',
+    _overrideKeys: []
+  };
+  await seedAuthenticatedUser(page, { userSettings: seededUserSettings });
+  await mockSharedApis(page, {
+    settings: {
+      geography: 'United Arab Emirates',
+      applicableRegulations: ['UAE PDPL'],
+      entityContextLayers: [],
+      companyStructure: [],
+      aiInstructions: 'Use British English.',
+      benchmarkStrategy: 'Prefer GCC and UAE benchmark references.',
+      typicalDepartments: ['Security']
+    },
+    userState: {
+      userSettings: seededUserSettings,
+      assessments: [],
+      learningStore: { templates: {} },
+      draft: null,
+      _meta: { revision: 1, updatedAt: Date.now() }
+    }
+  });
+
+  await expectNoClientCrashOnRoute(page, '/#/wizard/1', async () => {
+    await page.locator('#wizard-bu').selectOption({ index: 1 });
+    await page.getByRole('button', { name: 'Load Example' }).first().click();
+    await page.getByRole('button', { name: /continue with 3 selected risks/i }).click();
+    await expect(page).toHaveURL(/#\/wizard\/2$/);
+    await expect(page.getByText(/what will carry into the estimate/i)).toBeVisible();
+    await page.getByRole('button', { name: /continue to loss estimation/i }).click();
+    await expect(page).toHaveURL(/#\/wizard\/3$/);
+    await expect(page.getByText(/before you adjust the numbers/i)).toBeVisible();
+    await expect(page.getByText(/estimate readiness/i)).toBeVisible();
   });
 });
 

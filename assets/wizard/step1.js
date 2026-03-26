@@ -54,6 +54,71 @@ function renderStep1StartCard(recommendation) {
   </div>`;
 }
 
+function ensureStep1ContextPrefills(draft, settings, buList) {
+  let changed = false;
+  const preferredBusinessUnitId = settings.userProfile?.businessUnitEntityId || AppState.currentUser?.businessUnitEntityId || '';
+  if (!draft.buId && preferredBusinessUnitId) {
+    const preferredBU = buList.find(bu => bu.orgEntityId === preferredBusinessUnitId || bu.id === preferredBusinessUnitId);
+    if (preferredBU) {
+      draft.buId = preferredBU.id;
+      draft.buName = preferredBU.name;
+      changed = true;
+    }
+  }
+  const currentGeographies = getScenarioGeographies();
+  if (!currentGeographies.length && settings.geography) {
+    draft.geographies = normaliseScenarioGeographies([settings.geography], settings.geography);
+    draft.geography = formatScenarioGeographies(draft.geographies, settings.geography);
+    changed = true;
+  }
+  if (!Array.isArray(draft.applicableRegulations) || !draft.applicableRegulations.length || changed) {
+    draft.applicableRegulations = deriveApplicableRegulations(
+      buList.find(b => b.id === draft.buId),
+      getSelectedRisks(),
+      getScenarioGeographies()
+    );
+    changed = true;
+  }
+  return changed;
+}
+
+function renderStep1ContextCard(settings, draft, scenarioGeographies, regs, buList) {
+  const profile = normaliseUserProfile(settings.userProfile, AuthService.getCurrentUser());
+  const businessUnit = buList.find(bu => bu.id === draft.buId) || null;
+  const geographies = scenarioGeographies.length ? scenarioGeographies : normaliseScenarioGeographies([settings.geography], settings.geography);
+  const chips = [
+    businessUnit?.name ? `Business unit: ${businessUnit.name}` : '',
+    geographies.length ? `Default geography: ${geographies.join(', ')}` : '',
+    profile.focusAreas?.length ? `Focus areas: ${profile.focusAreas.join(', ')}` : '',
+    profile.preferredOutputs ? `Output style: ${profile.preferredOutputs}` : ''
+  ].filter(Boolean);
+  const workingContext = String(profile.workingContext || '').trim();
+  return `<div class="card card--elevated anim-fade-in">
+    <div class="context-panel-title">Current context shaping this assessment</div>
+    <p class="context-panel-copy" style="margin-top:var(--sp-2)">The wizard is already using your current profile and organisation defaults so you do not have to start from a blank page.</p>
+    <div class="citation-chips" style="margin-top:var(--sp-3)">
+      ${chips.map(chip => `<span class="badge badge--neutral">${escapeHtml(chip)}</span>`).join('')}
+      ${regs.slice(0, 4).map(tag => `<span class="badge badge--gold">${escapeHtml(tag)}</span>`).join('')}
+    </div>
+    ${workingContext ? `<div class="context-panel-foot" style="margin-top:var(--sp-3)">Working context: ${escapeHtml(workingContext)}</div>` : ''}
+    <div class="context-panel-foot" style="margin-top:${workingContext ? '8px' : 'var(--sp-3)'}">These defaults affect AI suggestions, regulations, and examples, but you can change them at any time on this step.</div>
+  </div>`;
+}
+
+function renderStep1ReadinessBanner(draft, selectedRisks) {
+  const warnings = [];
+  const narrative = String(draft.narrative || draft.sourceNarrative || '').trim();
+  if (!String(draft.buId || '').trim()) warnings.push('Pick the business unit first so the right context and regulations carry forward.');
+  if (!narrative && !String(draft.guidedInput?.event || '').trim()) warnings.push('Add at least the event prompt or load a sample example to get a useful scenario draft quickly.');
+  if (narrative && narrative.split(/\s+/).filter(Boolean).length < 12) warnings.push('The scenario draft is still very short. Add what is affected, what causes it, and the impact you care about.');
+  if (narrative && !selectedRisks.length) warnings.push('No risks are selected yet. Use the shortlist below or generate risks from the current draft before continuing.');
+  if (!warnings.length) return '';
+  return renderPilotWarningBanner('lowConfidence', {
+    compact: true,
+    text: warnings[0]
+  });
+}
+
 const STEP1_DRY_RUN_SCENARIOS = [
   {
     id: 'supplier-platform-outage',
@@ -270,16 +335,7 @@ function renderWizard1() {
   const draft = AppState.draft;
   const settings = getEffectiveSettings();
   const buList = getBUList();
-  const preferredBusinessUnitId = settings.userProfile?.businessUnitEntityId || AppState.currentUser?.businessUnitEntityId || '';
-  if (!draft.buId && preferredBusinessUnitId) {
-    const preferredBU = buList.find(bu => bu.orgEntityId === preferredBusinessUnitId || bu.id === preferredBusinessUnitId);
-    if (preferredBU) {
-      draft.buId = preferredBU.id;
-      draft.buName = preferredBU.name;
-      draft.applicableRegulations = deriveApplicableRegulations(preferredBU, getSelectedRisks());
-      saveDraft();
-    }
-  }
+  if (ensureStep1ContextPrefills(draft, settings, buList)) saveDraft();
   const selectedRisks = syncRiskSelection(!Array.isArray(draft.selectedRiskIds));
   const riskCandidates = getRiskCandidates();
   const scenarioGeographies = getScenarioGeographies();
@@ -299,8 +355,10 @@ function renderWizard1() {
           <p class="wizard-step-desc">Use the guided path first if you want the easiest route. Use the text or upload paths only when you already have source material.</p>
           <div class="form-help" data-draft-save-state style="margin-top:10px">Draft will save automatically</div>
           ${renderPilotWarningBanner('ai', { compact: true })}
+          ${renderStep1ReadinessBanner(draft, selectedRisks)}
         </div>
         <div class="wizard-body">
+          ${renderStep1ContextCard(settings, draft, scenarioGeographies, regs, buList)}
           ${renderStep1StartCard(recommendation)}
           ${renderLoadedDryRunBanner(activeDryRun)}
           ${draft.learningNote ? `<div class="card card--elevated anim-fade-in"><div class="context-panel-title">Learnt from prior use</div><p class="context-panel-copy">${draft.learningNote}</p></div>` : ''}
@@ -367,19 +425,19 @@ function renderWizard1() {
             <div class="grid-2">
               <div class="form-group">
                 <label class="form-label" for="guided-event">What happened or what could happen?</label>
-                <textarea class="form-textarea" id="guided-event" rows="3" placeholder="Example: a supplier with privileged access could be compromised">${draft.guidedInput?.event || ''}</textarea>
+                <textarea class="form-textarea" id="guided-event" rows="3" placeholder="Example: a supplier with privileged access is compromised and disrupts a regulated customer platform">${draft.guidedInput?.event || ''}</textarea>
               </div>
               <div class="form-group">
                 <label class="form-label" for="guided-asset">What is affected?</label>
-                <input class="form-input" id="guided-asset" type="text" placeholder="Example: payment platform, HR system, cloud data store" value="${draft.guidedInput?.asset || ''}">
+                <input class="form-input" id="guided-asset" type="text" placeholder="Example: payment platform, shared identity service, cloud data store" value="${draft.guidedInput?.asset || ''}">
               </div>
               <div class="form-group">
                 <label class="form-label" for="guided-cause">What is the likely cause or trigger?</label>
-                <input class="form-input" id="guided-cause" type="text" placeholder="Example: supplier breach, human error, phishing, control gap" value="${draft.guidedInput?.cause || ''}">
+                <input class="form-input" id="guided-cause" type="text" placeholder="Example: supplier breach, phishing-led compromise, weak recovery process, control gap" value="${draft.guidedInput?.cause || ''}">
               </div>
               <div class="form-group">
                 <label class="form-label" for="guided-impact">What is the main impact you care about?</label>
-                <input class="form-input" id="guided-impact" type="text" placeholder="Example: outage, regulatory breach, customer loss, financial exposure" value="${draft.guidedInput?.impact || ''}">
+                <input class="form-input" id="guided-impact" type="text" placeholder="Example: service outage, regulatory breach, customer harm, financial exposure, recovery strain" value="${draft.guidedInput?.impact || ''}">
               </div>
             </div>
             <div class="grid-2 mt-4">
@@ -403,7 +461,7 @@ function renderWizard1() {
             </div>
             <div class="admin-inline-actions mt-4">
               <button class="btn btn--primary" id="btn-build-guided-narrative" type="button">Build Scenario Draft</button>
-              <span class="form-help">This creates a plain-English draft below. You can still edit it manually afterwards.</span>
+              <span class="form-help">This creates a plain-English draft below. Good enough is fine here. You can still edit it manually afterwards.</span>
             </div>
             <div class="card mt-4" style="padding:var(--sp-4);background:var(--bg-elevated)">
               <div class="context-panel-title">Generated Statement Preview</div>

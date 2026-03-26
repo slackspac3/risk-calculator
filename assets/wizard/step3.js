@@ -208,8 +208,67 @@ function renderEstimateModeNote(isAdv) {
 
 function renderEstimateQuickStartBlock(draft, recommendedPresetKey) {
   const nextAction = renderEstimateActionCard(draft, recommendedPresetKey);
-  const directStart = `<div class="card card--elevated anim-fade-in"><div class="context-panel-title">Start here</div><p class="context-panel-copy" style="margin-top:var(--sp-2)">Go straight to the three sections below: frequency, exposure, and cost. If the AI values look broadly right, change only the numbers you want to challenge.</p></div>`;
+  const directStart = `<div class="card card--elevated anim-fade-in"><div class="context-panel-title">Start here</div><p class="context-panel-copy" style="margin-top:var(--sp-2)">Go straight to the three sections below: frequency, exposure, and cost. If the AI values look broadly right, change only the numbers you want to challenge.</p><div class="context-panel-foot" style="margin-top:12px">Good enough to continue: you can explain the expected case in plain English, and your low and severe cases are wider on purpose.</div></div>`;
   return `${nextAction}${directStart}`;
+}
+
+function humanizeEstimateValidationMessage(message) {
+  const text = String(message || '').trim();
+  if (!text) return '';
+  if (/min.*likely.*max/i.test(text)) return 'One of the ranges is out of order. Keep each row in low, expected, severe order.';
+  if (/frequency|tef/i.test(text)) return 'The event frequency range needs a realistic low, expected, and severe annual case.';
+  if (/threat|control|vuln|prob/i.test(text)) return 'The exposure inputs need a sensible 0 to 1 range with the expected case between low and high.';
+  if (/iteration/i.test(text)) return 'The simulation settings need a safer iteration count for a pilot run.';
+  if (/correlation/i.test(text)) return 'One of the correlation settings is out of bounds. Keep correlations between -1 and 1.';
+  return text;
+}
+
+function renderEstimateHandoffCard(draft) {
+  const narrative = String(draft.enhancedNarrative || draft.narrative || '').trim();
+  const scenarioGeographies = getScenarioGeographies();
+  const selectedRisks = getSelectedRisks();
+  const structured = draft.structuredScenario || {};
+  const scopeItems = [
+    structured.assetService ? `Asset / service: ${structured.assetService}` : '',
+    structured.attackType ? `Threat type: ${structured.attackType}` : '',
+    scenarioGeographies.length ? `Geography: ${scenarioGeographies.join(', ')}` : '',
+    selectedRisks.length ? `Selected risks: ${selectedRisks.slice(0, 3).map(risk => risk.title).join(', ')}` : ''
+  ].filter(Boolean);
+  return `<div class="card card--elevated anim-fade-in">
+    <div class="context-panel-title">Before you adjust the numbers</div>
+    <p class="context-panel-copy" style="margin-top:var(--sp-2)">You are now estimating the scenario you just described, not starting over from scratch.</p>
+    ${scopeItems.length ? `<div class="citation-chips" style="margin-top:var(--sp-3)">${scopeItems.map(item => `<span class="badge badge--neutral">${escapeHtml(item)}</span>`).join('')}</div>` : ''}
+    <div class="context-panel-foot" style="margin-top:var(--sp-3)">${narrative ? `Working narrative: ${escapeHtml(truncateText(narrative, 220))}` : 'If the scenario still feels vague, go back one step and tighten the wording before you spend time on numbers.'}</div>
+  </div>`;
+}
+
+function renderEstimateReadinessCard(draft, validation) {
+  const warnings = Array.isArray(validation?.warnings) ? validation.warnings.map(humanizeEstimateValidationMessage).filter(Boolean) : [];
+  const errors = Array.isArray(validation?.errors) ? validation.errors.map(humanizeEstimateValidationMessage).filter(Boolean) : [];
+  const missingInfo = Array.isArray(draft.missingInformation) ? draft.missingInformation.slice(0, 2) : [];
+  const strongestChecks = [];
+  if (missingInfo.length) strongestChecks.push(`Best evidence gap to close: ${missingInfo[0]}`);
+  strongestChecks.push('Start with the biggest cost rows first: response, disruption, and any data or legal impact that clearly applies.');
+  strongestChecks.push('If you are unsure, keep the expected case defensible and make the severe case bad but still plausible.');
+  const items = errors.length ? errors : warnings;
+  return `<div class="card card--elevated anim-fade-in">
+    <div class="context-panel-title">Estimate readiness</div>
+    <div class="context-grid" style="margin-top:var(--sp-4)">
+      <div class="context-chip-panel">
+        <div class="context-panel-title">Strong enough to continue when</div>
+        <p class="context-panel-copy">You can explain the expected case, and the low and severe cases are intentionally wider than that planning case.</p>
+      </div>
+      <div class="context-chip-panel">
+        <div class="context-panel-title">Tighten first</div>
+        <p class="context-panel-copy">${escapeHtml(items[0] || 'No obvious model contradictions are showing yet. Review the expected case and adjust only what you want to challenge.')}</p>
+      </div>
+      <div class="context-chip-panel">
+        <div class="context-panel-title">Most useful next check</div>
+        <p class="context-panel-copy">${escapeHtml(strongestChecks[0])}</p>
+      </div>
+    </div>
+    ${(errors.length || warnings.length || missingInfo.length) ? `<div class="context-panel-foot" style="margin-top:var(--sp-4)">${escapeHtml([...items.slice(0, 2), ...missingInfo.slice(0, 1)].join(' '))}</div>` : '' }
+  </div>`;
 }
 
 
@@ -328,6 +387,7 @@ function renderWizard3() {
   const baselineAssessment = draft.comparisonBaselineId ? getAssessmentById(draft.comparisonBaselineId) : null;
   const inlineExamples = renderInlineEstimateExamples(sym);
   const recommendedPresetKey = recommendEstimatePreset(draft);
+  const validation = validateFairParams(buildSimulationRunPayload(), { toast: false });
 
   const v = (key, def) => p[key] != null ? p[key] : def;
 
@@ -358,6 +418,8 @@ function renderWizard3() {
         </div>
         <div class="wizard-body">
           ${draft.learningNote ? `<div class="card card--elevated anim-fade-in"><div class="context-panel-title">Template learning</div><p class="context-panel-copy">${draft.learningNote}</p></div>` : ''}
+          ${renderEstimateHandoffCard(draft)}
+          ${renderEstimateReadinessCard(draft, validation)}
           ${baselineAssessment ? `<div class="card card--elevated anim-fade-in"><div class="context-panel-title">Current assessment baseline</div><p class="context-panel-copy">You are working from <strong>${baselineAssessment.scenarioTitle || 'the original assessment'}</strong>. Adjust the assumptions below to reflect stronger prevention, faster response, or lower disruption impact, then rerun to compare the new result against the current baseline.</p><div class="form-help" style="margin-top:10px">Baseline completed on ${new Date(baselineAssessment.completedAt || baselineAssessment.createdAt || Date.now()).toLocaleDateString('en-AE', { year: 'numeric', month: 'long', day: 'numeric' })}.</div><div class="citation-chips" style="margin-top:12px"><button type="button" class="chip treatment-prompt-chip" data-treatment-prompt="control-strength">Try stronger controls</button><button type="button" class="chip treatment-prompt-chip" data-treatment-prompt="detection-response">Try faster detection</button><button type="button" class="chip treatment-prompt-chip" data-treatment-prompt="resilience">Try lower disruption impact</button></div><div class="form-group" style="margin-top:16px"><label class="form-label" for="treatment-improvement-request">Describe the better outcome you want to test</label><textarea class="form-textarea" id="treatment-improvement-request" rows="3" placeholder="e.g. stronger privileged-access controls, faster containment, better resilience, lower business disruption">${draft.treatmentImprovementRequest || ''}</textarea><span class="form-help">Describe the improvement in plain language and let AI adjust the copied baseline values before you simulate the new case.</span></div><div class="flex items-center gap-3" style="margin-top:12px;flex-wrap:wrap"><button class="btn btn--secondary" id="btn-treatment-ai-assist" type="button">AI Assist This Better Outcome</button><span class="form-help" id="treatment-improvement-status">These are quick starting points. You can still adjust every number manually before rerunning the analysis.</span></div></div>` : ''}
           ${renderEstimateQuickStartBlock(draft, recommendedPresetKey)}
           ${renderEstimateModeNote(isAdv)}
