@@ -478,6 +478,8 @@ function resetSimulationState() {
 function startSimulationState(total = 0) {
   updateSimulationLifecycleState({
     status: 'running',
+    canCancel: true,
+    cancelRequested: false,
     lastRunAt: Date.now(),
     lastError: '',
     progress: {
@@ -492,6 +494,7 @@ function startSimulationState(total = 0) {
 function updateSimulationProgressState({ completed = 0, total = 0, ratio = 0, message = '' } = {}) {
   updateSimulationLifecycleState({
     status: 'running',
+    canCancel: true,
     progress: {
       completed: Number(completed || 0),
       total: Number(total || 0),
@@ -504,6 +507,8 @@ function updateSimulationProgressState({ completed = 0, total = 0, ratio = 0, me
 function completeSimulationState() {
   updateSimulationLifecycleState({
     status: 'completed',
+    canCancel: false,
+    cancelRequested: false,
     lastError: ''
   });
 }
@@ -511,7 +516,20 @@ function completeSimulationState() {
 function failSimulationState(error) {
   updateSimulationLifecycleState({
     status: 'failed',
+    canCancel: false,
     lastError: String(error?.message || error || '').trim()
+  });
+}
+
+function cancelSimulationState(message = 'Cancellation requested…') {
+  updateSimulationLifecycleState({
+    status: 'cancelling',
+    canCancel: false,
+    cancelRequested: true,
+    progress: {
+      ...(getCurrentSimulationState().progress || {}),
+      message: String(message || 'Cancellation requested…').trim()
+    }
   });
 }
 

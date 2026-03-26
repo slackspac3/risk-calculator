@@ -18,6 +18,8 @@
   function createSimulationState(overrides = {}) {
     const base = {
       status: 'idle',
+      canCancel: false,
+      cancelRequested: false,
       progress: {
         completed: 0,
         total: 0,

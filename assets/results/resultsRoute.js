@@ -357,15 +357,133 @@ function renderSensitivitySummary(drivers) {
   return `<div class="results-summary-card"><div class="results-section-heading">The 2-3 inputs driving this result most</div><div style="display:flex;flex-direction:column;gap:var(--sp-3);margin-top:var(--sp-3)">${items.map(item => `<div style="background:var(--bg-elevated);padding:var(--sp-4);border-radius:var(--radius-lg)"><div style="font-weight:700;color:var(--text-primary)">${escapeHtml(String(item.label || 'Driver'))}</div><div class="results-summary-copy" style="margin-top:6px">${escapeHtml(String(item.why || ''))}</div></div>`).join('')}</div></div>`;
 }
 
-function validateFairParams() {
-  const p = AppState.draft.fairParams;
-  const checks = [['tef','Event frequency'],['ir','IR'],['bi','BI'],['db','DB'],['rl','RL'],['tp','TP'],['rc','RC']];
-  for (const [k, label] of checks) {
-    const mn=p[k+'Min'], ml=p[k+'Likely'], mx=p[k+'Max'];
-    if (mn==null||ml==null||mx==null) { UI.toast(`${label}: all three values required.`,'danger'); return false; }
-    if (mn>ml||ml>mx) { UI.toast(`${label}: must be min ≤ likely ≤ max.`,'danger'); return false; }
+function renderResultsExplanationPanel(assessmentIntelligence, comparison, runMetadata) {
+  const topDrivers = Array.isArray(assessmentIntelligence?.drivers?.sensitivity) ? assessmentIntelligence.drivers.sensitivity.slice(0, 3) : [];
+  const assumptions = Array.isArray(assessmentIntelligence?.assumptions) ? assessmentIntelligence.assumptions.slice(0, 3) : [];
+  const caveats = [
+    ...(Array.isArray(assessmentIntelligence?.confidence?.reasons) ? assessmentIntelligence.confidence.reasons.slice(0, 2) : []),
+    ...(Array.isArray(assessmentIntelligence?.confidence?.improvements) ? assessmentIntelligence.confidence.improvements.slice(0, 2) : [])
+  ].slice(0, 3);
+  const treatmentDelta = comparison?.keyDriver || 'No treatment comparison is currently selected, so this view is explaining the current case only.';
+  const runtimeNote = runMetadata?.runtimeGuardrails?.[0] || `The saved run used seed ${runMetadata?.seed ?? '—'} and ${Number(runMetadata?.iterations || 0).toLocaleString()} iterations for reproducibility.`;
+  return `<section class="results-section-stack">
+    <div class="results-section-heading">Why this result looks the way it does</div>
+    <div class="results-summary-grid results-summary-grid--primary">
+      <div class="results-summary-card"><div class="results-driver-label">Top drivers</div><div class="results-summary-copy">${topDrivers.length ? topDrivers.map(item => `• ${escapeHtml(String(item.label || 'Driver'))}: ${escapeHtml(String(item.why || ''))}`).join('<br>') : '• No dominant drivers were captured for this run.'}</div></div>
+      <div class="results-summary-card"><div class="results-driver-label">Biggest assumptions</div><div class="results-summary-copy">${assumptions.length ? assumptions.map(item => `• ${escapeHtml(String(item.text || ''))}`).join('<br>') : '• No assumptions were saved with this run.'}</div></div>
+      <div class="results-summary-card"><div class="results-driver-label">Confidence caveats</div><div class="results-summary-copy">${caveats.length ? caveats.map(item => `• ${escapeHtml(String(item || ''))}`).join('<br>') : '• Confidence caveats were not recorded for this run.'}</div></div>
+      <div class="results-summary-card results-summary-card--wide"><div class="results-driver-label">Treatment delta explanation</div><div class="results-summary-copy">${escapeHtml(String(treatmentDelta))}</div><div class="results-comparison-foot" style="margin-top:var(--sp-3)">${escapeHtml(String(runtimeNote))}</div></div>
+    </div>
+  </section>`;
+}
+
+function renderRunMetadataPanel(runMetadata, metricSemantics) {
+  if (!runMetadata) return '';
+  const thresholdConfig = runMetadata.thresholdConfigUsed || {};
+  const correlations = runMetadata.distributions?.correlations || {};
+  const assumptions = Array.isArray(runMetadata.assumptions) ? runMetadata.assumptions.slice(0, 4) : [];
+  const guardrails = Array.isArray(runMetadata.runtimeGuardrails) ? runMetadata.runtimeGuardrails : [];
+  return `<div class="card anim-fade-in">
+    <h3 style="font-size:var(--text-base);margin-bottom:var(--sp-4)">Saved run metadata</h3>
+    <div class="grid-3">
+      <div style="background:var(--bg-elevated);padding:var(--sp-4);border-radius:var(--radius-lg)"><div style="font-size:.7rem;text-transform:uppercase;color:var(--text-muted)">Seed</div><div style="font-size:.9rem;font-weight:600;margin-top:4px">${runMetadata.seed ?? '—'}</div><div style="font-size:.7rem;color:var(--text-muted)">Re-run with this seed to reproduce the saved output.</div></div>
+      <div style="background:var(--bg-elevated);padding:var(--sp-4);border-radius:var(--radius-lg)"><div style="font-size:.7rem;text-transform:uppercase;color:var(--text-muted)">Iterations</div><div style="font-size:.9rem;font-weight:600;margin-top:4px">${Number(runMetadata.iterations || 0).toLocaleString()}</div><div style="font-size:.7rem;color:var(--text-muted)">Saved execution volume</div></div>
+      <div style="background:var(--bg-elevated);padding:var(--sp-4);border-radius:var(--radius-lg)"><div style="font-size:.7rem;text-transform:uppercase;color:var(--text-muted)">Distribution</div><div style="font-size:.9rem;font-weight:600;margin-top:4px">${escapeHtml(String(runMetadata.distributions?.eventModel || 'triangular'))}</div><div style="font-size:.7rem;color:var(--text-muted)">Vulnerability mode: ${escapeHtml(String(runMetadata.distributions?.vulnerabilityMode || 'derived'))}</div></div>
+    </div>
+    <div class="mt-4" style="font-size:.78rem;color:var(--text-muted)">Warning threshold: <strong>${fmtCurrency(thresholdConfig.warningThreshold || 0)}</strong> · Event tolerance: <strong>${fmtCurrency(thresholdConfig.eventToleranceThreshold || 0)}</strong> · Annual review: <strong>${fmtCurrency(thresholdConfig.annualReviewThreshold || 0)}</strong></div>
+    <div class="mt-4" style="font-size:.78rem;color:var(--text-muted)">Scenario multipliers: <strong>frequency ×${Number(runMetadata.scenarioMultipliers?.tefMultiplier || 1).toFixed(2)}</strong> · <strong>loss ×${Number(runMetadata.scenarioMultipliers?.lossMultiplier || 1).toFixed(2)}</strong> · <strong>secondary ×${Number(runMetadata.scenarioMultipliers?.secondaryMultiplier || 1).toFixed(2)}</strong></div>
+    <div class="mt-4" style="font-size:.78rem;color:var(--text-muted)">Correlations: <strong>BI vs IR ${Number(correlations.businessInterruptionVsIncidentResponse || 0).toFixed(2)}</strong> · <strong>Reg vs Reputation ${Number(correlations.regulatoryVsReputation || 0).toFixed(2)}</strong></div>
+    ${guardrails.length ? `<div class="results-comparison-foot" style="margin-top:var(--sp-4)">${guardrails.map(item => escapeHtml(String(item))).join(' ')}</div>` : ''}
+    ${assumptions.length ? `<div class="results-summary-copy" style="margin-top:var(--sp-4)">${assumptions.map(item => `• ${escapeHtml(String(item))}`).join('<br>')}</div>` : ''}
+    <div class="form-help" style="margin-top:6px">${escapeHtml(String(metricSemantics?.eventLoss || ''))} ${escapeHtml(String(metricSemantics?.annualLoss || ''))}</div>
+  </div>`;
+}
+
+function buildSimulationRunPayload() {
+  const p = AppState.draft.fairParams || {};
+  const scenario = getScenarioMultipliers();
+  const toleranceThreshold = getToleranceThreshold();
+  const warningThreshold = getWarningThreshold();
+  const annualReviewThreshold = getAnnualReviewThreshold();
+  const fxMul = AppState.currency === 'AED' ? (1 / AppState.fxRate) : 1;
+  const toUSD = value => (value || 0) * fxMul;
+  return {
+    ep: {
+      distType: p.distType || 'triangular',
+      iterations: p.iterations || 10000,
+      seed: p.seed ?? null,
+      tefMin: Number(p.tefMin || 0) * scenario.tefMultiplier,
+      tefLikely: Number(p.tefLikely || 0) * scenario.tefMultiplier,
+      tefMax: Number(p.tefMax || 0) * scenario.tefMultiplier,
+      vulnDirect: p.vulnDirect || false,
+      vulnMin: p.vulnMin,
+      vulnLikely: p.vulnLikely,
+      vulnMax: p.vulnMax,
+      threatCapMin: p.threatCapMin,
+      threatCapLikely: p.threatCapLikely,
+      threatCapMax: p.threatCapMax,
+      controlStrMin: p.controlStrMin,
+      controlStrLikely: p.controlStrLikely,
+      controlStrMax: p.controlStrMax,
+      irMin: toUSD(p.irMin) * scenario.lossMultiplier,
+      irLikely: toUSD(p.irLikely) * scenario.lossMultiplier,
+      irMax: toUSD(p.irMax) * scenario.lossMultiplier,
+      biMin: toUSD(p.biMin) * scenario.lossMultiplier,
+      biLikely: toUSD(p.biLikely) * scenario.lossMultiplier,
+      biMax: toUSD(p.biMax) * scenario.lossMultiplier,
+      dbMin: toUSD(p.dbMin) * scenario.lossMultiplier,
+      dbLikely: toUSD(p.dbLikely) * scenario.lossMultiplier,
+      dbMax: toUSD(p.dbMax) * scenario.lossMultiplier,
+      rlMin: toUSD(p.rlMin) * scenario.lossMultiplier,
+      rlLikely: toUSD(p.rlLikely) * scenario.lossMultiplier,
+      rlMax: toUSD(p.rlMax) * scenario.lossMultiplier,
+      tpMin: toUSD(p.tpMin) * scenario.lossMultiplier,
+      tpLikely: toUSD(p.tpLikely) * scenario.lossMultiplier,
+      tpMax: toUSD(p.tpMax) * scenario.lossMultiplier,
+      rcMin: toUSD(p.rcMin) * scenario.lossMultiplier,
+      rcLikely: toUSD(p.rcLikely) * scenario.lossMultiplier,
+      rcMax: toUSD(p.rcMax) * scenario.lossMultiplier,
+      corrBiIr: p.corrBiIr ?? 0.3,
+      corrRlRc: p.corrRlRc ?? 0.2,
+      secondaryEnabled: p.secondaryEnabled || false,
+      secProbMin: Math.min(1, (p.secProbMin || 0) * scenario.secondaryMultiplier),
+      secProbLikely: Math.min(1, (p.secProbLikely || 0) * scenario.secondaryMultiplier),
+      secProbMax: Math.min(1, (p.secProbMax || 0) * scenario.secondaryMultiplier),
+      secMagMin: toUSD(p.secMagMin) * scenario.lossMultiplier,
+      secMagLikely: toUSD(p.secMagLikely) * scenario.lossMultiplier,
+      secMagMax: toUSD(p.secMagMax) * scenario.lossMultiplier,
+      threshold: toleranceThreshold,
+      annualReviewThreshold
+    },
+    scenario,
+    toleranceThreshold,
+    warningThreshold,
+    annualReviewThreshold,
+    currencyContext: {
+      displayCurrency: AppState.currency,
+      fxRate: AppState.fxRate,
+      convertedToUSD: AppState.currency === 'AED'
+    }
+  };
+}
+
+function getSimulationYieldEvery(iterations) {
+  const total = Number(iterations || 0);
+  return Math.max(100, Math.min(1000, Math.round(total / 80) || 250));
+}
+
+function renderRunGuardrailSummary(validation) {
+  const warnings = Array.isArray(validation?.warnings) ? validation.warnings : [];
+  if (!warnings.length) return '';
+  return `<div class="banner banner--warning anim-fade-in anim-delay-2" style="margin-top:var(--sp-4)"><span class="banner-icon">⏱</span><span class="banner-text">${escapeHtml(warnings[0])}${warnings[1] ? ` ${escapeHtml(warnings[1])}` : ''}</span></div>`;
+}
+
+function validateFairParams(runPayload = buildSimulationRunPayload(), { toast = true } = {}) {
+  const validation = RiskEngine.validateRunParams(runPayload.ep);
+  if (toast && !validation.valid) {
+    UI.toast(validation.errors[0] || 'Please review the model inputs before running the simulation.', 'danger');
   }
-  return true;
+  return validation;
 }
 
 // ─── WIZARD 4 ─────────────────────────────────────────────────
@@ -373,10 +491,11 @@ function renderWizard4() {
   const draft = AppState.draft;
   const p = draft.fairParams;
   const liveInputAssignments = buildLiveInputSourceAssignments(draft);
-  const safeIterations = Math.min(100000, Math.max(1000, Number.parseInt(p.iterations, 10) || 10000));
+  const safeIterations = Math.min(RiskEngine.constants.MAX_ITERATIONS, Math.max(RiskEngine.constants.MIN_ITERATIONS, Number.parseInt(p.iterations, 10) || RiskEngine.constants.DEFAULT_ITERATIONS));
   p.iterations = safeIterations;
   const selectedRisks = getSelectedRisks();
   const multipliers = getScenarioMultipliers();
+  const validation = validateFairParams(buildSimulationRunPayload(), { toast: false });
   setPage(`
     <main class="page">
       <div class="wizard-layout container container--narrow">
@@ -426,6 +545,7 @@ function renderWizard4() {
             ${draft.applicableRegulations?.length ? `<div class="citation-chips mt-3">${draft.applicableRegulations.map(tag => `<span class="badge badge--gold">${tag}</span>`).join('')}</div>` : ''}`
           })}
           <div class="banner banner--poc anim-fade-in anim-delay-2"><span class="banner-icon">⚠</span><span class="banner-text">PoC tool. FAIR input ranges should be validated through expert elicitation for production risk decisions.</span></div>
+          ${renderRunGuardrailSummary(validation)}
           <div id="run-area">
             <button class="btn btn--primary btn--lg" id="btn-run-sim" style="width:100%;justify-content:center">🚀 Run Monte Carlo Simulation (${safeIterations} iterations)</button>
           </div>
@@ -433,7 +553,12 @@ function renderWizard4() {
             <div class="card" style="text-align:center;padding:var(--sp-10)">
               <div style="font-size:48px;margin-bottom:var(--sp-4);animation:spin 1s linear infinite">⚙️</div>
               <div style="font-family:var(--font-display);font-size:var(--text-xl);margin-bottom:var(--sp-2)">Running Simulation…</div>
-              <div style="font-size:var(--text-sm);color:var(--text-muted)">Computing ${safeIterations} Monte Carlo iterations…</div>
+              <div id="sim-progress-text" style="font-size:var(--text-sm);color:var(--text-muted)">Computing ${safeIterations} Monte Carlo iterations…</div>
+              <div style="margin-top:var(--sp-5);height:10px;background:var(--bg-elevated);border-radius:999px;overflow:hidden">
+                <div id="sim-progress-bar" style="height:100%;width:0%;background:linear-gradient(90deg,var(--color-primary-400),var(--color-accent-300));transition:width .12s ease"></div>
+              </div>
+              <div id="sim-progress-meta" style="font-size:.75rem;color:var(--text-muted);margin-top:var(--sp-3)">Yielding frequently so the page stays responsive.</div>
+              <button class="btn btn--ghost btn--sm" id="btn-cancel-sim" style="margin-top:var(--sp-5)">Cancel Run</button>
             </div>
           </div>
         </div>
@@ -446,57 +571,63 @@ function renderWizard4() {
 
   document.getElementById('btn-back-4').addEventListener('click', () => Router.navigate('/wizard/3'));
   document.getElementById('btn-run-sim').addEventListener('click', runSimulation);
+  document.getElementById('btn-cancel-sim')?.addEventListener('click', () => {
+    const token = AppState.simulationRunToken;
+    if (!token || token.aborted) return;
+    token.aborted = true;
+    cancelSimulationState('Cancellation requested…');
+    const progressText = document.getElementById('sim-progress-text');
+    const progressMeta = document.getElementById('sim-progress-meta');
+    if (progressText) progressText.textContent = 'Cancelling the simulation…';
+    if (progressMeta) progressMeta.textContent = 'The current run will stop at the next safe checkpoint.';
+  });
 }
 
 async function runSimulation() {
   const yieldToUI = () => new Promise(resolve => setTimeout(resolve, 0));
+  const runPayload = buildSimulationRunPayload();
+  const validation = validateFairParams(runPayload);
+  if (!validation.valid) return;
+  const runtimeWarnings = Array.isArray(validation.warnings) ? validation.warnings : [];
   document.getElementById('run-area').classList.add('hidden');
   document.getElementById('sim-progress').classList.remove('hidden');
   await new Promise(r => setTimeout(r, 80));
   await new Promise(requestAnimationFrame);
   try {
     const p = AppState.draft.fairParams;
-    const progressText = document.querySelector('#sim-progress .card div:last-child');
-    p.iterations = Math.min(100000, Math.max(1000, Number.parseInt(p.iterations, 10) || 10000));
-    startSimulationState(p.iterations);
-    const scenario = getScenarioMultipliers();
-    const toleranceThreshold = getToleranceThreshold();
-    const warningThreshold = getWarningThreshold();
-    const annualReviewThreshold = getAnnualReviewThreshold();
-    const fxMul = AppState.currency === 'AED' ? (1 / AppState.fxRate) : 1;
-    const toUSD = v => (v||0) * fxMul;
-    const ep = {
-      distType: p.distType||'triangular', iterations: p.iterations||10000, seed: p.seed||null,
-      tefMin: p.tefMin * scenario.tefMultiplier, tefLikely: p.tefLikely * scenario.tefMultiplier, tefMax: p.tefMax * scenario.tefMultiplier,
-      vulnDirect: p.vulnDirect||false,
-      vulnMin: p.vulnMin, vulnLikely: p.vulnLikely, vulnMax: p.vulnMax,
-      threatCapMin: p.threatCapMin, threatCapLikely: p.threatCapLikely, threatCapMax: p.threatCapMax,
-      controlStrMin: p.controlStrMin, controlStrLikely: p.controlStrLikely, controlStrMax: p.controlStrMax,
-      irMin: toUSD(p.irMin) * scenario.lossMultiplier, irLikely: toUSD(p.irLikely) * scenario.lossMultiplier, irMax: toUSD(p.irMax) * scenario.lossMultiplier,
-      biMin: toUSD(p.biMin) * scenario.lossMultiplier, biLikely: toUSD(p.biLikely) * scenario.lossMultiplier, biMax: toUSD(p.biMax) * scenario.lossMultiplier,
-      dbMin: toUSD(p.dbMin) * scenario.lossMultiplier, dbLikely: toUSD(p.dbLikely) * scenario.lossMultiplier, dbMax: toUSD(p.dbMax) * scenario.lossMultiplier,
-      rlMin: toUSD(p.rlMin) * scenario.lossMultiplier, rlLikely: toUSD(p.rlLikely) * scenario.lossMultiplier, rlMax: toUSD(p.rlMax) * scenario.lossMultiplier,
-      tpMin: toUSD(p.tpMin) * scenario.lossMultiplier, tpLikely: toUSD(p.tpLikely) * scenario.lossMultiplier, tpMax: toUSD(p.tpMax) * scenario.lossMultiplier,
-      rcMin: toUSD(p.rcMin) * scenario.lossMultiplier, rcLikely: toUSD(p.rcLikely) * scenario.lossMultiplier, rcMax: toUSD(p.rcMax) * scenario.lossMultiplier,
-      corrBiIr: p.corrBiIr||0.3, corrRlRc: p.corrRlRc||0.2,
-      secondaryEnabled: p.secondaryEnabled||false,
-      secProbMin: Math.min(1, (p.secProbMin || 0) * scenario.secondaryMultiplier), secProbLikely: Math.min(1, (p.secProbLikely || 0) * scenario.secondaryMultiplier), secProbMax: Math.min(1, (p.secProbMax || 0) * scenario.secondaryMultiplier),
-      secMagMin: toUSD(p.secMagMin) * scenario.lossMultiplier, secMagLikely: toUSD(p.secMagLikely) * scenario.lossMultiplier, secMagMax: toUSD(p.secMagMax) * scenario.lossMultiplier,
-      threshold: toleranceThreshold,
-      annualReviewThreshold
-    };
+    const { ep, scenario, toleranceThreshold, warningThreshold, annualReviewThreshold, currencyContext } = runPayload;
+    const progressText = document.getElementById('sim-progress-text');
+    const progressMeta = document.getElementById('sim-progress-meta');
+    const progressBar = document.getElementById('sim-progress-bar');
+    const progressButton = document.getElementById('btn-cancel-sim');
+    const runToken = { aborted: false };
+    AppState.simulationRunToken = runToken;
+    p.iterations = validation.normalizedParams.iterations;
+    p.seed = validation.normalizedParams.seed;
+    startSimulationState(validation.normalizedParams.iterations);
+    if (runtimeWarnings.length && progressMeta) progressMeta.textContent = runtimeWarnings.join(' ');
+    const yieldEvery = getSimulationYieldEvery(validation.normalizedParams.iterations);
     const results = await Promise.race([
-      RiskEngine.runAsync(ep, {
-        yieldEvery: 500,
+      RiskEngine.runAsync(validation.normalizedParams, {
+        yieldEvery,
+        signal: runToken,
         onProgress: (ratio, completed, total) => {
           const message = `Computing ${completed.toLocaleString()} of ${total.toLocaleString()} Monte Carlo iterations…`;
           updateSimulationProgressState({ ratio, completed, total, message });
           if (progressText) progressText.textContent = message;
+          if (progressBar) progressBar.style.width = `${Math.max(0, Math.min(100, ratio * 100))}%`;
+          if (progressMeta) progressMeta.textContent = `Seed ${String(validation.normalizedParams.seed ?? 'pending')} · checkpoint every ${yieldEvery.toLocaleString()} iterations`;
         }
       }),
       new Promise((_, reject) => setTimeout(() => reject(new Error('Simulation timed out during computation.')), 20000))
     ]);
+    AppState.simulationRunToken = null;
     if (progressText) progressText.textContent = 'Finalising the simulation results…';
+    if (progressButton) {
+      progressButton.disabled = true;
+      progressButton.textContent = 'Finishing…';
+    }
+    if (progressBar) progressBar.style.width = '100%';
     updateSimulationProgressState({
       completed: p.iterations,
       total: p.iterations,
@@ -505,7 +636,10 @@ async function runSimulation() {
     });
     await yieldToUI();
     await new Promise(requestAnimationFrame);
-    results.inputs = { ...ep };
+    results.inputs = {
+      ...validation.normalizedParams,
+      seed: results.runConfig?.seed ?? validation.normalizedParams.seed
+    };
     results.portfolioMeta = scenario;
     results.selectedRiskCount = scenario.riskCount;
     results.applicableRegulations = [...(AppState.draft.applicableRegulations || [])];
@@ -513,7 +647,23 @@ async function runSimulation() {
     results.annualReviewThreshold = annualReviewThreshold;
     results.nearTolerance = results.eventLoss.p90 >= warningThreshold && results.eventLoss.p90 < toleranceThreshold;
     results.annualReviewTriggered = results.annualLoss.p90 >= annualReviewThreshold;
-    const assessmentIntelligence = buildAssessmentIntelligence(AppState.draft, results, ep, scenario);
+    const assessmentIntelligence = buildAssessmentIntelligence(AppState.draft, results, validation.normalizedParams, scenario);
+    results.runMetadata = RiskEngine.createRunMetadata({
+      ...validation.normalizedParams,
+      seed: results.runConfig?.seed ?? validation.normalizedParams.seed
+    }, {
+      assumptions: assessmentIntelligence.assumptions,
+      scenarioMultipliers: scenario,
+      warningThreshold,
+      thresholdConfigUsed: {
+        warningThreshold,
+        eventToleranceThreshold: toleranceThreshold,
+        annualReviewThreshold
+      },
+      runtimeGuardrails: runtimeWarnings,
+      currencyContext
+    });
+    p.seed = results.runMetadata.seed;
     await yieldToUI();
     if (!AppState.draft.id) AppState.draft.id = 'a_' + Date.now();
     const assessment = { ...AppState.draft, inputAssignments: buildLiveInputSourceAssignments(AppState.draft), results, assessmentIntelligence, completedAt: Date.now() };
@@ -526,10 +676,16 @@ async function runSimulation() {
     completeSimulationState();
     Router.navigate('/results/' + AppState.draft.id);
   } catch(e) {
+    AppState.simulationRunToken = null;
     document.getElementById('sim-progress').classList.add('hidden');
     document.getElementById('run-area').classList.remove('hidden');
+    if (e?.code === 'SIMULATION_CANCELLED') {
+      failSimulationState(e);
+      UI.toast('The simulation was cancelled. Your inputs and draft were kept.', 'warning');
+      return;
+    }
     failSimulationState(e);
-    UI.toast(e?.message === 'Simulation timed out during computation.' ? 'The simulation took too long and was stopped. Reduce the iteration count and try again.' : 'The simulation could not be completed right now. Try again in a moment.', 'danger');
+    UI.toast(e?.message === 'Simulation timed out during computation.' ? 'The simulation took too long and was stopped. Reduce the iteration count and try again.' : e?.code === 'INVALID_SIMULATION_PARAMS' ? (e.validation?.errors?.[0] || 'Please review the model inputs and try again.') : 'The simulation could not be completed right now. Try again in a moment.', 'danger');
     console.error(e);
   }
 }
@@ -663,7 +819,8 @@ function renderResults(id, isShared) {
     warningThreshold: Number(rawResults.warningThreshold || getWarningThreshold() || 0),
     threshold: Number(rawResults.threshold || getToleranceThreshold() || 0),
     annualReviewThreshold: Number(rawResults.annualReviewThreshold || getAnnualReviewThreshold() || 0),
-    iterations: Number(rawResults.iterations || assessment.fairParams?.iterations || 0)
+    iterations: Number(rawResults.iterations || rawResults.runMetadata?.iterations || assessment.fairParams?.iterations || 0),
+    distType: rawResults.runMetadata?.distributions?.eventModel || rawResults.runConfig?.distType || assessment.fairParams?.distType || 'triangular'
   };
   const activeTab = String(AppState.resultsTab || 'executive');
   const statusClass = r.toleranceBreached ? 'above' : r.nearTolerance ? 'warning' : 'within';
@@ -684,6 +841,26 @@ function renderResults(id, isShared) {
   const completedLabel = new Date(assessment.completedAt || Date.now()).toLocaleDateString('en-AE', { year: 'numeric', month: 'long', day: 'numeric' });
   const scenarioNarrative = ReportPresentation.buildExecutiveScenarioSummary(assessment) || 'No scenario narrative available.';
   const technicalInputs = r.inputs || assessment.fairParams || {};
+  const runMetadata = rawResults.runMetadata || (rawResults.runConfig ? RiskEngine.createRunMetadata({
+    ...technicalInputs,
+    seed: rawResults.runConfig.seed,
+    iterations: rawResults.runConfig.iterations,
+    distType: rawResults.runConfig.distType,
+    threshold: rawResults.runConfig.threshold,
+    annualReviewThreshold: rawResults.runConfig.annualReviewThreshold,
+    vulnDirect: rawResults.runConfig.vulnDirect,
+    secondaryEnabled: rawResults.runConfig.secondaryEnabled,
+    corrBiIr: rawResults.runConfig.corrBiIr,
+    corrRlRc: rawResults.runConfig.corrRlRc
+  }, {
+    scenarioMultipliers: rawResults.portfolioMeta || {},
+    warningThreshold: rawResults.warningThreshold,
+    thresholdConfigUsed: {
+      warningThreshold: rawResults.warningThreshold,
+      eventToleranceThreshold: rawResults.threshold,
+      annualReviewThreshold: rawResults.annualReviewThreshold
+    }
+  }) : null);
   const workflowGuidance = Array.isArray(assessment.workflowGuidance) ? assessment.workflowGuidance : [];
   const recommendations = Array.isArray(assessment.recommendations) ? assessment.recommendations : [];
   const citations = Array.isArray(assessment.citations) ? assessment.citations : [];
@@ -710,6 +887,7 @@ function renderResults(id, isShared) {
   const recommendationCards = renderResultsActionBlock(recommendations, executiveAction, missingInformation);
   const confidenceNeedsBlock = renderResultsConfidenceNeedsBlock(assessmentIntelligence.confidence, assessment.evidenceQuality, missingInformation, citations);
   const comparisonHighlight = renderResultsComparisonHighlight(comparison);
+  const explanationPanel = renderResultsExplanationPanel(assessmentIntelligence, comparison, runMetadata);
 
   const executiveTab = `
     <section class="results-executive-view" id="results-tab-executive">
@@ -780,6 +958,7 @@ function renderResults(id, isShared) {
       ${recommendationCards}
       ${confidenceNeedsBlock}
       ${comparisonHighlight}
+      ${explanationPanel}
 
       <div class="results-summary-grid results-summary-grid--primary">
         <div class="results-summary-card results-summary-card--wide">
@@ -822,6 +1001,7 @@ function renderResults(id, isShared) {
       ${renderSensitivitySummary(assessmentIntelligence.drivers)}
 
       ${comparisonHighlight}
+      ${explanationPanel}
 
       <div class="card mb-6 anim-fade-in">
         <div class="flex items-center justify-between" style="gap:var(--sp-4);flex-wrap:wrap">
@@ -909,6 +1089,7 @@ function renderResults(id, isShared) {
             <div class="mt-4" style="font-size:.78rem;color:var(--text-muted)">Iterations: <strong>${r.iterations.toLocaleString()}</strong> · Distribution: <strong>${r.distType || assessment.fairParams?.distType || 'triangular'}</strong> · Event tolerance: <strong>${fmtCurrency(r.threshold)}</strong> · Annual review: <strong>${fmtCurrency(r.annualReviewThreshold || getAnnualReviewThreshold())}</strong></div>
             <div class="form-help" style="margin-top:6px">${escapeHtml(String(r.metricSemantics?.eventLoss || ''))} ${escapeHtml(String(r.metricSemantics?.annualLoss || ''))}</div>
           </div>
+          ${renderRunMetadataPanel(runMetadata, r.metricSemantics)}
         </div>
       </details>
 

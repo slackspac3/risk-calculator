@@ -650,16 +650,29 @@ function collectFairParams() {
   const seed = document.getElementById('adv-seed');
   const cbir = document.getElementById('corr-bi-ir');
   const crlr = document.getElementById('corr-rl-rc');
-  if (dist) p.distType = dist.value;
+  if (dist) {
+    p.distType = RiskEngine.constants.DIST_TYPES.includes(dist.value) ? dist.value : 'triangular';
+    if (dist.value !== p.distType) dist.value = p.distType;
+  }
   if (iter) {
-    const parsedIterations = Number.parseInt(iter.value, 10) || 10000;
-    const safeIterations = Math.min(100000, Math.max(1000, parsedIterations));
+    const parsedIterations = Number.parseInt(iter.value, 10) || RiskEngine.constants.DEFAULT_ITERATIONS;
+    const safeIterations = Math.min(RiskEngine.constants.MAX_ITERATIONS, Math.max(RiskEngine.constants.MIN_ITERATIONS, parsedIterations));
     p.iterations = safeIterations;
     if (String(safeIterations) !== String(iter.value)) iter.value = String(safeIterations);
   }
-  if (seed) p.seed = seed.value ? parseInt(seed.value) : null;
-  if (cbir) p.corrBiIr = parseFloat(cbir.value) || 0.3;
-  if (crlr) p.corrRlRc = parseFloat(crlr.value) || 0.2;
+  if (seed) {
+    const parsedSeed = seed.value ? Number.parseInt(seed.value, 10) : null;
+    p.seed = Number.isInteger(parsedSeed) ? parsedSeed : null;
+    if (seed.value && p.seed == null) seed.value = '';
+  }
+  if (cbir) {
+    p.corrBiIr = Math.max(-RiskEngine.constants.CORRELATION_LIMIT, Math.min(RiskEngine.constants.CORRELATION_LIMIT, parseFloat(cbir.value) || 0.3));
+    cbir.value = String(p.corrBiIr);
+  }
+  if (crlr) {
+    p.corrRlRc = Math.max(-RiskEngine.constants.CORRELATION_LIMIT, Math.min(RiskEngine.constants.CORRELATION_LIMIT, parseFloat(crlr.value) || 0.2));
+    crlr.value = String(p.corrRlRc);
+  }
   p.secondaryEnabled = document.getElementById('secondary-toggle')?.checked || false;
   p.distType = p.distType || 'triangular';
 }

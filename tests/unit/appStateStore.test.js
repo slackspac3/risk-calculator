@@ -31,6 +31,8 @@ test('createSimulationState merges progress overrides without dropping defaults'
     }
   });
   assert.equal(state.status, 'running');
+  assert.equal(state.canCancel, false);
+  assert.equal(state.cancelRequested, false);
   assert.equal(state.progress.completed, 20);
   assert.equal(state.progress.total, 100);
   assert.equal(state.progress.ratio, 0);

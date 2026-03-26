@@ -10,6 +10,13 @@
  */
 
 const RiskEngine = (() => {
+  const DIST_TYPES = ['triangular', 'lognormal'];
+  const MIN_ITERATIONS = 1000;
+  const DEFAULT_ITERATIONS = 10000;
+  const MAX_ITERATIONS = 100000;
+  const HIGH_ITERATION_WARNING = 50000;
+  const CORRELATION_LIMIT = 0.95;
+
   function mulberry32(seed) {
     return function () {
       seed |= 0;
@@ -228,11 +235,196 @@ const RiskEngine = (() => {
     return bins;
   }
 
-  function _computeSamples(params, iterations, { onProgress = null, yieldEvery = 0 } = {}) {
+  function cancelError() {
+    const error = new Error('Simulation cancelled.');
+    error.code = 'SIMULATION_CANCELLED';
+    return error;
+  }
+
+  function assertNotCancelled(signal) {
+    if (signal?.aborted) throw cancelError();
+  }
+
+  function normalizeInteger(value, fallback) {
+    if (typeof value === 'number') return Number.isInteger(value) ? value : fallback;
+    const text = String(value ?? '').trim();
+    if (!/^-?\d+$/.test(text)) return fallback;
+    const parsed = Number.parseInt(text, 10);
+    return Number.isInteger(parsed) ? parsed : fallback;
+  }
+
+  function clampNumber(value, min, max, fallback) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return fallback;
+    return Math.min(max, Math.max(min, numeric));
+  }
+
+  function validateOrderedRange(params, key, label, errors, options = {}) {
+    const min = Number(params[`${key}Min`]);
+    const likely = Number(params[`${key}Likely`]);
+    const max = Number(params[`${key}Max`]);
+    const lowerBound = options.min ?? 0;
+    const upperBound = options.max ?? Number.POSITIVE_INFINITY;
+    if (![min, likely, max].every(Number.isFinite)) {
+      errors.push(`${label}: low, expected, and severe values are all required.`);
+      return;
+    }
+    if (min < lowerBound || likely < lowerBound || max < lowerBound) {
+      errors.push(`${label}: values cannot be below ${lowerBound}.`);
+      return;
+    }
+    if (upperBound !== Number.POSITIVE_INFINITY && (min > upperBound || likely > upperBound || max > upperBound)) {
+      errors.push(`${label}: values cannot be above ${upperBound}.`);
+      return;
+    }
+    if (min > likely || likely > max) {
+      errors.push(`${label}: values must follow low ≤ expected ≤ severe.`);
+    }
+  }
+
+  function buildExpensiveSettingsWarnings(normalizedParams) {
+    const warnings = [];
+    if (normalizedParams.iterations >= HIGH_ITERATION_WARNING) {
+      warnings.push(`High iteration count selected (${normalizedParams.iterations.toLocaleString()}). This run may take longer on some pilot devices.`);
+    }
+    if (normalizedParams.distType === 'lognormal' && normalizedParams.iterations >= HIGH_ITERATION_WARNING) {
+      warnings.push('Lognormal sampling with a high iteration count increases runtime and tail sensitivity. Use it only when you need the heavier-tail shape.');
+    }
+    if (normalizedParams.secondaryEnabled && normalizedParams.iterations >= HIGH_ITERATION_WARNING) {
+      warnings.push('Secondary loss is enabled on a high-volume run. This can increase runtime and widen the model tail.');
+    }
+    return warnings;
+  }
+
+  function validateRunParams(params = {}) {
+    const rawIterations = normalizeInteger(params.iterations, NaN);
+    const rawSeed = params.seed == null || params.seed === '' ? null : normalizeInteger(params.seed, NaN);
+    const normalizedParams = {
+      ...params,
+      distType: DIST_TYPES.includes(String(params.distType || 'triangular')) ? String(params.distType || 'triangular') : 'triangular',
+      iterations: clampNumber(rawIterations, MIN_ITERATIONS, MAX_ITERATIONS, DEFAULT_ITERATIONS),
+      seed: rawSeed,
+      threshold: Number.isFinite(Number(params.threshold)) ? Number(params.threshold) : 5000000,
+      annualReviewThreshold: Number.isFinite(Number(params.annualReviewThreshold)) ? Number(params.annualReviewThreshold) : 12000000,
+      corrBiIr: clampNumber(params.corrBiIr, -CORRELATION_LIMIT, CORRELATION_LIMIT, 0.3),
+      corrRlRc: clampNumber(params.corrRlRc, -CORRELATION_LIMIT, CORRELATION_LIMIT, 0.2),
+      vulnDirect: !!params.vulnDirect,
+      secondaryEnabled: !!params.secondaryEnabled
+    };
+    const errors = [];
+
+    if (!DIST_TYPES.includes(String(params.distType || 'triangular'))) {
+      errors.push('Distribution type must be triangular or lognormal.');
+    }
+    if (!Number.isInteger(rawIterations)) {
+      errors.push('Iterations must be a whole number.');
+    } else if (rawIterations < MIN_ITERATIONS || rawIterations > MAX_ITERATIONS) {
+      errors.push(`Iterations must stay between ${MIN_ITERATIONS.toLocaleString()} and ${MAX_ITERATIONS.toLocaleString()}.`);
+    }
+    if (params.seed != null && params.seed !== '' && !Number.isInteger(rawSeed)) {
+      errors.push('Seed must be a whole number when provided.');
+    }
+    if (!(normalizedParams.threshold > 0)) errors.push('Event tolerance threshold must be greater than zero.');
+    if (!(normalizedParams.annualReviewThreshold > 0)) errors.push('Annual review threshold must be greater than zero.');
+
+    validateOrderedRange(normalizedParams, 'tef', 'Event frequency', errors, { min: 0 });
+
+    if (normalizedParams.vulnDirect) {
+      validateOrderedRange(normalizedParams, 'vuln', 'Event success likelihood', errors, { min: 0, max: 1 });
+    } else {
+      validateOrderedRange(normalizedParams, 'threatCap', 'Threat capability', errors, { min: 0, max: 1 });
+      validateOrderedRange(normalizedParams, 'controlStr', 'Control strength', errors, { min: 0, max: 1 });
+    }
+
+    ['ir', 'bi', 'db', 'rl', 'tp', 'rc'].forEach(key => {
+      const labels = {
+        ir: 'Incident response',
+        bi: 'Business interruption',
+        db: 'Data remediation',
+        rl: 'Regulatory and legal',
+        tp: 'Third-party impact',
+        rc: 'Reputation and contract'
+      };
+      validateOrderedRange(normalizedParams, key, labels[key], errors, { min: 0 });
+    });
+
+    if (normalizedParams.secondaryEnabled) {
+      validateOrderedRange(normalizedParams, 'secProb', 'Secondary-loss probability', errors, { min: 0, max: 1 });
+      validateOrderedRange(normalizedParams, 'secMag', 'Secondary-loss magnitude', errors, { min: 0 });
+    }
+
+    if (Math.abs(Number(params.corrBiIr ?? 0.3)) > CORRELATION_LIMIT) {
+      errors.push(`Business interruption / incident response correlation must stay between -${CORRELATION_LIMIT} and ${CORRELATION_LIMIT}.`);
+    }
+    if (Math.abs(Number(params.corrRlRc ?? 0.2)) > CORRELATION_LIMIT) {
+      errors.push(`Regulatory / reputation correlation must stay between -${CORRELATION_LIMIT} and ${CORRELATION_LIMIT}.`);
+    }
+
+    const expensiveSettings = buildExpensiveSettingsWarnings(normalizedParams);
+    return {
+      valid: errors.length === 0,
+      errors,
+      warnings: expensiveSettings,
+      expensiveSettings,
+      normalizedParams
+    };
+  }
+
+  function createRunMetadata(params = {}, context = {}) {
+    return {
+      seed: params.seed,
+      iterations: params.iterations,
+      distributions: {
+        eventModel: params.distType,
+        vulnerabilityMode: params.vulnDirect ? 'direct' : 'derived',
+        correlations: {
+          businessInterruptionVsIncidentResponse: params.corrBiIr,
+          regulatoryVsReputation: params.corrRlRc
+        }
+      },
+      assumptions: Array.isArray(context.assumptions) ? context.assumptions.map(item => item?.text || String(item || '')).filter(Boolean) : [],
+      scenarioMultipliers: context.scenarioMultipliers || {},
+      thresholdConfigUsed: context.thresholdConfigUsed || {
+        warningThreshold: context.warningThreshold,
+        eventToleranceThreshold: params.threshold,
+        annualReviewThreshold: params.annualReviewThreshold
+      },
+      runtimeGuardrails: Array.isArray(context.runtimeGuardrails) ? context.runtimeGuardrails : [],
+      currencyContext: context.currencyContext || {},
+      inputSnapshot: {
+        distType: params.distType,
+        vulnDirect: !!params.vulnDirect,
+        threshold: params.threshold,
+        annualReviewThreshold: params.annualReviewThreshold,
+        tef: { min: params.tefMin, likely: params.tefLikely, max: params.tefMax },
+        vulnerability: params.vulnDirect
+          ? { min: params.vulnMin, likely: params.vulnLikely, max: params.vulnMax }
+          : {
+              threatCapability: { min: params.threatCapMin, likely: params.threatCapLikely, max: params.threatCapMax },
+              controlStrength: { min: params.controlStrMin, likely: params.controlStrLikely, max: params.controlStrMax }
+            },
+        primaryLoss: {
+          incidentResponse: { min: params.irMin, likely: params.irLikely, max: params.irMax },
+          businessInterruption: { min: params.biMin, likely: params.biLikely, max: params.biMax },
+          dataRemediation: { min: params.dbMin, likely: params.dbLikely, max: params.dbMax },
+          regulatoryLegal: { min: params.rlMin, likely: params.rlLikely, max: params.rlMax },
+          thirdParty: { min: params.tpMin, likely: params.tpLikely, max: params.tpMax },
+          reputationContract: { min: params.rcMin, likely: params.rcLikely, max: params.rcMax }
+        },
+        secondaryLoss: params.secondaryEnabled ? {
+          probability: { min: params.secProbMin, likely: params.secProbLikely, max: params.secProbMax },
+          magnitude: { min: params.secMagMin, likely: params.secMagLikely, max: params.secMagMax }
+        } : null
+      }
+    };
+  }
+
+  function _computeSamples(params, iterations, { onProgress = null, yieldEvery = 0, signal = null } = {}) {
     const lmSamples = [];
     const aleSamples = [];
 
     const computeOne = () => {
+      assertNotCancelled(signal);
       const tef = Math.max(0, sampleDist(params.distType, params.tefMin, params.tefLikely, params.tefMax));
       const vuln = sampleVulnerability(params);
       const lef = tef * vuln;
@@ -259,6 +451,7 @@ const RiskEngine = (() => {
         computeOne();
         if ((i + 1) % yieldEvery === 0 || i === iterations - 1) {
           if (typeof onProgress === 'function') onProgress((i + 1) / iterations, i + 1, iterations);
+          assertNotCancelled(signal);
           await new Promise(resolve => setTimeout(resolve, 0));
         }
       }
@@ -305,30 +498,77 @@ const RiskEngine = (() => {
   }
 
   function _prepareRun(params) {
-    const iterations = Number.isFinite(Number(params.iterations)) && Number(params.iterations) > 0 ? Number(params.iterations) : 10000;
-    const eventToleranceThreshold = Number.isFinite(Number(params.threshold)) && Number(params.threshold) > 0 ? Number(params.threshold) : 5000000;
-    const annualReviewThreshold = Number.isFinite(Number(params.annualReviewThreshold)) && Number(params.annualReviewThreshold) > 0 ? Number(params.annualReviewThreshold) : 12000000;
-    if (params.seed != null) {
-      _rand = mulberry32(Number(params.seed));
-    } else {
-      _rand = Math.random;
+    const validation = validateRunParams(params);
+    if (!validation.valid) {
+      const error = new Error(validation.errors[0] || 'Invalid simulation parameters.');
+      error.code = 'INVALID_SIMULATION_PARAMS';
+      error.validation = validation;
+      throw error;
     }
-    return { iterations, thresholds: { eventToleranceThreshold, annualReviewThreshold } };
+    const normalizedParams = validation.normalizedParams;
+    const seed = normalizedParams.seed == null
+      ? Math.floor(Math.random() * 4294967295)
+      : normalizedParams.seed;
+    _rand = mulberry32(seed);
+    return {
+      params: {
+        ...normalizedParams,
+        seed
+      },
+      iterations: normalizedParams.iterations,
+      thresholds: {
+        eventToleranceThreshold: normalizedParams.threshold,
+        annualReviewThreshold: normalizedParams.annualReviewThreshold
+      },
+      validation
+    };
   }
 
   function run(params) {
-    const { iterations, thresholds } = _prepareRun(params);
-    const { lmSamples, aleSamples } = _computeSamples(params, iterations);
+    const prepared = _prepareRun(params);
+    const { iterations, thresholds } = prepared;
+    const { lmSamples, aleSamples } = _computeSamples(prepared.params, iterations);
     return _buildResults(iterations, thresholds, lmSamples, aleSamples);
   }
 
-  async function runAsync(params, { onProgress = null, yieldEvery = 500 } = {}) {
-    const { iterations, thresholds } = _prepareRun(params);
-    const { lmSamples, aleSamples } = await _computeSamples(params, iterations, { onProgress, yieldEvery });
-    return _buildResults(iterations, thresholds, lmSamples, aleSamples);
+  async function runAsync(params, { onProgress = null, yieldEvery = 500, signal = null } = {}) {
+    const prepared = _prepareRun(params);
+    const { iterations, thresholds } = prepared;
+    const { lmSamples, aleSamples } = await _computeSamples(prepared.params, iterations, { onProgress, yieldEvery, signal });
+    return {
+      ..._buildResults(iterations, thresholds, lmSamples, aleSamples),
+      runConfig: {
+        seed: prepared.params.seed,
+        iterations: prepared.params.iterations,
+        distType: prepared.params.distType,
+        threshold: prepared.params.threshold,
+        annualReviewThreshold: prepared.params.annualReviewThreshold,
+        vulnDirect: prepared.params.vulnDirect,
+        secondaryEnabled: prepared.params.secondaryEnabled,
+        corrBiIr: prepared.params.corrBiIr,
+        corrRlRc: prepared.params.corrRlRc
+      },
+      validation: prepared.validation
+    };
   }
 
-  return { run, runAsync, buildLEC, buildHistogram, stats };
+  return {
+    run,
+    runAsync,
+    buildLEC,
+    buildHistogram,
+    stats,
+    validateRunParams,
+    createRunMetadata,
+    constants: {
+      DIST_TYPES,
+      MIN_ITERATIONS,
+      DEFAULT_ITERATIONS,
+      MAX_ITERATIONS,
+      HIGH_ITERATION_WARNING,
+      CORRELATION_LIMIT
+    }
+  };
 })();
 
 if (typeof module !== 'undefined') module.exports = RiskEngine;
