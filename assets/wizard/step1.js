@@ -33,39 +33,40 @@ function getStep1RecommendedAction(draft, selectedRisks) {
 }
 
 function renderStep1StartCard(recommendation) {
-  return `<div class="card card--elevated anim-fade-in">
-    <div class="wizard-premium-head">
-      <div>
-        <div class="context-panel-title">Recommended starting path</div>
-        <p class="context-panel-copy" style="margin-top:var(--sp-2)"><strong>${recommendation.title}</strong></p>
-      </div>
-      <span class="badge badge--gold">Primary lane</span>
+  return `<section class="wizard-summary-band wizard-summary-band--support anim-fade-in">
+    <div>
+      <div class="wizard-summary-band__label">Recommended path</div>
+      <strong>${recommendation.title}</strong>
+      <div class="wizard-summary-band__copy">${recommendation.copy}</div>
     </div>
-    <div class="wizard-focus-strip wizard-focus-strip--compact" style="margin-top:var(--sp-4)">
-      <div class="wizard-focus-card">
-        <span class="wizard-focus-card__label">1. Frame the scenario</span>
-        <strong>Answer the guided prompts</strong>
-        <span>Use the guided questions unless you already have a clean risk statement.</span>
-      </div>
-      <div class="wizard-focus-card">
-        <span class="wizard-focus-card__label">2. Improve only if needed</span>
-        <strong>Use AI only when it helps</strong>
-        <span>Use AI when you want help tightening the wording or extracting candidate risks.</span>
-      </div>
-      <div class="wizard-focus-card">
-        <span class="wizard-focus-card__label">3. Keep scope tight</span>
-        <strong>Carry forward only what matters</strong>
-        <span>Select the risks that belong in this assessment and leave everything else out.</span>
-      </div>
+    <div class="wizard-summary-band__meta">
+      <span class="badge badge--gold">Guided builder first</span>
+      <span class="badge badge--neutral">AI only if useful</span>
+      <span class="badge badge--neutral">Tight shortlist</span>
     </div>
-    <div class="context-panel-foot" style="margin-top:var(--sp-4)">${recommendation.copy}</div>
-  </div>`;
+  </section>`;
+}
+
+function renderStep1SelectedRisksSummary(selectedRisks, riskCandidates) {
+  if (!selectedRisks.length) return '';
+  const chosenRisks = (riskCandidates || []).filter(risk => selectedRisks.includes(risk.id)).slice(0, 3);
+  return `<section class="wizard-summary-band anim-fade-in anim-delay-1">
+    <div>
+      <div class="wizard-summary-band__label">Selected for this assessment</div>
+      <strong>${selectedRisks.length} risk${selectedRisks.length === 1 ? '' : 's'} currently in scope</strong>
+      <div class="wizard-summary-band__copy">Keep only risks that belong in the same scenario and management discussion before you continue.</div>
+    </div>
+    <div class="wizard-summary-band__meta">
+      ${chosenRisks.map(risk => `<span class="badge badge--neutral">${escapeHtml(String(risk.title || risk.name || 'Risk'))}</span>`).join('')}
+      ${selectedRisks.length > chosenRisks.length ? `<span class="badge badge--neutral">+${selectedRisks.length - chosenRisks.length} more</span>` : ''}
+    </div>
+  </section>`;
 }
 
 function renderStep1FeaturedExampleCard(example) {
   if (!example) return '';
-  return `<details class="wizard-disclosure card card--elevated anim-fade-in">
-    <summary>Need a worked example first? <span class="badge badge--neutral">Fast demo path</span></summary>
+  return `<details class="wizard-disclosure wizard-disclosure--support anim-fade-in">
+    <summary>Worked example <span class="badge badge--neutral">Fast demo path</span></summary>
     <div class="wizard-disclosure-body">
       <div class="form-help">Load one polished example to see what a good first draft and shortlist look like before you enter your own case.</div>
       <div class="wizard-focus-card wizard-focus-card--wide" style="margin-top:var(--sp-4)">
@@ -82,7 +83,7 @@ function renderStep1FeaturedExampleCard(example) {
 }
 
 function renderStep1GuidedBuilderCard(draft) {
-  return `<div class="card anim-fade-in anim-delay-1">
+  return `<div class="card card--elevated wizard-primary-card anim-fade-in anim-delay-1">
     <div class="wizard-premium-head" style="margin-bottom:var(--sp-5)">
       <div>
         <h3>Guided scenario builder</h3>
@@ -533,33 +534,18 @@ function renderWizard1() {
           </div>
         </div>
         <div class="wizard-body">
-          <section class="wizard-ia-section anim-fade-in">
-            <div class="results-section-heading">Set the frame</div>
-            <div class="form-help" style="margin-top:8px">Confirm the context first, then choose the simplest way to create a useful starting draft.</div>
-          </section>
-          <div class="wizard-focus-strip wizard-focus-strip--compact anim-fade-in">
-            <div class="wizard-focus-card wizard-focus-card--wide">
-              <span class="wizard-focus-card__label">Step goal</span>
-              <strong>Get to one clear scenario and a tight shortlist of in-scope risks.</strong>
-              <span>The fastest route is still the guided builder. Manual drafting, imports, and AI are available, but they should stay secondary unless you already have source material.</span>
-            </div>
-            <div class="wizard-focus-card">
-              <span class="wizard-focus-card__label">Completion signal</span>
-              <strong>${selectedRisks.length ? `${selectedRisks.length} risk${selectedRisks.length === 1 ? '' : 's'} selected` : 'No risk selected yet'}</strong>
-              <span>${selectedRisks.length ? 'You are ready to continue once the shortlist matches the assessment scope.' : 'Finish this step by selecting only the risks that belong in the same scenario.'}</span>
-            </div>
-          </div>
-          ${renderStep1ContextCard(settings, draft, scenarioGeographies, regs, buList)}
-          ${renderStep1StartCard(recommendation)}
-          ${renderStep1FeaturedExampleCard(featuredDryRun)}
+          ${renderStep1GuidedBuilderCard(draft)}
+          ${renderStep1SelectedRisksSummary(selectedRisks, riskCandidates)}
           ${renderLoadedDryRunBanner(activeDryRun)}
           ${draft.learningNote ? `<div class="card card--elevated anim-fade-in"><div class="context-panel-title">Learnt from prior use</div><p class="context-panel-copy">${draft.learningNote}</p></div>` : ''}
+          ${renderStep1StartCard(recommendation)}
+          ${renderStep1FeaturedExampleCard(featuredDryRun)}
           ${UI.disclosureSection({
             title: 'Assessment framing and defaults',
             badgeLabel: 'Adjust only if needed',
             badgeTone: 'neutral',
             open: !draft.buId || !scenarioGeographies.length,
-            className: 'wizard-disclosure card card--elevated anim-fade-in',
+            className: 'wizard-disclosure wizard-disclosure--support anim-fade-in',
             body: `
             <div class="grid-2">
               <div class="form-group">
@@ -594,11 +580,6 @@ function renderWizard1() {
           `
           })}
 
-          <section class="wizard-ia-section anim-fade-in">
-            <div class="results-section-heading">Build the scenario</div>
-            <div class="form-help" style="margin-top:8px">Use the guided path by default. Open the alternate paths only if you already have source material.</div>
-          </section>
-          ${renderStep1GuidedBuilderCard(draft)}
           ${renderStep1OtherWaysToStart(draft, hasScenarioDraft, hasImportedSource)}
 
           <div id="intake-output">

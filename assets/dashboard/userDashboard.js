@@ -249,6 +249,26 @@ function renderUserDashboard() {
       tone: lifecycleCounts.baselines ? 'gold' : 'neutral'
     }
   ];
+  const orientationCards = [
+    {
+      label: hasDraft ? 'Draft in progress' : assessmentsNeedingReview.length ? 'Review queue active' : 'Clear to start',
+      value: roleLaneTitle,
+      note: roleFrontDoor.quickStatus,
+      tone: hasDraft ? 'gold' : assessmentsNeedingReview.length ? 'warning' : 'success'
+    },
+    {
+      label: isOversightUser ? 'Managed scope' : 'Default context',
+      value: isOversightUser ? capability.roleSummary : (settings.geographyPrimary || settings.geography || globalSettings.geography || 'Not set'),
+      note: isOversightUser ? capability.experience.dashboardLead : 'Saved context shapes default wording and assisted guidance.',
+      tone: 'neutral'
+    },
+    {
+      label: 'Context readiness',
+      value: contextReadinessLabel,
+      note: guidanceSummary,
+      tone: contextReadinessScore >= 5 ? 'success' : contextReadinessScore >= 3 ? 'neutral' : 'warning'
+    }
+  ];
   const renderDashboardEmptyState = ({ title, body, primaryId, primaryLabel, secondaryId = '', secondaryLabel = '' }) => `<div class="empty-state">
     <strong>${title}</strong>
     <div style="margin-top:8px">${body}</div>
@@ -301,32 +321,55 @@ function renderUserDashboard() {
               </div>
               <div class="form-help" style="margin-top:12px;color:rgba(255,255,255,.65)">${roleFrontDoor.heroHint}</div>
             </div>
-            <div class="card dashboard-hero-side">
+            <div class="dashboard-hero-side dashboard-hero-side--support">
               <div class="context-panel-title">${isOversightUser ? 'Oversight summary' : 'Today&apos;s summary'}</div>
-              <div class="dashboard-focus-stack">
-                <div class="dashboard-focus-card">
-                  <span class="dashboard-focus-card__label">Recommended next move</span>
-                  <strong>${roleLaneTitle}</strong>
-                  <div class="context-panel-copy">${roleFrontDoor.quickStatus}</div>
-                </div>
-                <div class="dashboard-focus-card">
-                  <span class="dashboard-focus-card__label">${isOversightUser ? 'Managed scope' : 'Role lens'}</span>
-                  <strong>${capability.roleSummary}</strong>
-                  <div class="context-panel-copy">${capability.experience.dashboardLead}</div>
-                </div>
-                <div class="dashboard-focus-card">
-                  <span class="dashboard-focus-card__label">Default context in use</span>
-                  <strong>${settings.geographyPrimary || settings.geography || globalSettings.geography}</strong>
-                  <div class="context-panel-copy">This geography and your saved profile shape default wording, guidance, and assisted suggestions.</div>
-                </div>
+              <div class="dashboard-hero-side-copy">${roleFrontDoor.quickStatus}</div>
+              <div class="dashboard-hero-side-meta">
+                <strong>${isOversightUser ? capability.roleSummary : (settings.geographyPrimary || settings.geography || globalSettings.geography || 'Context not set')}</strong>
+                <span>${isOversightUser ? capability.experience.dashboardLead : 'Saved context shapes default wording, guidance, and assisted suggestions.'}</span>
               </div>
-              <div class="form-help" style="margin-top:var(--sp-4);color:rgba(255,255,255,.68)">${roleFrontDoor.spotlightTitle}: ${roleFrontDoor.spotlightCopy}</div>
+              <div class="form-help dashboard-hero-side-foot">${roleFrontDoor.spotlightTitle}: ${roleFrontDoor.spotlightCopy}</div>
             </div>
           </div>
         </section>
 
-        <section class="dashboard-status-band" aria-label="Status overview">
-          ${attentionCards.map(card => `
+        <section class="dashboard-primary-band">
+          <div class="results-section-heading">Do the work</div>
+          <div class="form-help" style="margin-top:8px;margin-bottom:var(--sp-4)">Start here for the next item to assess, review, or resume.</div>
+          ${UI.dashboardSectionCard({
+            title: roleFrontDoor.nextUpTitle,
+            description: roleFrontDoor.nextUpDescription,
+            badge: openAssessmentRows.length,
+            body: openAssessmentRows.length ? openAssessmentRows.map(item => UI.dashboardAssessmentRow({
+              assessmentId: item.action,
+              title: item.title,
+              detail: item.detail,
+              badgeClass: /above tolerance/i.test(item.status) ? 'badge--danger' : /review/i.test(item.status) ? 'badge--warning' : 'badge--gold',
+              badgeLabel: item.status,
+              actions: `
+                <button type="button" class="btn btn--ghost btn--sm dashboard-open-action" data-assessment-id="${item.action}">${item.actionLabel}</button>
+                <details class="results-actions-disclosure dashboard-row-overflow">
+                  <summary class="btn btn--ghost btn--sm">More</summary>
+                  <div class="results-actions-disclosure-menu">
+                    ${item.action === 'draft'
+                      ? '<button type="button" class="btn btn--secondary btn--sm dashboard-archive-draft">Archive</button><button type="button" class="btn btn--secondary btn--sm dashboard-delete-draft">Delete</button>'
+                      : `<button type="button" class="btn btn--secondary btn--sm dashboard-duplicate-assessment" data-assessment-id="${item.action}">Duplicate</button><button type="button" class="btn btn--secondary btn--sm dashboard-archive-assessment" data-assessment-id="${item.action}">Archive</button><button type="button" class="btn btn--secondary btn--sm dashboard-delete-assessment" data-assessment-id="${item.action}">Delete</button>`}
+                  </div>
+                </details>
+              `
+            })).join('') : renderDashboardEmptyState({
+              title: 'Nothing needs attention right now.',
+              body: 'Start a guided assessment, load the sample path, or use a template when you want a faster first pass.',
+              primaryId: 'btn-empty-next-new',
+              primaryLabel: 'Start Guided Assessment',
+              secondaryId: 'btn-empty-next-sample',
+              secondaryLabel: 'Try Sample Assessment'
+            })
+          })}
+        </section>
+
+        <section class="dashboard-status-band dashboard-status-band--compact" aria-label="Workspace orientation">
+          ${orientationCards.map(card => `
             <div class="dashboard-status-chip dashboard-status-chip--${card.tone}">
               <span class="dashboard-status-chip__label">${card.label}</span>
               <strong>${card.value}</strong>
@@ -335,7 +378,23 @@ function renderUserDashboard() {
           `).join('')}
         </section>
 
-        <section style="margin-top:var(--sp-8)">
+        <section class="dashboard-primary-band">
+          ${UI.dashboardSectionCard({
+            title: roleFrontDoor.recentTitle,
+            description: roleFrontDoor.recentDescription,
+            badge: compactRecentAssessments.length,
+            body: compactRecentRows || renderDashboardEmptyState({
+              title: 'No completed assessments yet.',
+              body: 'Use a template if you want a structured starting point, or run the sample path once to see the full pilot workflow.',
+              primaryId: 'btn-empty-recent-template',
+              primaryLabel: 'Start from Template',
+              secondaryId: 'btn-empty-recent-sample',
+              secondaryLabel: 'Try Sample Assessment'
+            })
+          })}
+        </section>
+
+        <section style="margin-top:var(--sp-12)">
           <div class="results-section-heading">At a glance</div>
           <div class="form-help" style="margin-top:8px">A compact view of current attention, completed work, and context quality.</div>
         </section>
@@ -344,55 +403,8 @@ function renderUserDashboard() {
           ${roleFrontDoor.overviewCards.map(card => UI.dashboardOverviewCard(card)).join('')}
         </section>
 
-        <section class="grid-2 dashboard-main-grid">
+        <section class="grid-2 dashboard-secondary-grid">
           <div class="dashboard-column">
-            <div class="results-section-heading">Do the work</div>
-            <div class="form-help" style="margin-top:8px;margin-bottom:var(--sp-4)">Start here for the next item to assess, review, or resume.</div>
-            ${UI.dashboardSectionCard({
-              title: roleFrontDoor.nextUpTitle,
-              description: roleFrontDoor.nextUpDescription,
-              badge: openAssessmentRows.length,
-              body: openAssessmentRows.length ? openAssessmentRows.map(item => UI.dashboardAssessmentRow({
-                assessmentId: item.action,
-                title: item.title,
-                detail: item.detail,
-                badgeClass: /above tolerance/i.test(item.status) ? 'badge--danger' : /review/i.test(item.status) ? 'badge--warning' : 'badge--gold',
-                badgeLabel: item.status,
-                actions: `
-                  <button type="button" class="btn btn--ghost btn--sm dashboard-open-action" data-assessment-id="${item.action}">${item.actionLabel}</button>
-                  <details class="results-actions-disclosure dashboard-row-overflow">
-                    <summary class="btn btn--ghost btn--sm">More</summary>
-                    <div class="results-actions-disclosure-menu">
-                      ${item.action === 'draft'
-                        ? '<button type="button" class="btn btn--secondary btn--sm dashboard-archive-draft">Archive</button><button type="button" class="btn btn--secondary btn--sm dashboard-delete-draft">Delete</button>'
-                        : `<button type="button" class="btn btn--secondary btn--sm dashboard-duplicate-assessment" data-assessment-id="${item.action}">Duplicate</button><button type="button" class="btn btn--secondary btn--sm dashboard-archive-assessment" data-assessment-id="${item.action}">Archive</button><button type="button" class="btn btn--secondary btn--sm dashboard-delete-assessment" data-assessment-id="${item.action}">Delete</button>`}
-                    </div>
-                  </details>
-                `
-              })).join('') : renderDashboardEmptyState({
-                title: 'Nothing needs attention right now.',
-                body: 'Start a guided assessment, load the sample path, or use a template when you want a faster first pass.',
-                primaryId: 'btn-empty-next-new',
-                primaryLabel: 'Start Guided Assessment',
-                secondaryId: 'btn-empty-next-sample',
-                secondaryLabel: 'Try Sample Assessment'
-              })
-            })}
-
-            ${UI.dashboardSectionCard({
-              title: roleFrontDoor.recentTitle,
-              description: roleFrontDoor.recentDescription,
-              badge: compactRecentAssessments.length,
-              body: compactRecentRows || renderDashboardEmptyState({
-                title: 'No completed assessments yet.',
-                body: 'Use a template if you want a structured starting point, or run the sample path once to see the full pilot workflow.',
-                primaryId: 'btn-empty-recent-template',
-                primaryLabel: 'Start from Template',
-                secondaryId: 'btn-empty-recent-sample',
-                secondaryLabel: 'Try Sample Assessment'
-              })
-            })}
-
             <details class="dashboard-disclosure card card--elevated dashboard-section-card">
               <summary>${roleFrontDoor.contextTitle} <span class="badge badge--neutral">${focusAreas.length ? 'Ready' : 'Needs setup'}</span></summary>
               <div class="dashboard-disclosure-copy">${roleFrontDoor.contextDescription}</div>

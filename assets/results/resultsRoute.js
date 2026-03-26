@@ -142,9 +142,9 @@ function renderResultsActionBlock(recommendations, executiveAction, missingInfor
     }
   ];
   const cards = nextStepPlan.length ? nextStepPlan : fallbackCards;
-  return `<section class="results-section-stack">
-    <div class="results-section-heading">Recommended next steps</div>
-    ${renderLifecycleNextStepCards(cards)}
+  return `<section class="results-section-stack results-action-spotlight">
+    <div class="results-section-heading">Recommended next step</div>
+    ${renderLifecycleNextStepCards(cards.slice(0, 1))}
   </section>`;
 }
 
@@ -1376,8 +1376,8 @@ function renderResults(id, isShared) {
         </div>
       </div>
 
-      ${renderDecisionRail(statusTitle, statusDetail, executiveDecision, executiveAction, assessmentIntelligence.confidence, rolePresentation)}
-
+      <div class="results-executive-band">
+        ${renderDecisionRail(statusTitle, statusDetail, executiveDecision, executiveAction, assessmentIntelligence.confidence, rolePresentation)}
       <div class="results-exec-metrics">
         <div class="results-impact-card results-impact-card--headline">
           <div class="results-impact-label">Conditional loss from one successful event</div>
@@ -1398,16 +1398,11 @@ function renderResults(id, isShared) {
           <div class="results-impact-foot">${r.annualReviewTriggered ? 'At or above the annual review trigger.' : 'Still below the annual review trigger.'}</div>
         </div>
       </div>
-
-      ${renderExecutiveInsightCluster({
-        scenarioNarrative,
-        executiveDecision,
-        executiveAnnualView,
-        analystSummary,
-        comparisonHighlight,
-        recommendationCards
-      })}
-
+      </div>
+      ${renderAnalystSummaryBlock(analystSummary)}
+      ${comparisonHighlight || recommendationCards}
+      <section class="results-secondary-band">
+      ${comparisonHighlight ? recommendationCards : ''}
       ${renderTrustExplanationLayer({
         confidenceNeedsBlock,
         explanationPanel,
@@ -1422,6 +1417,7 @@ function renderResults(id, isShared) {
         missingInformation
       })}
       ${renderModelBasisPanel(assessment, runMetadata, confidenceFrame, thresholdModel)}
+      </section>
     </section>`;
 
   const technicalTab = `
