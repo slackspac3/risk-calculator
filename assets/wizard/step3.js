@@ -271,6 +271,29 @@ function renderEstimateReadinessCard(draft, validation) {
   </div>`;
 }
 
+function renderEstimateFocusStrip(draft, isAdv, validation, baselineAssessment) {
+  const warnings = Array.isArray(validation?.warnings) ? validation.warnings.map(humanizeEstimateValidationMessage).filter(Boolean) : [];
+  const modeLabel = isAdv ? 'Advanced mode' : 'Basic mode';
+  const confidenceLabel = String(draft.confidenceLabel || '').trim() || 'Working estimate';
+  return `<div class="wizard-focus-strip anim-fade-in">
+    <div class="wizard-focus-card wizard-focus-card--wide">
+      <span class="wizard-focus-card__label">Step goal</span>
+      <strong>Build a defensible range, not a false sense of precision.</strong>
+      <span>${warnings[0] ? escapeHtml(warnings[0]) : 'Start with the expected case, widen low and severe cases intentionally, and only open advanced controls when you need them.'}</span>
+    </div>
+    <div class="wizard-focus-card">
+      <span class="wizard-focus-card__label">Current lane</span>
+      <strong>${modeLabel}</strong>
+      <span>${isAdv ? 'Direct exposure, follow-on impact, and simulation tuning are available.' : 'Most users should stay here and estimate in plain language first.'}</span>
+    </div>
+    <div class="wizard-focus-card">
+      <span class="wizard-focus-card__label">Trust signal</span>
+      <strong>${escapeHtml(confidenceLabel)}</strong>
+      <span>${baselineAssessment ? 'You are testing a treatment case against a locked baseline.' : 'This run will stay reproducible and challengeable after save.'}</span>
+    </div>
+  </div>`;
+}
+
 
 function renderEstimateSourceSummary(draft) {
   const items = Array.isArray(draft.inputAssignments) ? draft.inputAssignments.slice(0, 6) : [];
@@ -417,10 +440,11 @@ function renderWizard3() {
           </div>
         </div>
         <div class="wizard-body">
+          ${renderEstimateFocusStrip(draft, isAdv, validation, baselineAssessment)}
           ${draft.learningNote ? `<div class="card card--elevated anim-fade-in"><div class="context-panel-title">Template learning</div><p class="context-panel-copy">${draft.learningNote}</p></div>` : ''}
           ${renderEstimateHandoffCard(draft)}
           ${renderEstimateReadinessCard(draft, validation)}
-          ${baselineAssessment ? `<div class="card card--elevated anim-fade-in"><div class="context-panel-title">Current assessment baseline</div><p class="context-panel-copy">You are working from <strong>${baselineAssessment.scenarioTitle || 'the original assessment'}</strong>. Adjust the assumptions below to reflect stronger prevention, faster response, or lower disruption impact, then rerun to compare the new result against the current baseline.</p><div class="form-help" style="margin-top:10px">Baseline completed on ${new Date(baselineAssessment.completedAt || baselineAssessment.createdAt || Date.now()).toLocaleDateString('en-AE', { year: 'numeric', month: 'long', day: 'numeric' })}.</div><div class="citation-chips" style="margin-top:12px"><button type="button" class="chip treatment-prompt-chip" data-treatment-prompt="control-strength">Try stronger controls</button><button type="button" class="chip treatment-prompt-chip" data-treatment-prompt="detection-response">Try faster detection</button><button type="button" class="chip treatment-prompt-chip" data-treatment-prompt="resilience">Try lower disruption impact</button></div><div class="form-group" style="margin-top:16px"><label class="form-label" for="treatment-improvement-request">Describe the better outcome you want to test</label><textarea class="form-textarea" id="treatment-improvement-request" rows="3" placeholder="e.g. stronger privileged-access controls, faster containment, better resilience, lower business disruption">${draft.treatmentImprovementRequest || ''}</textarea><span class="form-help">Describe the improvement in plain language and let AI adjust the copied baseline values before you simulate the new case.</span></div><div class="flex items-center gap-3" style="margin-top:12px;flex-wrap:wrap"><button class="btn btn--secondary" id="btn-treatment-ai-assist" type="button">AI Assist This Better Outcome</button><span class="form-help" id="treatment-improvement-status">These are quick starting points. You can still adjust every number manually before rerunning the analysis.</span></div></div>` : ''}
+          ${baselineAssessment ? `<div class="card card--elevated anim-fade-in"><div class="wizard-premium-head"><div><div class="context-panel-title">Current assessment baseline</div><p class="context-panel-copy">You are working from <strong>${baselineAssessment.scenarioTitle || 'the original assessment'}</strong>. Adjust the assumptions below to reflect stronger prevention, faster response, or lower disruption impact, then rerun to compare the new result against the current baseline.</p></div><span class="badge badge--gold">Treatment lane</span></div><div class="form-help" style="margin-top:10px">Baseline completed on ${new Date(baselineAssessment.completedAt || baselineAssessment.createdAt || Date.now()).toLocaleDateString('en-AE', { year: 'numeric', month: 'long', day: 'numeric' })}.</div><div class="citation-chips" style="margin-top:12px"><button type="button" class="chip treatment-prompt-chip" data-treatment-prompt="control-strength">Try stronger controls</button><button type="button" class="chip treatment-prompt-chip" data-treatment-prompt="detection-response">Try faster detection</button><button type="button" class="chip treatment-prompt-chip" data-treatment-prompt="resilience">Try lower disruption impact</button></div><div class="form-group" style="margin-top:16px"><label class="form-label" for="treatment-improvement-request">Describe the better outcome you want to test</label><textarea class="form-textarea" id="treatment-improvement-request" rows="3" placeholder="e.g. stronger privileged-access controls, faster containment, better resilience, lower business disruption">${draft.treatmentImprovementRequest || ''}</textarea><span class="form-help">Describe the improvement in plain language and let AI adjust the copied baseline values before you simulate the new case.</span></div><div class="flex items-center gap-3" style="margin-top:12px;flex-wrap:wrap"><button class="btn btn--secondary" id="btn-treatment-ai-assist" type="button">AI Assist This Better Outcome</button><span class="form-help" id="treatment-improvement-status">These are quick starting points. You can still adjust every number manually before rerunning the analysis.</span></div></div>` : ''}
           ${renderEstimateQuickStartBlock(draft, recommendedPresetKey)}
           ${renderEstimateModeNote(isAdv)}
 

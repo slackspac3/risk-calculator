@@ -34,20 +34,28 @@ function getStep1RecommendedAction(draft, selectedRisks) {
 
 function renderStep1StartCard(recommendation) {
   return `<div class="card card--elevated anim-fade-in">
-    <div class="context-panel-title">Recommended starting path</div>
-    <p class="context-panel-copy" style="margin-top:var(--sp-2)"><strong>${recommendation.title}</strong></p>
-    <div class="context-grid" style="margin-top:var(--sp-4)">
-      <div class="context-chip-panel">
-        <div class="context-panel-title">1. Describe the scenario</div>
-        <p class="context-panel-copy">Use the guided questions below unless you already have a clean risk statement.</p>
+    <div class="wizard-premium-head">
+      <div>
+        <div class="context-panel-title">Recommended starting path</div>
+        <p class="context-panel-copy" style="margin-top:var(--sp-2)"><strong>${recommendation.title}</strong></p>
       </div>
-      <div class="context-chip-panel">
-        <div class="context-panel-title">2. Let AI structure it</div>
-        <p class="context-panel-copy">Use AI only when you want help sharpening the wording or extracting candidate risks.</p>
+      <span class="badge badge--gold">Primary lane</span>
+    </div>
+    <div class="wizard-focus-strip wizard-focus-strip--compact" style="margin-top:var(--sp-4)">
+      <div class="wizard-focus-card">
+        <span class="wizard-focus-card__label">1. Frame the scenario</span>
+        <strong>Answer the guided prompts</strong>
+        <span>Use the guided questions unless you already have a clean risk statement.</span>
       </div>
-      <div class="context-chip-panel">
-        <div class="context-panel-title">3. Carry forward only what matters</div>
-        <p class="context-panel-copy">Select the risks that belong in this assessment and leave everything else out.</p>
+      <div class="wizard-focus-card">
+        <span class="wizard-focus-card__label">2. Improve only if needed</span>
+        <strong>Use AI deliberately</strong>
+        <span>Use AI only when you want help sharpening the wording or extracting candidate risks.</span>
+      </div>
+      <div class="wizard-focus-card">
+        <span class="wizard-focus-card__label">3. Keep scope tight</span>
+        <strong>Carry forward only what matters</strong>
+        <span>Select the risks that belong in this assessment and leave everything else out.</span>
       </div>
     </div>
     <div class="context-panel-foot" style="margin-top:var(--sp-4)">${recommendation.copy}</div>
@@ -94,9 +102,14 @@ function renderStep1ContextCard(settings, draft, scenarioGeographies, regs, buLi
   ].filter(Boolean);
   const workingContext = String(profile.workingContext || '').trim();
   return `<div class="card card--elevated anim-fade-in">
-    <div class="context-panel-title">Current context shaping this assessment</div>
-    <p class="context-panel-copy" style="margin-top:var(--sp-2)">The wizard is already using your current profile and organisation defaults so you do not have to start from a blank page.</p>
-    <div class="citation-chips" style="margin-top:var(--sp-3)">
+    <div class="wizard-premium-head">
+      <div>
+        <div class="context-panel-title">Current context shaping this assessment</div>
+        <p class="context-panel-copy" style="margin-top:var(--sp-2)">The wizard is already using your saved role and organisation defaults so you do not have to start from a blank page.</p>
+      </div>
+      <span class="badge badge--neutral">Recognition over recall</span>
+    </div>
+    <div class="citation-chips" style="margin-top:var(--sp-4)">
       ${chips.map(chip => `<span class="badge badge--neutral">${escapeHtml(chip)}</span>`).join('')}
       ${regs.slice(0, 4).map(tag => `<span class="badge badge--gold">${escapeHtml(tag)}</span>`).join('')}
     </div>
@@ -358,11 +371,29 @@ function renderWizard1() {
           ${renderStep1ReadinessBanner(draft, selectedRisks)}
         </div>
         <div class="wizard-body">
+          <div class="wizard-focus-strip anim-fade-in">
+            <div class="wizard-focus-card wizard-focus-card--wide">
+              <span class="wizard-focus-card__label">Step goal</span>
+              <strong>Get to one clear scenario and a tight shortlist of in-scope risks.</strong>
+              <span>The fastest route is still the guided builder. Manual drafting, imports, and AI are available, but they should stay secondary unless you already have source material.</span>
+            </div>
+            <div class="wizard-focus-card">
+              <span class="wizard-focus-card__label">Completion signal</span>
+              <strong>${selectedRisks.length ? `${selectedRisks.length} risk${selectedRisks.length === 1 ? '' : 's'} selected` : 'No risk selected yet'}</strong>
+              <span>${selectedRisks.length ? 'You are ready to continue once the shortlist matches the assessment scope.' : 'Finish this step by selecting only the risks that belong in the same scenario.'}</span>
+            </div>
+          </div>
           ${renderStep1ContextCard(settings, draft, scenarioGeographies, regs, buList)}
           ${renderStep1StartCard(recommendation)}
           ${renderLoadedDryRunBanner(activeDryRun)}
           ${draft.learningNote ? `<div class="card card--elevated anim-fade-in"><div class="context-panel-title">Learnt from prior use</div><p class="context-panel-copy">${draft.learningNote}</p></div>` : ''}
-          <div class="card card--elevated anim-fade-in">
+          ${UI.disclosureSection({
+            title: 'Assessment framing and defaults',
+            badgeLabel: 'Adjust only if needed',
+            badgeTone: 'neutral',
+            open: !draft.buId || !scenarioGeographies.length,
+            className: 'wizard-disclosure card card--elevated anim-fade-in',
+            body: `
             <div class="grid-2">
               <div class="form-group">
                 <label class="form-label" for="wizard-bu">Business Unit <span class="required">*</span></label>
@@ -377,7 +408,7 @@ function renderWizard1() {
                 <div class="citation-chips" style="margin-top:10px">
                   ${GEOGRAPHY_OPTIONS.map(option => `<button type="button" class="chip wizard-geo-chip" data-geo="${option}">${option}</button>`).join('')}
                 </div>
-                <span class="form-help">Select all countries or regions relevant to this scenario. Applicable regulations will update from the combined footprint.</span>
+                <span class="form-help">Select all countries or regions relevant to this scenario. Applicable regulations update from the combined footprint.</span>
               </div>
             </div>
             <div class="context-grid mt-4">
@@ -393,14 +424,16 @@ function renderWizard1() {
                 </div>
               </div>
             </div>
-          </div>
+          `
+          })}
 
           <div class="card anim-fade-in anim-delay-1">
-            <div class="admin-section-head" style="margin-bottom:var(--sp-5)">
+            <div class="wizard-premium-head" style="margin-bottom:var(--sp-5)">
               <div>
                 <h3>Start Here: Guided Scenario Builder</h3>
                 <p>Use this if you do not already have a finished risk statement. The platform will turn your answers into a structured starting point.</p>
               </div>
+              <span class="badge badge--gold">Default path</span>
             </div>
             <div class="card mt-4" style="padding:var(--sp-4);background:var(--bg-elevated)">
               <div class="context-panel-title">Try a dry-run example</div>

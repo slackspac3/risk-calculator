@@ -15,6 +15,7 @@ function renderWizard2() {
           ${renderStep2ReadinessBanner(draft, selectedRisks, scenarioGeographies)}
         </div>
         <div class="wizard-body">
+          ${renderStep2FocusStrip(draft, selectedRisks, scenarioGeographies)}
           ${renderStep2QuantBridge(draft, selectedRisks, scenarioGeographies)}
           ${UI.disclosureSection({
             title: 'What to do on this step',
@@ -89,20 +90,25 @@ function renderWizard2() {
               </div>
             </div>`
           })}
-          <div class="card anim-fade-in anim-delay-2">
-            <div class="wizard-section-head">
+          ${UI.disclosureSection({
+            title: 'AI assist',
+            badgeLabel: 'Optional',
+            badgeTone: 'neutral',
+            open: false,
+            className: 'wizard-disclosure card anim-fade-in anim-delay-2',
+            body: `<div class="wizard-section-head">
               <div class="wizard-section-copy">
-                <h3 class="wizard-section-title">AI assist</h3>
-                <p class="wizard-section-description">Use this only if you want the platform to structure the scenario and suggest starting FAIR inputs for the next step.</p>
+                <h3 class="wizard-section-title">Use AI only if you want a stronger starting point</h3>
+                <p class="wizard-section-description">This keeps the workflow transparent: your narrative stays editable, and the next-step FAIR inputs remain challengeable.</p>
               </div>
-              ${UI.sectionStatusBadge('Optional', 'neutral')}
+              ${UI.sectionStatusBadge('Assistive only', 'neutral')}
             </div>
             <button class="btn btn--primary" id="btn-llm-assist" style="width:100%;justify-content:center;padding:14px;margin-top:var(--sp-4)">
               <span id="llm-btn-text">🤖 LLM Assist — Draft Scenario &amp; Suggest FAIR Inputs</span>
             </button>
             <p style="text-align:center;font-size:.75rem;color:var(--text-muted);margin-top:8px">Retrieves relevant internal docs and uses AI to suggest FAIR inputs with citations.</p>
-            <div class="form-help" id="wizard2-ai-status" style="text-align:center;margin-top:8px">Use AI assist only if you want a structured starting point. You can continue manually at any time.</div>
-          </div>
+            <div class="form-help" id="wizard2-ai-status" style="text-align:center;margin-top:8px">Use AI assist only if you want a structured starting point. You can continue manually at any time.</div>`
+          })}
           <div id="llm-output-area"></div>
         </div>
         <div class="wizard-footer">
@@ -157,6 +163,23 @@ function getStep2NarrativeReadiness(draft, selectedRisks, scenarioGeographies) {
     warnings.push('The affected asset or service is still unclear. Add it in the narrative or the optional structured field.');
   }
   return warnings;
+}
+
+function renderStep2FocusStrip(draft, selectedRisks, scenarioGeographies) {
+  const warnings = getStep2NarrativeReadiness(draft, selectedRisks, scenarioGeographies);
+  const narrative = String(draft.enhancedNarrative || draft.narrative || '').trim();
+  return `<div class="wizard-focus-strip anim-fade-in">
+    <div class="wizard-focus-card wizard-focus-card--wide">
+      <span class="wizard-focus-card__label">Step goal</span>
+      <strong>Turn the shortlisted risk into one coherent scenario that can be estimated cleanly.</strong>
+      <span>${warnings.length ? escapeHtml(warnings[0]) : 'If the wording is coherent and scoped, continue. The next step is about defensible ranges, not perfect numbers.'}</span>
+    </div>
+    <div class="wizard-focus-card">
+      <span class="wizard-focus-card__label">Readiness signal</span>
+      <strong>${narrative ? `${narrative.split(/\s+/).filter(Boolean).length} words drafted` : 'Narrative still thin'}</strong>
+      <span>${selectedRisks.length ? `${selectedRisks.length} risk${selectedRisks.length === 1 ? '' : 's'} in scope` : 'No scoped risks selected yet'}</span>
+    </div>
+  </div>`;
 }
 
 function renderStep2ReadinessBanner(draft, selectedRisks, scenarioGeographies) {
