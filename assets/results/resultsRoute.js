@@ -80,11 +80,16 @@ function renderExecutiveBrief(statusTitle, executiveDecision, executiveAction, e
 function renderDecisionRail(statusTitle, statusDetail, executiveDecision, executiveAction, confidence, rolePresentation) {
   const confidenceValue = confidence?.label || 'Moderate confidence';
   const confidenceCopy = confidence?.summary || 'Use this result as a management starting point, then challenge the biggest assumptions.';
-  return `<div class="results-executive-brief results-executive-brief--premium">
-    ${UI.resultsBriefCard({ label: 'Current position', value: statusTitle, copy: statusDetail })}
-    ${UI.resultsBriefCard({ label: 'Management action', value: executiveDecision?.decision || 'Review', copy: executiveAction || executiveDecision?.priority || '' })}
-    ${UI.resultsBriefCard({ label: 'Confidence', value: confidenceValue, copy: confidenceCopy })}
-    ${UI.resultsBriefCard({ label: 'Role focus', value: rolePresentation.executiveNoteTitle, copy: rolePresentation.executiveNote })}
+  return `<div class="results-decision-rail">
+    <div class="results-decision-hero-card">
+      <div class="results-driver-label">Current position</div>
+      <div class="results-decision-hero-card__value">${escapeHtml(String(statusTitle || 'Review'))}</div>
+      <div class="results-brief-copy">${escapeHtml(String(statusDetail || 'Use this result as the current management position until the key assumptions are challenged.'))}</div>
+    </div>
+    <div class="results-decision-rail__support">
+      ${UI.resultsBriefCard({ label: 'Confidence', value: confidenceValue, copy: confidenceCopy })}
+      ${UI.resultsBriefCard({ label: 'Role lens', value: rolePresentation.executiveNoteTitle, copy: rolePresentation.executiveNote })}
+    </div>
   </div>`;
 }
 
@@ -1376,7 +1381,12 @@ function renderResults(id, isShared) {
             <div class="results-signal-ring-inner">${statusIcon}</div>
           </div>
           <div class="results-signal-label">${exceedancePct}% breach likelihood</div>
-          <div class="results-hero-side-note">Quantified from the saved FAIR-inspired Monte Carlo run for this scenario.</div>
+          <div class="results-hero-action-card">
+            <span class="results-driver-label">Immediate focus</span>
+            <strong>${escapeHtml(String(executiveDecision?.decision || 'Review'))}</strong>
+            <span>${escapeHtml(String(executiveAction || executiveDecision?.priority || 'Confirm the next management step for this scenario.'))}</span>
+            <div class="results-hero-action-card__foot">${escapeHtml(String(rolePresentation.executiveNoteTitle))}: ${escapeHtml(String(rolePresentation.executiveNote))}</div>
+          </div>
         </div>
       </div>
 
