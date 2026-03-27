@@ -275,7 +275,7 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
         statusText: 'The fields above will be updated in place each time you refine the context.'
       })}`
   });
-  const roleManagementSection = `${businessOwner ? renderSettingsSection({
+  const businessOwnerSection = businessOwner ? renderSettingsSection({
     title: 'Business Unit Admin Controls',
     scope: 'user-settings',
     description: `You can add functions beneath ${selectedBusinessEntity?.name || profile.businessUnit} and maintain their retained context.`,
@@ -301,14 +301,14 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
             </div>
           </div>`).join('') : '<div class="form-help">No functions have been added under this business unit yet.</div>'}
       </div>`
-  }) : ''}
-  ${departmentOwner ? renderSettingsSection({
+  }) : '';
+  const ownedDepartmentSection = departmentOwner ? renderSettingsSection({
     title: 'Department Context You Own',
     description: `You are the assigned owner for ${selectedDepartment?.name || profile.department}.`,
     meta: 'Department owner',
-    open: false,
+    open: true,
     body: `<div class="flex items-center gap-3" style="flex-wrap:wrap"><button class="btn btn--secondary" id="btn-manage-owned-department">Manage Department Context</button></div>`
-  }) : ''}`;
+  }) : '';
   setPage(`
     <main class="page">
       <div class="container container--narrow" style="padding:var(--sp-10) var(--sp-6);max-width:960px">
@@ -316,7 +316,9 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
           <div class="settings-shell__header">
             <div>
               <h2>Personal Settings</h2>
-              <p style="margin-top:6px;color:var(--text-muted)">These settings apply only to <strong>${AppState.currentUser?.displayName || 'your account'}</strong>. Keep your profile clear, your working view current, and deeper context hidden until you need it.</p>
+              <p style="margin-top:6px;color:var(--text-muted)">${departmentOwner || businessOwner
+                ? `Keep your personal workspace clear, then maintain the ${departmentOwner ? 'function' : 'business-unit'} context you own without mixing it with optional personal overlays.`
+                : `These settings apply only to ${AppState.currentUser?.displayName || 'your account'}. Keep your profile clear, your working view current, and deeper context hidden until you need it.`}</p>
             </div>
           </div>
 
@@ -338,40 +340,80 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
           </section>
 
           <div class="settings-level-band">
-            <div class="results-section-heading">Everyday settings</div>
-            <div class="form-help" style="margin-top:8px">Start with your role and working view. Open deeper defaults only when you want to tune how future assessments are framed.</div>
+            <div class="results-section-heading">About me</div>
+            <div class="form-help" style="margin-top:8px">Start with your role, focus areas, working view, and output style so the workspace reflects how you actually operate.</div>
           </div>
 
           <div class="settings-accordion">
             ${userContextSection}
             ${workingViewSection}
-            ${defaultsSection}
-          </div>
-
-          <div class="settings-level-band">
-            <div class="results-section-heading">Advanced context configuration</div>
-            <div class="form-help" style="margin-top:8px">These tools add deeper personal overlays, AI drafting inputs, and owner-only controls. Keep them closed unless you are actively changing them.</div>
           </div>
 
           <div class="settings-support-strip">
             <div class="settings-support-strip__item">
-              <span class="settings-support-strip__label">Company context</span>
-              <strong>${settings.companyWebsiteUrl ? 'Website linked' : 'Optional personal overlay'}</strong>
+              <span class="settings-support-strip__label">Role alignment</span>
+              <strong>${profile.jobTitle || 'Role still needs setup'}</strong>
             </div>
             <div class="settings-support-strip__item">
-              <span class="settings-support-strip__label">Source materials</span>
-              <strong>Use only when AI needs better grounding</strong>
+              <span class="settings-support-strip__label">Working view</span>
+              <strong>${profile.businessUnit || 'Shared view'}${profile.department ? ` · ${profile.department}` : ''}</strong>
             </div>
             <div class="settings-support-strip__item">
-              <span class="settings-support-strip__label">Ownership controls</span>
-              <strong>${businessOwner || departmentOwner ? 'Available for your role' : 'Not applicable'}</strong>
+              <span class="settings-support-strip__label">Output style</span>
+              <strong>${profile.preferredOutputs ? 'Customized' : 'Using shared default tone'}</strong>
+            </div>
+          </div>
+
+          ${(businessOwner || departmentOwner) ? `
+          <div class="settings-level-band">
+            <div class="results-section-heading">Context you own operationally</div>
+            <div class="form-help" style="margin-top:8px">Keep the managed function or business-unit context current so downstream drafting, review, and defaults stay aligned to the area you own.</div>
+          </div>
+
+          <div class="settings-support-strip">
+            <div class="settings-support-strip__item">
+              <span class="settings-support-strip__label">Owned context</span>
+              <strong>${departmentOwner ? (selectedDepartment?.name || profile.department || 'Department owner') : (selectedBusinessEntity?.name || profile.businessUnit || 'Business unit owner')}</strong>
+            </div>
+            <div class="settings-support-strip__item">
+              <span class="settings-support-strip__label">Managed scope</span>
+              <strong>${capability.roleSummary}</strong>
+            </div>
+            <div class="settings-support-strip__item">
+              <span class="settings-support-strip__label">Operational priority</span>
+              <strong>${departmentOwner ? 'Maintain function framing and retained context' : 'Maintain BU framing and function structure'}</strong>
             </div>
           </div>
 
           <div class="settings-accordion">
+            ${ownedDepartmentSection}
+            ${businessOwnerSection}
+          </div>` : ''}
+
+          <div class="settings-level-band">
+            <div class="results-section-heading">How the assistant should work for me</div>
+            <div class="form-help" style="margin-top:8px">Tune defaults, AI notes, and optional overlays only when you need more tailored drafting or review support.</div>
+          </div>
+
+          <div class="settings-support-strip">
+            <div class="settings-support-strip__item">
+              <span class="settings-support-strip__label">Core defaults</span>
+              <strong>${settings.geographyPrimary || settings.geography || globalSettings.geography || 'Not set'}</strong>
+            </div>
+            <div class="settings-support-strip__item">
+              <span class="settings-support-strip__label">AI personalization</span>
+              <strong>${settings.aiInstructions ? 'Personalized' : 'Using shared baseline guidance'}</strong>
+            </div>
+            <div class="settings-support-strip__item">
+              <span class="settings-support-strip__label">Personal overlays</span>
+              <strong>${settings.companyWebsiteUrl ? 'Website-linked overlay available' : 'Optional and kept secondary'}</strong>
+            </div>
+          </div>
+
+          <div class="settings-accordion">
+            ${defaultsSection}
             ${aiWorkspaceSection}
             ${companyContextSection}
-            ${roleManagementSection}
           </div>
 
           <div class="settings-shell__footer settings-sticky-savebar">

@@ -552,8 +552,8 @@ test('business-unit oversight dashboard prioritises review and context actions',
 
   await expectNoClientCrashOnRoute(page, '/#/dashboard', async () => {
     await expect(page.getByText(/bu oversight workspace/i)).toBeVisible();
-    await expect(page.getByRole('button', { name: /review priority item/i })).toBeVisible();
-    await expect(page.getByText(/business context and defaults/i)).toBeVisible();
+    await expect(page.getByRole('button', { name: /review bu queue|resume review/i })).toBeVisible();
+    await expect(page.getByText(/context you own/i)).toBeVisible();
   });
 });
 

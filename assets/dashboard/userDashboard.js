@@ -96,6 +96,8 @@ function renderUserDashboard() {
     : contextReadinessScore >= 3
       ? 'Partially set'
       : 'Needs setup';
+  const contextNeedsAttention = contextReadinessScore < 3;
+  const queueNeedsAttention = hasDraft || assessmentsNeedingReview.length > 0;
   const roleLaneTitle = hasDraft
     ? 'Resume the live draft'
     : assessmentsNeedingReview.length
@@ -111,6 +113,12 @@ function renderUserDashboard() {
     ? capability.experience.primaryActionLabel
     : 'Personal Settings';
   const isOversightUser = capability.canManageBusinessUnit || capability.canManageDepartment;
+  const oversightContextActionLabel = capability.canManageBusinessUnit ? 'Manage BU Context' : 'Manage Function Context';
+  const oversightPrimaryActionLabel = contextNeedsAttention
+    ? oversightContextActionLabel
+    : queueNeedsAttention
+      ? (hasDraft ? 'Resume Review' : (capability.canManageBusinessUnit ? 'Review BU Queue' : 'Review Function Queue'))
+      : 'Start Guided Assessment';
   const roleFrontDoor = isOversightUser
     ? {
         badge: capability.canManageBusinessUnit ? 'BU Oversight Workspace' : 'Function Oversight Workspace',
@@ -127,10 +135,12 @@ function renderUserDashboard() {
           : assessmentsNeedingReview.length
             ? 'There are completed scenarios that need BU or function-level judgement.'
             : 'No urgent review item is currently competing for attention.',
-        primaryActionLabel: assessmentsNeedingReview.length ? 'Review Priority Item' : hasDraft ? 'Resume Draft' : primarySettingsLabel,
-        heroHint: 'Keep the front door focused on attention, context, and oversight. Templates, imports, and other utilities stay available only when you need them.',
-        secondaryActionLabel: primarySettingsLabel,
-        secondaryActionId: 'settings',
+        primaryActionLabel: oversightPrimaryActionLabel,
+        heroHint: contextNeedsAttention
+          ? 'Tighten the managed context first so drafting and review stay aligned to the function you own.'
+          : queueNeedsAttention
+            ? 'Keep the active review lane clear first. Start new work only after the current queue is under control.'
+            : 'The queue is clear and context is in a good state, so you can start new work only when it is materially useful.',
         overviewCards: [
           {
             label: 'Needs attention',
@@ -143,9 +153,9 @@ function renderUserDashboard() {
             foot: latestAssessment ? `Latest reviewed: ${new Date(latestAssessment.completedAt || latestAssessment.createdAt || Date.now()).toLocaleDateString('en-AE', { day: 'numeric', month: 'short', year: 'numeric' })}` : 'No completed assessments are currently saved'
           },
           {
-            label: 'Context coverage',
-            value: contextReadinessLabel,
-            foot: contextReadinessScore >= 5 ? 'Saved context is strong enough to support grounded drafting and review.' : 'Tighten role or context settings before relying too heavily on assisted output.'
+            label: capability.canManageBusinessUnit ? 'Managed scope' : 'Owned scope',
+            value: capability.roleSummary,
+            foot: capability.experience.dashboardLead
           }
         ],
         nextUpTitle: capability.canManageBusinessUnit ? 'BU attention queue' : 'Function attention queue',
@@ -269,6 +279,26 @@ function renderUserDashboard() {
       tone: contextReadinessScore >= 5 ? 'success' : contextReadinessScore >= 3 ? 'neutral' : 'warning'
     }
   ];
+  const oversightHealthItems = [
+    {
+      label: 'Attention queue',
+      value: openAssessmentRows.length ? `${openAssessmentRows.length} item${openAssessmentRows.length === 1 ? '' : 's'}` : 'Nothing urgent',
+      note: queueNeedsAttention ? roleFrontDoor.quickStatus : 'No active draft or flagged result is currently competing for attention.',
+      tone: queueNeedsAttention ? 'warning' : 'success'
+    },
+    {
+      label: 'Owned context',
+      value: contextReadinessLabel,
+      note: guidanceSummary,
+      tone: contextNeedsAttention ? 'warning' : 'neutral'
+    },
+    {
+      label: 'Managed scope',
+      value: capability.roleSummary,
+      note: capability.experience.dashboardLead,
+      tone: 'neutral'
+    }
+  ];
   const renderDashboardEmptyState = ({ title, body, primaryId, primaryLabel, secondaryId = '', secondaryLabel = '' }) => `<div class="empty-state dashboard-empty-state">
     <strong>${title}</strong>
     <div style="margin-top:8px">${body}</div>
@@ -333,54 +363,37 @@ function renderUserDashboard() {
     <main class="page">
       <div class="container container--wide dashboard-shell">
         <section class="card card--elevated dashboard-hero ${isOversightUser ? '' : 'dashboard-hero--start'}">
-          <div class="dashboard-hero-grid ${isOversightUser ? '' : 'dashboard-hero-grid--balanced'}">
+          <div class="dashboard-hero-grid ${isOversightUser ? 'dashboard-hero-grid--single' : 'dashboard-hero-grid--balanced'}">
             <div class="dashboard-hero-main">
               <div class="landing-badge">${roleFrontDoor.badge}</div>
               <h2 style="margin-top:var(--sp-4)">Welcome back, ${user?.displayName || 'there'}.</h2>
               <p class="dashboard-hero-copy">${roleFrontDoor.heroCopy}</p>
-              ${isOversightUser ? `<div class="dashboard-signal-strip">
-                <div class="dashboard-signal-pill">
-                  <span class="dashboard-signal-pill__label">Primary lane</span>
-                  <strong>${roleLaneTitle}</strong>
-                  <span>${roleFrontDoor.roleLaneCopy}</span>
-                </div>
-                <div class="dashboard-signal-pill">
-                  <span class="dashboard-signal-pill__label">Workspace status</span>
-                  <strong>${hasDraft ? 'Draft in progress' : assessmentsNeedingReview.length ? 'Review queue active' : 'Clear to start'}</strong>
-                  <span>${roleFrontDoor.quickStatus}</span>
-                </div>
-                <div class="dashboard-signal-pill">
-                  <span class="dashboard-signal-pill__label">Context readiness</span>
-                  <strong>${contextReadinessLabel}</strong>
-                  <span>${guidanceSummary}</span>
-                </div>
+              ${isOversightUser ? `<div class="dashboard-signal-strip dashboard-signal-strip--oversight">
+                ${oversightHealthItems.map(item => `
+                  <div class="dashboard-signal-pill dashboard-signal-pill--${item.tone}">
+                    <span class="dashboard-signal-pill__label">${item.label}</span>
+                    <strong>${item.value}</strong>
+                    <span>${item.note}</span>
+                  </div>
+                `).join('')}
               </div>
               <div class="dashboard-hero-actions flex items-center gap-3 mt-6" style="flex-wrap:wrap">
                 <button class="btn btn--primary btn--lg" id="btn-dashboard-new-assessment" aria-label="${roleFrontDoor.primaryActionLabel}">${roleFrontDoor.primaryActionLabel}</button>
-                <button class="btn btn--secondary" id="btn-dashboard-hero-secondary">${roleFrontDoor.secondaryActionLabel}</button>
                 <details class="results-actions-disclosure dashboard-hero-overflow">
-                  <summary class="btn btn--ghost">${isOversightUser ? 'More oversight tools' : 'More workspace tools'}</summary>
+                  <summary class="btn btn--ghost">More oversight tools</summary>
                   <div class="results-actions-disclosure-menu">
                     ${hasDraft ? `<button class="btn btn--secondary btn--sm" id="btn-dashboard-continue-draft">Resume Draft</button>` : ''}
+                    <button class="btn btn--secondary btn--sm" id="btn-dashboard-open-settings">${primarySettingsLabel}</button>
                     <button class="btn btn--secondary btn--sm" id="btn-dashboard-start-template">Start from Template</button>
                     <button class="btn btn--secondary btn--sm" id="btn-dashboard-start-sample">${isOversightUser ? 'View Worked Example' : 'Try Sample Assessment'}</button>
                     <button class="btn btn--secondary btn--sm" id="btn-dashboard-export-assessments">Export Assessments</button>
                     <button class="btn btn--secondary btn--sm" id="btn-dashboard-import-assessments">Import Assessments</button>
-                    <button class="btn btn--secondary btn--sm" id="btn-dashboard-open-settings">${primarySettingsLabel}</button>
                   </div>
                 </details>
               </div>
               <div class="form-help" style="margin-top:12px;color:rgba(255,255,255,.65)">${roleFrontDoor.heroHint}</div>` : standardStartModule}
             </div>
-            ${isOversightUser ? `<div class="dashboard-hero-side dashboard-hero-side--support">
-              <div class="context-panel-title">${isOversightUser ? 'Oversight summary' : 'Today&apos;s summary'}</div>
-              <div class="dashboard-hero-side-copy">${roleFrontDoor.quickStatus}</div>
-              <div class="dashboard-hero-side-meta">
-                <strong>${isOversightUser ? capability.roleSummary : (settings.geographyPrimary || settings.geography || globalSettings.geography || 'Context not set')}</strong>
-                <span>${isOversightUser ? capability.experience.dashboardLead : 'Saved context shapes default wording, guidance, and assisted suggestions.'}</span>
-              </div>
-              <div class="form-help dashboard-hero-side-foot">${roleFrontDoor.spotlightTitle}: ${roleFrontDoor.spotlightCopy}</div>
-            </div>` : `<aside class="dashboard-hero-side dashboard-hero-side--support dashboard-hero-side--standard">
+            ${isOversightUser ? '' : `<aside class="dashboard-hero-side dashboard-hero-side--support dashboard-hero-side--standard">
               <div class="context-panel-title">Workspace summary</div>
               <div class="dashboard-side-summary-list">
                 ${orientationCards.map(card => `<div class="dashboard-side-summary-item dashboard-side-summary-item--${card.tone}">
@@ -430,16 +443,6 @@ function renderUserDashboard() {
           })}
         </section>
 
-        ${isOversightUser ? `<section class="dashboard-status-band dashboard-status-band--compact" aria-label="Workspace orientation">
-          ${orientationCards.map(card => `
-            <div class="dashboard-status-chip dashboard-status-chip--${card.tone}">
-              <span class="dashboard-status-chip__label">${card.label}</span>
-              <strong>${card.value}</strong>
-              <span>${card.note}</span>
-            </div>
-          `).join('')}
-        </section>` : ''}
-
         <section class="dashboard-primary-band dashboard-primary-band--recent">
           ${UI.dashboardSectionCard({
             title: roleFrontDoor.recentTitle,
@@ -457,28 +460,19 @@ function renderUserDashboard() {
           })}
         </section>
 
-        <section class="dashboard-open-band" style="margin-top:var(--sp-12)">
-          <div class="results-section-heading">At a glance</div>
-          <div class="form-help" style="margin-top:8px">A compact view of current attention, completed work, and context quality.</div>
-        </section>
-
-        <section class="admin-overview-grid dashboard-at-a-glance" style="margin-top:var(--sp-5)">
-          ${roleFrontDoor.overviewCards.map(card => UI.dashboardOverviewCard(card)).join('')}
-        </section>
-
         <section class="grid-2 dashboard-secondary-grid">
           <div class="dashboard-column">
-            <details class="dashboard-disclosure card card--elevated dashboard-section-card dashboard-section-card--secondary">
-              <summary>${roleFrontDoor.contextTitle} <span class="badge badge--neutral">${focusAreas.length ? 'Ready' : 'Needs setup'}</span></summary>
+            <details class="dashboard-disclosure card card--elevated dashboard-section-card dashboard-section-card--secondary" ${isOversightUser ? 'open' : ''}>
+              <summary>${isOversightUser ? 'Context you own' : roleFrontDoor.contextTitle} <span class="badge badge--neutral">${focusAreas.length ? 'Ready' : 'Needs setup'}</span></summary>
               <div class="dashboard-disclosure-copy">${roleFrontDoor.contextDescription}</div>
               <div class="dashboard-disclosure-body">
                 <div class="card card--elevated dashboard-context-card dashboard-context-card--nested">
-                  <div class="results-section-heading">Current profile</div>
+                  <div class="results-section-heading">${isOversightUser ? 'Managed context' : 'Current profile'}</div>
                   <div class="context-panel-copy" style="margin-top:10px">${workspaceSummary}</div>
                   <div class="form-help" style="margin-top:12px">${guidanceSummary}</div>
                   <div class="form-help" style="margin-top:8px">${profile.workingContext ? 'Working context is saved and will be reused in assisted steps.' : 'Add working context in Personal Settings to improve assisted suggestions.'}</div>
                   <div class="flex items-center gap-3 mt-5" style="flex-wrap:wrap">
-                    <button class="btn btn--secondary" id="btn-dashboard-settings-secondary">Open Settings</button>
+                    <button class="btn btn--secondary" id="btn-dashboard-settings-secondary">${isOversightUser ? oversightContextActionLabel : 'Open Settings'}</button>
                   </div>
                 </div>
                 <details class="dashboard-disclosure dashboard-disclosure--nested">
@@ -492,6 +486,38 @@ function renderUserDashboard() {
             </details>
           </div>
 
+          <div class="dashboard-column">
+            <div class="card card--elevated dashboard-section-card dashboard-section-card--secondary dashboard-section-card--support">
+              <div class="results-section-heading">What you can start next</div>
+              <div class="context-panel-copy" style="margin-top:10px">${queueNeedsAttention
+                ? 'Keep new assessments secondary until the active review lane is clear. Templates, examples, and utilities stay available when you need them.'
+                : 'When the queue is clear and the owned context is current, start a guided assessment only when it will materially improve decision quality.'}</div>
+              <div class="flex items-center gap-3 mt-5" style="flex-wrap:wrap">
+                ${!queueNeedsAttention && !contextNeedsAttention ? '<button type="button" class="btn btn--ghost" id="btn-dashboard-start-next-guided">Start Guided Assessment</button>' : ''}
+                <button type="button" class="btn btn--ghost" id="btn-dashboard-start-next-sample">${isOversightUser ? 'View Worked Example' : 'Try Sample Assessment'}</button>
+                <details class="results-actions-disclosure dashboard-hero-overflow">
+                  <summary class="btn btn--ghost btn--sm">More tools</summary>
+                  <div class="results-actions-disclosure-menu">
+                    <button class="btn btn--secondary btn--sm" id="btn-dashboard-start-template-support">Start from Template</button>
+                    <button class="btn btn--secondary btn--sm" id="btn-dashboard-export-assessments-support">Export Assessments</button>
+                    <button class="btn btn--secondary btn--sm" id="btn-dashboard-import-assessments-support">Import Assessments</button>
+                  </div>
+                </details>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="dashboard-open-band" style="margin-top:var(--sp-12)">
+          <div class="results-section-heading">At a glance</div>
+          <div class="form-help" style="margin-top:8px">A compact view of current attention, completed work, and context quality.</div>
+        </section>
+
+        <section class="admin-overview-grid dashboard-at-a-glance" style="margin-top:var(--sp-5)">
+          ${roleFrontDoor.overviewCards.map(card => UI.dashboardOverviewCard(card)).join('')}
+        </section>
+
+        <section class="grid-2 dashboard-secondary-grid dashboard-secondary-grid--history">
           <div class="dashboard-column">
             <div class="results-section-heading">Reference and history</div>
             <div class="form-help" style="margin-top:8px;margin-bottom:var(--sp-4)">Open archived items and supporting context only when you need them.</div>
@@ -525,31 +551,20 @@ function renderUserDashboard() {
       </div>
     </main>`);
   document.getElementById('btn-dashboard-new-assessment')?.addEventListener('click', () => {
+    if (isOversightUser && contextNeedsAttention) {
+      Router.navigate('/settings');
+      return;
+    }
     if (isOversightUser && hasDraft) {
       openDraftWorkspaceRoute();
       return;
     }
-    if (isOversightUser && !hasDraft && assessmentsNeedingReview.length) {
+    if (isOversightUser && assessmentsNeedingReview.length) {
       Router.navigate(`/results/${assessmentsNeedingReview[0].id}`);
-      return;
-    }
-    if (isOversightUser && !hasDraft && !assessmentsNeedingReview.length) {
-      Router.navigate('/settings');
       return;
     }
     resetDraft();
     openDraftWorkspaceRoute();
-  });
-  document.getElementById('btn-dashboard-hero-secondary')?.addEventListener('click', () => {
-    if (roleFrontDoor.secondaryActionId === 'settings') {
-      Router.navigate('/settings');
-      return;
-    }
-    if (roleFrontDoor.secondaryActionId === 'template') {
-      if (recommendedTemplate) loadTemplate(recommendedTemplate);
-      return;
-    }
-    launchPilotSampleAssessment();
   });
   document.getElementById('btn-dashboard-upload-register')?.addEventListener('click', () => {
     resetDraft();
@@ -559,7 +574,15 @@ function renderUserDashboard() {
   document.getElementById('btn-dashboard-start-template')?.addEventListener('click', () => {
     if (recommendedTemplate) loadTemplate(recommendedTemplate);
   });
+  document.getElementById('btn-dashboard-start-template-support')?.addEventListener('click', () => {
+    if (recommendedTemplate) loadTemplate(recommendedTemplate);
+  });
   document.getElementById('btn-dashboard-start-sample')?.addEventListener('click', () => launchPilotSampleAssessment());
+  document.getElementById('btn-dashboard-start-next-sample')?.addEventListener('click', () => launchPilotSampleAssessment());
+  document.getElementById('btn-dashboard-start-next-guided')?.addEventListener('click', () => {
+    resetDraft();
+    openDraftWorkspaceRoute();
+  });
   document.getElementById('btn-empty-next-new')?.addEventListener('click', () => {
     resetDraft();
     openDraftWorkspaceRoute();
@@ -578,7 +601,31 @@ function renderUserDashboard() {
   document.getElementById('btn-dashboard-export-assessments')?.addEventListener('click', () => {
     ExportService.exportDataAsJson(getAssessments(), `risk-calculator-assessments-${user?.username || 'user'}.json`);
   });
+  document.getElementById('btn-dashboard-export-assessments-support')?.addEventListener('click', () => {
+    ExportService.exportDataAsJson(getAssessments(), `risk-calculator-assessments-${user?.username || 'user'}.json`);
+  });
   document.getElementById('btn-dashboard-import-assessments')?.addEventListener('click', () => {
+    ExportService.importJsonFile({
+      onData: parsed => {
+        if (!Array.isArray(parsed)) {
+          UI.toast('That file does not contain an assessment list.', 'warning');
+          return;
+        }
+        const existing = getAssessments();
+        const merged = [...parsed, ...existing]
+          .filter(item => item && typeof item === 'object' && item.id)
+          .reduce((acc, item) => {
+            if (!acc.find(existingItem => existingItem.id === item.id)) acc.push(item);
+            return acc;
+          }, []);
+        persistSavedAssessmentsCollection(merged);
+        renderUserDashboard();
+        UI.toast('Assessments imported.', 'success');
+      },
+      onError: () => UI.toast('That JSON file could not be imported.', 'warning')
+    });
+  });
+  document.getElementById('btn-dashboard-import-assessments-support')?.addEventListener('click', () => {
     ExportService.importJsonFile({
       onData: parsed => {
         if (!Array.isArray(parsed)) {
