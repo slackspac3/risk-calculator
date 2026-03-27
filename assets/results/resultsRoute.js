@@ -1052,6 +1052,18 @@ function renderWizard4() {
   const selectedRisks = getSelectedRisks();
   const multipliers = getScenarioMultipliers();
   const validation = validateFairParams(buildSimulationRunPayload(), { toast: false });
+  const scenarioQualityCoach = buildScenarioQualityCoach({
+    draft,
+    selectedRisks,
+    scenarioGeographies: getScenarioGeographies(),
+    citations: draft.citations,
+    evidenceQuality: draft.evidenceQuality,
+    confidenceLabel: draft.confidenceLabel,
+    inputProvenance: draft.inputProvenance,
+    primaryGrounding: draft.primaryGrounding,
+    supportingReferences: draft.supportingReferences,
+    inferredAssumptions: draft.inferredAssumptions
+  });
   const evidenceGapPlan = buildEvidenceGapActionPlan({
     confidenceLabel: draft.confidenceLabel,
     evidenceQuality: draft.evidenceQuality,
@@ -1073,6 +1085,14 @@ function renderWizard4() {
         <div class="wizard-body">
           ${renderPreRunReviewRail(draft, validation, selectedRisks, safeIterations)}
           ${renderPreRunTrustSummary(draft, safeIterations)}
+          ${renderScenarioQualityCoach(scenarioQualityCoach, {
+            title: 'Scenario quality check',
+            subtitle: 'Keep this secondary to the run decision. Use it when you want a last confidence check on scope and wording.',
+            compact: true,
+            lowEmphasis: true,
+            disclosureTitle: 'Show full quality coaching',
+            className: 'anim-fade-in'
+          })}
           ${renderPreRunActionSpotlight(validation, safeIterations, p.distType)}
           ${evidenceGapPlan.length ? renderEvidenceGapActionPlan(evidenceGapPlan, {
             title: 'Before you run, improve one of these',

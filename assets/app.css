@@ -3768,6 +3768,82 @@ canvas { display: block; width: 100%; }
 .evidence-gap-plan__details {
   margin-bottom: 0;
 }
+.scenario-quality-coach {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  padding: var(--sp-5);
+  border-radius: 24px;
+  border: 1px solid rgba(3,209,168,.16);
+  background:
+    radial-gradient(circle at top right, rgba(3,209,168,.08), transparent 28%),
+    linear-gradient(180deg, rgba(246,243,242,.028), rgba(246,243,242,.01));
+}
+.scenario-quality-coach--quiet {
+  border-color: rgba(246,243,242,.07);
+  background: linear-gradient(180deg, rgba(246,243,242,.022), rgba(246,243,242,.008));
+}
+.scenario-quality-coach--compact {
+  padding: var(--sp-4) var(--sp-5);
+}
+.scenario-quality-coach__intro {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+.scenario-quality-coach__score {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+.scenario-quality-coach__score-value {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  color: var(--text-primary);
+}
+.scenario-quality-coach__summary {
+  color: var(--text-secondary);
+  font-size: .84rem;
+  line-height: 1.65;
+}
+.scenario-quality-coach__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  color: var(--text-muted);
+  font-size: .74rem;
+}
+.scenario-quality-coach__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--sp-3);
+}
+.scenario-quality-coach__item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-4);
+  border-radius: 18px;
+  border: 1px solid rgba(246,243,242,.07);
+  background: linear-gradient(180deg, rgba(246,243,242,.022), rgba(246,243,242,.008));
+}
+.scenario-quality-coach__item-title {
+  font-family: var(--font-display);
+  font-size: .94rem;
+  line-height: 1.25;
+  color: var(--text-primary);
+}
+.scenario-quality-coach__item-copy {
+  color: var(--text-secondary);
+  font-size: .8rem;
+  line-height: 1.6;
+}
+.scenario-quality-coach__details {
+  margin-bottom: 0;
+}
 .results-tech-story-card {
   display: flex;
   flex-direction: column;

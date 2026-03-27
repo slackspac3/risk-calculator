@@ -2,6 +2,18 @@ function renderWizard2() {
   const draft = AppState.draft;
   const selectedRisks = getSelectedRisks();
   const scenarioGeographies = getScenarioGeographies();
+  const scenarioQualityCoach = buildScenarioQualityCoach({
+    draft,
+    selectedRisks,
+    scenarioGeographies,
+    citations: draft.citations,
+    evidenceQuality: draft.evidenceQuality,
+    confidenceLabel: draft.confidenceLabel,
+    inputProvenance: draft.inputProvenance,
+    primaryGrounding: draft.primaryGrounding,
+    supportingReferences: draft.supportingReferences,
+    inferredAssumptions: draft.inferredAssumptions
+  });
   const evidenceGapPlan = buildEvidenceGapActionPlan({
     confidenceLabel: draft.confidenceLabel,
     evidenceQuality: draft.evidenceQuality,
@@ -40,6 +52,16 @@ function renderWizard2() {
           })}
           ${renderStep2WhyItMattersCard(draft, selectedRisks, scenarioGeographies)}
           ${renderStep2StructuredSummary(draft, selectedRisks, scenarioGeographies)}
+          ${renderScenarioQualityCoach(scenarioQualityCoach, {
+            title: 'Scenario quality coach',
+            subtitle: scenarioQualityCoach.score < 80
+              ? 'Use this to make one coherent, evidence-aware scenario before estimation.'
+              : 'This is already estimate-ready. Tighten only the most material weak point if it would change the range.',
+            compact: true,
+            lowEmphasis: scenarioQualityCoach.score >= 80,
+            disclosureTitle: 'Show full coaching detail',
+            className: 'anim-fade-in'
+          })}
           ${evidenceGapPlan.length ? renderEvidenceGapActionPlan(evidenceGapPlan, {
             title: 'What would strengthen this scenario next',
             subtitle: /low/i.test(String(draft.confidenceLabel || ''))
@@ -153,17 +175,29 @@ function renderWizard2() {
 }
 
 function getStep2NarrativeReadiness(draft, selectedRisks, scenarioGeographies) {
-  const narrative = String(draft.enhancedNarrative || draft.narrative || '').trim();
-  const structured = draft.structuredScenario || {};
+  const coach = buildScenarioQualityCoach({
+    draft,
+    selectedRisks,
+    scenarioGeographies,
+    citations: draft.citations,
+    evidenceQuality: draft.evidenceQuality,
+    confidenceLabel: draft.confidenceLabel,
+    inputProvenance: draft.inputProvenance,
+    primaryGrounding: draft.primaryGrounding,
+    supportingReferences: draft.supportingReferences,
+    inferredAssumptions: draft.inferredAssumptions
+  });
   const warnings = [];
-  if (!narrative) warnings.push('The scenario still needs a plain-English narrative before it can flow cleanly into the estimate step.');
-  if (narrative && narrative.split(/\s+/).filter(Boolean).length < 18) warnings.push('The scenario wording is still thin. Add what is affected, what causes it, and the impact you want to estimate.');
-  if (!selectedRisks.length) warnings.push('No risks are in scope yet. Select at least one risk so the estimate stays focused.');
-  if (!scenarioGeographies.length) warnings.push('Add the relevant geography so regulations and benchmark context are not too generic.');
-  if (!String(structured.assetService || '').trim() && !/platform|service|system|application|environment|identity|data|supplier/i.test(narrative)) {
-    warnings.push('The affected asset or service is still unclear. Add it in the narrative or the optional structured field.');
+  if (!String(draft.enhancedNarrative || draft.narrative || '').trim()) {
+    warnings.push('The scenario still needs a plain-English narrative before it can flow cleanly into the estimate step.');
   }
-  return warnings;
+  if (Array.isArray(coach?.suggestions)) {
+    coach.suggestions.forEach(item => {
+      if (warnings.length >= 4) return;
+      if (item?.action) warnings.push(item.action);
+    });
+  }
+  return Array.from(new Set(warnings));
 }
 
 function renderStep2FocusStrip(draft, selectedRisks, scenarioGeographies) {

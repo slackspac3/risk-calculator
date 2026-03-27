@@ -4280,6 +4280,192 @@ function buildEvidenceGapActionPlan({
   return plan.slice(0, 5);
 }
 
+function buildScenarioQualityCoach({
+  draft = {},
+  selectedRisks = [],
+  scenarioGeographies = [],
+  citations = [],
+  evidenceQuality = '',
+  confidenceLabel = '',
+  inputProvenance = [],
+  primaryGrounding = [],
+  supportingReferences = [],
+  inferredAssumptions = []
+} = {}) {
+  const narrative = String(draft.enhancedNarrative || draft.narrative || '').trim();
+  const structured = draft.structuredScenario || {};
+  const wordCount = narrative ? narrative.split(/\s+/).filter(Boolean).length : 0;
+  const totalEvidenceCount = (Array.isArray(citations) ? citations.filter(Boolean).length : 0)
+    + (Array.isArray(primaryGrounding) ? primaryGrounding.filter(Boolean).length : 0)
+    + (Array.isArray(supportingReferences) ? supportingReferences.filter(Boolean).length : 0)
+    + (Array.isArray(inputProvenance) ? inputProvenance.filter(Boolean).length : 0);
+  const assetPresent = !!String(structured.assetService || '').trim() || /platform|service|system|application|environment|identity|data|supplier|vendor|team|workflow/i.test(narrative);
+  const causePresent = !!String(structured.attackType || '').trim() || /because|caused by|trigger|supplier|vendor|misconfig|phishing|ransomware|breach|comprom|failure|outage|attack/i.test(narrative);
+  const impactPresent = /impact|disrupt|outage|loss|harm|exposure|breach|regulatory|customer|recovery|financial|penalt|scrutiny/i.test(narrative);
+  const eventSignals = (narrative.match(/\b(and then|while also|at the same time|multiple|plus|as well as)\b/gi) || []).length;
+  const tooBroadScope = selectedRisks.length > 3 || eventSignals > 1 || /\bmultiple scenarios|several events|across several\b/i.test(narrative);
+  const tooVague = wordCount > 0 && wordCount < 18;
+  const weakEvidence = /low/i.test(String(confidenceLabel || '')) || /thin|incomplete|weak/i.test(String(evidenceQuality || '')) || totalEvidenceCount < 2;
+  const weakAssumptions = (Array.isArray(inferredAssumptions) ? inferredAssumptions.filter(Boolean).length : 0) > 1;
+  const suggestions = [];
+  const addSuggestion = (title, action, why) => {
+    if (!title || suggestions.some(item => item.title === title)) return;
+    suggestions.push({ title, action, why });
+  };
+
+  if (!narrative) {
+    addSuggestion(
+      'Write one coherent scenario first',
+      'Describe one event path, what it affects, what triggers it, and the main impact you want to estimate.',
+      'The estimate step works best when the scenario reads as one management discussion instead of a loose topic.'
+    );
+  }
+  if (tooVague) {
+    addSuggestion(
+      'Add more specificity',
+      'Name the affected service, the likely cause, and the business consequence in one or two extra sentences.',
+      'Thin wording makes the estimate broader than it needs to be.'
+    );
+  }
+  if (!assetPresent) {
+    addSuggestion(
+      'Name what is actually affected',
+      'Add the asset, service, team, or dependency that carries the scenario.',
+      'A visible asset or service keeps the estimate challengeable.'
+    );
+  }
+  if (!causePresent) {
+    addSuggestion(
+      'Make the trigger explicit',
+      'Add the likely cause, failure mode, or attacker path instead of leaving the event generic.',
+      'Clear trigger logic helps the model separate frequency from exposure.'
+    );
+  }
+  if (!impactPresent) {
+    addSuggestion(
+      'State the impact in management terms',
+      'Say whether the main concern is disruption, regulatory harm, customer impact, or financial exposure.',
+      'The estimate needs a visible consequence, not just a technical incident.'
+    );
+  }
+  if (!selectedRisks.length) {
+    addSuggestion(
+      'Keep at least one risk in scope',
+      'Select the risks that clearly belong in the same event path before you estimate.',
+      'A scenario without scoped risks usually becomes too abstract to defend.'
+    );
+  } else if (tooBroadScope) {
+    addSuggestion(
+      'Narrow the scope before estimating',
+      'Remove risks that do not belong in the same event path or management discussion.',
+      'Too many linked issues make the output harder to interpret and defend.'
+    );
+  }
+  if (!scenarioGeographies.length) {
+    addSuggestion(
+      'Anchor the geography',
+      'Select the relevant country or region so regulations and benchmarks are less generic.',
+      'Geography changes both the regulatory read and the cost context.'
+    );
+  }
+  if (weakEvidence) {
+    addSuggestion(
+      'Ground one weak assumption with evidence',
+      'Add one directly relevant source, operating note, or internal reference before estimating.',
+      'A small amount of better evidence often improves the range more than more wording does.'
+    );
+  }
+  if (weakAssumptions && suggestions.length < 4) {
+    addSuggestion(
+      'Reduce inferred assumptions',
+      'Turn the weakest inferred assumption into a sourced statement or explicitly tighten the wording around it.',
+      'Too many inferred assumptions weaken confidence even when the narrative sounds good.'
+    );
+  }
+
+  let score = 0;
+  if (narrative) score += 20;
+  if (!tooVague && wordCount >= 18) score += 15;
+  if (assetPresent) score += 12;
+  if (causePresent) score += 12;
+  if (impactPresent) score += 12;
+  if (selectedRisks.length) score += 10;
+  if (!tooBroadScope) score += 8;
+  if (scenarioGeographies.length) score += 5;
+  if (!weakEvidence) score += 6;
+  if (!weakAssumptions) score += 5;
+  score = Math.max(0, Math.min(100, score));
+
+  const tone = score >= 80 ? 'success' : score >= 55 ? 'warning' : 'neutral';
+  const status = score >= 80
+    ? 'Ready to estimate'
+    : score >= 55
+      ? 'Needs one more pass'
+      : 'Still too loose';
+  const summary = score >= 80
+    ? 'This scenario is coherent enough to estimate. Tighten only the most material weak point if it would change the range.'
+    : score >= 55
+      ? 'The scenario is close, but one or two scoped edits would make the estimate easier to defend.'
+      : 'The scenario still needs clearer scope and specificity before the next step will feel reliable.';
+
+  return {
+    score,
+    status,
+    tone,
+    summary,
+    reasons: {
+      wordCount,
+      selectedRiskCount: selectedRisks.length,
+      geographyCount: scenarioGeographies.length,
+      evidenceCount: totalEvidenceCount
+    },
+    suggestions: suggestions.slice(0, 4)
+  };
+}
+
+function renderScenarioQualityCoach(coach, {
+  title = 'Scenario quality coach',
+  subtitle = '',
+  compact = false,
+  lowEmphasis = false,
+  disclosureTitle = 'Show coaching detail',
+  className = ''
+} = {}) {
+  if (!coach || !Array.isArray(coach.suggestions)) return '';
+  const visibleSuggestions = coach.suggestions.slice(0, compact ? 2 : 3);
+  const hiddenSuggestions = coach.suggestions.slice(visibleSuggestions.length);
+  const itemMarkup = item => `<article class="scenario-quality-coach__item">
+    <div class="scenario-quality-coach__item-title">${escapeHtml(String(item.title || 'Quality suggestion'))}</div>
+    <div class="scenario-quality-coach__item-copy"><strong>Do next:</strong> ${escapeHtml(String(item.action || 'Tighten the scenario before you estimate.'))}</div>
+    ${item.why ? `<div class="scenario-quality-coach__item-copy"><strong>Why:</strong> ${escapeHtml(String(item.why))}</div>` : ''}
+  </article>`;
+  return `<div class="scenario-quality-coach ${compact ? 'scenario-quality-coach--compact' : ''} ${lowEmphasis ? 'scenario-quality-coach--quiet' : ''} ${className}".trim()>
+    <div class="scenario-quality-coach__intro">
+      <div>
+        <div class="results-driver-label">${escapeHtml(String(title))}</div>
+        ${subtitle ? `<div class="results-comparison-foot">${escapeHtml(String(subtitle))}</div>` : ''}
+      </div>
+      <div class="scenario-quality-coach__score">
+        <span class="badge badge--${escapeHtml(String(coach.tone || 'neutral'))}">${escapeHtml(String(coach.status || 'Working'))}</span>
+        <span class="scenario-quality-coach__score-value">${escapeHtml(String(coach.score || 0))}/100</span>
+      </div>
+    </div>
+    <div class="scenario-quality-coach__summary">${escapeHtml(String(coach.summary || ''))}</div>
+    <div class="scenario-quality-coach__meta">
+      <span>${escapeHtml(String(coach.reasons?.wordCount || 0))} words</span>
+      <span>${escapeHtml(String(coach.reasons?.selectedRiskCount || 0))} risk${coach.reasons?.selectedRiskCount === 1 ? '' : 's'} in scope</span>
+      <span>${escapeHtml(String(coach.reasons?.geographyCount || 0))} geograph${coach.reasons?.geographyCount === 1 ? 'y' : 'ies'}</span>
+      <span>${escapeHtml(String(coach.reasons?.evidenceCount || 0))} evidence item${coach.reasons?.evidenceCount === 1 ? '' : 's'}</span>
+    </div>
+    <div class="scenario-quality-coach__grid">${visibleSuggestions.map(itemMarkup).join('')}</div>
+    ${hiddenSuggestions.length ? `<details class="results-detail-disclosure scenario-quality-coach__details">
+      <summary>${escapeHtml(String(disclosureTitle))}</summary>
+      <div class="results-detail-disclosure-copy">Open this only when you want the longer coaching list behind the immediate fixes.</div>
+      <div class="results-disclosure-stack">${hiddenSuggestions.map(itemMarkup).join('')}</div>
+    </details>` : ''}
+  </div>`;
+}
+
 function renderEvidenceGapActionPlan(plan = [], {
   title = 'Best evidence to collect next',
   subtitle = '',
