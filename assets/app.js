@@ -485,6 +485,12 @@ function handleGlobalDesktopShortcut(event) {
     return;
   }
 
+  if (key === '3' && route.includes('/results/')) {
+    event.preventDefault();
+    triggerResultsTab('appendix');
+    return;
+  }
+
   if (key === 'f' && route.includes('/admin/settings/users')) {
     if (focusAdminUserSearch()) {
       event.preventDefault();

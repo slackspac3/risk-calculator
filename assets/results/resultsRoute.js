@@ -745,6 +745,48 @@ function renderTechnicalOrientationBlock(rolePresentation, runMetadata, confiden
   </div>`;
 }
 
+function renderTechnicalReviewSurface(results, assessmentIntelligence, confidenceFrame, assessment, thresholdModel) {
+  const topDriver = Array.isArray(assessmentIntelligence?.drivers?.sensitivity) ? assessmentIntelligence.drivers.sensitivity[0] : null;
+  const topAssumption = Array.isArray(assessmentIntelligence?.assumptions) ? assessmentIntelligence.assumptions[0] : null;
+  const basis = buildResultTrustBasis(assessment, results.runMetadata || null);
+  return `<section class="results-section-stack">
+    <div class="results-section-heading">Technical review priorities</div>
+    <div class="results-technical-surface">
+      <div class="results-technical-hero-card">
+        <div class="results-driver-label">Challenge focus</div>
+        <h3 class="results-technical-hero-card__title">${escapeHtml(String(topDriver?.label || 'Review the dominant drivers before you challenge the full model.'))}</h3>
+        <p class="results-summary-copy">${escapeHtml(String(topDriver?.why || 'Use this page to validate the core ranges, the confidence posture, and the assumptions that most affect the output.'))}</p>
+        <div class="results-technical-hero-card__foot">
+          <span><strong>Confidence:</strong> ${escapeHtml(String(confidenceFrame?.label || 'Moderate confidence'))}</span>
+          <span><strong>Top assumption:</strong> ${escapeHtml(String(topAssumption?.text || 'No major assumption has been recorded yet.'))}</span>
+        </div>
+      </div>
+      <div class="results-technical-metric-grid">
+        <div class="results-technical-metric-tile">
+          <div class="results-driver-label">Severe event</div>
+          <strong>${fmtCurrency(results.eventLoss.p90)}</strong>
+          <span>Primary event-loss challenge point</span>
+        </div>
+        <div class="results-technical-metric-tile">
+          <div class="results-driver-label">Expected annual</div>
+          <strong>${fmtCurrency(results.annualLoss.mean)}</strong>
+          <span>Average-year planning view</span>
+        </div>
+        <div class="results-technical-metric-tile">
+          <div class="results-driver-label">Threshold posture</div>
+          <strong>${escapeHtml(String(thresholdModel?.single?.status || 'Unavailable'))}</strong>
+          <span>${escapeHtml(String(thresholdModel?.single?.summary || 'Threshold interpretation unavailable.'))}</span>
+        </div>
+        <div class="results-technical-metric-tile">
+          <div class="results-driver-label">Input origin mix</div>
+          <strong>${basis.userEntered}/${basis.aiSuggested}/${basis.inheritedContext}</strong>
+          <span>User / AI / inherited context inputs</span>
+        </div>
+      </div>
+    </div>
+  </section>`;
+}
+
 function renderRunMetadataPanel(runMetadata, metricSemantics) {
   if (!runMetadata) return '';
   const thresholdConfig = runMetadata.thresholdConfigUsed || {};
@@ -1277,7 +1319,8 @@ function renderResults(id, isShared) {
     iterations: Number(rawResults.iterations || rawResults.runMetadata?.iterations || assessment.fairParams?.iterations || 0),
     distType: rawResults.runMetadata?.distributions?.eventModel || rawResults.runConfig?.distType || assessment.fairParams?.distType || 'triangular'
   };
-  const activeTab = String(AppState.resultsTab || 'executive');
+  const requestedTab = String(AppState.resultsTab || 'executive');
+  const activeTab = ['executive', 'technical', 'appendix'].includes(requestedTab) ? requestedTab : 'executive';
   const statusClass = r.toleranceBreached ? 'above' : r.nearTolerance ? 'warning' : 'within';
   const statusIcon = r.toleranceBreached ? '🔴' : r.nearTolerance ? '🟠' : '🟢';
   const statusTitle = r.toleranceBreached ? 'Needs leadership action' : r.nearTolerance ? 'Needs management attention' : 'Within current tolerance';
@@ -1430,17 +1473,17 @@ function renderResults(id, isShared) {
         supportingReferences,
         missingInformation
       })}
-      ${renderModelBasisPanel(assessment, runMetadata, confidenceFrame, thresholdModel)}
       </section>
     </section>`;
 
   const technicalTab = `
     <section class="results-technical-view ${activeTab === 'technical' ? '' : 'hidden'}" id="results-tab-technical">
       ${renderTechnicalOrientationBlock(rolePresentation, runMetadata, confidenceFrame)}
+      ${renderTechnicalReviewSurface(r, assessmentIntelligence, confidenceFrame, assessment, thresholdModel)}
 
-      <details class="results-detail-disclosure" open>
-        <summary>Model outputs and review-ready metrics</summary>
-        <div class="results-detail-disclosure-copy">These are the main event and annual exposure outputs most teams review first when challenging or validating the result.</div>
+      <section class="results-section-stack">
+        <div class="results-section-heading">Review-ready metrics and sensitivities</div>
+        <div class="results-detail-disclosure-copy">Start here when you want to challenge the size of the result, the dominant sensitivities, and whether the ranges are credible enough for management use.</div>
         <div class="results-disclosure-stack">
           <div class="grid-3 mb-6 anim-fade-in">
             <div class="metric-card"><div class="metric-label">Typical conditional event loss</div><div class="metric-value">${fmtCurrency(r.eventLoss.p50)}</div><div class="metric-sub">Midpoint successful-event view</div></div>
@@ -1452,25 +1495,43 @@ function renderResults(id, isShared) {
             <div class="metric-card"><div class="metric-label">Severe annualized loss</div><div class="metric-value warning">${fmtCurrency(r.annualLoss.p90)}</div><div class="metric-sub">Annual severe-but-plausible view</div></div>
             <div class="metric-card"><div class="metric-label">Expected annualized loss</div><div class="metric-value">${fmtCurrency(r.annualLoss.mean)}</div><div class="metric-sub">Average annual loss</div></div>
           </div>
-        </div>
-      </details>
-
-      <details class="results-detail-disclosure">
-        <summary>Confidence, drivers, and input provenance</summary>
-        <div class="results-detail-disclosure-copy">Use this when you want to challenge the evidence posture, dominant sensitivities, and the origin of the main inputs.</div>
-        <div class="results-disclosure-stack">
-          <div class="results-decision-grid mb-6 anim-fade-in">
+          <div class="results-decision-grid anim-fade-in">
             ${renderAssessmentConfidenceBlock(assessmentIntelligence.confidence)}
             ${renderAssessmentDriversBlock(assessmentIntelligence.drivers)}
           </div>
           ${renderSensitivitySummary(assessmentIntelligence.drivers)}
+        </div>
+      </section>
+
+      <section class="results-section-stack">
+        <div class="results-section-heading">Assumptions, evidence, and input origins</div>
+        <div class="results-detail-disclosure-copy">Use this layer to review what the result depends on, how grounded the evidence is, and where the main inputs came from.</div>
+        <div class="results-disclosure-stack">
+          ${renderAssessmentAssumptionsBlock(assessmentIntelligence.assumptions)}
+          ${renderEvidenceQualityBlock(assessment.confidenceLabel, assessment.evidenceQuality, assessment.evidenceSummary, missingInformation, 'Evidence posture and missing information', { primaryGrounding: primaryGrounding, supportingReferences: supportingReferences, inferredAssumptions: inferredAssumptions })}
           ${renderInputSourceAuditBlock(buildLiveInputSourceAssignments(assessment))}
         </div>
-      </details>
+      </section>
+    </section>`;
 
-      <details class="results-detail-disclosure">
-        <summary>Model logic, settings, and saved run metadata</summary>
-        <div class="results-detail-disclosure-copy">Open this when you need the technical appendix view: distributions, thresholds, assumptions, simulation settings, and reproducibility details.</div>
+  const appendixTab = `
+    <section class="results-appendix-view ${activeTab === 'appendix' ? '' : 'hidden'}" id="results-tab-appendix">
+      <section class="results-section-stack">
+        <div class="results-section-heading">Appendix and evidence</div>
+        <div class="results-appendix-intro">
+          <div>
+            <div class="results-driver-label">Reproducibility and evidence layer</div>
+            <h3 class="results-appendix-intro__title">Use this tab for methodology, AI audit, supporting references, and the saved run detail behind the headline result.</h3>
+          </div>
+          <div class="results-comparison-foot">Keep this layer for committee challenge, technical validation, and evidence review rather than first-pass management reading.</div>
+        </div>
+      </section>
+
+      ${renderModelBasisPanel(assessment, runMetadata, confidenceFrame, thresholdModel)}
+
+      <details class="results-detail-disclosure" open>
+        <summary>Methodology, settings, and saved run metadata</summary>
+        <div class="results-detail-disclosure-copy">Open this when you need distributions, thresholds, assumptions, simulation settings, and reproducibility detail.</div>
         <div class="results-disclosure-stack">
           ${renderSimulationEquationFlow()}
           <div class="card anim-fade-in">
@@ -1501,7 +1562,7 @@ function renderResults(id, isShared) {
 
       <details class="results-detail-disclosure">
         <summary>Challenge review and AI audit</summary>
-        <div class="results-detail-disclosure-copy">Open this when you want to pressure-test the assumptions, review committee-style challenge points, or inspect how AI and supporting material shaped the inputs.</div>
+        <div class="results-detail-disclosure-copy">Open this when you want to pressure-test assumptions, review committee-style challenge points, or inspect how AI and supporting material shaped the inputs.</div>
         <div class="results-disclosure-stack">
           <div class="card mb-2 anim-fade-in">
             <div class="flex items-center justify-between" style="gap:var(--sp-4);flex-wrap:wrap">
@@ -1519,17 +1580,14 @@ function renderResults(id, isShared) {
             ${renderWorkflowGuidanceBlock(workflowGuidance, 'How AI guided this assessment')}
             ${renderBenchmarkRationaleBlock(assessment.benchmarkBasis, assessment.inputRationale, assessment.benchmarkReferences)}
             ${renderInputProvenanceBlock(assessment.inputProvenance)}
-          </div>
-          ${renderEvidenceQualityBlock(assessment.confidenceLabel, assessment.evidenceQuality, assessment.evidenceSummary, missingInformation, 'How grounded the AI inputs were', { primaryGrounding: primaryGrounding, supportingReferences: supportingReferences, inferredAssumptions: inferredAssumptions })}` : ''}
+          </div>` : ''}
         </div>
       </details>
 
-
       <details class="results-detail-disclosure">
-        <summary>Show deeper model detail and charts</summary>
-        <div class="results-detail-disclosure-copy">Use this for deeper validation, peer review, or committee-level challenge.</div>
+        <summary>Charts, references, and full treatment set</summary>
+        <div class="results-detail-disclosure-copy">Use this for deeper validation, supporting references, and the full recommendation set behind the executive summary.</div>
         <div class="results-disclosure-stack">
-          ${renderAssessmentAssumptionsBlock(assessmentIntelligence.assumptions)}
           <div class="grid-2 anim-fade-in anim-delay-2">
             <div class="chart-wrap">
               <div class="chart-title">ALE Distribution</div>
@@ -1542,14 +1600,6 @@ function renderResults(id, isShared) {
               <canvas id="chart-lec"></canvas>
             </div>
           </div>
-        </div>
-      </details>
-
-      ${(citations.length || recommendations.length) ? `
-      <details class="results-detail-disclosure">
-        <summary>References and full treatment list</summary>
-        <div class="results-detail-disclosure-copy">Open this when you want the supporting references and the longer treatment set behind the headline recommendations.</div>
-        <div class="results-disclosure-stack">
           ${citations.length ? renderCitationBlock(citations) : ''}
           ${recommendations.length ? `<div style="display:flex;flex-direction:column;gap:var(--sp-4)">
             ${recommendations.map((rec, i) => `
@@ -1565,7 +1615,7 @@ function renderResults(id, isShared) {
               </div>`).join('')}
           </div>` : ''}
         </div>
-      </details>` : ''}
+      </details>
     </section>`;
 
   setPage(`
@@ -1597,10 +1647,12 @@ function renderResults(id, isShared) {
         <div class="results-tabbar mb-6">
           <button class="results-tab ${activeTab === 'executive' ? 'active' : ''}" data-results-tab="executive">Executive Summary</button>
           <button class="results-tab ${activeTab === 'technical' ? 'active' : ''}" data-results-tab="technical">Technical Detail</button>
+          <button class="results-tab ${activeTab === 'appendix' ? 'active' : ''}" data-results-tab="appendix">Appendix & Evidence</button>
         </div>
 
         <div class="${activeTab === 'executive' ? '' : 'hidden'}" id="results-tab-executive-wrap">${executiveTab}</div>
         ${technicalTab}
+        ${appendixTab}
 
         <div class="flex items-center gap-4 mt-8 pt-6" style="border-top:1px solid var(--border-subtle)">
           <a href="#/dashboard" class="btn btn--ghost">← Dashboard</a>
@@ -1627,7 +1679,7 @@ function renderResults(id, isShared) {
       renderResults(id, isShared || assessment._shared);
     });
   });
-  if (activeTab === 'technical') drawTechnicalCharts();
+  if (activeTab === 'appendix') drawTechnicalCharts();
   else attachCitationHandlers();
   document.getElementById('btn-share-results')?.addEventListener('click', event => {
     const button = event.currentTarget;
