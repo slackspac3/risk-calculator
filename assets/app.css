@@ -1192,6 +1192,123 @@ input[type="range"]::-webkit-slider-thumb {
   gap: var(--sp-6);
 }
 
+.settings-profile-snapshot {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.2fr);
+  gap: var(--sp-5);
+  padding: var(--sp-6);
+  border-radius: calc(var(--radius-xl) + 2px);
+  border: 1px solid rgba(3,209,168,0.14);
+  background:
+    radial-gradient(circle at top right, rgba(3,209,168,0.1), transparent 30%),
+    linear-gradient(180deg, rgba(33,40,34,0.96), rgba(24,31,26,0.9));
+  box-shadow: var(--shadow-md), inset 0 1px 0 rgba(246,243,242,0.04);
+}
+
+.settings-profile-snapshot__intro {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.settings-profile-snapshot__title {
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 2.3vw, 2rem);
+  line-height: 1.08;
+  letter-spacing: -0.04em;
+  color: var(--text-primary);
+}
+
+.settings-profile-snapshot__copy {
+  color: var(--text-secondary);
+  line-height: 1.75;
+  max-width: 56ch;
+}
+
+.settings-profile-snapshot__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.settings-profile-snapshot__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-4);
+}
+
+.settings-snapshot-card {
+  padding: var(--sp-4) var(--sp-5);
+  border-radius: 22px;
+  border: 1px solid var(--border-subtle);
+  background: linear-gradient(180deg, rgba(246,243,242,0.04), rgba(246,243,242,0.015));
+  box-shadow: inset 0 1px 0 rgba(246,243,242,0.03);
+}
+
+.settings-snapshot-card--accent {
+  border-color: rgba(3,209,168,0.16);
+  background:
+    radial-gradient(circle at top right, rgba(3,209,168,0.1), transparent 34%),
+    linear-gradient(180deg, rgba(246,243,242,0.055), rgba(246,243,242,0.018));
+}
+
+.settings-snapshot-card__label {
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.settings-snapshot-card__value {
+  margin-top: var(--sp-2);
+  font-family: var(--font-display);
+  font-size: clamp(1rem, 1.5vw, 1.3rem);
+  line-height: 1.15;
+  color: var(--text-primary);
+}
+
+.settings-snapshot-card__foot {
+  margin-top: var(--sp-2);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  line-height: 1.65;
+}
+
+.settings-level-band {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.settings-support-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-4);
+  margin-top: calc(var(--sp-2) * -1);
+}
+
+.settings-support-strip__item {
+  padding: var(--sp-4) var(--sp-5);
+  border-radius: 20px;
+  border: 1px solid var(--border-subtle);
+  background: linear-gradient(180deg, rgba(246,243,242,0.03), rgba(246,243,242,0.01));
+}
+
+.settings-support-strip__item strong {
+  display: block;
+  margin-top: var(--sp-1);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  line-height: 1.55;
+}
+
+.settings-support-strip__label {
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
 .settings-shell__header,
 .settings-shell__footer {
   display: flex;
@@ -1284,6 +1401,38 @@ input[type="range"]::-webkit-slider-thumb {
   padding: var(--sp-6);
   background: rgba(16, 20, 16, 0.24);
   border-top: 1px solid var(--border-subtle);
+}
+
+.settings-inline-disclosure {
+  padding: var(--sp-4) var(--sp-5);
+  border-radius: 18px;
+  border: 1px solid var(--border-subtle);
+  background: rgba(246,243,242,0.02);
+}
+
+.settings-inline-disclosure summary {
+  list-style: none;
+  cursor: pointer;
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  color: var(--text-primary);
+}
+
+.settings-inline-disclosure summary::-webkit-details-marker {
+  display: none;
+}
+
+.settings-sticky-savebar {
+  position: sticky;
+  bottom: var(--sp-4);
+  z-index: 6;
+  padding: var(--sp-5);
+  border-radius: 24px;
+  border: 1px solid rgba(246,243,242,0.08);
+  background: linear-gradient(180deg, rgba(33,40,34,0.94), rgba(24,31,26,0.92));
+  box-shadow: var(--shadow-lg), inset 0 1px 0 rgba(246,243,242,0.03);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
 }
 
 /* ── Accordion ───────────────────────────────────────────────── */

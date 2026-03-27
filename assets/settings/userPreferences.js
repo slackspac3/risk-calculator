@@ -20,6 +20,22 @@ function buildLocalUserCompanyContextFallback(refineInput = {}) {
   };
 }
 
+function renderSettingsSummaryChips(items = [], emptyLabel = 'Not set', maxVisible = 3) {
+  const list = Array.isArray(items) ? items.filter(Boolean) : [];
+  if (!list.length) return `<span class="badge badge--neutral">${escapeHtml(emptyLabel)}</span>`;
+  const visible = list.slice(0, maxVisible);
+  const hiddenCount = Math.max(0, list.length - visible.length);
+  return `${visible.map(item => `<span class="badge badge--neutral">${escapeHtml(String(item))}</span>`).join('')}${hiddenCount ? `<span class="badge badge--neutral">+${hiddenCount} more</span>` : ''}`;
+}
+
+function renderSettingsSnapshotCard({ label, value, foot = '', accent = false }) {
+  return `<div class="settings-snapshot-card${accent ? ' settings-snapshot-card--accent' : ''}">
+    <div class="settings-snapshot-card__label">${label}</div>
+    <div class="settings-snapshot-card__value">${value}</div>
+    ${foot ? `<div class="settings-snapshot-card__foot">${foot}</div>` : ''}
+  </div>`;
+}
+
 function renderUserPreferences(existingSettings = getUserSettings()) {
   if (!requireAuth()) return;
   if (AuthService.isAdminAuthenticated()) {
@@ -42,6 +58,15 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
     companySummary: settings.adminContextSummary || '',
     businessProfile: settings.companyContextProfile || ''
   });
+  const focusAreas = Array.isArray(profile.focusAreas) ? profile.focusAreas.filter(Boolean) : [];
+  const workingViewSummary = truncateText(profile.workingContext || capability.experience.settingsLead || 'No working context saved yet.', 120);
+  const outputStyleSummary = truncateText(profile.preferredOutputs || 'No preferred output style saved yet.', 120);
+  const aiPersonalizationSummary = truncateText(settings.aiInstructions || settings.adminContextSummary || 'Using shared baseline guidance until you add personal notes.', 130);
+  const defaultsSummary = [
+    settings.geographyPrimary || settings.geography || globalSettings.geography,
+    settings.defaultLinkMode ? 'Linked-risk mode on' : 'Linked-risk mode off',
+    (Array.isArray(settings.applicableRegulations) ? settings.applicableRegulations.length : 0) ? `${settings.applicableRegulations.length} regulations` : 'No regulations selected'
+  ].join(' · ');
   let inlineValidationMessage = AppState.settingsValidationMessage || '';
   const userContextSection = renderSettingsSection({
     title: 'Profile And Role Context',
@@ -76,11 +101,23 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
       <div class="form-group mt-4">
         <label class="form-label">Focus areas</label>
         <div class="tag-input-wrap" id="ti-user-focus-areas"></div>
-        <div class="citation-chips" style="margin-top:10px">
-          ${USER_FOCUS_OPTIONS.map(option => `<button type="button" class="chip user-focus-chip" data-focus="${option}">${option}</button>`).join('')}
-        </div>
+        <details class="settings-inline-disclosure mt-3">
+          <summary>Add from suggested focus areas</summary>
+          <div class="citation-chips" style="margin-top:10px">
+            ${USER_FOCUS_OPTIONS.map(option => `<button type="button" class="chip user-focus-chip" data-focus="${option}">${option}</button>`).join('')}
+          </div>
+        </details>
       </div>
-      <div class="form-group mt-4">
+      <div class="form-help mt-4">Save your role and focus areas first. Working-view guidance and deeper AI tailoring sit below so the page stays calmer.</div>`
+  });
+  const workingViewSection = renderSettingsSection({
+    title: 'Working View And Output Style',
+    scope: 'user-settings',
+    description: 'Describe how you work, what needs emphasis, and how outputs should read back to you.',
+    meta: profile.workingContext || profile.preferredOutputs ? 'Configured' : 'Recommended',
+    open: false,
+    body: `
+      <div class="form-group">
         <label class="form-label" for="user-working-context">Working context</label>
         <textarea class="form-textarea" id="user-working-context" rows="4" placeholder="e.g. I support technology and cyber risk decisions across shared platforms, work closely with control owners, and often need outputs that balance resilience, compliance, and executive reporting.">${profile.workingContext || ''}</textarea>
       </div>
@@ -93,12 +130,65 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
         <span class="form-help">Use your role, BU, department, and uploaded source material to draft these fields.</span>
       </div>`
   });
+  const defaultsSection = renderSettingsSection({
+    title: 'Core Defaults And AI Notes',
+    description: 'These defaults shape new assessments for this account.',
+    meta: settings.geography || globalSettings.geography,
+    open: false,
+    body: `
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label" for="user-geo-primary">Primary Geography</label>
+          ${renderGeographySelect('user-geo-primary', settings.geographyPrimary || settings.geography || globalSettings.geography)}
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="user-link-mode">Default Linked-Risk Mode</label>
+          <select class="form-select" id="user-link-mode">
+            <option value="yes" ${settings.defaultLinkMode ? 'selected' : ''}>Enabled</option>
+            <option value="no" ${!settings.defaultLinkMode ? 'selected' : ''}>Disabled</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid-2 mt-4">
+        <div class="form-group">
+          <label class="form-label" for="user-geo-secondary">Secondary Geography</label>
+          ${renderGeographySelect('user-geo-secondary', settings.geographySecondary || '', 'Optional', true)}
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="user-geo-tertiary">Tertiary Geography</label>
+          ${renderGeographySelect('user-geo-tertiary', settings.geographyTertiary || '', 'Optional', true)}
+        </div>
+      </div>
+      <div class="form-group mt-4">
+        <label class="form-label" for="user-context-summary">Personal Context Summary</label>
+        <textarea class="form-textarea" id="user-context-summary" rows="3">${settings.adminContextSummary || ''}</textarea>
+      </div>
+      <div class="form-group mt-4">
+        <label class="form-label" for="user-appetite">Risk Appetite Statement</label>
+        <textarea class="form-textarea" id="user-appetite" rows="4">${settings.riskAppetiteStatement || ''}</textarea>
+      </div>
+      <details class="settings-inline-disclosure mt-4">
+        <summary>Show AI guidance, regulations, and benchmark strategy</summary>
+        <div class="form-group mt-4">
+          <label class="form-label">Applicable Regulations</label>
+          <div class="tag-input-wrap" id="ti-user-regulations"></div>
+        </div>
+        <div class="form-group mt-4">
+          <label class="form-label" for="user-ai-instructions">AI Guidance</label>
+          <textarea class="form-textarea" id="user-ai-instructions" rows="3">${settings.aiInstructions || ''}</textarea>
+        </div>
+        <div class="form-group mt-4">
+          <label class="form-label" for="user-benchmark-strategy">Benchmark Strategy</label>
+          <textarea class="form-textarea" id="user-benchmark-strategy" rows="3">${settings.benchmarkStrategy || ''}</textarea>
+        </div>
+      </details>`
+  });
   const aiWorkspaceSection = renderSettingsSection({
-    title: 'AI Assist Workspace',
+    title: 'AI Personalization Workspace',
     scope: 'user-settings',
     description: capability.canManageBusinessUnit || capability.canManageDepartment ? 'Upload role, team, or operating material, then use AI assist to keep your managed context aligned.' : 'Upload role notes or planning material, then use AI assist to tailor this workspace to how you work.',
-    meta: 'Shared source',
-    open: true,
+    meta: 'Advanced',
+    open: false,
     body: `
       ${renderPilotWarningBanner('ai', { compact: true, text: 'AI assist drafts personal defaults from your notes and uploaded material. Review the wording before you save it as part of your profile.' })}
       <div class="form-group">
@@ -119,7 +209,8 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
     title: 'Personal Company Context',
     scope: 'user-settings',
     description: capability.canManageBusinessUnit || capability.canManageDepartment ? 'Optional personal overlay on top of the shared baseline for the area you help lead.' : 'Optional personal overlay on top of the shared baseline for this account only.',
-    meta: settings.companyWebsiteUrl ? 'Website linked' : 'Optional',
+    meta: settings.companyWebsiteUrl ? 'Advanced · website linked' : 'Advanced · optional',
+    open: false,
     body: `
       <div class="grid-2">
         <div class="form-group">
@@ -189,6 +280,7 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
     scope: 'user-settings',
     description: `You can add functions beneath ${selectedBusinessEntity?.name || profile.businessUnit} and maintain their retained context.`,
     meta: `${selectedBusinessDepartments.length} department${selectedBusinessDepartments.length === 1 ? '' : 's'}`,
+    open: false,
     body: `
       <div class="flex items-center gap-3" style="flex-wrap:wrap">
         <button class="btn btn--secondary" id="btn-user-add-department">Add Function / Department</button>
@@ -214,57 +306,9 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
     title: 'Department Context You Own',
     description: `You are the assigned owner for ${selectedDepartment?.name || profile.department}.`,
     meta: 'Department owner',
+    open: false,
     body: `<div class="flex items-center gap-3" style="flex-wrap:wrap"><button class="btn btn--secondary" id="btn-manage-owned-department">Manage Department Context</button></div>`
   }) : ''}`;
-  const defaultsSection = renderSettingsSection({
-    title: 'Personal Defaults',
-    description: 'These defaults shape new assessments for this account.',
-    meta: settings.geography || globalSettings.geography,
-    body: `
-      <div class="grid-2">
-        <div class="form-group">
-          <label class="form-label" for="user-geo-primary">Primary Geography</label>
-          ${renderGeographySelect('user-geo-primary', settings.geographyPrimary || settings.geography || globalSettings.geography)}
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="user-link-mode">Default Linked-Risk Mode</label>
-          <select class="form-select" id="user-link-mode">
-            <option value="yes" ${settings.defaultLinkMode ? 'selected' : ''}>Enabled</option>
-            <option value="no" ${!settings.defaultLinkMode ? 'selected' : ''}>Disabled</option>
-          </select>
-        </div>
-      </div>
-      <div class="grid-2 mt-4">
-        <div class="form-group">
-          <label class="form-label" for="user-geo-secondary">Secondary Geography</label>
-          ${renderGeographySelect('user-geo-secondary', settings.geographySecondary || '', 'Optional', true)}
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="user-geo-tertiary">Tertiary Geography</label>
-          ${renderGeographySelect('user-geo-tertiary', settings.geographyTertiary || '', 'Optional', true)}
-        </div>
-      </div>
-      <div class="form-group mt-4">
-        <label class="form-label" for="user-context-summary">Personal Context Summary</label>
-        <textarea class="form-textarea" id="user-context-summary" rows="3">${settings.adminContextSummary || ''}</textarea>
-      </div>
-      <div class="form-group mt-4">
-        <label class="form-label" for="user-appetite">Risk Appetite Statement</label>
-        <textarea class="form-textarea" id="user-appetite" rows="4">${settings.riskAppetiteStatement || ''}</textarea>
-      </div>
-      <div class="form-group mt-4">
-        <label class="form-label">Applicable Regulations</label>
-        <div class="tag-input-wrap" id="ti-user-regulations"></div>
-      </div>
-      <div class="form-group mt-4">
-        <label class="form-label" for="user-ai-instructions">AI Guidance</label>
-        <textarea class="form-textarea" id="user-ai-instructions" rows="3">${settings.aiInstructions || ''}</textarea>
-      </div>
-      <div class="form-group mt-4">
-        <label class="form-label" for="user-benchmark-strategy">Benchmark Strategy</label>
-        <textarea class="form-textarea" id="user-benchmark-strategy" rows="3">${settings.benchmarkStrategy || ''}</textarea>
-      </div>`
-  });
   setPage(`
     <main class="page">
       <div class="container container--narrow" style="padding:var(--sp-10) var(--sp-6);max-width:960px">
@@ -272,58 +316,81 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
           <div class="settings-shell__header">
             <div>
               <h2>Personal Settings</h2>
-              <p style="margin-top:6px;color:var(--text-muted)">These settings apply only to <strong>${AppState.currentUser?.displayName || 'your account'}</strong>. Global thresholds, organisation structure, BU customisation, and document library remain controlled by the global admin.</p>
-            </div>
-            <div class="flex items-center gap-3" style="flex-wrap:wrap">
-              <button class="btn btn--ghost" id="btn-rerun-onboarding">Re-run Setup</button>
-              <button class="btn btn--secondary" id="btn-reset-user-settings">Reset My Settings</button>
+              <p style="margin-top:6px;color:var(--text-muted)">These settings apply only to <strong>${AppState.currentUser?.displayName || 'your account'}</strong>. Keep your profile clear, your working view current, and deeper context hidden until you need it.</p>
             </div>
           </div>
 
-          <div class="admin-overview-grid mb-6">
-            <div class="admin-overview-card">
-              <div class="admin-overview-label">Role</div>
-              <div class="admin-overview-value" style="font-size:1.1rem">${profile.jobTitle || 'Not set'}</div>
-              <div class="admin-overview-foot">${profile.department || 'No department set'}${profile.businessUnit ? ` · ${profile.businessUnit}` : ''}</div>
+          <section class="settings-profile-snapshot">
+            <div class="settings-profile-snapshot__intro">
+              <div class="results-section-heading">Personal profile snapshot</div>
+              <h3 class="settings-profile-snapshot__title">${profile.jobTitle || 'Personalize this workspace for how you work.'}</h3>
+              <p class="settings-profile-snapshot__copy">${capability.experience.settingsLead}</p>
+              <div class="settings-profile-snapshot__chips">
+                ${renderSettingsSummaryChips(focusAreas, 'No focus areas yet')}
+              </div>
             </div>
-            <div class="admin-overview-card">
-              <div class="admin-overview-label">Focus Areas</div>
-              <div class="admin-overview-value" style="font-size:1.1rem">${profile.focusAreas?.length || 0}</div>
-              <div class="admin-overview-foot">${profile.focusAreas?.length ? profile.focusAreas.join(', ') : 'No focus areas selected yet'}</div>
+            <div class="settings-profile-snapshot__grid">
+              ${renderSettingsSnapshotCard({ label: 'Working view', value: profile.businessUnit || 'Shared view', foot: workingViewSummary, accent: true })}
+              ${renderSettingsSnapshotCard({ label: 'Context readiness', value: settings.geographyPrimary || settings.geography || globalSettings.geography, foot: defaultsSummary })}
+              ${renderSettingsSnapshotCard({ label: 'AI personalization', value: settings.aiInstructions ? 'Personalized' : 'Using shared baseline', foot: aiPersonalizationSummary })}
+              ${renderSettingsSnapshotCard({ label: 'Output style', value: profile.preferredOutputs ? 'Saved' : 'Default', foot: outputStyleSummary })}
             </div>
-            <div class="admin-overview-card">
-              <div class="admin-overview-label">Personal Geography</div>
-              <div class="admin-overview-value" style="font-size:1.1rem">${settings.geography || globalSettings.geography}</div>
-              <div class="admin-overview-foot">Used as your default context in new assessments</div>
-            </div>
-          </div>
+          </section>
 
-          <div class="mb-6">
-            ${renderNonAdminHowToGuide(capability)}
+          <div class="settings-level-band">
+            <div class="results-section-heading">Everyday settings</div>
+            <div class="form-help" style="margin-top:8px">Start with your role and working view. Open deeper defaults only when you want to tune how future assessments are framed.</div>
           </div>
 
           <div class="settings-accordion">
             ${userContextSection}
-            ${aiWorkspaceSection}
-            ${companyContextSection}
-            ${roleManagementSection}
+            ${workingViewSection}
             ${defaultsSection}
           </div>
 
-          <div class="settings-shell__footer">
+          <div class="settings-level-band">
+            <div class="results-section-heading">Advanced context configuration</div>
+            <div class="form-help" style="margin-top:8px">These tools add deeper personal overlays, AI drafting inputs, and owner-only controls. Keep them closed unless you are actively changing them.</div>
+          </div>
+
+          <div class="settings-support-strip">
+            <div class="settings-support-strip__item">
+              <span class="settings-support-strip__label">Company context</span>
+              <strong>${settings.companyWebsiteUrl ? 'Website linked' : 'Optional personal overlay'}</strong>
+            </div>
+            <div class="settings-support-strip__item">
+              <span class="settings-support-strip__label">Source materials</span>
+              <strong>Use only when AI needs better grounding</strong>
+            </div>
+            <div class="settings-support-strip__item">
+              <span class="settings-support-strip__label">Ownership controls</span>
+              <strong>${businessOwner || departmentOwner ? 'Available for your role' : 'Not applicable'}</strong>
+            </div>
+          </div>
+
+          <div class="settings-accordion">
+            ${aiWorkspaceSection}
+            ${companyContextSection}
+            ${roleManagementSection}
+          </div>
+
+          <div class="settings-shell__footer settings-sticky-savebar">
             <div class="flex items-center gap-3" style="flex-wrap:wrap">
               <button class="btn btn--primary" id="btn-save-user-settings">Save My Settings</button>
-              <button class="btn btn--secondary" id="btn-export-user-settings">Export JSON</button>
-              <button class="btn btn--ghost" id="btn-import-user-settings">Import JSON</button>
-              <span class="form-help">These values will be used as your personal defaults in future assessments.</span>
+              <button class="btn btn--ghost" id="btn-rerun-onboarding">Re-run Setup</button>
+              <details class="results-actions-disclosure admin-footer-overflow">
+                <summary class="btn btn--ghost btn--sm">Advanced actions</summary>
+                <div class="results-actions-disclosure-menu">
+                  <button class="btn btn--secondary btn--sm" id="btn-export-user-settings">Export JSON</button>
+                  <button class="btn btn--secondary btn--sm" id="btn-import-user-settings">Import JSON</button>
+                  <button class="btn btn--secondary btn--sm" id="btn-reset-user-settings">Reset My Settings</button>
+                </div>
+              </details>
+              <span class="form-help">These values shape your personal defaults and AI framing in future assessments.</span>
             </div>
             ${inlineValidationMessage ? `<div class="banner banner--warning mt-4"><span class="banner-icon">△</span><span class="banner-text">${escapeHtml(inlineValidationMessage)}</span></div>` : ''}
             <div class="form-help" data-workspace-sync-state data-scope="settings" style="margin-top:var(--sp-4)">Changes save automatically</div>
             <div class="form-help" style="margin-top:var(--sp-4)">Pilot release: ${escapeHtml(getReleaseLabel())}</div>
-            <div class="banner banner--poc mt-6">
-              <span class="banner-icon">ℹ</span>
-              <span class="banner-text">Global admin context still applies underneath your personal overrides for organisation structure, BU definitions, document library, thresholds, and escalation logic.</span>
-            </div>
           </div>
         </div>
       </div>
