@@ -4,6 +4,7 @@ const AdminDocumentLibrarySection = (() => {
   function renderRoute() {
     if (!requireAdmin()) return;
     const docList = getDocList();
+    const availableTags = Array.from(new Set(docList.flatMap(doc => Array.isArray(doc.tags) ? doc.tags : []))).sort((a, b) => String(a).localeCompare(String(b)));
     setPage(adminLayout('docs', `
       ${UI.adminSectionHeader({
         title: 'Document Library',
@@ -17,29 +18,29 @@ const AdminDocumentLibrarySection = (() => {
             </div>
           </details>`
       })}
-      <div class="admin-overview-grid mb-6">
-        <div class="admin-overview-card">
-          <div class="admin-overview-label">Indexed documents</div>
-          <div class="admin-overview-value">${docList.length}</div>
-          <div class="admin-overview-foot">Available for AI retrieval and citation.</div>
+      <div class="admin-workbench-strip admin-workbench-strip--compact mb-6">
+        <div>
+          <div class="admin-workbench-strip__label">Library workspace</div>
+          <strong>Search, filter, and curate the references the platform can retrieve and cite.</strong>
+          <span>${docList.length} indexed documents are currently available for grounding, citation, and richer scenario support.</span>
         </div>
-        <div class="admin-overview-card">
-          <div class="admin-overview-label">Updated this year</div>
-          <div class="admin-overview-value">${docList.filter(doc => String(doc.lastUpdated || '').startsWith(String(new Date().getFullYear()))).length}</div>
-          <div class="admin-overview-foot">Helpful for checking how fresh the library is.</div>
-        </div>
-        <div class="admin-overview-card">
-          <div class="admin-overview-label">Most common use</div>
-          <div class="admin-overview-value">AI grounding</div>
-          <div class="admin-overview-foot">Used in scenario drafting, citations, and richer context generation.</div>
+        <div class="admin-workbench-strip__meta">
+          <span class="badge badge--neutral">${docList.filter(doc => String(doc.lastUpdated || '').startsWith(String(new Date().getFullYear()))).length} updated this year</span>
         </div>
       </div>
       ${UI.adminTableCard({
         title: 'Documents in the library',
         description: 'Keep titles, tags, and update dates current so the AI can choose better supporting references.',
-        table: `<table class="data-table">
+        table: `<div class="admin-table-toolbar admin-table-toolbar--filters">
+            <input class="form-input" id="admin-doc-search" type="search" placeholder="Search title, ID, or tag" style="min-width:min(300px,100%);max-width:420px">
+            <select class="form-select" id="admin-doc-tag-filter" style="min-width:220px">
+              <option value="">All tags</option>
+              ${availableTags.map(tag => `<option value="${escapeHtml(tag)}">${escapeHtml(tag)}</option>`).join('')}
+            </select>
+          </div>
+          <table class="data-table">
             <thead><tr><th>Document</th><th>Tags</th><th>Updated</th><th>Actions</th></tr></thead>
-            <tbody>${docList.map(doc => `<tr>
+            <tbody>${docList.map(doc => `<tr class="admin-doc-row" data-search="${escapeHtml([doc.title, doc.id, ...(doc.tags || [])].join(' ').toLowerCase())}" data-tags="${escapeHtml((doc.tags || []).join('|').toLowerCase())}">
               <td><strong style="color:var(--text-primary);font-size:.875rem">${doc.title}</strong><br><span style="font-size:.68rem;color:var(--text-muted)">${doc.id}</span></td>
               <td>${(doc.tags || []).slice(0, 3).map(t => `<span class="badge badge--primary" style="font-size:.6rem;margin:2px">${t}</span>`).join('')}</td>
               <td style="font-size:.8rem;white-space:nowrap">${doc.lastUpdated || '—'}</td>
@@ -67,6 +68,19 @@ const AdminDocumentLibrarySection = (() => {
         UI.toast('Reset to defaults.', 'success');
       }
     });
+    const docSearchEl = document.getElementById('admin-doc-search');
+    const docTagFilterEl = document.getElementById('admin-doc-tag-filter');
+    const applyDocFilters = () => {
+      const query = String(docSearchEl?.value || '').trim().toLowerCase();
+      const tag = String(docTagFilterEl?.value || '').trim().toLowerCase();
+      document.querySelectorAll('.admin-doc-row').forEach(row => {
+        const matchesQuery = !query || String(row.dataset.search || '').includes(query);
+        const matchesTag = !tag || String(row.dataset.tags || '').split('|').includes(tag);
+        row.hidden = !(matchesQuery && matchesTag);
+      });
+    };
+    docSearchEl?.addEventListener('input', applyDocFilters);
+    docTagFilterEl?.addEventListener('change', applyDocFilters);
     document.getElementById('btn-add-doc').addEventListener('click', () => openEditor(null));
     docList.forEach(doc => {
       document.getElementById(`edit-doc-${doc.id}`)?.addEventListener('click', () => openEditor(doc));

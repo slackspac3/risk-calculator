@@ -6,44 +6,50 @@ const AdminOrgSetupSection = (() => {
   }
 
   function renderSections({ companyEntities, departmentEntities, companyStructure }) {
-    const introSection = renderSettingsSection({
-      title: 'How This Screen Works',
-      scope: 'admin-settings',
-      description: 'Build the organisation tree first, manage context from each entity, then rely on platform defaults as fallback.',
-      open: true,
-      meta: `${companyEntities.length} business units mapped`,
-      body: `<div class="context-grid">
-        <div class="context-chip-panel">
-          <div class="context-panel-title">1. Build the organisation tree</div>
-          <p class="context-panel-copy">Add holdings, subsidiaries, portfolio companies, partners, and departments in one place.</p>
-        </div>
-        <div class="context-chip-panel">
-          <div class="context-panel-title">2. Manage context from each node</div>
-          <p class="context-panel-copy">Use the tree actions to edit retained business or department context directly on the entity you are working on.</p>
-        </div>
-        <div class="context-chip-panel">
-          <div class="context-panel-title">3. Use platform defaults as fallback</div>
-          <p class="context-panel-copy">Global geography, regulations, thresholds, and AI defaults sit underneath the entity-specific setup.</p>
-        </div>
-      </div>`
-    });
     const treeSection = renderSettingsSection({
       title: 'Organisation Tree',
       scope: 'admin-settings',
-      description: "Use this as the main operating view. Add businesses and departments here, then manage each node's retained context from the same tree.",
+      description: "Use this as the main structure-editing workspace. Add businesses and departments here, then manage each node's retained context from the same tree.",
       meta: `${companyEntities.length} businesses · ${departmentEntities.length} departments`,
       open: true,
       body: `<div class="card" style="padding:var(--sp-5);background:var(--bg-elevated)">
-        <div class="context-panel-title">Organisation Tree</div>
-        <div class="flex items-center gap-3 mt-3" style="flex-wrap:wrap">
+        <div class="admin-workbench-strip admin-workbench-strip--compact">
+          <div>
+            <div class="admin-workbench-strip__label">Structure editing</div>
+            <strong>Build the tree first, then edit retained context from the node you are working on.</strong>
+            <span>Keep the organisation structure current here. Deeper context guidance and saved layer review are available below when needed.</span>
+          </div>
+        </div>
+        <div class="flex items-center gap-3 mt-4" style="flex-wrap:wrap">
           <button class="btn btn--secondary" id="btn-add-org-entity">Add Entity</button>
           <button class="btn btn--secondary" id="btn-add-org-function">Add Function / Department</button>
           <span class="form-help">Context is now managed directly inside the tree.</span>
         </div>
         <div id="admin-company-structure-summary" class="mt-4">${renderCompanyStructureSummary(companyStructure)}</div>
+        <details class="settings-inline-disclosure mt-4">
+          <summary>Structure guidance and saved context layers</summary>
+          <div class="dashboard-disclosure-copy">Open this only when you need a quick reminder of the operating pattern or want to review which saved context layers already exist.</div>
+          <div class="dashboard-disclosure-body">
+            <div class="context-grid">
+              <div class="context-chip-panel">
+                <div class="context-panel-title">1. Build the organisation tree</div>
+                <p class="context-panel-copy">Add holdings, subsidiaries, portfolio companies, partners, and departments in one place.</p>
+              </div>
+              <div class="context-chip-panel">
+                <div class="context-panel-title">2. Manage context from each node</div>
+                <p class="context-panel-copy">Use the tree actions to edit retained business or department context directly on the entity you are working on.</p>
+              </div>
+              <div class="context-chip-panel">
+                <div class="context-panel-title">3. Use platform defaults as fallback</div>
+                <p class="context-panel-copy">Global geography, regulations, thresholds, and AI defaults sit underneath the entity-specific setup.</p>
+              </div>
+            </div>
+            <div id="admin-layer-summary-list" class="mt-4"></div>
+          </div>
+        </details>
       </div>`
     });
-    return introSection + treeSection;
+    return treeSection;
   }
 
   function _persistAdminTreeState() {

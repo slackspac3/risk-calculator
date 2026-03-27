@@ -3779,7 +3779,7 @@ function renderAppBar() {
     ? [
         { href: '#/admin/settings/org', label: 'Platform Home', active: currentHash.startsWith('#/admin/settings/org') || currentHash === '#/admin/settings' },
         { href: '#/admin/settings/users', label: 'User Access', active: currentHash.startsWith('#/admin/settings/users') },
-        { href: '#/admin/settings/defaults', label: 'Defaults', active: currentHash.startsWith('#/admin/settings/defaults') }
+        { href: '#/admin/settings/defaults', label: 'Defaults', active: currentHash.startsWith('#/admin/settings/defaults') || currentHash.startsWith('#/admin/settings/governance') }
       ]
     : currentUser
       ? [
@@ -4503,6 +4503,7 @@ function adminLayout(active, content, activeSettingsSection = 'org') {
       <a href="#/admin/settings/org" data-admin-route="/admin/settings/org" class="admin-nav-link ${active==='settings' && activeSettingsSection==='org' ? 'active' : ''}">Organisation Setup</a>
       <a href="#/admin/settings/company" data-admin-route="/admin/settings/company" class="admin-nav-link ${active==='settings' && activeSettingsSection==='company' ? 'active' : ''}">AI Company Builder</a>
       <a href="#/admin/settings/defaults" data-admin-route="/admin/settings/defaults" class="admin-nav-link ${active==='settings' && activeSettingsSection==='defaults' ? 'active' : ''}">Platform Defaults</a>
+      <a href="#/admin/settings/governance" data-admin-route="/admin/settings/governance" class="admin-nav-link ${active==='settings' && activeSettingsSection==='governance' ? 'active' : ''}">Governance Inputs</a>
       <a href="#/admin/settings/access" data-admin-route="/admin/settings/access" class="admin-nav-link ${active==='settings' && activeSettingsSection==='access' ? 'active' : ''}">System Access</a>
       <a href="#/admin/settings/users" data-admin-route="/admin/settings/users" class="admin-nav-link ${active==='settings' && activeSettingsSection==='users' ? 'active' : ''}">User Accounts</a>
       <a href="#/admin/settings/audit" data-admin-route="/admin/settings/audit" class="admin-nav-link ${active==='settings' && activeSettingsSection==='audit' ? 'active' : ''}">Audit Log</a>
@@ -4619,7 +4620,8 @@ function renderAdminSettings(activeSection = 'org') {
   const settingsSectionMeta = {
     org: { title: 'Organisation Setup', description: 'Build the organisation tree first, then tune risk context from the left navigation.' },
     company: { title: 'AI Company Context Builder', description: 'Build public company context and place it into the organisation structure.' },
-    defaults: { title: 'Platform Defaults And Governance', description: 'Manage thresholds, regulations, risk appetite, and global AI defaults.' },
+    defaults: { title: 'Platform Defaults', description: 'Manage thresholds, escalation posture, geography, and global linked-risk fallback.' },
+    governance: { title: 'Governance Inputs', description: 'Manage regulations, AI guidance, typical departments, and scoped governance overrides.' },
     access: { title: 'System Access', description: 'Configure the Compass proxy, model, and session-level access controls.' },
     users: { title: 'User Account Control', description: 'Manage shared users, roles, BU assignments, and issued passwords.' },
     audit: { title: 'Audit Log', description: 'Review short-retention PoC audit events and sign-in statistics.' }
@@ -4635,7 +4637,14 @@ function renderAdminSettings(activeSection = 'org') {
     scope: 'admin-settings',
     description: 'Build public context for a company website, then place it into the organisation tree as a holding company, subsidiary, portfolio company, partner, or operating business.',
     meta: settings.companyWebsiteUrl ? 'Website loaded' : 'Optional',
-    body: `<div class="grid-2">
+    body: `<div class="admin-workbench-strip admin-workbench-strip--compact">
+      <div>
+        <div class="admin-workbench-strip__label">Build first, refine second</div>
+        <strong>Generate the company context from a website first, then open AI refinement only when the draft needs reshaping.</strong>
+        <span>This keeps the workflow easier to control and avoids loading refinement tools before there is a usable draft.</span>
+      </div>
+    </div>
+    <div class="grid-2 mt-4">
       <div class="form-group">
         <label class="form-label" for="admin-company-url">Company Website URL</label>
         <input class="form-input" id="admin-company-url" value="${settings.companyWebsiteUrl || ''}" placeholder="https://example.com">
@@ -4681,26 +4690,33 @@ function renderAdminSettings(activeSection = 'org') {
       <button class="btn btn--secondary" id="btn-build-company-context">Build from Website</button>
       <span class="form-help">This opens a review step so you can decide where the entity sits in the group.</span>
     </div>
-    ${UI.aiRefinementCard({
-      intro: 'Use follow-up prompts to reshape the company context until it is ready for the admin baseline or organisation tree.',
-      historyId: 'admin-company-refinement-history',
-      fileId: 'admin-company-source-file',
-      fileLabel: 'Upload supporting documents',
-      fileAccept: '.txt,.csv,.json,.md,.tsv,.xlsx,.xls,.doc,.docx,.pdf',
-      fileHelpId: 'admin-company-source-help',
-      fileHelp: 'Recommended: upload strategy, policy, procedure, or operating-model documents to ground the AI context.',
-      promptId: 'admin-company-followup',
-      promptPlaceholder: 'Tell the AI what to change, emphasise, shorten, or make more specific.',
-      buttonId: 'btn-refine-admin-company-context',
-      buttonLabel: 'Apply Follow-Up Now',
-      statusId: 'admin-company-refine-status',
-      statusText: 'The fields above will be updated in place each time you refine the context.',
-      className: 'card mt-4',
-      style: 'padding:var(--sp-4);background:var(--bg-elevated)',
-      title: 'Refine This Context With AI'
-    })}`
+    <details class="dashboard-disclosure card mt-4">
+      <summary>Refine with AI <span class="badge badge--neutral">Advanced</span></summary>
+      <div class="dashboard-disclosure-copy">Open this after you have a first company draft and want to refine it with uploaded sources or follow-up instructions.</div>
+      <div class="dashboard-disclosure-body">
+        ${UI.aiRefinementCard({
+          intro: 'Use follow-up prompts to reshape the company context until it is ready for the admin baseline or organisation tree.',
+          historyId: 'admin-company-refinement-history',
+          fileId: 'admin-company-source-file',
+          fileLabel: 'Upload supporting documents',
+          fileAccept: '.txt,.csv,.json,.md,.tsv,.xlsx,.xls,.doc,.docx,.pdf',
+          fileHelpId: 'admin-company-source-help',
+          fileHelp: 'Recommended: upload strategy, policy, procedure, or operating-model documents to ground the AI context.',
+          promptId: 'admin-company-followup',
+          promptPlaceholder: 'Tell the AI what to change, emphasise, shorten, or make more specific.',
+          buttonId: 'btn-refine-admin-company-context',
+          buttonLabel: 'Apply Follow-Up Now',
+          statusId: 'admin-company-refine-status',
+          statusText: 'The fields above will be updated in place each time you refine the context.',
+          className: '',
+          style: 'padding:0;background:transparent;border:none;box-shadow:none',
+          title: 'Refine This Context With AI'
+        })}
+      </div>
+    </details>`
   });
-  const platformDefaultsSection = AdminPlatformDefaultsSection.renderSection({ settings });
+  const platformDefaultsSection = AdminPlatformDefaultsSection.renderSection({ settings, mode: 'defaults' });
+  const governanceSection = AdminPlatformDefaultsSection.renderSection({ settings, mode: 'governance' });
   const systemAccessSection = AdminSystemAccessSection.renderSection({
     directCompass,
     sessionLLM
@@ -4719,10 +4735,58 @@ function renderAdminSettings(activeSection = 'org') {
     org: orgSetupSections,
     company: companyBuilderSection,
     defaults: platformDefaultsSection,
+    governance: governanceSection,
     access: systemAccessSection,
     users: userControlsSection,
     audit: auditLogSection
   }[currentSettingsSection] || orgSetupSections;
+
+  const adminGuidanceCopy = currentSettingsSection === 'org'
+    ? 'Edit the organisation tree first. Context guidance and saved layer review stay below the workbench so structure remains the main task.'
+    : currentSettingsSection === 'users'
+      ? 'Review and search current accounts first. Creation and protected admin tools stay secondary so access changes remain controlled.'
+      : currentSettingsSection === 'defaults'
+        ? 'Set global thresholds and fallback posture here. Governance inputs and scoped overrides live separately to reduce cognitive load.'
+        : currentSettingsSection === 'governance'
+          ? 'Use this screen for regulations, AI guidance, and scoped defaults. Financial thresholds remain on Platform Defaults.'
+          : currentSettingsSection === 'company'
+            ? 'Generate first, refine second. Keep the main company-context draft simple before opening advanced AI refinement.'
+            : currentSettingsSection === 'access'
+              ? 'These are stronger platform controls. Make one intentional change at a time and verify the downstream effect before saving.'
+              : 'Review short-retention audit activity without interrupting the main platform administration flow.';
+  const platformSnapshotMarkup = `<details class="dashboard-disclosure card admin-snapshot-disclosure">
+    <summary>Platform snapshot <span class="badge badge--neutral">Reference</span></summary>
+    <div class="dashboard-disclosure-copy">A compact view of structure, context coverage, and where platform administration is concentrated. Open only when it helps the current task.</div>
+    <div class="dashboard-disclosure-body">
+      <div class="admin-overview-grid">
+        <div class="admin-overview-card">
+          <div class="admin-overview-label">Businesses</div>
+          <div class="admin-overview-value">${companyEntities.length}</div>
+          <div class="admin-overview-foot">Holding, operating, JV, listed, and partner entities in the structure</div>
+        </div>
+        <div class="admin-overview-card">
+          <div class="admin-overview-label">Departments</div>
+          <div class="admin-overview-value">${departmentEntities.length}</div>
+          <div class="admin-overview-foot">Functions attached beneath business entities</div>
+        </div>
+        <div class="admin-overview-card">
+          <div class="admin-overview-label">Context Layers</div>
+          <div class="admin-overview-value">${entityContextLayers.length}</div>
+          <div class="admin-overview-foot">Entity-specific overlays for regulations, appetite, and AI behaviour</div>
+        </div>
+        <div class="admin-overview-card">
+          <div class="admin-overview-label">Org Customisation</div>
+          <div class="admin-overview-value">${buCount}</div>
+          <div class="admin-overview-foot">Assessment-ready BU context derived from the organisation tree</div>
+        </div>
+        <div class="admin-overview-card">
+          <div class="admin-overview-label">Document Library</div>
+          <div class="admin-overview-value">${docCount}</div>
+          <div class="admin-overview-foot">Used for citations and document-grounded AI support</div>
+        </div>
+      </div>
+    </div>
+  </details>`;
 
   setPage(adminLayout('settings', `
     <div class="settings-shell">
@@ -4734,80 +4798,16 @@ function renderAdminSettings(activeSection = 'org') {
           </div>
           <div class="admin-shell-note">Keep the main operating action simple: assess likely downstream impact, then save only when the end-user effect is clear.</div>
         </div>
-        <div class="results-section-heading" style="margin-top:var(--sp-6)">Core admin tasks</div>
-        <div class="form-help" style="margin-top:8px">Start with structure, access, or defaults. Open deeper platform tools only when you need them.</div>
-        <div class="admin-frontdoor-nav" style="margin-top:var(--sp-5)">
-          <a href="#/admin/settings/org" class="admin-frontdoor-link ${currentSettingsSection === 'org' ? 'active' : ''}">
-            <span class="admin-frontdoor-link__label">Primary lane</span>
-            <strong>Organisation Setup</strong>
-            <span>Keep ownership, structure, and context foundations clear first.</span>
-          </a>
-          <a href="#/admin/settings/users" class="admin-frontdoor-link ${currentSettingsSection === 'users' ? 'active' : ''}">
-            <span class="admin-frontdoor-link__label">Primary lane</span>
-            <strong>User Access</strong>
-            <span>Review who has access, what they own, and where role scope needs correction.</span>
-          </a>
-          <a href="#/admin/settings/defaults" class="admin-frontdoor-link ${currentSettingsSection === 'defaults' ? 'active' : ''}">
-            <span class="admin-frontdoor-link__label">Primary lane</span>
-            <strong>Platform Defaults</strong>
-            <span>Adjust thresholds and guidance only when the downstream user effect is understood.</span>
-          </a>
-          <details class="results-actions-disclosure admin-frontdoor-overflow">
-            <summary class="btn btn--ghost btn--sm">Platform tools</summary>
-            <div class="results-actions-disclosure-menu">
-              <a href="#/admin/settings/company" class="btn btn--secondary btn--sm">AI Company Builder</a>
-              <a href="#/admin/settings/access" class="btn btn--secondary btn--sm">System Access</a>
-              <a href="#/admin/settings/audit" class="btn btn--secondary btn--sm">Audit Log</a>
-              <a href="#/admin/bu" class="btn btn--secondary btn--sm">Org Customisation</a>
-              <a href="#/admin/docs" class="btn btn--secondary btn--sm">Document Library</a>
-            </div>
-          </details>
-        </div>
-        <div class="admin-focus-strip">
-          <div class="admin-focus-pill">
-            <span class="admin-focus-pill__label">Current section</span>
-            <strong>${settingsSectionMeta[currentSettingsSection].title}</strong>
-            <span>${settingsSectionMeta[currentSettingsSection].description}</span>
-          </div>
-          <div class="admin-focus-pill">
-            <span class="admin-focus-pill__label">Recommended next move</span>
-            <strong>${currentSettingsSection === 'org' ? 'Tune structure before thresholds' : currentSettingsSection === 'users' ? 'Review access before issuing changes' : currentSettingsSection === 'defaults' ? 'Assess end-user impact before save' : 'Keep advanced controls deliberate'}</strong>
-            <span>${currentSettingsSection === 'org' ? 'A clear ownership tree makes downstream context and user setup much calmer.' : currentSettingsSection === 'users' ? 'Account changes are higher-risk when role and BU context are not aligned.' : currentSettingsSection === 'defaults' ? 'Thresholds and AI defaults shape many downstream user decisions.' : 'This section contains stronger platform controls, so make one intentional change at a time.'}</span>
-          </div>
-        </div>
-        <div class="results-section-heading" style="margin-top:var(--sp-6)">Platform snapshot</div>
-        <div class="form-help" style="margin-top:8px">A compact view of structure, context coverage, and where platform administration is concentrated.</div>
-        <div class="admin-overview-grid" style="margin-top:var(--sp-5)">
-          <div class="admin-overview-card">
-            <div class="admin-overview-label">Businesses</div>
-            <div class="admin-overview-value">${companyEntities.length}</div>
-            <div class="admin-overview-foot">Holding, operating, JV, listed, and partner entities in the structure</div>
-          </div>
-          <div class="admin-overview-card">
-            <div class="admin-overview-label">Departments</div>
-            <div class="admin-overview-value">${departmentEntities.length}</div>
-            <div class="admin-overview-foot">Functions attached beneath business entities</div>
-          </div>
-          <div class="admin-overview-card">
-            <div class="admin-overview-label">Context Layers</div>
-            <div class="admin-overview-value">${entityContextLayers.length}</div>
-            <div class="admin-overview-foot">Entity-specific overlays for regulations, appetite, and AI behaviour</div>
-          </div>
-          <div class="admin-overview-card">
-            <div class="admin-overview-label">Org Customisation</div>
-            <div class="admin-overview-value">${buCount}</div>
-            <div class="admin-overview-foot">Assessment-ready BU context derived from the organisation tree</div>
-          </div>
-          <div class="admin-overview-card">
-            <div class="admin-overview-label">Document Library</div>
-            <div class="admin-overview-value">${docCount}</div>
-            <div class="admin-overview-foot">Used for citations and document-grounded AI support</div>
-          </div>
+        <div class="admin-guidance-strip">
+          <span class="admin-guidance-strip__label">Admin guidance</span>
+          <strong>${currentSettingsSection === 'org' ? 'Structure first' : currentSettingsSection === 'users' ? 'Access review first' : currentSettingsSection === 'defaults' ? 'Thresholds first' : currentSettingsSection === 'governance' ? 'Guidance first' : currentSettingsSection === 'company' ? 'Build first' : 'One intentional change at a time'}</strong>
+          <span>${adminGuidanceCopy}</span>
         </div>
       </div>
       <div class="settings-accordion">
         ${adminSectionBody}
       </div>
+      ${platformSnapshotMarkup}
       <div class="settings-shell__footer">
         <div id="admin-impact-assessment">${renderAdminImpactAssessment(buildAdminImpactAssessment(settings, settings))}</div>
         <div class="flex items-center gap-3 mt-4" style="flex-wrap:wrap">
@@ -4848,8 +4848,8 @@ function renderAdminSettings(activeSection = 'org') {
   if (currentSettingsSection === 'audit') {
     AdminAuditLogSection.bind({ rerenderCurrentAdminSection });
   }
-  const defaultsBindings = currentSettingsSection === 'defaults'
-    ? AdminPlatformDefaultsSection.bind({ settings })
+  const defaultsBindings = currentSettingsSection === 'defaults' || currentSettingsSection === 'governance'
+    ? AdminPlatformDefaultsSection.bind({ settings, mode: currentSettingsSection })
     : { regsInput: null, typicalDepartmentsInput: null };
   const { regsInput, typicalDepartmentsInput } = defaultsBindings;
   const structureSummaryEl = currentSettingsSection === 'org' ? document.getElementById('admin-company-structure-summary') : null;
@@ -5250,20 +5250,45 @@ function renderAdminBU() {
       </div>`;
   }
 
+  function collectCompanySearchText(entity) {
+    const entityLayer = getEntityLayerById(settings, entity.id);
+    const departments = getDepartmentEntities(companyStructure, entity.id);
+    const childCompanies = getChildCompanyEntities(companyStructure, entity.id);
+    const ownerLabel = entity.ownerUsername ? (accountLabelByUsername.get(entity.ownerUsername) || entity.ownerUsername) : 'No owner';
+    return [
+      entity.name,
+      entity.type,
+      ownerLabel,
+      entityLayer?.contextSummary || entity.profile || '',
+      getEntityLineageLabel(companyStructure, entity.id) || '',
+      ...departments.flatMap(department => {
+        const departmentLayer = getEntityLayerById(settings, department.id);
+        return [
+          department.name,
+          department.departmentRelationshipType || '',
+          department.ownerUsername ? (accountLabelByUsername.get(department.ownerUsername) || department.ownerUsername) : '',
+          departmentLayer?.contextSummary || ''
+        ];
+      }),
+      ...childCompanies.map(child => collectCompanySearchText(child))
+    ].flat().filter(Boolean).join(' ').toLowerCase();
+  }
+
   function renderCompanyNode(entity, depth = 0) {
     const entityLayer = getEntityLayerById(settings, entity.id);
     const departments = getDepartmentEntities(companyStructure, entity.id);
     const childCompanies = getChildCompanyEntities(companyStructure, entity.id);
     const lineage = getEntityLineageLabel(companyStructure, entity.id) || entity.name;
     const summary = truncateText(entityLayer?.contextSummary || entity.profile || 'No saved context yet.', 120);
+    const ownerLabel = entity.ownerUsername ? (accountLabelByUsername.get(entity.ownerUsername) || entity.ownerUsername) : 'No owner';
     const childMarkup = childCompanies.length ? childCompanies.map(child => renderCompanyNode(child, depth + 1)).join('') : '';
     return `
-      <details class="org-accordion ${getOrgEntityThemeClass(entity.type)}" ${depth < 1 ? 'open' : ''} style="margin-left:${depth * 16}px">
+      <details class="org-accordion ${getOrgEntityThemeClass(entity.type)} org-company-row" data-search="${escapeHtml(collectCompanySearchText(entity))}" ${depth < 1 ? 'open' : ''} style="margin-left:${depth * 16}px">
         <summary class="org-accordion__summary">
           <div class="org-accordion__identity">
             <span class="badge badge--gold">${entity.type}</span>
             <strong>${entity.name}</strong>
-            <span class="form-help">${departments.length} functions · ${childCompanies.length} child entities</span>
+            <span class="form-help">${departments.length} functions · ${childCompanies.length} child entities · ${ownerLabel}</span>
           </div>
           <div class="org-accordion__meta">
             <span class="form-help">${entityLayer?.contextSummary ? 'Saved context' : 'No saved context'}</span>
@@ -5296,28 +5321,20 @@ function renderAdminBU() {
     <div class="flex items-center justify-between mb-4">
       <div>
         <h2>Organisation Customisation</h2>
-        <p style="margin-top:6px">Compact hierarchy view for entities and their functions.</p>
+        <p style="margin-top:6px">Review entities and functions, then open context editing only on the node you need to change.</p>
       </div>
       <div class="flex gap-3">
         <a class="btn btn--primary btn--sm" href="#/admin/settings/org">Organisation Setup</a>
       </div>
     </div>
-    <div class="admin-overview-grid mb-5">
-      <div class="admin-overview-card">
-        <div class="admin-overview-label">Top Level</div>
-        <div class="admin-overview-value">${topLevelCompanies.length}</div>
+    <div class="admin-workbench-strip admin-workbench-strip--compact mb-5">
+      <div>
+        <div class="admin-workbench-strip__label">Workbench</div>
+        <strong>Search the hierarchy, then edit the specific entity or function that needs attention.</strong>
+        <span>${topLevelCompanies.length} top-level entities · ${companyEntities.length} entities · ${departmentEntities.length} functions.</span>
       </div>
-      <div class="admin-overview-card">
-        <div class="admin-overview-label">Entities</div>
-        <div class="admin-overview-value">${companyEntities.length}</div>
-      </div>
-      <div class="admin-overview-card">
-        <div class="admin-overview-label">Functions</div>
-        <div class="admin-overview-value">${departmentEntities.length}</div>
-      </div>
-      <div class="admin-overview-card">
-        <div class="admin-overview-label">Owners</div>
-        <div class="admin-overview-value">${companyEntities.filter(entity => entity.ownerUsername).length + departmentEntities.filter(entity => entity.ownerUsername).length}</div>
+      <div class="admin-workbench-strip__meta">
+        <input class="form-input" id="org-customisation-search" type="search" placeholder="Search entity, type, owner, or context" style="min-width:min(320px,100%);max-width:420px">
       </div>
     </div>
     ${topLevelCompanies.length ? `
@@ -5330,6 +5347,12 @@ function renderAdminBU() {
       </div>`}`));
 
   document.getElementById('btn-admin-logout').addEventListener('click', () => { performLogout(); });
+  document.getElementById('org-customisation-search')?.addEventListener('input', event => {
+    const query = String(event.target.value || '').trim().toLowerCase();
+    document.querySelectorAll('.org-company-row').forEach(row => {
+      row.hidden = !!query && !String(row.dataset.search || '').includes(query);
+    });
+  });
   document.querySelectorAll('.btn-edit-company-context').forEach(button => {
     button.addEventListener('click', () => {
       const entity = structureMap.get(button.dataset.companyId || '');
@@ -5643,6 +5666,7 @@ async function init() {
     .on('/admin/settings/org', () => safeRenderAdminSettings('org'))
     .on('/admin/settings/company', () => safeRenderAdminSettings('company'))
     .on('/admin/settings/defaults', () => safeRenderAdminSettings('defaults'))
+    .on('/admin/settings/governance', () => safeRenderAdminSettings('governance'))
     .on('/admin/settings/access', () => safeRenderAdminSettings('access'))
     .on('/admin/settings/users', () => safeRenderAdminSettings('users'))
     .on('/admin/settings/audit', () => safeRenderAdminSettings('audit'))
