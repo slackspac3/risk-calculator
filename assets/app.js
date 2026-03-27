@@ -169,6 +169,7 @@ const AppState = {
   adminVisiblePasswords: {},
   settingsSectionState: {},
   settingsScrollState: {},
+  disclosureState: {},
   adminSettingsCache: null,
   userStateCache: { username: '', userSettings: null, assessments: null, learningStore: null, draft: null, _meta: { revision: 0, updatedAt: 0 } },
   userStateSyncTimer: null,
@@ -3182,6 +3183,7 @@ function applyPageNavigationEffects(root = document) {
 function setPage(html) {
   const root = document.getElementById('main-content');
   root.innerHTML = html;
+  bindDisclosureState(root);
   applyPageNavigationEffects(root);
 }
 
@@ -4716,6 +4718,38 @@ function renderUserSettings() {
 
 function getSettingsSectionStateKey(scope, title) {
   return `${scope}::${String(title || '').trim().toLowerCase()}`;
+}
+
+function getCurrentDisclosureScope() {
+  const routeMeta = getRouteMeta();
+  const currentHash = String(routeMeta.currentHash || '').trim();
+  if (currentHash) return currentHash.toLowerCase();
+  if (typeof window !== 'undefined') {
+    return (String(window.location.hash || '#/').slice(1) || '/').toLowerCase();
+  }
+  return '/';
+}
+
+function getDisclosureStateKey(scope, title) {
+  return `${String(scope || getCurrentDisclosureScope()).trim().toLowerCase()}::${String(title || '').trim().toLowerCase()}`;
+}
+
+function getDisclosureOpenState(stateKey, fallback = false) {
+  if (!stateKey) return !!fallback;
+  return Object.prototype.hasOwnProperty.call(AppState.disclosureState, stateKey)
+    ? !!AppState.disclosureState[stateKey]
+    : !!fallback;
+}
+
+function bindDisclosureState(root = document) {
+  root.querySelectorAll('details[data-disclosure-state-key]').forEach(section => {
+    const key = section.dataset.disclosureStateKey;
+    if (!key || section.dataset.disclosureStateBound === 'true') return;
+    section.dataset.disclosureStateBound = 'true';
+    section.addEventListener('toggle', () => {
+      AppState.disclosureState[key] = section.open;
+    });
+  });
 }
 
 function rememberSettingsScroll(scope) {

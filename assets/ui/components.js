@@ -218,8 +218,12 @@ const UI = (() => {
     return `<span class="badge badge--${tone} wizard-section-badge">${label}</span>`;
   }
 
-  function disclosureSection({ title, body, badgeLabel = 'Optional', badgeTone = 'neutral', open = false, className = 'wizard-disclosure card anim-fade-in', bodyClassName = 'wizard-disclosure-body' }) {
-    return `<details class="${className}" ${open ? 'open' : ''}>
+  function disclosureSection({ title, body, badgeLabel = 'Optional', badgeTone = 'neutral', open = false, className = 'wizard-disclosure card anim-fade-in', bodyClassName = 'wizard-disclosure-body', stateKey = '' }) {
+    const resolvedStateKey = stateKey || (typeof getDisclosureStateKey === 'function' ? getDisclosureStateKey('', title) : '');
+    const isOpen = resolvedStateKey && typeof getDisclosureOpenState === 'function'
+      ? getDisclosureOpenState(resolvedStateKey, open)
+      : open;
+    return `<details class="${className}"${resolvedStateKey ? ` data-disclosure-state-key="${escapeHtml(resolvedStateKey)}"` : ''} ${isOpen ? 'open' : ''}>
       <summary><span>${title}</span>${sectionStatusBadge(badgeLabel, badgeTone)}</summary>
       <div class="${bodyClassName}">${body}</div>
     </details>`;

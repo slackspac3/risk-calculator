@@ -50,7 +50,8 @@ function renderStep1SelectedRisksSummary(selectedRisks, riskCandidates) {
 
 function renderStep1FeaturedExampleCard(example) {
   if (!example) return '';
-  return `<details class="wizard-disclosure wizard-disclosure--support anim-fade-in">
+  const disclosureKey = getDisclosureStateKey('/wizard/1', 'worked example');
+  return `<details class="wizard-disclosure wizard-disclosure--support anim-fade-in" data-disclosure-state-key="${escapeHtml(disclosureKey)}" ${getDisclosureOpenState(disclosureKey, false) ? 'open' : ''}>
     <summary>Worked example <span class="badge badge--neutral">Fast demo path</span></summary>
     <div class="wizard-disclosure-body">
       <div class="wizard-summary-band wizard-summary-band--quiet" style="margin-top:0">
@@ -70,6 +71,7 @@ function renderStep1FeaturedExampleCard(example) {
 
 function renderStep1GuidedBuilderCard(draft, recommendation) {
   const draftPreview = composeGuidedNarrative(draft.guidedInput);
+  const optionalContextDisclosureKey = getDisclosureStateKey('/wizard/1', 'add more context only if you need it');
   return `<div class="card card--elevated wizard-primary-card anim-fade-in anim-delay-1">
     <div class="wizard-premium-head" style="margin-bottom:var(--sp-5)">
       <div>
@@ -92,7 +94,7 @@ function renderStep1GuidedBuilderCard(draft, recommendation) {
         <input class="form-input" id="guided-impact" type="text" placeholder="Example: service outage, regulatory breach, customer harm, financial exposure, recovery strain" value="${draft.guidedInput?.impact || ''}">
       </div>
     </div>
-    <details class="wizard-disclosure wizard-disclosure--compact" style="margin-top:var(--sp-4)">
+    <details class="wizard-disclosure wizard-disclosure--compact" data-disclosure-state-key="${escapeHtml(optionalContextDisclosureKey)}" ${getDisclosureOpenState(optionalContextDisclosureKey, false) ? 'open' : ''} style="margin-top:var(--sp-4)">
       <summary>Add more context only if you need it <span class="badge badge--neutral">Optional</span></summary>
       <div class="wizard-disclosure-body">
         <div class="grid-2">
@@ -240,7 +242,11 @@ function renderStep1ScopeBand({ draft, selectedRisks, riskCandidates, regs }) {
 }
 
 function renderStep1OtherWaysToStart(draft, hasScenarioDraft, hasImportedSource) {
-  return `<details class="wizard-disclosure anim-fade-in anim-delay-1" ${(AppState.dashboardStartIntent === 'register' || hasScenarioDraft || hasImportedSource) ? 'open' : ''}>
+  const disclosureKey = getDisclosureStateKey('/wizard/1', 'other ways to start');
+  const importDisclosureKey = getDisclosureStateKey('/wizard/1', 'import or add risks directly');
+  const examplesDisclosureKey = getDisclosureStateKey('/wizard/1', 'browse more worked examples');
+  const isOpen = getDisclosureOpenState(disclosureKey, AppState.dashboardStartIntent === 'register' || hasScenarioDraft || hasImportedSource);
+  return `<details class="wizard-disclosure anim-fade-in anim-delay-1" data-disclosure-state-key="${escapeHtml(disclosureKey)}" ${isOpen ? 'open' : ''}>
     <summary>Other ways to start <span class="badge badge--neutral">Optional</span></summary>
     <div class="wizard-disclosure-body">
       <div class="form-help">Open this only if you already have a scenario draft, a register, or a known list of risks. The guided builder remains the easiest path for most users.</div>
@@ -256,7 +262,7 @@ function renderStep1OtherWaysToStart(draft, hasScenarioDraft, hasImportedSource)
           <button class="btn btn--ghost" id="btn-generate-risks-from-draft" type="button">Generate shortlist from this draft</button>
         </div>
       </div>
-      <details class="wizard-disclosure wizard-disclosure--compact">
+      <details class="wizard-disclosure wizard-disclosure--compact" data-disclosure-state-key="${escapeHtml(importDisclosureKey)}" ${getDisclosureOpenState(importDisclosureKey, false) ? 'open' : ''}>
         <summary>Import or add risks directly <span class="badge badge--neutral">Advanced start</span></summary>
         <div class="wizard-disclosure-body">
           <div class="form-help">Use this only when your source material already exists in a register, spreadsheet, or known risk list.</div>
@@ -281,7 +287,7 @@ function renderStep1OtherWaysToStart(draft, hasScenarioDraft, hasImportedSource)
           <p class="form-help" style="margin-top:var(--sp-4)">Uses runtime AI if a key has been set with <code>LLMService.setOpenAIKey(...)</code>. Otherwise the local extraction stub is used.</p>
         </div>
       </details>
-      <details class="wizard-disclosure wizard-disclosure--compact">
+      <details class="wizard-disclosure wizard-disclosure--compact" data-disclosure-state-key="${escapeHtml(examplesDisclosureKey)}" ${getDisclosureOpenState(examplesDisclosureKey, false) ? 'open' : ''}>
         <summary>Browse more worked examples <span class="badge badge--neutral">Optional</span></summary>
         <div class="wizard-disclosure-body">
           <div class="form-help">Use these when you want a fast, high-quality starting point for a common cyber or resilience case.</div>
@@ -929,6 +935,7 @@ function renderSelectedRiskCards(riskCandidates, selectedRisks, regulations) {
     : selectedCount >= 1
       ? 'Good scope so far. Keep only the risks that clearly belong in one coherent assessment.'
       : 'Choose the risks that share the same event, scope, or business impact.';
+  const additionalRisksDisclosureKey = getDisclosureStateKey('/wizard/1', 'show additional possible risks');
   return `${linkedRecommendations.length ? `<div class="card mb-4" style="background:var(--bg-elevated)"><div class="context-panel-title">Suggested linked-risk groupings</div><div style="display:flex;flex-direction:column;gap:var(--sp-3);margin-top:var(--sp-3)">${linkedRecommendations.map(group => `<div><div style="font-size:.78rem;font-weight:600;color:var(--text-primary)">${group.label}</div><div class="context-panel-copy" style="margin-top:4px">${group.risks.join(', ')}</div></div>`).join('')}</div><div class="context-panel-foot">${AppState.draft.linkAnalysis || 'Treat these as linked where one control or event could trigger the others in the same scenario.'}</div></div>` : ''}
   <div class="flex items-center gap-3 mb-4" style="flex-wrap:wrap">
     <button class="btn btn--ghost btn--sm" id="btn-select-all-risks" type="button">Select All</button>
@@ -937,7 +944,7 @@ function renderSelectedRiskCards(riskCandidates, selectedRisks, regulations) {
     <span class="form-help">${scopeHint}</span>
   </div>
   ${renderRiskSelectionSection('Recommended for this assessment', 'These are the strongest candidates based on the current event, asset, cause, and impact you described.', recommended, selectedIds, regulations)}
-  ${extras.length ? `<details class="wizard-disclosure"><summary>Show additional possible risks <span class="badge badge--neutral">${extras.length}</span></summary><div class="wizard-disclosure-body">${renderRiskSelectionSection('Available but likely out of scope', 'Keep these only if they clearly belong in the same event path or business outcome.', extras, selectedIds, regulations)}</div></details>` : ''}`;
+  ${extras.length ? `<details class="wizard-disclosure" data-disclosure-state-key="${escapeHtml(additionalRisksDisclosureKey)}" ${getDisclosureOpenState(additionalRisksDisclosureKey, false) ? 'open' : ''}><summary>Show additional possible risks <span class="badge badge--neutral">${extras.length}</span></summary><div class="wizard-disclosure-body">${renderRiskSelectionSection('Available but likely out of scope', 'Keep these only if they clearly belong in the same event path or business outcome.', extras, selectedIds, regulations)}</div></details>` : ''}`;
 }
 
 function bindRiskCardActions() {

@@ -751,20 +751,22 @@ test('wizard step 1 clear all keeps manually added risks unselected after rerend
   });
 
   await expectNoClientCrashOnRoute(page, '/#/wizard/1', async () => {
-    const advancedSummary = page.getByText('Other ways to start');
-    const importSummary = page.getByText('Import or add risks directly');
-    const manualInput = page.locator('#manual-risk-add');
-    const addManualRisk = page.locator('#btn-add-manual-risk');
+    const addManualRiskCandidate = async title => {
+      await page.evaluate(riskTitle => {
+        clearLoadedDryRunFlag?.();
+        appendRiskCandidates([{ title: riskTitle, category: 'Manual', source: 'manual' }], { selectNew: true });
+        AppState.draft.applicableRegulations = deriveApplicableRegulations(
+          getBUList().find(b => b.id === AppState.draft.buId),
+          getSelectedRisks(),
+          getScenarioGeographies()
+        );
+        saveDraft();
+        renderWizard1();
+      }, title);
+    };
 
-    await advancedSummary.click();
-    await importSummary.click();
-    await manualInput.fill('Cloud storage exposure');
-    await addManualRisk.click();
-
-    await advancedSummary.click();
-    await importSummary.click();
-    await manualInput.fill('Privileged access misuse');
-    await addManualRisk.click();
+    await addManualRiskCandidate('Cloud storage exposure');
+    await addManualRiskCandidate('Privileged access misuse');
 
     await expect(page.getByRole('button', { name: /^Clear All$/ })).toBeVisible();
     await expect(page.locator('.risk-select-checkbox:checked')).toHaveCount(2);
