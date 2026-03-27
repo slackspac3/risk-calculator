@@ -242,6 +242,29 @@ function renderEstimateHandoffCard(draft) {
   </div>`;
 }
 
+function renderEstimateScopeSummaryBand(draft) {
+  const scenarioGeographies = getScenarioGeographies();
+  const selectedRisks = getSelectedRisks();
+  const structured = draft.structuredScenario || {};
+  const scopeItems = [
+    structured.assetService ? `Asset / service: ${structured.assetService}` : '',
+    structured.attackType ? `Threat type: ${structured.attackType}` : '',
+    scenarioGeographies.length ? `Geography: ${scenarioGeographies.join(', ')}` : '',
+    selectedRisks.length ? `Selected risks: ${selectedRisks.slice(0, 3).map(risk => risk.title).join(', ')}` : ''
+  ].filter(Boolean);
+  const narrative = String(draft.enhancedNarrative || draft.narrative || '').trim();
+  return `<div class="wizard-summary-band wizard-summary-band--quiet anim-fade-in">
+    <div>
+      <div class="wizard-summary-band__label">Scenario handoff</div>
+      <strong>${escapeHtml(String(draft.scenarioTitle || 'Working scenario'))}</strong>
+      <div class="wizard-summary-band__copy">${escapeHtml(narrative ? truncateText(narrative, 180) : 'The estimate uses the scenario wording from the previous step. Go back only if the narrative still feels vague.')}</div>
+    </div>
+    <div class="wizard-summary-band__meta">
+      ${scopeItems.slice(0, 3).map(item => `<span class="badge badge--neutral">${escapeHtml(item)}</span>`).join('')}
+    </div>
+  </div>`;
+}
+
 function renderEstimateReadinessCard(draft, validation) {
   const warnings = Array.isArray(validation?.warnings) ? validation.warnings.map(humanizeEstimateValidationMessage).filter(Boolean) : [];
   const errors = Array.isArray(validation?.errors) ? validation.errors.map(humanizeEstimateValidationMessage).filter(Boolean) : [];
@@ -586,8 +609,8 @@ function renderWizard3() {
             <div class="form-help" style="margin-top:8px">Check readiness and source quality first. Then work through the core estimate from frequency to impact.</div>
           </section>
           ${renderEstimateFocusStrip(draft, isAdv, validation, baselineAssessment)}
-          ${draft.learningNote ? `<div class="card card--elevated anim-fade-in"><div class="context-panel-title">Template learning</div><p class="context-panel-copy">${draft.learningNote}</p></div>` : ''}
-          ${renderEstimateHandoffCard(draft)}
+          ${draft.learningNote ? `<div class="wizard-summary-band wizard-summary-band--quiet anim-fade-in"><div><div class="wizard-summary-band__label">Template learning</div><strong>Starting point guidance</strong><div class="wizard-summary-band__copy">${escapeHtml(draft.learningNote)}</div></div></div>` : ''}
+          ${renderEstimateScopeSummaryBand(draft)}
           ${renderQuantReadinessScoreCard(draft, validation)}
           ${baselineAssessment ? `<div class="card card--elevated anim-fade-in"><div class="wizard-premium-head"><div><div class="context-panel-title">Current assessment baseline</div><p class="context-panel-copy">You are working from <strong>${baselineAssessment.scenarioTitle || 'the original assessment'}</strong>. Adjust the assumptions below to reflect stronger prevention, faster response, or lower disruption impact, then rerun to compare the new result against the current baseline.</p></div><span class="badge badge--gold">Treatment lane</span></div><div class="form-help" style="margin-top:10px">Baseline completed on ${new Date(baselineAssessment.completedAt || baselineAssessment.createdAt || Date.now()).toLocaleDateString('en-AE', { year: 'numeric', month: 'long', day: 'numeric' })}.</div><div class="citation-chips" style="margin-top:12px"><button type="button" class="chip treatment-prompt-chip" data-treatment-prompt="control-strength">Try stronger controls</button><button type="button" class="chip treatment-prompt-chip" data-treatment-prompt="detection-response">Try faster detection</button><button type="button" class="chip treatment-prompt-chip" data-treatment-prompt="resilience">Try lower disruption impact</button></div><div class="form-group" style="margin-top:16px"><label class="form-label" for="treatment-improvement-request">Describe the better outcome you want to test</label><textarea class="form-textarea" id="treatment-improvement-request" rows="3" placeholder="e.g. stronger privileged-access controls, faster containment, better resilience, lower business disruption">${draft.treatmentImprovementRequest || ''}</textarea><span class="form-help">Describe the improvement in plain language and let AI adjust the copied baseline values before you simulate the new case.</span></div><div class="flex items-center gap-3" style="margin-top:12px;flex-wrap:wrap"><button class="btn btn--secondary" id="btn-treatment-ai-assist" type="button">AI Assist This Better Outcome</button><span class="form-help" id="treatment-improvement-status">These are quick starting points. You can still adjust every number manually before rerunning the analysis.</span></div></div>` : ''}
 

@@ -413,7 +413,7 @@ test('wizard handoff guidance carries the scenario cleanly into steps 2 and 3', 
     await expect(page.getByText(/what will carry into the estimate/i)).toBeVisible();
     await page.getByRole('button', { name: /continue to estimation/i }).click();
     await expect(page).toHaveURL(/#\/wizard\/3$/);
-    await expect(page.getByText(/before you adjust the numbers/i)).toBeVisible();
+    await expect(page.getByText(/scenario handoff/i)).toBeVisible();
     await expect(page.getByText(/quant readiness/i)).toBeVisible();
   });
 });

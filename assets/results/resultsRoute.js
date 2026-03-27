@@ -897,21 +897,16 @@ function renderPreRunReviewRail(draft, validation, selectedRisks, safeIterations
       ? 'Ready, but challenge the flagged assumptions'
       : 'Ready to run';
   const confidence = String(draft.confidenceLabel || '').trim() || 'Working estimate';
-  return `<div class="wizard-focus-strip anim-fade-in">
+  return `<div class="wizard-focus-strip wizard-focus-strip--compact anim-fade-in">
     <div class="wizard-focus-card wizard-focus-card--wide">
       <span class="wizard-focus-card__label">Review gate</span>
       <strong>${escapeHtml(readiness)}</strong>
       <span>${escapeHtml(errors[0] || warnings[0] || 'The scenario, assumptions, and model settings are coherent enough for a pilot run. Use the checks below to decide whether to run now or tighten one input first.')}</span>
     </div>
     <div class="wizard-focus-card">
-      <span class="wizard-focus-card__label">Scope</span>
+      <span class="wizard-focus-card__label">Scope and trust</span>
       <strong>${selectedRisks.length ? `${selectedRisks.length} risk${selectedRisks.length === 1 ? '' : 's'} in scope` : 'Scenario scope only'}</strong>
-      <span>${draft.geography || 'No geography stated'} · ${safeIterations.toLocaleString('en-US')} iterations</span>
-    </div>
-    <div class="wizard-focus-card">
-      <span class="wizard-focus-card__label">Trust signal</span>
-      <strong>${escapeHtml(confidence)}</strong>
-      <span>${Array.isArray(draft.missingInformation) && draft.missingInformation.length ? escapeHtml(draft.missingInformation[0]) : 'Input provenance and saved run metadata will stay visible after the simulation.'}</span>
+      <span>${draft.geography || 'No geography stated'} · ${safeIterations.toLocaleString('en-US')} iterations · ${escapeHtml(confidence)}</span>
     </div>
   </div>`;
 }
@@ -920,29 +915,16 @@ function renderPreRunTrustSummary(draft, safeIterations) {
   const provenanceCount = Array.isArray(draft.inputProvenance) ? draft.inputProvenance.filter(Boolean).length : 0;
   const evidenceCount = Array.isArray(draft.citations) ? draft.citations.filter(Boolean).length : 0;
   const assumptions = Array.isArray(draft.inferredAssumptions) ? draft.inferredAssumptions.filter(Boolean).slice(0, 2) : [];
-  return `<div class="card card--elevated anim-fade-in">
-    <div class="wizard-premium-head">
-      <div>
-        <div class="context-panel-title">Run trust summary</div>
-        <p class="context-panel-copy" style="margin-top:var(--sp-2)">This is the last review point before the simulation. The run stays reproducible, and the assumptions remain challengeable after save.</p>
-      </div>
-      <span class="badge badge--gold">Premium review gate</span>
+  return `<div class="wizard-summary-band wizard-summary-band--support anim-fade-in">
+    <div>
+      <div class="wizard-summary-band__label">Run trust summary</div>
+      <strong>${provenanceCount ? `${provenanceCount} tracked provenance item${provenanceCount === 1 ? '' : 's'}` : 'No tracked provenance yet'}</strong>
+      <div class="wizard-summary-band__copy">${evidenceCount ? `${evidenceCount} supporting citation${evidenceCount === 1 ? '' : 's'} are linked to the scenario.` : 'This run is still relying mainly on the scenario narrative and current judgement calls.'}${assumptions.length ? ` Main assumption to challenge: ${escapeHtml(assumptions[0])}` : ''}</div>
     </div>
-    <div class="context-grid" style="margin-top:var(--sp-4)">
-      <div class="context-chip-panel">
-        <div class="context-panel-title">Input provenance</div>
-        <p class="context-panel-copy">${provenanceCount ? `${provenanceCount} tracked input source${provenanceCount === 1 ? '' : 's'} are attached to this run.` : 'No tracked input provenance is attached yet.'}</p>
-      </div>
-      <div class="context-chip-panel">
-        <div class="context-panel-title">Evidence posture</div>
-        <p class="context-panel-copy">${evidenceCount ? `${evidenceCount} supporting citation${evidenceCount === 1 ? '' : 's'} are linked to the scenario.` : 'No named supporting citation is attached yet.'}</p>
-      </div>
-      <div class="context-chip-panel">
-        <div class="context-panel-title">Model summary</div>
-        <p class="context-panel-copy">${safeIterations.toLocaleString('en-US')} Monte Carlo iterations with ${escapeHtml(String(draft.fairParams?.distType || 'triangular'))} distributions and saved run metadata.</p>
-      </div>
+    <div class="wizard-summary-band__meta">
+      <span class="badge badge--neutral">${safeIterations.toLocaleString('en-US')} iterations</span>
+      <span class="badge badge--neutral">${escapeHtml(String(draft.fairParams?.distType || 'triangular'))} model</span>
     </div>
-    ${assumptions.length ? `<div class="context-panel-foot" style="margin-top:var(--sp-4)">Main assumption to challenge: ${escapeHtml(assumptions[0])}</div>` : ''}
   </div>`;
 }
 
@@ -1020,9 +1002,9 @@ function renderWizard4() {
           </div>
           ${UI.disclosureSection({
             title: 'Scenario summary for this run',
-            badgeLabel: 'Open for review',
+            badgeLabel: 'Review detail',
             badgeTone: 'neutral',
-            open: true,
+            open: false,
             className: 'wizard-disclosure card card--elevated anim-fade-in',
             body: `<div style="display:flex;align-items:center;gap:var(--sp-4);margin-bottom:var(--sp-5)">
               <div style="width:48px;height:48px;background:rgba(26,86,219,.15);border-radius:var(--radius-lg);display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0">🏢</div>
@@ -1037,8 +1019,8 @@ function renderWizard4() {
             ${draft.llmAssisted?'<span class="badge badge--success" style="margin-top:12px">✓ AI-Assisted</span>':''}
             ${selectedRisks.length ? `<div class="mt-4"><div class="context-panel-title">Scenario Scope</div><div class="citation-chips">${selectedRisks.map(r => `<span class="badge badge--neutral">${r.title}</span>`).join('')}</div><div class="context-panel-foot">${multipliers.linked ? `${selectedRisks.length} linked risks selected. Uplift is being applied to event frequency and loss components.` : `${selectedRisks.length} risks selected. Combined scenario, no linked uplift.`}</div></div>` : ''}`
           })}
-          ${UI.disclosureSection({ title: 'How the result is built', badgeLabel: 'Optional guide', badgeTone: 'neutral', open: false, className: 'wizard-disclosure card anim-fade-in', body: renderSimulationEquationFlow() })}
           ${UI.disclosureSection({ title: 'Challenge these 3 assumptions first', badgeLabel: 'Recommended', badgeTone: 'warning', open: false, className: 'wizard-disclosure card anim-fade-in', body: renderPreRunChallengeBlock(draft) })}
+          ${UI.disclosureSection({ title: 'How the result is built', badgeLabel: 'Optional guide', badgeTone: 'neutral', open: false, className: 'wizard-disclosure card anim-fade-in', body: renderSimulationEquationFlow() })}
           ${UI.disclosureSection({ title: 'Current source of each key input', badgeLabel: 'Optional detail', badgeTone: 'neutral', open: false, className: 'wizard-disclosure card anim-fade-in', body: renderInputSourceAuditBlock(liveInputAssignments) })}
           ${UI.disclosureSection({
             title: 'Key parameters before you run',
@@ -1670,10 +1652,10 @@ function renderResults(id, isShared) {
           </div>
         </div>
 
-        <div class="results-tabbar mb-6">
-          <button class="results-tab ${activeTab === 'executive' ? 'active' : ''}" data-results-tab="executive">Executive Summary</button>
-          <button class="results-tab ${activeTab === 'technical' ? 'active' : ''}" data-results-tab="technical">Technical Detail</button>
-          <button class="results-tab ${activeTab === 'appendix' ? 'active' : ''}" data-results-tab="appendix">Appendix & Evidence</button>
+        <div class="results-tabbar mb-6" role="tablist" aria-label="Results views">
+          <button class="results-tab ${activeTab === 'executive' ? 'active' : ''}" id="results-tab-btn-executive" role="tab" aria-selected="${activeTab === 'executive' ? 'true' : 'false'}" aria-controls="results-tab-executive-wrap" tabindex="${activeTab === 'executive' ? '0' : '-1'}" data-results-tab="executive">Executive Summary</button>
+          <button class="results-tab ${activeTab === 'technical' ? 'active' : ''}" id="results-tab-btn-technical" role="tab" aria-selected="${activeTab === 'technical' ? 'true' : 'false'}" aria-controls="results-tab-technical" tabindex="${activeTab === 'technical' ? '0' : '-1'}" data-results-tab="technical">Technical Detail</button>
+          <button class="results-tab ${activeTab === 'appendix' ? 'active' : ''}" id="results-tab-btn-appendix" role="tab" aria-selected="${activeTab === 'appendix' ? 'true' : 'false'}" aria-controls="results-tab-appendix" tabindex="${activeTab === 'appendix' ? '0' : '-1'}" data-results-tab="appendix">Appendix & Evidence</button>
         </div>
 
         <div class="${activeTab === 'executive' ? '' : 'hidden'}" id="results-tab-executive-wrap">${executiveTab}</div>
@@ -1701,10 +1683,29 @@ function renderResults(id, isShared) {
 
   document.querySelectorAll('[data-results-tab]').forEach(btn => {
     btn.addEventListener('click', () => {
+      AppState.resultsShouldScrollTop = AppState.resultsTab !== btn.dataset.resultsTab;
       AppState.resultsTab = btn.dataset.resultsTab;
       renderResults(id, isShared || assessment._shared);
     });
+    btn.addEventListener('keydown', event => {
+      const tabs = Array.from(document.querySelectorAll('[data-results-tab]'));
+      const currentIndex = tabs.indexOf(btn);
+      if (currentIndex < 0) return;
+      if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
+        event.preventDefault();
+        const nextIndex = event.key === 'ArrowRight'
+          ? (currentIndex + 1) % tabs.length
+          : (currentIndex - 1 + tabs.length) % tabs.length;
+        tabs[nextIndex]?.focus();
+      }
+    });
   });
+  if (AppState.resultsShouldScrollTop) {
+    AppState.resultsShouldScrollTop = false;
+    window.requestAnimationFrame(() => {
+      document.querySelector('.results-tabbar')?.scrollIntoView({ block: 'start', behavior: 'auto' });
+    });
+  }
   if (activeTab === 'appendix') drawTechnicalCharts();
   else attachCitationHandlers();
   document.getElementById('btn-share-results')?.addEventListener('click', event => {
