@@ -1755,6 +1755,8 @@ function renderResults(id, isShared) {
             <details class="results-actions-disclosure">
               <summary class="btn btn--ghost btn--sm">More actions</summary>
               <div class="results-actions-disclosure-menu">
+                <button class="btn btn--secondary btn--sm" id="btn-export-board-note">Generate Decision Memo</button>
+                <button class="btn btn--secondary btn--sm" id="btn-export-board-note-appendix">Decision Memo + Appendix</button>
                 <button class="btn btn--secondary btn--sm" id="btn-duplicate-assessment">Duplicate Assessment</button>
                 <button class="btn btn--secondary btn--sm" id="btn-share-results">Share</button>
                 <button class="btn btn--secondary btn--sm" id="btn-export-json">↓ JSON</button>
@@ -1860,6 +1862,36 @@ function renderResults(id, isShared) {
     button.textContent = 'Preparing PDF…';
     try {
       ExportService.exportPDF(assessment, AppState.currency, AppState.fxRate);
+    } finally {
+      window.setTimeout(() => {
+        button.disabled = false;
+        button.textContent = original;
+      }, 800);
+    }
+  });
+  document.getElementById('btn-export-board-note')?.addEventListener('click', event => {
+    const button = event.currentTarget;
+    const original = button.textContent;
+    button.disabled = true;
+    button.textContent = 'Preparing…';
+    try {
+      ExportService.exportDecisionMemo(assessment, AppState.currency, AppState.fxRate, { includeAppendix: false });
+      UI.toast('Decision memo prepared for print or PDF save.', 'success');
+    } finally {
+      window.setTimeout(() => {
+        button.disabled = false;
+        button.textContent = original;
+      }, 800);
+    }
+  });
+  document.getElementById('btn-export-board-note-appendix')?.addEventListener('click', event => {
+    const button = event.currentTarget;
+    const original = button.textContent;
+    button.disabled = true;
+    button.textContent = 'Preparing…';
+    try {
+      ExportService.exportDecisionMemo(assessment, AppState.currency, AppState.fxRate, { includeAppendix: true });
+      UI.toast('Decision memo with appendix prepared for print or PDF save.', 'success');
     } finally {
       window.setTimeout(() => {
         button.disabled = false;

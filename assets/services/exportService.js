@@ -55,6 +55,305 @@ const ExportService = (() => {
     return ReportPresentation.buildTreatmentDecisionSummary(comparison);
   }
 
+  function _buildLifecycleNextStepPlan(input) {
+    return ReportPresentation.buildLifecycleNextStepPlan(input);
+  }
+
+  function _buildAnalystAdvisorySummary(input) {
+    return ReportPresentation.buildAnalystAdvisorySummary(input);
+  }
+
+  function _openPrintableHtml(html, fallbackFilename) {
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const popup = window.open(url, '_blank');
+    if (!popup) {
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fallbackFilename;
+      a.click();
+    }
+    window.setTimeout(() => URL.revokeObjectURL(url), 1500);
+  }
+
+  function _buildDecisionMemoComparison(assessment) {
+    if (!assessment?.comparisonBaseline?.results || !assessment?.results) return null;
+    const baseline = assessment.comparisonBaseline;
+    const current = assessment.results || {};
+    const baselineResults = baseline.results || {};
+    const severeDirection = Number(current.lm?.p90 || 0) < Number(baselineResults.lm?.p90 || 0)
+      ? 'down'
+      : Number(current.lm?.p90 || 0) > Number(baselineResults.lm?.p90 || 0)
+        ? 'up'
+        : 'flat';
+    const annualDirection = Number(current.ale?.mean || 0) < Number(baselineResults.ale?.mean || 0)
+      ? 'down'
+      : Number(current.ale?.mean || 0) > Number(baselineResults.ale?.mean || 0)
+        ? 'up'
+        : 'flat';
+    const severeAnnualDirection = Number(current.ale?.p90 || 0) < Number(baselineResults.ale?.p90 || 0)
+      ? 'down'
+      : Number(current.ale?.p90 || 0) > Number(baselineResults.ale?.p90 || 0)
+        ? 'up'
+        : 'flat';
+    return {
+      baselineTitle: baseline.scenarioTitle || 'Selected baseline',
+      baselineDate: new Date(baseline.completedAt || baseline.createdAt || Date.now()).toLocaleDateString('en-AE', { year: 'numeric', month: 'short', day: 'numeric' }),
+      severeEvent: { direction: severeDirection },
+      annualExposure: { direction: annualDirection },
+      severeAnnual: { direction: severeAnnualDirection },
+      treatmentNarrative: assessment.comparisonNarrative || assessment.treatmentImprovementRequest || '',
+      keyDriver: assessment.comparisonKeyDriver || 'Review the changed assumptions against the saved baseline.',
+      secondaryDriver: assessment.comparisonSecondaryDriver || ''
+    };
+  }
+
+  function buildDecisionMemoModel(assessment, currency = 'USD', fxRate = 3.6725, { includeAppendix = false } = {}) {
+    const r = assessment?.results || {};
+    const fmt = v => _formatCurrency(v, currency, fxRate);
+    const intelligence = assessment.assessmentIntelligence || {};
+    const citations = Array.isArray(assessment.citations)
+      ? Array.from(new Map(assessment.citations.map(c => [c.docId || c.title || JSON.stringify(c), c])).values())
+      : [];
+    const technicalInputs = r.inputs || assessment.fairParams || {};
+    const confidenceFrame = _buildExecutiveConfidenceFrame(intelligence.confidence, assessment.evidenceQuality, assessment.missingInformation, citations);
+    const executiveDecision = _buildExecutiveDecisionSupport(assessment, r, intelligence);
+    const thresholdModel = _buildExecutiveThresholdModel(r, fmt);
+    const impactMix = _buildExecutiveImpactMix(technicalInputs);
+    const comparison = _buildDecisionMemoComparison(assessment);
+    const treatmentDecision = comparison ? _buildTreatmentDecisionSummary(comparison) : null;
+    const lifecycleStatus = typeof deriveAssessmentLifecycleStatus === 'function'
+      ? deriveAssessmentLifecycleStatus(assessment)
+      : '';
+    const lifecycle = typeof getLifecyclePresentation === 'function'
+      ? getLifecyclePresentation(lifecycleStatus)
+      : { status: lifecycleStatus, label: 'Saved assessment' };
+    const nextStepPlan = _buildLifecycleNextStepPlan({
+      lifecycle,
+      results: r,
+      executiveDecision,
+      comparison,
+      confidenceFrame,
+      missingInformation: assessment.missingInformation || []
+    });
+    const analystSummary = _buildAnalystAdvisorySummary({
+      assessment,
+      results: r,
+      executiveDecision,
+      confidenceFrame,
+      comparison,
+      missingInformation: assessment.missingInformation || [],
+      lifecycle
+    });
+    const posture = r.toleranceBreached
+      ? 'Above tolerance'
+      : r.nearTolerance
+        ? 'Near tolerance'
+        : 'Within tolerance';
+    return {
+      title: assessment.scenarioTitle || 'Risk assessment',
+      businessContext: `${assessment.buName || '—'} · ${assessment.geography || '—'}`,
+      completedLabel: new Date(assessment.completedAt || assessment.createdAt || Date.now()).toLocaleDateString('en-AE', { year: 'numeric', month: 'long', day: 'numeric' }),
+      posture,
+      postureTone: r.toleranceBreached ? 'danger' : r.nearTolerance ? 'warning' : 'success',
+      scenarioSummary: _buildExecutiveScenarioSummary(assessment) || 'No scenario narrative available.',
+      executiveDecision,
+      confidenceFrame,
+      thresholdModel,
+      impactMix,
+      nextStepPlan,
+      analystSummary,
+      treatmentDecision,
+      comparison,
+      metrics: [
+        { label: 'Severe single-event view', value: fmt(r.lm?.p90 || 0), copy: 'P90 per-event management view.' },
+        { label: 'Expected annual exposure', value: fmt(r.ale?.mean || 0), copy: 'Most likely annual planning view.' },
+        { label: 'Severe annual exposure', value: fmt(r.ale?.p90 || 0), copy: 'High-stress annual planning view.' }
+      ],
+      appendix: includeAppendix ? {
+        assumptions: Array.isArray(intelligence.assumptions) ? intelligence.assumptions.slice(0, 4) : [],
+        citations: citations.slice(0, 6),
+        topGap: confidenceFrame.topGap,
+        evidenceSummary: confidenceFrame.evidenceSummary
+      } : null
+    };
+  }
+
+  function exportDecisionMemo(assessment, currency = 'USD', fxRate = 3.6725, { includeAppendix = false } = {}) {
+    const memo = buildDecisionMemoModel(assessment, currency, fxRate, { includeAppendix });
+    const postureClass = memo.postureTone;
+    const appendix = memo.appendix;
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Decision Memo — ${memo.title}</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700&family=DM+Sans:wght@400;500;700&display=swap');
+  *, *::before, *::after { box-sizing: border-box; }
+  body { margin: 0; font-family: 'DM Sans', sans-serif; background: #f3f3ef; color: #212822; }
+  .page { max-width: 980px; margin: 0 auto; padding: 32px; }
+  .sheet { background: #f6f3f2; border: 1px solid rgba(33,40,34,.12); border-radius: 24px; padding: 30px; box-shadow: 0 18px 54px rgba(18, 24, 20, 0.12); }
+  .eyebrow { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: rgba(33,40,34,.55); margin-bottom: 8px; }
+  h1, h2, h3 { font-family: 'Syne', sans-serif; margin: 0; color: #212822; }
+  h1 { font-size: 34px; line-height: 1.05; max-width: 14ch; }
+  h2 { font-size: 18px; margin-bottom: 12px; }
+  h3 { font-size: 15px; margin-bottom: 6px; }
+  p { margin: 0; }
+  .header { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; }
+  .header-meta { margin-top: 10px; font-size: 13px; color: rgba(33,40,34,.68); }
+  .tag { display: inline-flex; align-items: center; padding: 8px 12px; border-radius: 999px; border: 1px solid rgba(33,40,34,.12); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: rgba(33,40,34,.7); }
+  .hero { margin-top: 24px; display: grid; grid-template-columns: 1.45fr .85fr; gap: 18px; background: linear-gradient(180deg, rgba(3,209,168,.08), rgba(255,255,255,.02)); border: 1px solid rgba(3,209,168,.24); border-radius: 22px; padding: 24px; }
+  .hero-copy { margin-top: 14px; font-size: 15px; line-height: 1.75; color: rgba(33,40,34,.82); }
+  .hero-badges, .chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .badge { display: inline-flex; align-items: center; padding: 6px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; border: 1px solid transparent; }
+  .badge.success { background: rgba(3,209,168,.12); color: #0b7f68; border-color: rgba(3,209,168,.28); }
+  .badge.warning { background: rgba(242,251,90,.2); color: #626f11; border-color: rgba(146,156,42,.28); }
+  .badge.danger { background: rgba(172,67,46,.1); color: #8e2d1d; border-color: rgba(172,67,46,.22); }
+  .badge.neutral { background: rgba(33,40,34,.06); color: rgba(33,40,34,.72); border-color: rgba(33,40,34,.1); }
+  .signal-panel { background: rgba(33,40,34,.03); border-radius: 18px; padding: 18px; border: 1px solid rgba(33,40,34,.08); }
+  .signal-ring { width: 120px; height: 120px; margin: 0 auto 12px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: inset 0 0 0 1px rgba(33,40,34,.08); }
+  .signal-ring.success { background: radial-gradient(circle at center, rgba(3,209,168,.16), rgba(3,209,168,.03) 65%); }
+  .signal-ring.warning { background: radial-gradient(circle at center, rgba(242,251,90,.22), rgba(242,251,90,.05) 65%); }
+  .signal-ring.danger { background: radial-gradient(circle at center, rgba(172,67,46,.16), rgba(172,67,46,.04) 65%); }
+  .signal-inner { width: 74px; height: 74px; border-radius: 50%; background: #f6f3f2; display: flex; align-items: center; justify-content: center; font-family: 'Syne', sans-serif; font-size: 28px; }
+  .signal-copy { font-size: 13px; line-height: 1.7; color: rgba(33,40,34,.72); text-align: center; }
+  .metrics, .mid-grid, .appendix-grid { display: grid; gap: 16px; margin-top: 22px; }
+  .metrics { grid-template-columns: repeat(3, 1fr); }
+  .mid-grid { grid-template-columns: 1.15fr .85fr; }
+  .appendix-grid { grid-template-columns: repeat(2, 1fr); }
+  .card { background: rgba(255,255,255,.62); border: 1px solid rgba(33,40,34,.1); border-radius: 18px; padding: 18px; }
+  .section-label { font-size: 11px; text-transform: uppercase; letter-spacing: .12em; color: rgba(33,40,34,.52); }
+  .metric-value { font-family: 'Syne', sans-serif; font-size: 30px; margin-top: 10px; }
+  .metric-copy, .body-copy { margin-top: 10px; font-size: 13px; line-height: 1.75; color: rgba(33,40,34,.78); }
+  .decision-row + .decision-row { margin-top: 14px; padding-top: 14px; border-top: 1px solid rgba(33,40,34,.08); }
+  .track-card + .track-card { margin-top: 14px; }
+  .track-head, .mix-head { display: flex; justify-content: space-between; gap: 12px; }
+  .track { height: 12px; border-radius: 999px; background: rgba(33,40,34,.09); overflow: hidden; margin-top: 10px; }
+  .track-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #03D1A8, rgba(3,209,168,.45)); }
+  .track-fill.warning { background: linear-gradient(90deg, #b0bc34, rgba(242,251,90,.75)); }
+  .track-fill.danger { background: linear-gradient(90deg, #a24334, rgba(162,67,52,.35)); }
+  .track-foot { margin-top: 10px; font-size: 12px; line-height: 1.6; color: rgba(33,40,34,.68); }
+  .mix-row + .mix-row { margin-top: 12px; }
+  .mix-bar { height: 10px; border-radius: 999px; background: rgba(33,40,34,.08); overflow: hidden; margin-top: 7px; }
+  .mix-bar span { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #03D1A8, rgba(3,209,168,.42)); }
+  .appendix { margin-top: 28px; padding-top: 22px; border-top: 1px solid rgba(33,40,34,.1); }
+  .footer { margin-top: 24px; padding-top: 14px; border-top: 1px solid rgba(33,40,34,.1); font-size: 11px; line-height: 1.7; color: rgba(33,40,34,.58); }
+  @media print {
+    body { background: #f6f3f2; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .page { padding: 0; max-width: none; }
+    .sheet { border: 0; border-radius: 0; box-shadow: none; }
+  }
+</style>
+</head>
+<body>
+  <div class="page">
+    <div class="sheet">
+      <div class="header">
+        <div>
+          <div class="eyebrow">Management note</div>
+          <h1>${memo.title}</h1>
+          <div class="header-meta">${memo.businessContext} · ${memo.completedLabel}</div>
+        </div>
+        <div class="tag">${includeAppendix ? 'Board note + appendix' : 'Board note'}</div>
+      </div>
+
+      <div class="hero">
+        <div>
+          <div class="eyebrow">Current posture</div>
+          <h2 style="font-size:32px;line-height:1.08;max-width:15ch">${memo.executiveDecision.decision}</h2>
+          <div class="hero-copy">${memo.executiveDecision.rationale}</div>
+          <div class="hero-badges">
+            <span class="badge ${postureClass}">${memo.posture}</span>
+            <span class="badge neutral">${memo.confidenceFrame.label}</span>
+            <span class="badge neutral">${memo.businessContext}</span>
+          </div>
+        </div>
+        <div class="signal-panel">
+          <div class="signal-ring ${postureClass}"><div class="signal-inner">${memo.postureTone === 'success' ? '✓' : '!'}</div></div>
+          <div class="signal-copy">${memo.thresholdModel.single.summary}</div>
+        </div>
+      </div>
+
+      <div class="metrics">
+        ${memo.metrics.map(item => `<div class="card"><div class="section-label">${item.label}</div><div class="metric-value">${item.value}</div><div class="metric-copy">${item.copy}</div></div>`).join('')}
+      </div>
+
+      <div class="mid-grid">
+        <div class="card">
+          <div class="section-label">Scenario and business context</div>
+          <div class="body-copy">${memo.scenarioSummary}</div>
+          <div class="decision-row">
+            <div class="section-label">Recommended management action</div>
+            <div class="body-copy"><strong>${memo.executiveDecision.priority}</strong><br>${memo.executiveDecision.managementFocus}</div>
+          </div>
+          <div class="decision-row">
+            <div class="section-label">Next decision required</div>
+            <div class="body-copy"><strong>${memo.nextStepPlan[0]?.title || 'Review the saved result'}</strong><br>${memo.nextStepPlan[0]?.copy || memo.executiveDecision.rationale}</div>
+          </div>
+          ${memo.treatmentDecision ? `<div class="decision-row"><div class="section-label">Treatment comparison read</div><div class="body-copy"><strong>${memo.treatmentDecision.title}</strong><br>${memo.treatmentDecision.summary}</div></div>` : ''}
+        </div>
+        <div class="card">
+          <div class="section-label">Confidence and caveat</div>
+          <div class="body-copy">${memo.confidenceFrame.summary}</div>
+          <div class="decision-row">
+            <div class="section-label">Biggest evidence caveat</div>
+            <div class="body-copy">${memo.confidenceFrame.topGap}</div>
+          </div>
+          <div class="decision-row">
+            <div class="section-label">What improves next</div>
+            <div class="body-copy">${memo.nextStepPlan[1]?.copy || memo.confidenceFrame.implication}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mid-grid">
+        <div class="card">
+          <div class="section-label">Tolerance interpretation</div>
+          <div class="track-card">
+            <div class="track-head"><strong>${memo.thresholdModel.single.title}</strong><span class="badge ${memo.thresholdModel.single.statusTone}">${memo.thresholdModel.single.status}</span></div>
+            <div class="track"><div class="track-fill ${memo.thresholdModel.single.statusTone === 'success' ? '' : memo.thresholdModel.single.statusTone}" style="width:${memo.thresholdModel.single.ratio}%"></div></div>
+            <div class="track-foot">${memo.thresholdModel.single.summary}</div>
+          </div>
+          <div class="track-card">
+            <div class="track-head"><strong>${memo.thresholdModel.annual.title}</strong><span class="badge ${memo.thresholdModel.annual.statusTone}">${memo.thresholdModel.annual.status}</span></div>
+            <div class="track"><div class="track-fill ${memo.thresholdModel.annual.statusTone === 'success' ? '' : memo.thresholdModel.annual.statusTone}" style="width:${memo.thresholdModel.annual.ratio}%"></div></div>
+            <div class="track-foot">${memo.thresholdModel.annual.summary}</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="section-label">Main drivers of impact</div>
+          ${memo.impactMix.length
+            ? memo.impactMix.map(item => `<div class="mix-row"><div class="mix-head"><span>${item.label}</span><strong>${fmt(item.value)}</strong></div><div class="mix-bar"><span style="width:${item.width}%"></span></div></div>`).join('')
+            : `<div class="body-copy">No material loss-component mix is available for this scenario yet.</div>`}
+        </div>
+      </div>
+
+      ${appendix ? `<div class="appendix">
+        <div class="eyebrow">Appendix note</div>
+        <div class="appendix-grid">
+          <div class="card">
+            <div class="section-label">Assumptions to challenge</div>
+            <div class="body-copy">${appendix.assumptions.length ? appendix.assumptions.map(item => `• ${item.text}`).join('<br>') : 'No structured assumptions were recorded for this assessment.'}</div>
+          </div>
+          <div class="card">
+            <div class="section-label">Evidence and references</div>
+            <div class="body-copy">${appendix.evidenceSummary}<br><br><strong>Top caveat:</strong> ${appendix.topGap}</div>
+            ${appendix.citations.length ? `<div class="chip-row">${appendix.citations.map(item => `<span class="badge neutral">${item.title || item.sourceTitle || 'Reference'}</span>`).join('')}</div>` : ''}
+          </div>
+        </div>
+      </div>` : ''}
+
+      <div class="footer">Generated by Risk Intelligence Platform. This note is designed for management discussion first, with detail intentionally kept secondary. Validate assumptions and evidence before formal commitment.</div>
+    </div>
+  </div>
+<script>window.onload = () => window.print();</script>
+</body>
+</html>`;
+    _openPrintableHtml(html, `Risk_Decision_Memo_${assessment.id || Date.now()}.html`);
+    return memo;
+  }
+
   // ─── JSON Export ─────────────────────────────────────────
   function exportJSON(assessment) {
     exportDataAsJson(assessment, `G42_RiskAssessment_${assessment.id || Date.now()}.json`);
@@ -625,5 +924,5 @@ const ExportService = (() => {
     return slideSpec;
   }
 
-  return { exportJSON, exportDataAsJson, importJsonFile, exportPDF, exportPPTXSpec };
+  return { exportJSON, exportDataAsJson, importJsonFile, exportPDF, exportPPTXSpec, exportDecisionMemo, buildDecisionMemoModel };
 })();
