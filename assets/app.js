@@ -3136,8 +3136,53 @@ function attachFormattedMoneyInputs() {
   });
 }
 
+function getRouteMeta() {
+  if (typeof window === 'undefined') return { currentHash: '#/', previousHash: null, routeChanged: false, navigationKind: 'server' };
+  return window.__RISK_ROUTE_META__ || {
+    currentHash: String(window.location.hash || '#/').slice(1) || '/',
+    previousHash: null,
+    routeChanged: false,
+    navigationKind: 'direct'
+  };
+}
+
+function shouldRestoreScrollForRoute(routeHash) {
+  const route = String(routeHash || '').toLowerCase();
+  return route === '/settings' || route.startsWith('/admin/settings');
+}
+
+function getPageFocusTarget(root = document) {
+  return root.querySelector('[data-page-focus], h1, h2, [role="main"]');
+}
+
+function applyPageNavigationEffects(root = document) {
+  if (typeof window === 'undefined') return;
+  const routeMeta = getRouteMeta();
+  const currentHash = String(routeMeta.currentHash || '').trim() || '/';
+  const routeChanged = routeMeta.routeChanged || AppState.lastRenderedRouteHash !== currentHash;
+  AppState.lastRenderedRouteHash = currentHash;
+  if (!routeChanged) return;
+
+  if (!shouldRestoreScrollForRoute(currentHash)) {
+    window.requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: 'auto' }));
+  }
+
+  const focusTarget = getPageFocusTarget(root) || document.getElementById('main-content');
+  if (!focusTarget) return;
+  if (!focusTarget.hasAttribute('tabindex')) focusTarget.setAttribute('tabindex', '-1');
+  window.requestAnimationFrame(() => {
+    try {
+      focusTarget.focus({ preventScroll: true });
+    } catch {
+      focusTarget.focus();
+    }
+  });
+}
+
 function setPage(html) {
-  document.getElementById('main-content').innerHTML = html;
+  const root = document.getElementById('main-content');
+  root.innerHTML = html;
+  applyPageNavigationEffects(root);
 }
 
 async function loadJSON(path) {
@@ -4455,15 +4500,15 @@ function adminLayout(active, content, activeSettingsSection = 'org') {
         <div class="admin-sidebar-title">Platform control</div>
       </div>
       <div class="admin-nav-group-label">Setup</div>
-      <a href="#/admin/settings/org" data-admin-route="/admin/settings/org" class="admin-nav-link ${active==='settings' && activeSettingsSection==='org' ? 'active' : ''}">🌐 Organisation Setup</a>
-      <a href="#/admin/settings/company" data-admin-route="/admin/settings/company" class="admin-nav-link ${active==='settings' && activeSettingsSection==='company' ? 'active' : ''}">🧠 AI Company Builder</a>
-      <a href="#/admin/settings/defaults" data-admin-route="/admin/settings/defaults" class="admin-nav-link ${active==='settings' && activeSettingsSection==='defaults' ? 'active' : ''}">🛡 Platform Defaults</a>
-      <a href="#/admin/settings/access" data-admin-route="/admin/settings/access" class="admin-nav-link ${active==='settings' && activeSettingsSection==='access' ? 'active' : ''}">🔐 System Access</a>
-      <a href="#/admin/settings/users" data-admin-route="/admin/settings/users" class="admin-nav-link ${active==='settings' && activeSettingsSection==='users' ? 'active' : ''}">👥 User Accounts</a>
-      <a href="#/admin/settings/audit" data-admin-route="/admin/settings/audit" class="admin-nav-link ${active==='settings' && activeSettingsSection==='audit' ? 'active' : ''}">🧾 Audit Log</a>
+      <a href="#/admin/settings/org" data-admin-route="/admin/settings/org" class="admin-nav-link ${active==='settings' && activeSettingsSection==='org' ? 'active' : ''}">Organisation Setup</a>
+      <a href="#/admin/settings/company" data-admin-route="/admin/settings/company" class="admin-nav-link ${active==='settings' && activeSettingsSection==='company' ? 'active' : ''}">AI Company Builder</a>
+      <a href="#/admin/settings/defaults" data-admin-route="/admin/settings/defaults" class="admin-nav-link ${active==='settings' && activeSettingsSection==='defaults' ? 'active' : ''}">Platform Defaults</a>
+      <a href="#/admin/settings/access" data-admin-route="/admin/settings/access" class="admin-nav-link ${active==='settings' && activeSettingsSection==='access' ? 'active' : ''}">System Access</a>
+      <a href="#/admin/settings/users" data-admin-route="/admin/settings/users" class="admin-nav-link ${active==='settings' && activeSettingsSection==='users' ? 'active' : ''}">User Accounts</a>
+      <a href="#/admin/settings/audit" data-admin-route="/admin/settings/audit" class="admin-nav-link ${active==='settings' && activeSettingsSection==='audit' ? 'active' : ''}">Audit Log</a>
       <div class="admin-nav-group-label">Libraries</div>
-      <a href="#/admin/bu" data-admin-route="/admin/bu" class="admin-nav-link ${active==='bu'?'active':''}">🏢 Org Customisation</a>
-      <a href="#/admin/docs" data-admin-route="/admin/docs" class="admin-nav-link ${active==='docs'?'active':''}">📚 Document Library</a>
+      <a href="#/admin/bu" data-admin-route="/admin/bu" class="admin-nav-link ${active==='bu'?'active':''}">Org Customisation</a>
+      <a href="#/admin/docs" data-admin-route="/admin/docs" class="admin-nav-link ${active==='docs'?'active':''}">Document Library</a>
       <div class="admin-sidebar-spacer"></div>
       <div class="admin-sidebar-foot">
         <div class="banner banner--poc admin-sidebar-banner">⚠ PoC — replace with Entra ID</div>

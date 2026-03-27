@@ -8,8 +8,7 @@ function renderWizard2() {
         <div class="wizard-header">
           ${UI.renderStepper(2)}
           <h2 class="wizard-step-title">Refine the Scenario</h2>
-          <p class="form-help" style="margin-top:8px">Use this step to turn the selected risk into one clear assessment scope. AI should help structure the scenario and suggest starting FAIR inputs.</p>
-          <p class="wizard-step-desc">Review the context, refine the narrative, and confirm how the selected risks should be quantified together.</p>
+          <p class="wizard-step-desc">Tighten the scenario wording first, then open AI structure or optional fields only if they make the estimate cleaner and easier to challenge.</p>
           <div class="wizard-status-stack">
             <div class="form-help" data-draft-save-state>Draft saves automatically</div>
             ${renderPilotWarningBanner('ai', { compact: true })}
@@ -19,12 +18,19 @@ function renderWizard2() {
         <div class="wizard-body">
           <section class="wizard-ia-section anim-fade-in">
             <div class="results-section-heading">Clarify the scenario</div>
-            <div class="form-help" style="margin-top:8px">Tighten the wording first, then open AI structure or optional fields only if they improve the estimate.</div>
+            <div class="form-help" style="margin-top:8px">Write one coherent scenario first. Keep the support modules below as optional aids rather than part of the main task.</div>
           </section>
           ${renderStep2FocusStrip(draft, selectedRisks, scenarioGeographies)}
-          ${renderStep2QuantBridge(draft, selectedRisks, scenarioGeographies)}
+          ${UI.wizardInputSection({
+            title: 'Risk scenario narrative <span class="required">*</span>',
+            description: 'This is the one required task on this step. Keep the wording to one coherent assessment scope so the estimate stays credible.',
+            className: 'card anim-fade-in',
+            headerExtras: UI.sectionStatusBadge('Required', 'gold'),
+            body: `<div class="form-group"><textarea class="form-textarea" id="narrative" rows="5" placeholder="Describe the risk: What could happen? Who might cause it? What assets are at risk? What are the potential impacts?" style="min-height:160px">${draft.enhancedNarrative || draft.narrative || ''}</textarea></div>`
+          })}
           ${renderStep2WhyItMattersCard(draft, selectedRisks, scenarioGeographies)}
           ${renderStep2StructuredSummary(draft, selectedRisks, scenarioGeographies)}
+          ${renderStep2QuantBridge(draft, selectedRisks, scenarioGeographies)}
           ${UI.disclosureSection({
             title: 'AI structure and evidence summary',
             badgeLabel: 'Optional detail',
@@ -40,13 +46,6 @@ function renderWizard2() {
             citations: draft.citations
           })}`,
             open: false
-          })}
-          ${UI.wizardInputSection({
-            title: 'Risk scenario narrative <span class="required">*</span>',
-            description: 'This is the one required task on this step. Keep the wording to one coherent assessment scope so the estimate stays credible.',
-            className: 'card anim-fade-in',
-            headerExtras: UI.sectionStatusBadge('Required', 'gold'),
-            body: `<div class="form-group"><textarea class="form-textarea" id="narrative" rows="5" placeholder="Describe the risk: What could happen? Who might cause it? What assets are at risk? What are the potential impacts?" style="min-height:160px">${draft.enhancedNarrative || draft.narrative || ''}</textarea></div>`
           })}
           <section class="wizard-ia-section anim-fade-in">
             <div class="results-section-heading">Open more structure only if needed</div>

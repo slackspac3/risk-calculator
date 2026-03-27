@@ -1529,7 +1529,7 @@ function renderResults(id, isShared) {
 
       ${renderModelBasisPanel(assessment, runMetadata, confidenceFrame, thresholdModel)}
 
-      <details class="results-detail-disclosure" open>
+      <details class="results-detail-disclosure">
         <summary>Methodology, settings, and saved run metadata</summary>
         <div class="results-detail-disclosure-copy">Open this when you need distributions, thresholds, assumptions, simulation settings, and reproducibility detail.</div>
         <div class="results-disclosure-stack">

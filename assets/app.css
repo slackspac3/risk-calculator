@@ -56,6 +56,11 @@ code { font-family: var(--font-mono); font-size: 0.875em; background: var(--bg-e
 /* ── Layout ─────────────────────────────────────────────────── */
 #app { display: flex; flex-direction: column; min-height: 100vh; }
 .page { flex: 1; }
+#main-content:focus { outline: none; }
+#main-content,
+#main-content :is(h1, h2, h3, [data-page-focus]) {
+  scroll-margin-top: calc(72px + var(--sp-6));
+}
 
 .container {
   width: 100%;
@@ -1190,6 +1195,7 @@ input[type="range"]::-webkit-slider-thumb {
   display: flex;
   flex-direction: column;
   gap: var(--sp-6);
+  padding-bottom: calc(var(--sp-12) + 96px);
 }
 
 .settings-profile-snapshot {

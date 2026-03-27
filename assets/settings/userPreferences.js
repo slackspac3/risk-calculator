@@ -600,6 +600,8 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
 
   const userSettingsRoot = document.querySelector('.settings-shell');
   bindAutosave(userSettingsRoot, () => persistUserSettings(false));
+  bindSettingsSectionState('user-settings', document);
+  restoreSettingsScroll('user-settings');
   updateWorkspaceSyncState('settings');
 
   document.getElementById('btn-save-user-settings').addEventListener('click', async () => {
@@ -613,6 +615,7 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
       inlineValidationMessage = getUserSettingsValidationMessage();
       if (inlineValidationMessage) {
         AppState.settingsValidationMessage = inlineValidationMessage;
+        rememberSettingsScroll('user-settings');
         renderUserPreferences(getUserSettings());
         return;
       }
@@ -638,6 +641,7 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
           UI.toast('That file does not contain valid personal settings.', 'warning');
           return;
         }
+        rememberSettingsScroll('user-settings');
         await saveUserSettings(parsed);
         renderUserPreferences(getUserSettings());
         UI.toast('Personal settings imported.', 'success');
@@ -889,11 +893,13 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
     if (await UI.confirm('Reset your personal settings to the global admin defaults?')) {
       localStorage.removeItem(buildUserStorageKey(USER_SETTINGS_STORAGE_PREFIX));
       UI.toast('Your personal settings were reset.', 'success');
+      rememberSettingsScroll('user-settings');
       renderUserOnboarding(getUserSettings(), 0);
     }
   });
 
   document.getElementById('btn-rerun-onboarding').addEventListener('click', () => {
+    rememberSettingsScroll('user-settings');
     renderUserOnboarding(getUserSettings(), 0);
   });
 }
