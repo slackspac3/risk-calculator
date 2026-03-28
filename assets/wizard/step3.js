@@ -559,8 +559,103 @@ function renderEstimateOptionalHelpDetails(draft, sym) {
       UI.contextInfoPanel({ title: '2. Think in ranges, not exact numbers', copy: 'Use a low, expected, and severe case. You do not need one perfect number.' }),
       UI.contextInfoPanel({ title: '3. Use Advanced only when needed', copy: 'Advanced mode is only for direct exposure, follow-on impact, and simulation tuning. Most users should stay in Basic.' })
     ]
-  })}${renderRangeCalibrationCard(sym)}${renderEstimatePresetCard(draft)}`
+  })}${renderEstimateRangeThinkingGuide()}${renderRangeCalibrationCard(sym)}${renderEstimatePresetCard(draft)}`
   });
+}
+
+function renderEstimateRangeThinkingGuide() {
+  return UI.disclosureSection({
+    title: 'How to think about these inputs',
+    badgeLabel: 'Plain-English guide',
+    badgeTone: 'neutral',
+    open: false,
+    className: 'wizard-disclosure wizard-disclosure--nested wizard-modeling-guide',
+    body: `
+      <div class="wizard-modeling-guide__intro">Use this when you know the real-world conditions but are not sure how they should move the estimate. The question is usually not “what number is right?” but “does this make the event more likely, easier to stop, or more expensive if it happens?”</div>
+      <div class="wizard-modeling-guide__grid">
+        <div class="wizard-modeling-guide__card">
+          <div class="wizard-modeling-guide__label">What usually changes control strength</div>
+          <strong>MFA, segmentation, detection, and disciplined response usually help here.</strong>
+          <p>MFA on privileged users, real network segmentation, strong detection coverage, and a capable response team usually improve control strength. Weak monitoring, poor asset inventory, and controls that only exist on paper usually weaken it.</p>
+        </div>
+        <div class="wizard-modeling-guide__card">
+          <div class="wizard-modeling-guide__label">What usually changes impact and loss</div>
+          <strong>Backups, resilience, contracts, and recovery capability usually affect cost more than threat capability.</strong>
+          <p>Strong backups and practiced recovery lower disruption ranges. Vendor contracts may reduce legal or compensation tail risk, but they do not automatically reduce outage frequency.</p>
+        </div>
+        <div class="wizard-modeling-guide__card">
+          <div class="wizard-modeling-guide__label">What usually changes confidence</div>
+          <strong>Evidence quality is about how much you can defend the estimate, not how polished the wording sounds.</strong>
+          <p>If you have direct operating evidence, incident history, finance input, or named sources, confidence improves. If the control is assumed rather than evidenced, keep confidence lower even if the scenario feels plausible.</p>
+        </div>
+      </div>
+      <details class="wizard-disclosure wizard-disclosure--nested wizard-modeling-guide__examples">
+        <summary>Show practical examples</summary>
+        <div class="wizard-disclosure-body">
+          <div class="wizard-modeling-guide__example-list">
+            <div class="wizard-modeling-guide__example">
+              <strong>Unpatched server, but EDR is in place</strong>
+              <p>Do not lower threat capability. Keep exposure meaningful because the weakness is still exploitable. EDR may improve control strength and reduce disruption duration if it is well used.</p>
+            </div>
+            <div class="wizard-modeling-guide__example">
+              <strong>Strong backups</strong>
+              <p>Usually lower business interruption and recovery cost. They do not automatically lower event frequency.</p>
+            </div>
+            <div class="wizard-modeling-guide__example">
+              <strong>MFA on privileged users</strong>
+              <p>Usually improves control strength materially for identity-led scenarios and can justify a lower expected success rate.</p>
+            </div>
+            <div class="wizard-modeling-guide__example">
+              <strong>Weak monitoring or poor asset inventory</strong>
+              <p>Usually weakens control strength and confidence because the event may spread or persist longer than assumed.</p>
+            </div>
+            <div class="wizard-modeling-guide__example">
+              <strong>Vendor dependency with contractual controls</strong>
+              <p>May help secondary loss or legal recovery, but does not necessarily reduce the immediate outage or operational impact.</p>
+            </div>
+          </div>
+        </div>
+      </details>
+    `
+  });
+}
+
+function renderExposureModelingTip() {
+  return `<details class="wizard-disclosure wizard-disclosure--nested wizard-modeling-tip">
+    <summary>How to think about attacker capability and control strength <span class="badge badge--neutral">Plain English</span></summary>
+    <div class="wizard-disclosure-body">
+      <div class="wizard-modeling-tip__grid">
+        <div class="wizard-modeling-tip__card">
+          <strong>Usually raises exposure</strong>
+          <p>Unpatched assets, weak monitoring, poor asset inventory, and controls that are inconsistent or untested.</p>
+        </div>
+        <div class="wizard-modeling-tip__card">
+          <strong>Usually improves control strength</strong>
+          <p>MFA on privileged users, well-operated segmentation, strong detection, and a response team that can actually contain the event.</p>
+        </div>
+      </div>
+      <div class="form-help">Common mistake: lowering threat capability because your controls are strong. Threat capability is about the attacker or event source. Controls usually change how well you resist or contain it.</div>
+    </div>
+  </details>`;
+}
+
+function renderLossModelingTip(sym) {
+  return `<details class="wizard-disclosure wizard-disclosure--nested wizard-modeling-tip">
+    <summary>How to think about impact, secondary loss, and confidence <span class="badge badge--neutral">Plain English</span></summary>
+    <div class="wizard-disclosure-body">
+      <div class="wizard-modeling-tip__grid">
+        <div class="wizard-modeling-tip__card">
+          <strong>What usually lowers disruption cost</strong>
+          <p>Strong backups, resilience engineering, and an incident team that can restore service quickly usually reduce the interruption range in ${sym}.</p>
+        </div>
+        <div class="wizard-modeling-tip__card">
+          <strong>What usually affects secondary loss</strong>
+          <p>Regulatory exposure, contracts, customer obligations, and dependency chains often change the legal, partner, or reputation tail more than the immediate event frequency.</p>
+        </div>
+      </div>
+      <div class="form-help">If you only know that a control exists on paper, keep confidence lower than you would if you had evidence that it is working in practice.</div>
+    </div>
+  </details>`;
 }
 
 function renderAdvancedTuningWorkspace(p, sym) {
@@ -736,7 +831,7 @@ function renderWizard3() {
             description: isAdv ? 'Advanced mode lets you enter exposure directly if you need it. Otherwise you can still use attacker strength and control strength.' : 'Basic mode uses two simpler questions: how capable the threat is and how strong your current controls are.',
             className: 'card anim-fade-in anim-delay-1',
             headerExtras: UI.sectionStatusBadge('Required', 'gold'),
-            body: `${isAdv?`<div class="flex items-center gap-3 mb-4"><label class="toggle"><input type="checkbox" id="vuln-direct-toggle" ${p.vulnDirect?'checked':''}><div class="toggle-track"></div></label><span class="toggle-label">Enter exposure directly</span></div>
+            body: `${renderExposureModelingTip()}${isAdv?`<div class="flex items-center gap-3 mb-4"><label class="toggle"><input type="checkbox" id="vuln-direct-toggle" ${p.vulnDirect?'checked':''}><div class="toggle-track"></div></label><span class="toggle-label">Enter exposure directly</span></div>
             <div id="vuln-direct-section" ${!p.vulnDirect?'class="hidden"':''}>
               <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:12px">Use a value between 0 and 1, where 0 means very unlikely to succeed and 1 means almost certain to succeed.</p>
               ${tripleInput('vuln','Vulnerability', v('vulnMin',0.1), v('vulnLikely',0.35), v('vulnMax',0.7), { minLabel: 'Low success chance', likelyLabel: 'Expected success chance', maxLabel: 'High success chance' })}
@@ -760,7 +855,7 @@ function renderWizard3() {
             description: `For each cost area, enter a low, expected, and severe per-event estimate in ${sym}. These values are added together in the simulation.`,
             className: 'card anim-fade-in anim-delay-2',
             headerExtras: UI.sectionStatusBadge('Required', 'gold'),
-            body: `${inlineExamples.cost}<div class="wizard-cost-stack">
+            body: `${renderLossModelingTip(sym)}${inlineExamples.cost}<div class="wizard-cost-stack">
               <div class="wizard-cost-group">
                 <div class="wizard-cost-group-label">Core costs</div>
                 <div class="wizard-cost-group-copy">These are usually the biggest drivers and should be completed first.</div>
