@@ -2179,6 +2179,41 @@ canvas { display: block; width: 100%; }
   border: 1px solid rgba(246,243,242,.08);
   background: linear-gradient(180deg, rgba(246,243,242,.028), rgba(246,243,242,.01));
 }
+.results-comparison-rail-note--strong {
+  color: rgba(246,243,242,.78);
+  border-color: rgba(3,209,168,.14);
+  background: linear-gradient(180deg, rgba(3,209,168,.08), rgba(246,243,242,.02));
+}
+.results-comparison-guidance-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-3);
+  margin-top: var(--sp-4);
+}
+.results-comparison-guidance-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: var(--sp-4);
+  border-radius: 20px;
+  border: 1px solid rgba(246,243,242,.08);
+  background: linear-gradient(180deg, rgba(246,243,242,.03), rgba(246,243,242,.012));
+}
+.results-comparison-guidance-card strong {
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  line-height: 1.65;
+  font-weight: var(--font-medium);
+}
+.results-comparison-guidance-card span:last-child {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  line-height: 1.65;
+}
+.results-comparison-guidance-card--accent {
+  border-color: rgba(3,209,168,.14);
+  background: linear-gradient(180deg, rgba(3,209,168,.1), rgba(246,243,242,.02));
+}
 .results-comparison-verdict {
   display: flex;
   flex-direction: column;
@@ -4811,6 +4846,7 @@ canvas { display: block; width: 100%; }
   .dashboard-secondary-grid { grid-template-columns: 1fr; }
   .dashboard-signal-strip,
   .results-comparison-spotlight,
+  .results-comparison-guidance-grid,
   .results-comparison-levers,
   .admin-focus-strip,
   .wizard-focus-strip,

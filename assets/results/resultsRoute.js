@@ -181,9 +181,37 @@ function renderResultsConfidenceNeedsBlock(confidenceFrame, evidenceQuality, mis
   });
 }
 
+function buildTreatmentDecisionAssist(comparison, treatmentDecision) {
+  if (!comparison) return null;
+  const improving = comparison.severeEvent.direction === 'down' && (comparison.annualExposure.direction === 'down' || comparison.severeAnnual.direction === 'down');
+  const partiallyImproving = comparison.severeEvent.direction === 'down';
+  const worsening = comparison.severeEvent.direction === 'up' || comparison.annualExposure.direction === 'up' || comparison.severeAnnual.direction === 'up';
+  return {
+    decisionLabel: improving
+      ? 'Sponsor candidate'
+      : partiallyImproving
+        ? 'Promising, not complete'
+        : worsening
+          ? 'Not ready to sponsor'
+          : 'Needs stronger delta',
+    decisionNow: improving
+      ? 'Validate the improved-state assumptions, then decide whether to sponsor this treatment path.'
+      : partiallyImproving
+        ? 'Keep the stronger severe-event assumptions, but do not sponsor the path until the annual burden also improves.'
+        : worsening
+          ? 'Do not treat this as a better-outcome path yet. Refine the assumptions before using it in investment or prioritisation.'
+          : 'Treat this as an incomplete delta. Adjust the assumptions that should move the result most, then rerun the comparison.',
+    validationLabel: improving ? 'Validate before sponsorship' : worsening ? 'Challenge before reuse' : 'Validate next',
+    technicalPrompt: comparison.secondaryDriver || 'Review the secondary lever only after the main delta driver is credible.',
+    whyChanged: comparison.keyDriver || treatmentDecision?.summary || 'No dominant change driver has been called out yet.',
+    validateNext: comparison.caveat || 'Validate the treatment assumptions before relying on this delta.'
+  };
+}
+
 function renderResultsComparisonHighlight(comparison) {
   if (!comparison) return '';
   const treatmentDecision = ReportPresentation.buildTreatmentDecisionSummary(comparison);
+  const assist = buildTreatmentDecisionAssist(comparison, treatmentDecision);
   const outcomeTone = comparison.severeEvent.direction === 'down'
     ? 'down'
     : comparison.severeEvent.direction === 'up'
@@ -204,6 +232,23 @@ function renderResultsComparisonHighlight(comparison) {
           <h3 class="results-comparison-spotlight__title">${treatmentDecision.title}</h3>
           <p class="results-summary-copy" style="margin-top:var(--sp-3)">${treatmentDecision.summary}</p>
           <div class="results-comparison-inline-meta">Baseline reference: ${comparison.baselineTitle} · ${comparison.baselineDate}</div>
+          <div class="results-comparison-guidance-grid">
+            <div class="results-comparison-guidance-card results-comparison-guidance-card--accent">
+              <span class="results-driver-label">Decision now</span>
+              <strong>${assist.decisionLabel}</strong>
+              <span>${assist.decisionNow}</span>
+            </div>
+            <div class="results-comparison-guidance-card">
+              <span class="results-driver-label">What is driving the delta</span>
+              <strong>${assist.whyChanged}</strong>
+              <span>${assist.technicalPrompt}</span>
+            </div>
+            <div class="results-comparison-guidance-card">
+              <span class="results-driver-label">${assist.validationLabel}</span>
+              <strong>${assist.validateNext}</strong>
+              <span>Use this to decide whether the better-outcome story is credible enough to rely on.</span>
+            </div>
+          </div>
         </div>
         <div class="results-comparison-spotlight__rail">
           <div class="results-comparison-verdict results-comparison-verdict--${outcomeTone}">
@@ -212,6 +257,7 @@ function renderResultsComparisonHighlight(comparison) {
             <span>${comparison.directionTitle || comparison.summary}</span>
           </div>
           <div class="results-comparison-rail-note">${comparison.statusShift}</div>
+          <div class="results-comparison-rail-note results-comparison-rail-note--strong">${treatmentDecision.action}</div>
         </div>
       </div>
       <div class="results-treatment-before-after">
@@ -540,6 +586,7 @@ function renderAssessmentComparisonBlock(comparisonOptions, activeComparisonId, 
     </section>`;
   }
   const treatmentDecision = comparison ? ReportPresentation.buildTreatmentDecisionSummary(comparison) : null;
+  const assist = comparison ? buildTreatmentDecisionAssist(comparison, treatmentDecision) : null;
   return `<section class="results-section-stack">
     <div class="results-section-heading">Compare against another assessment</div>
     <div class="results-comparison-card">
@@ -559,6 +606,23 @@ function renderAssessmentComparisonBlock(comparisonOptions, activeComparisonId, 
           <strong>Comparing against:</strong> ${comparison.baselineTitle} · ${comparison.baselineDate}
         </div>
         <p class="results-summary-copy" style="margin-top:var(--sp-3)">${treatmentDecision.summary}</p>
+        <div class="results-comparison-guidance-grid results-comparison-guidance-grid--compact">
+          <div class="results-comparison-guidance-card results-comparison-guidance-card--accent">
+            <span class="results-driver-label">Decision now</span>
+            <strong>${assist.decisionLabel}</strong>
+            <span>${assist.decisionNow}</span>
+          </div>
+          <div class="results-comparison-guidance-card">
+            <span class="results-driver-label">Driver shift</span>
+            <strong>${assist.whyChanged}</strong>
+            <span>${assist.technicalPrompt}</span>
+          </div>
+          <div class="results-comparison-guidance-card">
+            <span class="results-driver-label">${assist.validationLabel}</span>
+            <strong>${assist.validateNext}</strong>
+            <span>Pressure-test this before treating the delta as a reliable investment signal.</span>
+          </div>
+        </div>
         <div class="results-treatment-before-after" style="margin-top:var(--sp-4)">
           <div class="results-treatment-posture-card">
             <div class="results-driver-label">Baseline</div>
@@ -580,7 +644,7 @@ function renderAssessmentComparisonBlock(comparisonOptions, activeComparisonId, 
           </div>
         </div>
         <div class="results-comparison-banner" style="margin-top:var(--sp-3)">${comparison.statusShift}</div>
-        <div class="results-comparison-banner" style="margin-top:var(--sp-3)">${treatmentDecision.action}</div>
+        <div class="results-comparison-banner results-comparison-banner--premium" style="margin-top:var(--sp-3)">${treatmentDecision.action}</div>
         <div class="results-comparison-grid">
           <div class="results-comparison-metric ${comparison.severeEvent.direction}">
             <div class="results-impact-label">Severe single event delta</div>
