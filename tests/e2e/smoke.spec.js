@@ -491,9 +491,8 @@ test('authenticated user dashboard renders without crashing', async ({ page }) =
     await expect(page.locator('#btn-dashboard-new-assessment')).toBeVisible();
     await expect(page.locator('#btn-dashboard-upload-register')).toBeVisible();
     await expect(page.locator('#btn-dashboard-start-sample')).toBeVisible();
-    await page.getByText(/more actions/i).click();
     await expect(page.locator('#btn-dashboard-start-template')).toBeVisible();
-    await expect(page.locator('#btn-dashboard-open-settings')).toBeVisible();
+    await expect(page.getByText(/workspace tools/i).first()).toBeVisible();
   });
 });
 

@@ -3543,6 +3543,11 @@ canvas { display: block; width: 100%; }
   padding-top: var(--sp-4);
   border-top: 1px solid rgba(246,243,242,.07);
 }
+.dashboard-support-note {
+  margin-top: var(--sp-4);
+  color: rgba(246,243,242,.5);
+  line-height: 1.55;
+}
 .dashboard-context-card--nested { padding: var(--sp-5); background: linear-gradient(180deg, rgba(246,243,242,.026), rgba(246,243,242,.012)); }
 .dashboard-disclosure[open] > summary { margin-bottom: var(--sp-3); }
 .dashboard-assessment-row {
@@ -3630,6 +3635,15 @@ canvas { display: block; width: 100%; }
 .dashboard-history-panel .dashboard-assessment-row {
   background: linear-gradient(180deg, rgba(246,243,242,.02), rgba(246,243,242,.008));
   border-color: rgba(246,243,242,.08);
+}
+.dashboard-history-panel--tools {
+  background: linear-gradient(180deg, rgba(246,243,242,.02), rgba(246,243,242,.007));
+}
+.dashboard-utility-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
 }
 .dashboard-hero-overflow,
 .dashboard-row-overflow,

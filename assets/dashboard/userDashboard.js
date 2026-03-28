@@ -420,36 +420,28 @@ function renderUserDashboard() {
             <span class="dashboard-start-inline-note">AI-assisted wizard</span>
           </div>
         </div>
-        <div class="dashboard-start-secondary-grid">
-          <div class="dashboard-start-secondary">
-            <div>
-              <div class="dashboard-start-kicker">Bring your own source material</div>
-              <strong>Upload a risk register</strong>
+          <div class="dashboard-start-secondary-grid">
+            <div class="dashboard-start-secondary">
+              <div>
+                <div class="dashboard-start-kicker">Bring your own source material</div>
+                <strong>Upload a risk register</strong>
               <p>Bring in existing risks and turn them into candidate scenarios for assessment.</p>
             </div>
             <button class="btn btn--secondary" id="btn-dashboard-upload-register">Upload risk register</button>
           </div>
-          <div class="dashboard-start-tertiary">
-            <div>
-              <div class="dashboard-start-kicker">Faster starting point</div>
-              <strong>Preloaded risk scenarios</strong>
-              <p>Start from realistic example scenarios when you want a faster first pass.</p>
-            </div>
-            <div class="dashboard-start-tertiary__actions">
-              <button class="btn btn--ghost" id="btn-dashboard-start-sample">Use preloaded scenario</button>
-              <details class="results-actions-disclosure dashboard-hero-overflow">
-                <summary class="btn btn--ghost">More actions</summary>
-                <div class="results-actions-disclosure-menu">
-                  <button class="btn btn--secondary btn--sm" id="btn-dashboard-start-template">Start from Template</button>
-                  <button class="btn btn--secondary btn--sm" id="btn-dashboard-export-assessments">Export Assessments</button>
-                  <button class="btn btn--secondary btn--sm" id="btn-dashboard-import-assessments">Import Assessments</button>
-                  <button class="btn btn--secondary btn--sm" id="btn-dashboard-open-settings">${primarySettingsLabel}</button>
-                </div>
-              </details>
+            <div class="dashboard-start-tertiary">
+              <div>
+                <div class="dashboard-start-kicker">Faster starting point</div>
+                <strong>Preloaded risk scenarios</strong>
+                <p>Start from realistic example scenarios when you want a faster first pass.</p>
+              </div>
+              <div class="dashboard-start-tertiary__actions">
+                <button class="btn btn--ghost" id="btn-dashboard-start-sample">Use preloaded scenario</button>
+                <button class="btn btn--ghost" id="btn-dashboard-start-template">Start from Template</button>
+              </div>
             </div>
           </div>
-        </div>
-        <div class="dashboard-start-quiet-note">Use the guided path for most new work. Open the register or preloaded scenario paths only when they match how you are starting.</div>
+        <div class="dashboard-start-quiet-note">Use the guided path for most new work. Use register upload, templates, or preloaded scenarios only when they match how you are starting. Workspace tools stay lower on the page so they do not compete with the start decision.</div>
       </div>
     </div>` : '';
 
@@ -474,12 +466,10 @@ function renderUserDashboard() {
               <div class="dashboard-hero-actions flex items-center gap-3 mt-6" style="flex-wrap:wrap">
                 <button class="btn btn--primary btn--lg" id="btn-dashboard-new-assessment" aria-label="${roleFrontDoor.primaryActionLabel}">${roleFrontDoor.primaryActionLabel}</button>
                 <details class="results-actions-disclosure dashboard-hero-overflow">
-                  <summary class="btn btn--ghost">More oversight tools</summary>
+                  <summary class="btn btn--ghost">Workspace tools</summary>
                   <div class="results-actions-disclosure-menu">
                     ${hasDraft ? `<button class="btn btn--secondary btn--sm" id="btn-dashboard-continue-draft">Resume Draft</button>` : ''}
                     <button class="btn btn--secondary btn--sm" id="btn-dashboard-open-settings">${primarySettingsLabel}</button>
-                    <button class="btn btn--secondary btn--sm" id="btn-dashboard-start-template">Start from Template</button>
-                    <button class="btn btn--secondary btn--sm" id="btn-dashboard-start-sample">${isOversightUser ? 'View Worked Example' : 'Try Sample Assessment'}</button>
                     <button class="btn btn--secondary btn--sm" id="btn-dashboard-export-assessments">Export Assessments</button>
                     <button class="btn btn--secondary btn--sm" id="btn-dashboard-import-assessments">Import Assessments</button>
                   </div>
@@ -585,20 +575,19 @@ function renderUserDashboard() {
             <div class="card card--elevated dashboard-section-card dashboard-section-card--secondary dashboard-section-card--support">
               <div class="results-section-heading">What you can start next</div>
               <div class="context-panel-copy" style="margin-top:10px">${queueNeedsAttention
-                ? 'Keep new assessments secondary until the active review lane is clear. Templates, examples, and utilities stay available when you need them.'
+                ? 'Keep new assessments secondary until the active review lane is clear. Start paths stay available here, while workspace tools stay separate.'
                 : 'When the queue is clear and the owned context is current, start a guided assessment only when it will materially improve decision quality.'}</div>
               <div class="flex items-center gap-3 mt-5" style="flex-wrap:wrap">
                 ${!queueNeedsAttention && !contextNeedsAttention ? '<button type="button" class="btn btn--ghost" id="btn-dashboard-start-next-guided">Start Guided Assessment</button>' : ''}
                 <button type="button" class="btn btn--ghost" id="btn-dashboard-start-next-sample">${isOversightUser ? 'View Worked Example' : 'Try Sample Assessment'}</button>
                 <details class="results-actions-disclosure dashboard-hero-overflow">
-                  <summary class="btn btn--ghost btn--sm">More tools</summary>
+                  <summary class="btn btn--ghost btn--sm">Other start paths</summary>
                   <div class="results-actions-disclosure-menu">
                     <button class="btn btn--secondary btn--sm" id="btn-dashboard-start-template-support">Start from Template</button>
-                    <button class="btn btn--secondary btn--sm" id="btn-dashboard-export-assessments-support">Export Assessments</button>
-                    <button class="btn btn--secondary btn--sm" id="btn-dashboard-import-assessments-support">Import Assessments</button>
                   </div>
                 </details>
               </div>
+              <div class="form-help dashboard-support-note">Start actions live here. Export, import, and broader workspace tools stay in reference and history so this lane keeps one job.</div>
             </div>
           </div>
         </section>
@@ -622,6 +611,17 @@ function renderUserDashboard() {
           <div class="dashboard-column">
             <div class="results-section-heading">Reference and history</div>
             <div class="form-help" style="margin-top:8px;margin-bottom:var(--sp-4)">Open archived items and supporting context only when you need them.</div>
+            <details class="dashboard-disclosure dashboard-history-panel dashboard-history-panel--tools">
+              <summary>Workspace tools <span class="badge badge--neutral">Utilities</span></summary>
+              <div class="dashboard-disclosure-copy">Use these when you need to move data, reopen settings, or manage the workspace outside the main work-start flow.</div>
+              <div class="dashboard-disclosure-body">
+                <div class="dashboard-utility-actions">
+                  ${!isOversightUser ? `<button class="btn btn--secondary btn--sm" id="btn-dashboard-open-settings">${primarySettingsLabel}</button>` : ''}
+                  <button class="btn btn--secondary btn--sm" id="btn-dashboard-export-assessments-support">Export Assessments</button>
+                  <button class="btn btn--secondary btn--sm" id="btn-dashboard-import-assessments-support">Import Assessments</button>
+                </div>
+              </div>
+            </details>
             <details class="dashboard-disclosure dashboard-history-panel" ${archivedAssessments.length ? '' : ''}>
               <summary>Archived items <span class="badge badge--neutral">${archivedAssessments.length}</span></summary>
               <div class="dashboard-disclosure-copy">Stored out of the way, but still available if you need them again.</div>
