@@ -1755,6 +1755,23 @@ function explainRiskFit(match, selected) {
   return 'Likely separate or lower-confidence. Include it only if it clearly belongs in the same assessment.';
 }
 
+function explainSelectedReviewRisk(risk, match) {
+  if (match?.fit !== 'selected-review') return '';
+  const lensLabel = String(AppState.draft?.scenarioLens?.label || 'current').trim().toLowerCase();
+  const source = String(risk?.source || '').trim().toLowerCase();
+  if (source === 'manual') {
+    return `Still shown because it was added manually earlier, but it does not align strongly with the current ${lensLabel} scenario.`;
+  }
+  if (source === 'dry-run') {
+    return `Still shown because it came from the loaded example, but it does not align strongly with the current ${lensLabel} scenario.`;
+  }
+  if (source === 'register' || source === 'ai+register') {
+    return `Still shown because it came from uploaded material, but it does not align strongly with the current ${lensLabel} scenario.`;
+  }
+  // Make retained legacy AI cards explicit so users understand why they appeared at all.
+  return `Still shown because it was selected from an earlier shortlist, but it does not align strongly with the current ${lensLabel} scenario.`;
+}
+
 function renderRiskSelectionSection(title, subtitle, risks, selectedIds, regulations, sectionClass = '') {
   if (!risks.length) return '';
   const sourceLabel = risk => risk.source === 'manual'
@@ -1767,7 +1784,11 @@ function renderRiskSelectionSection(title, subtitle, risks, selectedIds, regulat
           ? 'Upload'
           : 'AI generated';
   // Risk titles, descriptions, and regulation labels can come from uploaded files or AI suggestions, so escape before rendering.
-  return `<div class="${escapeHtml(String(sectionClass))}" style="display:flex;flex-direction:column;gap:var(--sp-4)"><div><div class="context-panel-title">${escapeHtml(String(title))}</div><div class="context-panel-copy" style="margin-top:6px">${escapeHtml(String(subtitle))}</div></div><div class="risk-selection-grid">${risks.map(({ risk, match }) => `<div class="risk-pick-card"><div class="risk-pick-head" style="align-items:flex-start"><label style="display:flex;gap:12px;align-items:flex-start;flex:1;cursor:pointer"><input type="checkbox" class="risk-select-checkbox" data-risk-id="${escapeHtml(String(risk.id || ''))}" ${selectedIds.has(risk.id) ? 'checked' : ''} style="margin-top:4px"><div><div class="risk-pick-title">${escapeHtml(String(risk.title || 'Untitled risk'))}</div><div class="risk-pick-badges"><span class="risk-pick-badge">${escapeHtml(String(risk.category || 'Uncategorized'))}</span><span class="risk-pick-badge risk-pick-badge--source">${escapeHtml(String(sourceLabel(risk)))}</span></div></div></label><button class="btn btn--ghost btn--sm btn-remove-risk" data-risk-id="${escapeHtml(String(risk.id || ''))}" type="button">Remove</button></div>${risk.description ? `<p class="risk-pick-desc">${escapeHtml(String(risk.description))}</p>` : ''}<div class="form-help" style="margin-bottom:10px">${escapeHtml(String(explainRiskFit(match, selectedIds.has(risk.id))))}</div><div class="citation-chips">${(risk.regulations || []).length ? risk.regulations.slice(0, 4).map(tag => `<span class="badge badge--neutral">${escapeHtml(String(tag))}</span>`).join('') : regulations.slice(0, 2).map(tag => `<span class="badge badge--neutral">${escapeHtml(String(tag))}</span>`).join('')}</div></div>`).join('')}</div></div>`;
+  return `<div class="${escapeHtml(String(sectionClass))}" style="display:flex;flex-direction:column;gap:var(--sp-4)"><div><div class="context-panel-title">${escapeHtml(String(title))}</div><div class="context-panel-copy" style="margin-top:6px">${escapeHtml(String(subtitle))}</div></div><div class="risk-selection-grid">${risks.map(({ risk, match }) => {
+    const needsReview = match?.fit === 'selected-review';
+    const retainedReason = explainSelectedReviewRisk(risk, match);
+    return `<div class="risk-pick-card ${needsReview ? 'risk-pick-card--review' : ''}"><div class="risk-pick-head" style="align-items:flex-start"><label style="display:flex;gap:12px;align-items:flex-start;flex:1;cursor:pointer"><input type="checkbox" class="risk-select-checkbox" data-risk-id="${escapeHtml(String(risk.id || ''))}" ${selectedIds.has(risk.id) ? 'checked' : ''} style="margin-top:4px"><div><div class="risk-pick-title">${escapeHtml(String(risk.title || 'Untitled risk'))}</div><div class="risk-pick-badges"><span class="risk-pick-badge ${needsReview ? 'risk-pick-badge--review' : ''}">${escapeHtml(String(risk.category || 'Uncategorized'))}</span><span class="risk-pick-badge risk-pick-badge--source">${escapeHtml(String(sourceLabel(risk)))}</span>${needsReview ? '<span class="risk-pick-badge risk-pick-badge--review">Needs review</span>' : ''}</div></div></label><button class="btn btn--ghost btn--sm btn-remove-risk" data-risk-id="${escapeHtml(String(risk.id || ''))}" type="button">Remove</button></div>${risk.description ? `<p class="risk-pick-desc">${escapeHtml(String(risk.description))}</p>` : ''}${retainedReason ? `<div class="risk-pick-review-note">${escapeHtml(retainedReason)}</div>` : ''}<div class="form-help" style="margin-bottom:10px">${escapeHtml(String(explainRiskFit(match, selectedIds.has(risk.id))))}</div><div class="citation-chips">${(risk.regulations || []).length ? risk.regulations.slice(0, 4).map(tag => `<span class="badge badge--neutral">${escapeHtml(String(tag))}</span>`).join('') : regulations.slice(0, 2).map(tag => `<span class="badge badge--neutral">${escapeHtml(String(tag))}</span>`).join('')}</div></div>`;
+  }).join('')}</div></div>`;
 }
 
 function renderSelectedRiskCards(riskCandidates, selectedRisks, regulations) {
