@@ -3922,7 +3922,7 @@ function composeGuidedNarrative(guidedInput = {}) {
 function renderAppBar() {
   const currentUser = AuthService.getCurrentUser();
   const currentHash = String(window.location.hash || '#/');
-  const homeHref = currentUser?.role === 'admin' ? '#/admin/settings/org' : currentUser ? '#/dashboard' : '#/';
+  const homeHref = currentUser?.role === 'admin' ? '#/wizard/1' : currentUser ? '#/dashboard' : '#/';
   const settingsHref = currentUser?.role === 'admin' ? '#/admin/settings/org' : '#/settings';
   const nonAdminCapability = currentUser && currentUser.role !== 'admin'
     ? getNonAdminCapabilityState(currentUser, getUserSettings(), getAdminSettings())
@@ -3930,9 +3930,9 @@ function renderAppBar() {
   const isOversightUser = !!(nonAdminCapability?.canManageBusinessUnit || nonAdminCapability?.canManageDepartment);
   const navLinks = currentUser?.role === 'admin'
     ? [
-        { href: '#/admin/settings/org', label: 'Platform Home', active: currentHash.startsWith('#/admin/settings/org') || currentHash === '#/admin/settings' },
-        { href: '#/admin/settings/users', label: 'User Access', active: currentHash.startsWith('#/admin/settings/users') },
-        { href: '#/admin/settings/defaults', label: 'Defaults', active: currentHash.startsWith('#/admin/settings/defaults') || currentHash.startsWith('#/admin/settings/governance') }
+        // Keep the app bar at the section level so detailed admin destinations only live in the sidebar.
+        { href: '#/wizard/1', label: 'Assessment Workspace', active: currentHash.startsWith('#/wizard/') || currentHash.startsWith('#/results/') },
+        { href: '#/admin/settings/org', label: 'Admin Console', active: currentHash.startsWith('#/admin/') }
       ]
     : currentUser
       ? [

@@ -2506,7 +2506,8 @@ function setPreferredAdminSection(section) {
 
 function getDefaultRouteForCurrentUser() {
   const user = AuthService.getCurrentUser();
-  return user?.role === 'admin' ? `/admin/settings/${getPreferredAdminSection()}` : '/dashboard';
+  // Global admins still need a direct assessment workspace, not only the admin console.
+  return user?.role === 'admin' ? '/wizard/1' : '/dashboard';
 }
 
 function userNeedsOrganisationSelection(user = AuthService.getCurrentUser(), settings = getAdminSettings()) {

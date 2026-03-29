@@ -170,14 +170,16 @@ function renderUserDashboard() {
       '<button type="button" class="btn btn--secondary btn--sm dashboard-delete-draft">Delete</button>'
     ]
   });
-  const renderWorkspaceToolsMenu = ({ includeResumeDraft = false, includeSettings = true, useSupportIds = false } = {}) => renderDashboardActionMenu({
+  const renderWorkspaceToolsMenu = ({ includeResumeDraft = false, includeSettings = true, useSupportIds = false, includeNewAssessment = true } = {}) => renderDashboardActionMenu({
     items: [
       includeResumeDraft ? '<button class="btn btn--secondary btn--sm" id="btn-dashboard-continue-draft">Resume Draft</button>' : '',
       `<button class="btn btn--ghost btn--sm" id="btn-dashboard-run-demo">Live Demo</button>`,
       includeSettings ? `<button class="btn btn--secondary btn--sm" id="btn-dashboard-open-settings">${primarySettingsLabel}</button>` : '',
       `<button class="btn btn--secondary btn--sm" id="${useSupportIds ? 'btn-dashboard-export-assessments-support' : 'btn-dashboard-export-assessments'}">Export Assessments</button>`,
       `<button class="btn btn--secondary btn--sm" id="${useSupportIds ? 'btn-dashboard-import-assessments-support' : 'btn-dashboard-import-assessments'}">Import Assessments</button>`,
-      `<button class="btn btn--secondary btn--sm" id="${useSupportIds ? 'btn-dashboard-new-assessment-support' : 'btn-dashboard-new-assessment-oversight'}">Start New Assessment</button>`
+      includeNewAssessment
+        ? `<button class="btn btn--secondary btn--sm" id="${useSupportIds ? 'btn-dashboard-new-assessment-support' : 'btn-dashboard-new-assessment-oversight'}">Start New Assessment</button>`
+        : ''
     ],
     summaryLabel: useSupportIds ? 'Workspace tools' : 'Workspace tools',
     summaryClassName: useSupportIds ? 'btn btn--ghost btn--sm' : 'btn btn--ghost',
@@ -577,7 +579,9 @@ function renderUserDashboard() {
               </div>
               <div class="dashboard-hero-actions flex items-center gap-3 mt-6" style="flex-wrap:wrap">
                 <button class="btn btn--primary btn--lg" id="btn-dashboard-new-assessment" aria-label="${roleFrontDoor.primaryActionLabel}">${roleFrontDoor.primaryActionLabel}</button>
-                ${renderWorkspaceToolsMenu({ includeResumeDraft: hasDraft, includeSettings: true, useSupportIds: false })}
+                <!-- Keep start-new visible for oversight users instead of burying it in the overflow menu. -->
+                <button class="btn btn--secondary btn--lg" id="btn-dashboard-new-assessment-oversight" aria-label="Start New Assessment">Start New Assessment</button>
+                ${renderWorkspaceToolsMenu({ includeResumeDraft: hasDraft, includeSettings: true, useSupportIds: false, includeNewAssessment: false })}
               </div>
               <div class="form-help" style="margin-top:12px;color:rgba(255,255,255,.65)">${roleFrontDoor.heroHint}</div>` : standardStartModule}
             </div>
