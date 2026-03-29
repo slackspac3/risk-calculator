@@ -128,8 +128,22 @@ const LearningStore = (() => {
       const savedPattern = {
         id: String(pattern?.id || _generateId('pattern')).trim(),
         buId: String(pattern?.buId || '').trim(),
+        title: String(pattern?.title || '').trim(),
         scenarioType: String(pattern?.scenarioType || '').trim(),
         geography: String(pattern?.geography || '').trim(),
+        narrative: String(pattern?.narrative || '').trim(),
+        guidedInput: pattern?.guidedInput && typeof pattern.guidedInput === 'object'
+          ? {
+              event: String(pattern.guidedInput.event || '').trim(),
+              asset: String(pattern.guidedInput.asset || '').trim(),
+              cause: String(pattern.guidedInput.cause || '').trim(),
+              impact: String(pattern.guidedInput.impact || '').trim(),
+              urgency: String(pattern.guidedInput.urgency || '').trim()
+            }
+          : {},
+        selectedRiskTitles: Array.isArray(pattern?.selectedRiskTitles)
+          ? pattern.selectedRiskTitles.map(item => String(item || '').trim()).filter(Boolean).slice(0, 4)
+          : [],
         posture: String(pattern?.posture || '').trim(),
         confidenceLabel: String(pattern?.confidenceLabel || 'Moderate confidence').trim(),
         topGap: String(pattern?.topGap || '').trim(),
@@ -152,8 +166,22 @@ const LearningStore = (() => {
     return {
       id: String(assessment.id || '').trim(),
       buId: String(assessment.buId || '').trim(),
+      title: String(assessment.scenarioTitle || assessment.structuredScenario?.attackType || '').trim(),
       scenarioType: String(assessment.structuredScenario?.attackType || assessment.scenarioTitle || '').trim(),
       geography: String(assessment.geography || '').trim(),
+      narrative: String(assessment.enhancedNarrative || assessment.narrative || '').trim(),
+      guidedInput: assessment?.guidedInput && typeof assessment.guidedInput === 'object'
+        ? {
+            event: String(assessment.guidedInput.event || '').trim(),
+            asset: String(assessment.guidedInput.asset || '').trim(),
+            cause: String(assessment.guidedInput.cause || '').trim(),
+            impact: String(assessment.guidedInput.impact || '').trim(),
+            urgency: String(assessment.guidedInput.urgency || '').trim()
+          }
+        : {},
+      selectedRiskTitles: Array.isArray(assessment?.selectedRisks)
+        ? assessment.selectedRisks.map(item => String(item?.title || '').trim()).filter(Boolean).slice(0, 4)
+        : [],
       posture: assessment.results.toleranceBreached
         ? 'above-tolerance'
         : assessment.results.nearTolerance

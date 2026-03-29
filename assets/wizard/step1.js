@@ -48,11 +48,147 @@ function renderStep1SelectedRisksSummary(selectedRisks, riskCandidates) {
   </section>`;
 }
 
-function renderStep1FeaturedExampleCard(example) {
+const STEP1_DRY_RUN_FUNCTION_LABELS = {
+  finance: 'Finance',
+  procurement: 'Procurement',
+  compliance: 'Compliance',
+  operations: 'Operations',
+  technology: 'Technology and cyber',
+  strategic: 'Strategic',
+  hse: 'HSE',
+  general: 'Cross-functional'
+};
+
+function createStep1DryRunScenario(input = {}) {
+  return {
+    id: String(input.id || '').trim(),
+    functionKey: String(input.functionKey || 'general').trim(),
+    title: String(input.title || 'Worked example').trim(),
+    summary: String(input.summary || '').trim(),
+    bestFor: String(input.bestFor || '').trim(),
+    nextStep: String(input.nextStep || '').trim(),
+    promptLabel: String(input.promptLabel || input.title || 'Load example').trim(),
+    event: String(input.event || '').trim(),
+    asset: String(input.asset || '').trim(),
+    cause: String(input.cause || '').trim(),
+    impact: String(input.impact || '').trim(),
+    urgency: String(input.urgency || 'medium').trim(),
+    geographies: Array.isArray(input.geographies) ? input.geographies : [],
+    risks: Array.isArray(input.risks) ? input.risks : []
+  };
+}
+
+function inferStep1FunctionKey(settings = getEffectiveSettings(), draft = AppState.draft || {}) {
+  const profile = normaliseUserProfile(settings?.userProfile, AuthService.getCurrentUser());
+  const haystack = [
+    profile.jobTitle,
+    profile.department,
+    profile.businessUnit,
+    profile.workingContext,
+    ...(Array.isArray(profile.focusAreas) ? profile.focusAreas : []),
+    draft?.buName,
+    draft?.contextNotes
+  ].filter(Boolean).join(' ').toLowerCase();
+  if (/procurement|sourcing|vendor|supplier|purchase|third[- ]party|supply chain/.test(haystack)) return 'procurement';
+  if (/compliance|regulatory|legal|privacy|policy|governance|controls|audit/.test(haystack)) return 'compliance';
+  if (/finance|treasury|accounting|financial|cash|payment|payroll|credit|collections|ledger/.test(haystack)) return 'finance';
+  if (/hse|ehs|health|safety|environment|workplace safety|incident response/.test(haystack)) return 'hse';
+  if (/strategy|strategic|enterprise|portfolio|transformation|market|growth|investment/.test(haystack)) return 'strategic';
+  if (/technology|cyber|security|identity|cloud|infrastructure|it\b|digital/.test(haystack)) return 'technology';
+  if (/operations|resilience|continuity|service delivery|manufacturing|logistics|facilities|workforce/.test(haystack)) return 'operations';
+  return 'general';
+}
+
+function getStep1LearnedExampleSummary(pattern = {}) {
+  const parts = [
+    pattern.geography ? `Completed in ${pattern.geography}` : '',
+    pattern.posture === 'above-tolerance'
+      ? 'previously finished above tolerance'
+      : pattern.posture === 'near-tolerance'
+        ? 'previously finished near tolerance'
+        : 'previously finished within tolerance'
+  ].filter(Boolean);
+  return parts.join(' and ') || 'Learnt from a previous completed assessment.';
+}
+
+function buildStep1LearnedDryRunExamples(functionKey, buId, limit = 3) {
+  const patterns = typeof getRelevantScenarioPatterns === 'function'
+    ? getRelevantScenarioPatterns(buId, limit * 2)
+    : [];
+  return patterns
+    .filter(pattern => {
+      if (!String(pattern?.title || pattern?.scenarioType || pattern?.narrative || '').trim()) return false;
+      if (functionKey === 'general') return true;
+      const haystack = [
+        pattern?.functionKey,
+        pattern?.title,
+        pattern?.scenarioType,
+        pattern?.narrative,
+        ...(Array.isArray(pattern?.selectedRiskTitles) ? pattern.selectedRiskTitles : [])
+      ].filter(Boolean).join(' ').toLowerCase();
+      return haystack.includes(functionKey.replace('-', ' ')) || inferStep1FunctionKey({
+        userProfile: {
+          department: haystack,
+          workingContext: haystack,
+          focusAreas: []
+        }
+      }) === functionKey;
+    })
+    .slice(0, limit)
+    .map((pattern, index) => createStep1DryRunScenario({
+      id: `learned-${pattern.id || index}`,
+      functionKey,
+      title: String(pattern.title || pattern.scenarioType || 'Recent completed scenario').trim(),
+      summary: getStep1LearnedExampleSummary(pattern),
+      bestFor: pattern.confidenceLabel ? `${pattern.confidenceLabel} precedent` : 'Recent precedent',
+      nextStep: pattern.keyRecommendation
+        ? `Use this when you want a similar starting point. Most recent recommendation: ${pattern.keyRecommendation}`
+        : 'Use this when you want to start from a recent pattern already seen in this workspace.',
+      promptLabel: 'Recent pattern',
+      event: String(pattern.guidedInput?.event || pattern.narrative || pattern.title || pattern.scenarioType || '').trim(),
+      asset: String(pattern.guidedInput?.asset || '').trim(),
+      cause: String(pattern.guidedInput?.cause || '').trim(),
+      impact: String(pattern.guidedInput?.impact || pattern.topGap || '').trim(),
+      urgency: pattern.posture === 'above-tolerance' ? 'high' : pattern.posture === 'near-tolerance' ? 'medium' : 'low',
+      geographies: pattern.geography ? [String(pattern.geography).trim()] : [],
+      risks: (Array.isArray(pattern.selectedRiskTitles) ? pattern.selectedRiskTitles : []).slice(0, 3).map(title => ({
+        title,
+        category: 'Learned',
+        source: 'learned-pattern',
+        description: 'Recovered from a recent completed assessment to provide a faster starting point.'
+      }))
+    }));
+}
+
+function getStep1ExampleExperienceModel(settings = getEffectiveSettings(), draft = AppState.draft || {}) {
+  const functionKey = inferStep1FunctionKey(settings, draft);
+  const recommended = STEP1_DRY_RUN_SCENARIOS
+    .filter(example => example.functionKey === functionKey)
+    .slice(0, 4);
+  const fallback = functionKey === 'general'
+    ? STEP1_DRY_RUN_SCENARIOS.filter(example => example.functionKey !== 'general').slice(0, 4)
+    : STEP1_DRY_RUN_SCENARIOS.filter(example => example.functionKey === 'general').slice(0, 2);
+  const learned = buildStep1LearnedDryRunExamples(functionKey, draft?.buId, 3);
+  const seenIds = new Set();
+  const availableExamples = [...recommended, ...learned, ...fallback, ...STEP1_DRY_RUN_SCENARIOS].filter(example => {
+    if (!example?.id || seenIds.has(example.id)) return false;
+    seenIds.add(example.id);
+    return true;
+  });
+  return {
+    functionKey,
+    functionLabel: STEP1_DRY_RUN_FUNCTION_LABELS[functionKey] || STEP1_DRY_RUN_FUNCTION_LABELS.general,
+    recommendedExamples: recommended.length ? recommended : availableExamples.slice(0, 4),
+    learnedExamples: learned,
+    availableExamples
+  };
+}
+
+function renderStep1FeaturedExampleCard(example, recommendedExamples = [], learnedExamples = [], functionLabel = 'your function') {
   if (!example) return '';
   const disclosureKey = getDisclosureStateKey('/wizard/1', 'worked example');
   return `<details class="wizard-disclosure wizard-disclosure--support anim-fade-in" data-disclosure-state-key="${escapeHtml(disclosureKey)}" ${getDisclosureOpenState(disclosureKey, false) ? 'open' : ''}>
-    <summary>Worked example <span class="badge badge--neutral">Fast demo path</span></summary>
+    <summary>Worked examples <span class="badge badge--neutral">${escapeHtml(functionLabel)} starter set</span></summary>
     <div class="wizard-disclosure-body">
       <div class="wizard-summary-band wizard-summary-band--quiet" style="margin-top:0">
         <div>
@@ -65,13 +201,52 @@ function renderStep1FeaturedExampleCard(example) {
         </div>
       </div>
       <div class="form-help" style="margin-top:var(--sp-4)">${escapeHtml(example.nextStep)}</div>
+      ${recommendedExamples.length ? `<div class="risk-selection-grid" style="margin-top:var(--sp-4)">
+        <div class="form-help" style="grid-column:1 / -1">Recommended for ${escapeHtml(functionLabel.toLowerCase())}. Choose any of these if you want the starter scenario to reflect the function you work in.</div>
+        ${recommendedExamples.map(item => `<div class="risk-pick-card">
+          <div class="risk-pick-head" style="align-items:flex-start">
+            <div style="flex:1">
+              <div class="risk-pick-title">${escapeHtml(item.title)}</div>
+              <div class="form-help" style="margin-top:6px">${escapeHtml(item.summary)}</div>
+            </div>
+            <button class="btn btn--ghost btn--sm btn-load-dry-run" data-dry-run-id="${escapeHtml(item.id)}" type="button">Load</button>
+          </div>
+          <div class="citation-chips" style="margin-top:var(--sp-3)">
+            <span class="badge badge--neutral">${escapeHtml(item.promptLabel)}</span>
+            <span class="badge badge--neutral">${escapeHtml(item.bestFor)}</span>
+          </div>
+        </div>`).join('')}
+      </div>` : ''}
+      ${learnedExamples.length ? `<div class="card card--background" style="margin-top:var(--sp-4);padding:var(--sp-4)">
+        <div class="context-panel-title">Learnt from recent completed assessments</div>
+        <div class="form-help" style="margin-top:6px">Recent scenarios now feed this picker so the preloaded examples stay closer to the work your team actually runs.</div>
+        <div class="risk-selection-grid" style="margin-top:var(--sp-4)">
+          ${learnedExamples.map(item => `<div class="risk-pick-card">
+            <div class="risk-pick-head" style="align-items:flex-start">
+              <div style="flex:1">
+                <div class="risk-pick-title">${escapeHtml(item.title)}</div>
+                <div class="form-help" style="margin-top:6px">${escapeHtml(item.summary)}</div>
+              </div>
+              <button class="btn btn--ghost btn--sm btn-load-dry-run" data-dry-run-id="${escapeHtml(item.id)}" type="button">Load</button>
+            </div>
+          </div>`).join('')}
+        </div>
+      </div>` : ''}
     </div>
   </details>`;
 }
 
-function renderStep1GuidedBuilderCard(draft, recommendation) {
+function renderStep1GuidedBuilderCard(draft, recommendation, functionLabel = 'your role', promptSuggestions = []) {
   const draftPreview = composeGuidedNarrative(draft.guidedInput);
   const optionalContextDisclosureKey = getDisclosureStateKey('/wizard/1', 'add more context only if you need it');
+  const promptCards = promptSuggestions.length
+    ? promptSuggestions
+    : [
+      { label: 'Supplier disruption', prompt: 'A critical supplier fails during a high-pressure operating period and key services fall behind.' },
+      { label: 'Control breakdown', prompt: 'A control breakdown remains undetected long enough to create customer, financial, or regulatory exposure.' },
+      { label: 'Recovery shortfall', prompt: 'An outage lasts longer than planned because recovery dependencies do not perform as expected.' }
+    ];
+  const primaryPrompt = String(promptCards[0]?.prompt || 'Describe what happened or what could happen.').trim();
   return `<div class="card card--primary wizard-primary-card anim-fade-in anim-delay-1">
     <div class="wizard-premium-head" style="margin-bottom:var(--sp-5)">
       <div>
@@ -79,7 +254,7 @@ function renderStep1GuidedBuilderCard(draft, recommendation) {
         <p>Answer a few plain-language prompts. The platform will turn them into a structured starting point you can edit before continuing.</p>
         <div class="wizard-builder-note">
           <strong>${recommendation.title}</strong>
-          <span>${recommendation.copy}</span>
+          <span>${recommendation.copy} Your current examples are tuned for ${escapeHtml(functionLabel.toLowerCase())} work.</span>
         </div>
       </div>
       <span class="badge badge--gold">Recommended</span>
@@ -87,7 +262,7 @@ function renderStep1GuidedBuilderCard(draft, recommendation) {
     <div class="grid-2">
       <div class="form-group">
         <label class="form-label" for="guided-event">What happened or what could happen?</label>
-        <textarea class="form-textarea" id="guided-event" rows="3" placeholder="Example: a supplier with privileged access is compromised and disrupts a regulated customer platform">${draft.guidedInput?.event || ''}</textarea>
+        <textarea class="form-textarea" id="guided-event" rows="3" placeholder="Example: ${escapeHtml(primaryPrompt)}">${draft.guidedInput?.event || ''}</textarea>
       </div>
       <div class="form-group">
         <label class="form-label" for="guided-impact">What is the main impact you care about?</label>
@@ -120,9 +295,7 @@ function renderStep1GuidedBuilderCard(draft, recommendation) {
           <div class="form-group">
             <label class="form-label">Prompt ideas</label>
             <div class="citation-chips">
-              <button class="citation-chip guided-prompt-chip" data-prompt="Supplier compromise affecting a regulated platform">Supplier compromise</button>
-              <button class="citation-chip guided-prompt-chip" data-prompt="Cloud misconfiguration exposing sensitive data">Cloud exposure</button>
-              <button class="citation-chip guided-prompt-chip" data-prompt="Ransomware disrupting critical business services">Ransomware outage</button>
+              ${promptCards.slice(0, 3).map(prompt => `<button class="citation-chip guided-prompt-chip" data-prompt="${escapeHtml(prompt.prompt)}">${escapeHtml(prompt.label)}</button>`).join('')}
             </div>
           </div>
         </div>
@@ -139,7 +312,7 @@ function renderStep1GuidedBuilderCard(draft, recommendation) {
   </div>`;
 }
 
-function renderStep1SupportBand({ draft, hasScenarioDraft, hasImportedSource, featuredDryRun, activeDryRun, buList, scenarioGeographies, regs, settings }) {
+function renderStep1SupportBand({ draft, hasScenarioDraft, hasImportedSource, featuredDryRun, recommendedDryRuns, learnedDryRuns, availableDryRuns, functionLabel, activeDryRun, buList, scenarioGeographies, regs, settings }) {
   return `<section class="wizard-support-band anim-fade-in">
     <div class="results-section-heading">Support and alternate starts</div>
     <div class="form-help" style="margin-top:8px">Use these only when you need existing context, a faster starting point, or a different source for the shortlist.</div>
@@ -185,8 +358,8 @@ function renderStep1SupportBand({ draft, hasScenarioDraft, hasImportedSource, fe
         </div>
       `
       })}
-      ${renderStep1FeaturedExampleCard(featuredDryRun)}
-      ${renderStep1OtherWaysToStart(draft, hasScenarioDraft, hasImportedSource)}
+      ${renderStep1FeaturedExampleCard(featuredDryRun, recommendedDryRuns, learnedDryRuns, functionLabel)}
+      ${renderStep1OtherWaysToStart(draft, hasScenarioDraft, hasImportedSource, availableDryRuns, functionLabel)}
       <div id="intake-output">
         ${draft.intakeSummary ? `<div class="card card--glow"><div class="context-panel-title">AI Intake Summary</div><p class="context-panel-copy">${draft.intakeSummary}</p>${draft.linkAnalysis ? `<div class="context-panel-foot">${draft.linkAnalysis}</div>` : ''}</div>` : ''}
       </div>
@@ -241,7 +414,7 @@ function renderStep1ScopeBand({ draft, selectedRisks, riskCandidates, regs }) {
   </section>`;
 }
 
-function renderStep1OtherWaysToStart(draft, hasScenarioDraft, hasImportedSource) {
+function renderStep1OtherWaysToStart(draft, hasScenarioDraft, hasImportedSource, availableExamples = STEP1_DRY_RUN_SCENARIOS, functionLabel = 'your function') {
   const disclosureKey = getDisclosureStateKey('/wizard/1', 'other ways to start');
   const importDisclosureKey = getDisclosureStateKey('/wizard/1', 'import or add risks directly');
   const examplesDisclosureKey = getDisclosureStateKey('/wizard/1', 'browse more worked examples');
@@ -290,20 +463,21 @@ function renderStep1OtherWaysToStart(draft, hasScenarioDraft, hasImportedSource)
       <details class="wizard-disclosure wizard-disclosure--compact" data-disclosure-state-key="${escapeHtml(examplesDisclosureKey)}" ${getDisclosureOpenState(examplesDisclosureKey, false) ? 'open' : ''}>
         <summary>Browse more worked examples <span class="badge badge--neutral">Optional</span></summary>
         <div class="wizard-disclosure-body">
-          <div class="form-help">Use these when you want a fast, high-quality starting point for a common cyber or resilience case.</div>
+          <div class="form-help">Use these when you want a fast, high-quality starting point. The first examples are tuned for ${escapeHtml(functionLabel.toLowerCase())} work, with recent learnt cases mixed in when available.</div>
           <div class="risk-selection-grid" style="margin-top:var(--sp-4)">
-            ${STEP1_DRY_RUN_SCENARIOS.map(example => `<div class="risk-pick-card">
+            ${availableExamples.map(example => `<div class="risk-pick-card">
               <div class="risk-pick-head" style="align-items:flex-start">
                 <div style="flex:1">
-                  <div class="risk-pick-title">${example.title}</div>
-                  <div class="form-help" style="margin-top:6px">${example.summary}</div>
-                  <div class="form-help" style="margin-top:6px"><strong>Best for:</strong> ${example.bestFor}</div>
+                  <div class="risk-pick-title">${escapeHtml(example.title)}</div>
+                  <div class="form-help" style="margin-top:6px">${escapeHtml(example.summary)}</div>
+                  <div class="form-help" style="margin-top:6px"><strong>Best for:</strong> ${escapeHtml(example.bestFor)}</div>
                 </div>
-                <button class="btn btn--ghost btn--sm btn-load-dry-run" data-dry-run-id="${example.id}" type="button">Load Example</button>
+                <button class="btn btn--ghost btn--sm btn-load-dry-run" data-dry-run-id="${escapeHtml(example.id)}" type="button">Load Example</button>
               </div>
               <div class="citation-chips" style="margin-top:var(--sp-3)">
-                ${(example.geographies || []).map(geo => `<span class="badge badge--neutral">${geo}</span>`).join('')}
-                <span class="badge badge--neutral">${example.risks.length} starter risks</span>
+                <span class="badge badge--neutral">${escapeHtml(STEP1_DRY_RUN_FUNCTION_LABELS[example.functionKey] || STEP1_DRY_RUN_FUNCTION_LABELS.general)}</span>
+                ${(example.geographies || []).map(geo => `<span class="badge badge--neutral">${escapeHtml(geo)}</span>`).join('')}
+                <span class="badge badge--neutral">${Array.isArray(example.risks) ? example.risks.length : 0} starter risks</span>
               </div>
             </div>`).join('')}
           </div>
@@ -392,66 +566,334 @@ function renderStep1ReadinessBanner(draft, selectedRisks) {
 }
 
 const STEP1_DRY_RUN_SCENARIOS = [
-  {
-    id: 'supplier-platform-outage',
-    title: 'Supplier outage on a regulated platform',
-    summary: 'Good first example for third-party and resilience risk.',
-    bestFor: 'Third-party, resilience, and escalation walkthroughs',
-    nextStep: 'Review the starter risks, then continue to see how the platform turns a supplier resilience issue into linked loss and management actions.',
-    event: 'A critical supplier with privileged access is compromised and disrupts a regulated digital platform during a peak operating period.',
-    asset: 'Customer-facing regulated platform, supplier integration layer, and dependent support workflows',
-    cause: 'Supplier compromise leading to service disruption, delayed response, and uncertain recovery sequencing',
-    impact: 'Service outage, customer disruption, manual-workaround strain, and regulatory scrutiny',
-    urgency: 'high',
-    geographies: ['United Arab Emirates'],
-    risks: [
-      { title: 'Third-party service disruption', category: 'Third-party', source: 'dry-run', description: 'Supplier dependency leads to a material service outage.' },
-      { title: 'Regulatory reporting delay', category: 'Compliance', source: 'dry-run', description: 'Incident handling delays increase regulatory exposure.' },
-      { title: 'Manual recovery backlog', category: 'Resilience', source: 'dry-run', description: 'Fallback operations create sustained pressure on service teams and restoration priorities.' }
-    ]
-  },
-  {
-    id: 'cloud-data-exposure',
-    title: 'Cloud misconfiguration exposing sensitive data',
-    summary: 'Useful for privacy, security, and legal-impact walkthroughs.',
-    bestFor: 'Privacy, legal, and notification-impact walkthroughs',
-    nextStep: 'Use this to see how a common cloud-control failure turns into regulatory, customer, and response-cost estimates in the next steps.',
-    event: 'A cloud storage configuration error exposes sensitive data to unauthorised parties after a routine deployment change.',
-    asset: 'Cloud data store containing customer, employee, and operational records',
-    cause: 'Misconfiguration, weak change control, and delayed exposure detection',
-    impact: 'Data exposure, legal obligations, customer notification, and trust impact',
+  createStep1DryRunScenario({
+    id: 'finance-liquidity-shock',
+    functionKey: 'finance',
+    title: 'Liquidity pressure after a sudden market shock',
+    summary: 'Tailored to treasury and finance teams managing funding, cash, and escalation posture.',
+    bestFor: 'Treasury, liquidity, and executive escalation walkthroughs',
+    nextStep: 'Use this when you want finance-led guidance on funding pressure, liquidity actions, and confidence in management response.',
+    promptLabel: 'Liquidity shock',
+    event: 'A sudden market move forces faster-than-expected collateral and liquidity demands across critical financing lines.',
+    asset: 'Treasury funding lines, cash buffers, and short-term liquidity operations',
+    cause: 'Market volatility, tighter funding conditions, and delayed liquidity response triggers',
+    impact: 'Funding strain, management escalation, and possible disruption to planned business activity',
     urgency: 'high',
     geographies: ['United Arab Emirates', 'European Union'],
     risks: [
-      { title: 'Sensitive data exposure', category: 'Privacy', source: 'dry-run', description: 'Sensitive records become accessible outside intended controls.' },
-      { title: 'Regulatory notification breach', category: 'Compliance', source: 'dry-run', description: 'Notification and remediation obligations increase quickly.' },
-      { title: 'Customer trust erosion', category: 'Commercial', source: 'dry-run', description: 'Customer and partner confidence is strained once the exposure becomes public.' }
+      { title: 'Liquidity buffer shortfall', category: 'Financial', source: 'dry-run', description: 'Available buffers may not cover the pace of cash outflows or collateral calls.' },
+      { title: 'Treasury decision delay', category: 'Operational', source: 'dry-run', description: 'Escalation sequencing and approvals slow down the funding response.' },
+      { title: 'Market confidence strain', category: 'Strategic', source: 'dry-run', description: 'Stakeholders may question resilience if the response appears reactive or fragmented.' }
     ]
-  },
-  {
-    id: 'ransomware-core-services',
-    title: 'Ransomware disrupting core business services',
-    summary: 'Helpful for business interruption and recovery modelling.',
-    bestFor: 'Outage, recovery, and business interruption walkthroughs',
-    nextStep: 'Continue after loading to see how the platform frames recovery cost, service dependency, and management action in a severe outage case.',
-    event: 'A ransomware event disrupts core business services and slows operational recovery across shared support teams.',
-    asset: 'Core business systems, shared files, service operations, and customer-support workflows',
-    cause: 'Phishing-led compromise, privilege escalation, and weak endpoint containment',
-    impact: 'Business interruption, recovery cost, customer-service degradation, and executive escalation',
-    urgency: 'critical',
+  }),
+  createStep1DryRunScenario({
+    id: 'finance-payments-control-breakdown',
+    functionKey: 'finance',
+    title: 'Payments control breakdown enabling duplicate transfers',
+    summary: 'Designed for controllership, finance operations, and payment integrity teams.',
+    bestFor: 'Payment control, fraud, and remediation walkthroughs',
+    nextStep: 'Load this to see how a finance-control issue becomes a loss, confidence, and remediation planning case.',
+    promptLabel: 'Payment control failure',
+    event: 'A payments workflow control fails and high-value transfers are released twice before the issue is detected.',
+    asset: 'Payment approval workflow, finance operations controls, and treasury accounts',
+    cause: 'Control design weakness, alert fatigue, and incomplete segregation checks',
+    impact: 'Financial loss, recovery effort, and governance scrutiny',
+    urgency: 'high',
     geographies: ['United Arab Emirates'],
     risks: [
-      { title: 'Critical service outage', category: 'Resilience', source: 'dry-run', description: 'Essential services are unavailable during containment and recovery.' },
-      { title: 'Recovery cost escalation', category: 'Financial', source: 'dry-run', description: 'Recovery, response, and overtime costs rise quickly.' },
-      { title: 'Customer backlog growth', category: 'Commercial', source: 'dry-run', description: 'Service backlog and missed commitments build while systems remain constrained.' }
+      { title: 'Duplicate payment loss', category: 'Financial', source: 'dry-run', description: 'Transfer errors create direct financial exposure and recovery work.' },
+      { title: 'Control assurance failure', category: 'Compliance', source: 'dry-run', description: 'Control breakdown weakens confidence in the finance operating model.' },
+      { title: 'Management reporting gap', category: 'Governance', source: 'dry-run', description: 'Leaders need clear facts fast to decide on containment and communication.' }
     ]
-  },
-  {
-    id: 'identity-admin-takeover',
+  }),
+  createStep1DryRunScenario({
+    id: 'finance-close-delay',
+    functionKey: 'finance',
+    title: 'Quarter-close delay after a ledger control issue',
+    summary: 'Useful for finance teams working through reporting deadlines and control dependency failures.',
+    bestFor: 'Reporting, control, and executive-readiness walkthroughs',
+    nextStep: 'Use this to model the downstream impact of a late reporting close and the actions needed to restore confidence.',
+    promptLabel: 'Close delay',
+    event: 'A ledger reconciliation control fails late in the reporting cycle and delays the quarter-close process.',
+    asset: 'General ledger, close process controls, and finance reporting outputs',
+    cause: 'Data quality issues, control exceptions, and slow escalation of reconciliation gaps',
+    impact: 'Reporting delay, assurance pressure, and management intervention',
+    urgency: 'medium',
+    geographies: ['United Arab Emirates'],
+    risks: [
+      { title: 'Financial reporting delay', category: 'Financial', source: 'dry-run', description: 'Close activities miss expected timelines and increase reporting risk.' },
+      { title: 'Assurance confidence erosion', category: 'Compliance', source: 'dry-run', description: 'Confidence in the control environment weakens during remediation.' },
+      { title: 'Decision support disruption', category: 'Operational', source: 'dry-run', description: 'Leadership receives late or incomplete reporting for management decisions.' }
+    ]
+  }),
+  createStep1DryRunScenario({
+    id: 'finance-credit-loss-reserve',
+    functionKey: 'finance',
+    title: 'Credit loss reserve shortfall after a portfolio deterioration signal',
+    summary: 'Good for finance, risk, and controllership users balancing model risk with management response.',
+    bestFor: 'Provisioning, portfolio risk, and governance walkthroughs',
+    nextStep: 'Load this when you want a finance-heavy case that is strategic and regulatory rather than cyber-led.',
+    promptLabel: 'Reserve shortfall',
+    event: 'A portfolio deterioration signal suggests credit loss reserves may be understated heading into a reporting and planning cycle.',
+    asset: 'Credit portfolio analytics, reserve models, and finance planning assumptions',
+    cause: 'Late risk signal recognition, model drift, and weak management challenge',
+    impact: 'Provisioning gap, earnings pressure, and governance action',
+    urgency: 'high',
+    geographies: ['United Arab Emirates', 'United States'],
+    risks: [
+      { title: 'Reserve adequacy risk', category: 'Financial', source: 'dry-run', description: 'Loss reserves may not reflect the true portfolio deterioration.' },
+      { title: 'Model governance challenge', category: 'Compliance', source: 'dry-run', description: 'Management challenge and oversight may be weaker than expected.' },
+      { title: 'Strategic capital planning strain', category: 'Strategic', source: 'dry-run', description: 'Reserve changes alter planning choices and management posture.' }
+    ]
+  }),
+  createStep1DryRunScenario({
+    id: 'procurement-single-source-shortfall',
+    functionKey: 'procurement',
+    title: 'Single-source supplier shortfall on a critical spend category',
+    summary: 'Built for procurement teams managing concentration, sourcing continuity, and supplier fallback.',
+    bestFor: 'Supplier concentration, continuity, and sourcing walkthroughs',
+    nextStep: 'Use this when you want a procurement-led case with supply continuity, escalation, and contract action built in.',
+    promptLabel: 'Single-source shortfall',
+    event: 'A single-source supplier cannot meet a critical delivery commitment and no ready substitute is available in the current sourcing plan.',
+    asset: 'Critical supplier contract, inbound material flow, and dependent operational plans',
+    cause: 'Supplier capacity failure, weak contingency sourcing, and slow contract escalation',
+    impact: 'Supply disruption, cost pressure, and executive intervention',
+    urgency: 'high',
+    geographies: ['United Arab Emirates', 'Saudi Arabia'],
+    risks: [
+      { title: 'Critical supply disruption', category: 'Supply Chain', source: 'dry-run', description: 'A concentrated supplier dependency blocks timely delivery of key goods or services.' },
+      { title: 'Contract leverage weakness', category: 'Procurement', source: 'dry-run', description: 'Commercial protections are not strong enough to support rapid remediation.' },
+      { title: 'Operational backlog growth', category: 'Business Continuity', source: 'dry-run', description: 'Downstream plans slow down while replacement options are arranged.' }
+    ]
+  }),
+  createStep1DryRunScenario({
+    id: 'procurement-tender-integrity',
+    functionKey: 'procurement',
+    title: 'Tender integrity concern in a high-value sourcing round',
+    summary: 'Useful for procurement, compliance, and governance users overseeing sourcing fairness and challenge.',
+    bestFor: 'Tender integrity, governance, and escalation walkthroughs',
+    nextStep: 'Load this when you want to assess the management response to a procurement fairness and control challenge.',
+    promptLabel: 'Tender integrity',
+    event: 'A high-value tender process shows signs of inconsistent evaluation and incomplete conflict-of-interest declarations.',
+    asset: 'Strategic sourcing process, vendor evaluation controls, and procurement approvals',
+    cause: 'Weak governance discipline, incomplete declarations, and rushed evaluation activity',
+    impact: 'Challenge risk, contract delay, and governance scrutiny',
+    urgency: 'medium',
+    geographies: ['United Arab Emirates'],
+    risks: [
+      { title: 'Sourcing fairness breach', category: 'Procurement', source: 'dry-run', description: 'Tender integrity concerns undermine confidence in the award process.' },
+      { title: 'Compliance and challenge exposure', category: 'Compliance', source: 'dry-run', description: 'Formal challenge or review could delay award and create obligations.' },
+      { title: 'Reputational procurement risk', category: 'Strategic', source: 'dry-run', description: 'Stakeholders may question the robustness of sourcing governance.' }
+    ]
+  }),
+  createStep1DryRunScenario({
+    id: 'procurement-sanctions-screening-gap',
+    functionKey: 'procurement',
+    title: 'Supplier onboarding proceeds with a sanctions screening gap',
+    summary: 'A procurement and compliance example focused on onboarding controls and third-party exposure.',
+    bestFor: 'Third-party onboarding, sanctions, and compliance walkthroughs',
+    nextStep: 'Use this to see how supplier onboarding control gaps affect procurement, compliance, and executive decisions together.',
+    promptLabel: 'Onboarding screening gap',
+    event: 'A supplier onboarding workflow bypasses a sanctions screening step and procurement activity continues before the issue is identified.',
+    asset: 'Supplier onboarding controls, screening workflow, and active sourcing requests',
+    cause: 'Process workarounds, incomplete workflow automation, and weak exception monitoring',
+    impact: 'Compliance exposure, sourcing delay, and urgent remediation',
+    urgency: 'high',
+    geographies: ['United Arab Emirates', 'European Union'],
+    risks: [
+      { title: 'Sanctions screening breach', category: 'Regulatory', source: 'dry-run', description: 'Third-party onboarding proceeds without a mandatory compliance control.' },
+      { title: 'Supplier activation delay', category: 'Procurement', source: 'dry-run', description: 'Urgent remediation slows operational sourcing and contract start.' },
+      { title: 'Management assurance gap', category: 'Compliance', source: 'dry-run', description: 'Leaders need confidence that no further onboarding exceptions exist.' }
+    ]
+  }),
+  createStep1DryRunScenario({
+    id: 'procurement-contract-cover-gap',
+    functionKey: 'procurement',
+    title: 'Critical service continues without adequate contract cover',
+    summary: 'Tailored to procurement teams managing renewals, obligations, and service continuity.',
+    bestFor: 'Contract governance, third-party continuity, and remediation walkthroughs',
+    nextStep: 'Load this when you want a case that starts in procurement but ends in a broader service and governance decision.',
+    promptLabel: 'Contract cover gap',
+    event: 'A critical outsourced service continues under expired commercial terms while renewal negotiations and risk review remain incomplete.',
+    asset: 'Critical service contract, renewal governance, and dependent service commitments',
+    cause: 'Slow renewal process, incomplete obligation tracking, and weak escalation discipline',
+    impact: 'Commercial exposure, service uncertainty, and management intervention',
+    urgency: 'medium',
+    geographies: ['United Arab Emirates'],
+    risks: [
+      { title: 'Uncovered service obligation', category: 'Procurement', source: 'dry-run', description: 'The organisation carries service dependency without adequate contractual cover.' },
+      { title: 'Third-party continuity strain', category: 'Third-Party', source: 'dry-run', description: 'Service continuity depends on weakly governed interim arrangements.' },
+      { title: 'Commercial dispute exposure', category: 'Financial', source: 'dry-run', description: 'Unclear terms may increase cost, recovery, or dispute risk.' }
+    ]
+  }),
+  createStep1DryRunScenario({
+    id: 'compliance-monitoring-breach',
+    functionKey: 'compliance',
+    title: 'Monitoring control failure leaves a repeat compliance breach undetected',
+    summary: 'Designed for compliance teams managing control monitoring and repeat findings.',
+    bestFor: 'Monitoring, repeat findings, and remediation walkthroughs',
+    nextStep: 'Use this to test how the platform handles recurring compliance issues and management challenge.',
+    promptLabel: 'Monitoring failure',
+    event: 'A compliance monitoring control fails to identify a repeat breach until the issue has already widened across multiple teams.',
+    asset: 'Monitoring controls, issue tracking, and first-line compliance reporting',
+    cause: 'Weak control design, incomplete ownership, and poor issue escalation',
+    impact: 'Repeat breach, remediation pressure, and management challenge',
+    urgency: 'high',
+    geographies: ['United Arab Emirates'],
+    risks: [
+      { title: 'Repeat compliance breach', category: 'Compliance', source: 'dry-run', description: 'A known issue recurs because monitoring and escalation are not strong enough.' },
+      { title: 'Regulatory scrutiny', category: 'Regulatory', source: 'dry-run', description: 'The organisation may need to explain why repeat remediation did not hold.' },
+      { title: 'Control owner fatigue', category: 'Operational', source: 'dry-run', description: 'Teams struggle to remediate sustainably while current operations continue.' }
+    ]
+  }),
+  createStep1DryRunScenario({
+    id: 'compliance-obligations-map-gap',
+    functionKey: 'compliance',
+    title: 'Regulatory obligations mapping misses a new requirement',
+    summary: 'Useful for compliance and legal teams updating obligations and control ownership.',
+    bestFor: 'Obligations management, legal change, and governance walkthroughs',
+    nextStep: 'Load this to explore how an obligations-mapping issue becomes a practical management decision problem.',
+    promptLabel: 'Obligations gap',
+    event: 'A new regulatory requirement is not fully captured in the obligations map and key control owners continue operating against the previous standard.',
+    asset: 'Obligations inventory, control mapping, and business implementation plans',
+    cause: 'Late rule interpretation, incomplete governance handoff, and weak update discipline',
+    impact: 'Implementation gap, management remediation, and regulatory concern',
+    urgency: 'medium',
+    geographies: ['United Arab Emirates', 'European Union'],
+    risks: [
+      { title: 'Requirement implementation gap', category: 'Compliance', source: 'dry-run', description: 'Teams are not working to the updated requirement set.' },
+      { title: 'Control ownership ambiguity', category: 'Governance', source: 'dry-run', description: 'Responsibility for implementation and challenge is not clear enough.' },
+      { title: 'Regulatory response risk', category: 'Regulatory', source: 'dry-run', description: 'A late fix may create disclosure, remediation, or supervisory pressure.' }
+    ]
+  }),
+  createStep1DryRunScenario({
+    id: 'compliance-recordkeeping-shortfall',
+    functionKey: 'compliance',
+    title: 'Recordkeeping controls fail during a supervisory request',
+    summary: 'A compliance-heavy case focused on evidence readiness and control design.',
+    bestFor: 'Evidence readiness, control assurance, and remediation walkthroughs',
+    nextStep: 'Use this when you want a non-cyber example centred on evidence quality and governance readiness.',
+    promptLabel: 'Recordkeeping shortfall',
+    event: 'A supervisory request exposes that required records cannot be assembled quickly or completely from current systems and procedures.',
+    asset: 'Recordkeeping controls, evidence stores, and regulatory response workflow',
+    cause: 'Process fragmentation, weak retention discipline, and unclear ownership',
+    impact: 'Response delay, supervisory concern, and remediation effort',
+    urgency: 'high',
+    geographies: ['United Arab Emirates'],
+    risks: [
+      { title: 'Evidence readiness failure', category: 'Compliance', source: 'dry-run', description: 'Required evidence is incomplete or slow to retrieve.' },
+      { title: 'Supervisory confidence erosion', category: 'Regulatory', source: 'dry-run', description: 'Regulators may doubt the organisation’s control discipline.' },
+      { title: 'Operational rework pressure', category: 'Operational', source: 'dry-run', description: 'Teams must reconstruct records while managing business-as-usual work.' }
+    ]
+  }),
+  createStep1DryRunScenario({
+    id: 'compliance-privacy-reuse',
+    functionKey: 'compliance',
+    title: 'Customer data is reused outside the intended consent basis',
+    summary: 'Useful for privacy, compliance, and marketing-governance teams.',
+    bestFor: 'Privacy, consent, and customer trust walkthroughs',
+    nextStep: 'Load this to test a compliance-led scenario that still carries operational and reputational consequence.',
+    promptLabel: 'Consent breakdown',
+    event: 'Customer data is reused for a new purpose before teams confirm the required consent and control basis.',
+    asset: 'Customer data, consent records, and downstream campaign or workflow logic',
+    cause: 'Weak data-use governance, unclear control approvals, and rushed implementation',
+    impact: 'Privacy exposure, remediation effort, and customer trust strain',
+    urgency: 'medium',
+    geographies: ['United Arab Emirates', 'European Union'],
+    risks: [
+      { title: 'Consent governance breach', category: 'Compliance', source: 'dry-run', description: 'Data use proceeds without a strong enough legal or policy basis.' },
+      { title: 'Regulatory inquiry exposure', category: 'Regulatory', source: 'dry-run', description: 'Data-use concerns may trigger reporting or supervisory attention.' },
+      { title: 'Customer trust erosion', category: 'Strategic', source: 'dry-run', description: 'Stakeholders may react negatively once the misuse becomes visible.' }
+    ]
+  }),
+  createStep1DryRunScenario({
+    id: 'operations-warehouse-automation',
+    functionKey: 'operations',
+    title: 'Warehouse automation outage disrupts fulfilment commitments',
+    summary: 'Designed for operations leaders balancing service continuity, backlog, and recovery.',
+    bestFor: 'Operations, backlog, and continuity walkthroughs',
+    nextStep: 'Use this when you want an operational disruption case rather than a cyber-first incident.',
+    promptLabel: 'Automation outage',
+    event: 'A warehouse automation platform fails during a peak period and manual workarounds cannot keep pace with outbound demand.',
+    asset: 'Warehouse automation systems, fulfilment workflows, and customer commitments',
+    cause: 'Platform failure, weak manual fallback capacity, and delayed recovery coordination',
+    impact: 'Backlog growth, customer delay, and management escalation',
+    urgency: 'high',
+    geographies: ['United Arab Emirates'],
+    risks: [
+      { title: 'Operational backlog growth', category: 'Operational', source: 'dry-run', description: 'Backlog rises faster than teams can clear it using fallback processes.' },
+      { title: 'Service commitment breach', category: 'Business Continuity', source: 'dry-run', description: 'Customer obligations slip during the outage period.' },
+      { title: 'Recovery coordination shortfall', category: 'Operational', source: 'dry-run', description: 'Recovery decisions and sequencing are less mature than expected.' }
+    ]
+  }),
+  createStep1DryRunScenario({
+    id: 'operations-workforce-availability',
+    functionKey: 'operations',
+    title: 'Workforce availability shortfall during a critical operating window',
+    summary: 'A practical operational case for service, field, and support teams.',
+    bestFor: 'Workforce resilience, continuity, and escalation walkthroughs',
+    nextStep: 'Load this when you want to model how people dependency and continuity planning affect the scenario.',
+    promptLabel: 'Workforce shortfall',
+    event: 'A sudden workforce availability shortfall hits a critical operating window and service delivery falls behind committed levels.',
+    asset: 'Front-line operations teams, shift planning, and dependent service workflows',
+    cause: 'Absence spike, thin contingency coverage, and weak prioritisation rules',
+    impact: 'Service degradation, backlog, and urgent management intervention',
+    urgency: 'high',
+    geographies: ['United Arab Emirates'],
+    risks: [
+      { title: 'Service delivery degradation', category: 'Operational', source: 'dry-run', description: 'Front-line service performance falls below expected levels.' },
+      { title: 'Continuity staffing weakness', category: 'Business Continuity', source: 'dry-run', description: 'Fallback staffing and role coverage prove weaker than expected.' },
+      { title: 'Customer escalation pressure', category: 'Commercial', source: 'dry-run', description: 'Customers escalate when service delays persist.' }
+    ]
+  }),
+  createStep1DryRunScenario({
+    id: 'operations-utilities-interruption',
+    functionKey: 'operations',
+    title: 'Utilities interruption exposes recovery planning shortfalls',
+    summary: 'Built for resilience and operations teams managing facility and service dependencies.',
+    bestFor: 'Continuity, recovery, and dependency walkthroughs',
+    nextStep: 'Use this to test recovery discipline where the trigger is physical or operational rather than cyber.',
+    promptLabel: 'Utilities interruption',
+    event: 'A utilities interruption affects a critical operating site and recovery plans do not restore service within the expected timeline.',
+    asset: 'Critical site operations, continuity runbooks, and dependent customer services',
+    cause: 'Infrastructure outage, weak dependency mapping, and under-tested recovery playbooks',
+    impact: 'Service delay, management escalation, and continuity strain',
+    urgency: 'high',
+    geographies: ['United Arab Emirates', 'Saudi Arabia'],
+    risks: [
+      { title: 'Continuity plan shortfall', category: 'Business Continuity', source: 'dry-run', description: 'Recovery and fallback plans do not restore service quickly enough.' },
+      { title: 'Dependent service outage', category: 'Operational', source: 'dry-run', description: 'Downstream services remain constrained while site recovery continues.' },
+      { title: 'Executive recovery decision pressure', category: 'Governance', source: 'dry-run', description: 'Leadership needs to decide on interim service posture and escalation.' }
+    ]
+  }),
+  createStep1DryRunScenario({
+    id: 'operations-dispatch-backlog',
+    functionKey: 'operations',
+    title: 'Dispatch backlog builds after a planning system disruption',
+    summary: 'Useful for service operations teams handling scheduling, dispatch, and customer impact.',
+    bestFor: 'Service operations, backlog, and treatment-planning walkthroughs',
+    nextStep: 'Load this when you want an operational case with a clear treatment and recovery story.',
+    promptLabel: 'Dispatch backlog',
+    event: 'A planning and dispatch system disruption causes field work to be scheduled manually and service commitments quickly fall behind.',
+    asset: 'Planning system, dispatch coordination, and field service commitments',
+    cause: 'System disruption, manual-workaround overload, and weak exception triage',
+    impact: 'Missed appointments, backlog growth, and customer dissatisfaction',
+    urgency: 'medium',
+    geographies: ['United Arab Emirates'],
+    risks: [
+      { title: 'Dispatch coordination failure', category: 'Operational', source: 'dry-run', description: 'Manual scheduling cannot maintain expected dispatch discipline.' },
+      { title: 'Customer appointment breach', category: 'Commercial', source: 'dry-run', description: 'Customer commitments are missed while planning remains degraded.' },
+      { title: 'Recovery prioritisation gap', category: 'Business Continuity', source: 'dry-run', description: 'Teams lack a clear rule set for restoring the highest-value work first.' }
+    ]
+  }),
+  createStep1DryRunScenario({
+    id: 'technology-identity-takeover',
+    functionKey: 'technology',
     title: 'Privileged identity takeover affecting shared platforms',
-    summary: 'Helpful for identity, fraud, and rapid containment walkthroughs.',
+    summary: 'Helpful for identity, control, and rapid containment walkthroughs.',
     bestFor: 'Identity, access, fraud, and executive-visibility walkthroughs',
-    nextStep: 'Use this to see how one privileged identity event can become both a security and business-continuity problem.',
+    nextStep: 'Use this to see how one privileged identity event can become both a technology and continuity problem.',
+    promptLabel: 'Identity takeover',
     event: 'A privileged identity is compromised and used to access shared cloud and productivity platforms.',
     asset: 'Privileged identity tier, shared collaboration services, and cloud administration consoles',
     cause: 'Credential theft, session hijack, and weak privileged-access recovery processes',
@@ -459,17 +901,259 @@ const STEP1_DRY_RUN_SCENARIOS = [
     urgency: 'critical',
     geographies: ['United Arab Emirates'],
     risks: [
-      { title: 'Privileged account misuse', category: 'Identity', source: 'dry-run', description: 'Administrative access is used to change controls or access sensitive systems.' },
+      { title: 'Privileged account misuse', category: 'Cyber', source: 'dry-run', description: 'Administrative access is used to change controls or access sensitive systems.' },
       { title: 'Fraud or payment manipulation', category: 'Financial', source: 'dry-run', description: 'Mailbox or workflow access creates financial manipulation risk.' },
-      { title: 'Containment-driven disruption', category: 'Resilience', source: 'dry-run', description: 'Emergency containment actions disrupt shared business services.' }
+      { title: 'Containment-driven disruption', category: 'Business Continuity', source: 'dry-run', description: 'Emergency containment actions disrupt shared business services.' }
     ]
-  },
-  {
+  }),
+  createStep1DryRunScenario({
+    id: 'technology-cloud-exposure',
+    functionKey: 'technology',
+    title: 'Cloud misconfiguration exposing sensitive data',
+    summary: 'Useful for privacy, security, and legal-impact walkthroughs.',
+    bestFor: 'Privacy, legal, and notification-impact walkthroughs',
+    nextStep: 'Use this to see how a common cloud-control failure turns into regulatory, customer, and response-cost estimates in the next steps.',
+    promptLabel: 'Cloud exposure',
+    event: 'A cloud storage configuration error exposes sensitive data to unauthorised parties after a routine deployment change.',
+    asset: 'Cloud data store containing customer, employee, and operational records',
+    cause: 'Misconfiguration, weak change control, and delayed exposure detection',
+    impact: 'Data exposure, legal obligations, customer notification, and trust impact',
+    urgency: 'high',
+    geographies: ['United Arab Emirates', 'European Union'],
+    risks: [
+      { title: 'Sensitive data exposure', category: 'Cyber', source: 'dry-run', description: 'Sensitive records become accessible outside intended controls.' },
+      { title: 'Regulatory notification breach', category: 'Compliance', source: 'dry-run', description: 'Notification and remediation obligations increase quickly.' },
+      { title: 'Customer trust erosion', category: 'Strategic', source: 'dry-run', description: 'Customer and partner confidence is strained once the exposure becomes public.' }
+    ]
+  }),
+  createStep1DryRunScenario({
+    id: 'technology-ransomware-services',
+    functionKey: 'technology',
+    title: 'Ransomware disrupting core business services',
+    summary: 'Helpful for service interruption and recovery modelling.',
+    bestFor: 'Outage, recovery, and business interruption walkthroughs',
+    nextStep: 'Continue after loading to see how the platform frames recovery cost, service dependency, and management action in a severe outage case.',
+    promptLabel: 'Ransomware outage',
+    event: 'A ransomware event disrupts core business services and slows operational recovery across shared support teams.',
+    asset: 'Core business systems, shared files, service operations, and customer-support workflows',
+    cause: 'Phishing-led compromise, privilege escalation, and weak endpoint containment',
+    impact: 'Business interruption, recovery cost, customer-service degradation, and executive escalation',
+    urgency: 'critical',
+    geographies: ['United Arab Emirates'],
+    risks: [
+      { title: 'Critical service outage', category: 'Business Continuity', source: 'dry-run', description: 'Essential services are unavailable during containment and recovery.' },
+      { title: 'Recovery cost escalation', category: 'Financial', source: 'dry-run', description: 'Recovery, response, and overtime costs rise quickly.' },
+      { title: 'Customer backlog growth', category: 'Operational', source: 'dry-run', description: 'Service backlog and missed commitments build while systems remain constrained.' }
+    ]
+  }),
+  createStep1DryRunScenario({
+    id: 'technology-release-failure',
+    functionKey: 'technology',
+    title: 'Critical release failure breaks a shared digital service',
+    summary: 'A technology operations example focused on change risk and service recovery.',
+    bestFor: 'Change management, release risk, and continuity walkthroughs',
+    nextStep: 'Load this when you want a technology-led example that is operationally heavy but not a cyber intrusion case.',
+    promptLabel: 'Release failure',
+    event: 'A major release introduces a fault into a shared digital service and rollback steps do not restore stability quickly enough.',
+    asset: 'Shared digital service, release pipeline, and dependent customer journeys',
+    cause: 'Release defect, incomplete rollback readiness, and weak deployment guardrails',
+    impact: 'Service instability, recovery effort, and management escalation',
+    urgency: 'high',
+    geographies: ['United Arab Emirates'],
+    risks: [
+      { title: 'Change-induced outage', category: 'Operational', source: 'dry-run', description: 'Release activity directly destabilises a critical service.' },
+      { title: 'Rollback preparedness gap', category: 'Business Continuity', source: 'dry-run', description: 'Rollback plans do not restore service as expected.' },
+      { title: 'Customer service disruption', category: 'Commercial', source: 'dry-run', description: 'Customer-facing journeys remain degraded while recovery continues.' }
+    ]
+  }),
+  createStep1DryRunScenario({
+    id: 'strategic-market-entry-delay',
+    functionKey: 'strategic',
+    title: 'A strategic market entry stalls after key dependencies slip',
+    summary: 'Designed for strategy and transformation teams managing execution risk and value erosion.',
+    bestFor: 'Strategy execution, dependency, and escalation walkthroughs',
+    nextStep: 'Use this when the scenario is primarily strategic and execution-led rather than operationally tactical.',
+    promptLabel: 'Market entry delay',
+    event: 'A strategic market entry programme falls behind after regulatory, supplier, and operating dependencies slip at the same time.',
+    asset: 'Market entry plan, investment case, and launch-critical dependencies',
+    cause: 'Execution delays, weak dependency governance, and late management challenge',
+    impact: 'Value erosion, delay cost, and executive reprioritisation',
+    urgency: 'high',
+    geographies: ['United Arab Emirates', 'European Union'],
+    risks: [
+      { title: 'Strategic delivery slippage', category: 'Strategic', source: 'dry-run', description: 'The programme misses critical milestones against the strategic plan.' },
+      { title: 'Dependency governance weakness', category: 'Operational', source: 'dry-run', description: 'Key dependencies are not owned or escalated strongly enough.' },
+      { title: 'Investment-case erosion', category: 'Financial', source: 'dry-run', description: 'Delay and rework weaken the expected value case.' }
+    ]
+  }),
+  createStep1DryRunScenario({
+    id: 'strategic-partnership-underperformance',
+    functionKey: 'strategic',
+    title: 'A major partnership underperforms after go-live',
+    summary: 'Useful for leaders testing strategic dependency, commercial impact, and response options.',
+    bestFor: 'Partnership, strategic dependency, and management-action walkthroughs',
+    nextStep: 'Load this to assess a case where the issue is strategic performance rather than a discrete cyber or control incident.',
+    promptLabel: 'Partnership underperformance',
+    event: 'A flagship strategic partnership underperforms after launch and key growth and service assumptions no longer look credible.',
+    asset: 'Strategic partnership model, joint operating plan, and growth commitments',
+    cause: 'Weak assumptions, dependency misalignment, and slow governance response',
+    impact: 'Strategic value loss, reputational strain, and leadership intervention',
+    urgency: 'medium',
+    geographies: ['United Arab Emirates', 'United States'],
+    risks: [
+      { title: 'Strategic value erosion', category: 'Strategic', source: 'dry-run', description: 'The partnership no longer supports the expected business case.' },
+      { title: 'Commercial performance shortfall', category: 'Financial', source: 'dry-run', description: 'Commercial outcomes fall behind what was committed.' },
+      { title: 'Governance response delay', category: 'Governance', source: 'dry-run', description: 'Leadership decisions do not adapt quickly enough to changed facts.' }
+    ]
+  }),
+  createStep1DryRunScenario({
+    id: 'strategic-transformation-drift',
+    functionKey: 'strategic',
+    title: 'Transformation programme drift weakens the target operating model',
+    summary: 'Built for strategic and enterprise-change users managing programme coherence.',
+    bestFor: 'Transformation, operating model, and steering walkthroughs',
+    nextStep: 'Use this when you need a more enterprise-wide, strategic lens than a local operational incident.',
+    promptLabel: 'Transformation drift',
+    event: 'A multi-year transformation programme drifts away from its target operating model and benefits case while delivery continues.',
+    asset: 'Transformation roadmap, target operating model, and dependent business change plans',
+    cause: 'Scope drift, inconsistent governance, and weak benefit challenge',
+    impact: 'Delivery confusion, benefit erosion, and leadership reset pressure',
+    urgency: 'medium',
+    geographies: ['United Arab Emirates'],
+    risks: [
+      { title: 'Operating model inconsistency', category: 'Strategic', source: 'dry-run', description: 'The intended future-state model no longer matches delivery choices.' },
+      { title: 'Benefit realisation shortfall', category: 'Financial', source: 'dry-run', description: 'The programme may not deliver the value that justified investment.' },
+      { title: 'Change fatigue and execution strain', category: 'Operational', source: 'dry-run', description: 'Teams absorb change without enough clarity or prioritisation.' }
+    ]
+  }),
+  createStep1DryRunScenario({
+    id: 'strategic-product-quality-crisis',
+    functionKey: 'strategic',
+    title: 'Product quality concerns threaten a flagship launch',
+    summary: 'A strategic case linking quality signals, brand risk, and launch decisions.',
+    bestFor: 'Strategic launch, quality, and decision-memo walkthroughs',
+    nextStep: 'Load this when you want a strategic scenario that still leads to concrete management action choices.',
+    promptLabel: 'Launch quality risk',
+    event: 'Quality concerns emerge shortly before a flagship launch and leadership must decide whether to pause, contain, or proceed.',
+    asset: 'Flagship product launch, quality assurance evidence, and market commitments',
+    cause: 'Late defect signals, weak challenge of launch assumptions, and limited contingency planning',
+    impact: 'Launch delay risk, brand impact, and executive decision pressure',
+    urgency: 'high',
+    geographies: ['United Arab Emirates', 'European Union'],
+    risks: [
+      { title: 'Strategic launch decision risk', category: 'Strategic', source: 'dry-run', description: 'Leadership must decide under uncertainty with high visible downside.' },
+      { title: 'Reputational brand impact', category: 'Strategic', source: 'dry-run', description: 'A weak launch decision could affect external confidence materially.' },
+      { title: 'Operational contingency gap', category: 'Operational', source: 'dry-run', description: 'Fallback plans for a delayed or phased launch are not mature enough.' }
+    ]
+  }),
+  createStep1DryRunScenario({
+    id: 'hse-contractor-safety-incident',
+    functionKey: 'hse',
+    title: 'A contractor safety incident halts activity at a critical site',
+    summary: 'Designed for HSE and operations leaders managing workforce safety and continuity together.',
+    bestFor: 'Safety, incident response, and continuity walkthroughs',
+    nextStep: 'Use this when the scenario needs an HSE lens first, with operational and governance consequences following.',
+    promptLabel: 'Safety incident',
+    event: 'A contractor safety incident at a critical site triggers an immediate work stoppage and formal investigation.',
+    asset: 'Critical operating site, contractor activity, and safety management controls',
+    cause: 'Unsafe work conditions, weak permit discipline, and incomplete contractor oversight',
+    impact: 'Work stoppage, investigation burden, and leadership action',
+    urgency: 'high',
+    geographies: ['United Arab Emirates'],
+    risks: [
+      { title: 'Workplace safety incident', category: 'HSE', source: 'dry-run', description: 'Safety controls fail to prevent a serious contractor incident.' },
+      { title: 'Operational stoppage', category: 'Business Continuity', source: 'dry-run', description: 'Critical activity pauses while the site is made safe and investigated.' },
+      { title: 'Regulatory investigation pressure', category: 'Regulatory', source: 'dry-run', description: 'External scrutiny may follow a visible safety incident.' }
+    ]
+  }),
+  createStep1DryRunScenario({
+    id: 'hse-environmental-release',
+    functionKey: 'hse',
+    title: 'An environmental release from logistics handling prompts urgent containment',
+    summary: 'Useful for HSE, supply chain, and operations teams managing environmental response.',
+    bestFor: 'Environmental, third-party, and response-governance walkthroughs',
+    nextStep: 'Load this to test how environmental containment and service continuity interact under pressure.',
+    promptLabel: 'Environmental release',
+    event: 'A third-party logistics handling failure causes an environmental release that requires containment and reporting.',
+    asset: 'Logistics operation, environmental controls, and dependent service commitments',
+    cause: 'Handling failure, weak oversight, and slow incident escalation',
+    impact: 'Containment effort, operational disruption, and compliance exposure',
+    urgency: 'high',
+    geographies: ['United Arab Emirates'],
+    risks: [
+      { title: 'Environmental control breach', category: 'HSE', source: 'dry-run', description: 'Environmental protections fail during outsourced activity.' },
+      { title: 'Third-party oversight gap', category: 'Third-Party', source: 'dry-run', description: 'Third-party controls are not governed strongly enough.' },
+      { title: 'Operational recovery pressure', category: 'Business Continuity', source: 'dry-run', description: 'Operations remain constrained while containment proceeds.' }
+    ]
+  }),
+  createStep1DryRunScenario({
+    id: 'hse-heat-stress-operations',
+    functionKey: 'hse',
+    title: 'Heat-stress exposure disrupts field operations during a critical window',
+    summary: 'Tailored to HSE and operations users dealing with field safety and productivity together.',
+    bestFor: 'Field safety, planning, and workforce continuity walkthroughs',
+    nextStep: 'Use this when you need a people-and-safety scenario rather than a technology or supplier event.',
+    promptLabel: 'Heat-stress disruption',
+    event: 'Extreme conditions increase heat-stress exposure in field operations and work plans must be curtailed during a critical delivery window.',
+    asset: 'Field workforce, shift plans, and critical outdoor operating activity',
+    cause: 'Extreme conditions, weak exposure controls, and thin operational contingency',
+    impact: 'Safety risk, work slowdown, and delivery pressure',
+    urgency: 'high',
+    geographies: ['United Arab Emirates', 'Saudi Arabia'],
+    risks: [
+      { title: 'Worker safety exposure', category: 'HSE', source: 'dry-run', description: 'Current controls do not reduce field exposure enough for safe work.' },
+      { title: 'Operational capacity reduction', category: 'Operational', source: 'dry-run', description: 'Safe operating limits reduce available delivery capacity.' },
+      { title: 'Service commitment pressure', category: 'Commercial', source: 'dry-run', description: 'Customers may feel the impact while safe work rules are enforced.' }
+    ]
+  }),
+  createStep1DryRunScenario({
+    id: 'hse-fire-system-impairment',
+    functionKey: 'hse',
+    title: 'A fire and life safety system impairment weakens site readiness',
+    summary: 'A continuity and safety example for facilities, HSE, and site operations leaders.',
+    bestFor: 'Facility safety, continuity, and remediation walkthroughs',
+    nextStep: 'Load this to assess how a safety impairment changes the operating posture and decision thresholds for a site.',
+    promptLabel: 'Life safety impairment',
+    event: 'A fire and life safety system impairment remains unresolved longer than expected at a site that supports critical operations.',
+    asset: 'Life safety systems, site readiness controls, and critical facility operations',
+    cause: 'Maintenance failure, delayed remediation, and weak escalation of the residual risk',
+    impact: 'Reduced site readiness, operating constraints, and management action',
+    urgency: 'medium',
+    geographies: ['United Arab Emirates'],
+    risks: [
+      { title: 'Life safety readiness gap', category: 'HSE', source: 'dry-run', description: 'The site is operating with weaker life safety assurance than intended.' },
+      { title: 'Operating restriction pressure', category: 'Business Continuity', source: 'dry-run', description: 'Operations may need to be reduced or reconfigured until remediation completes.' },
+      { title: 'Governance escalation need', category: 'Governance', source: 'dry-run', description: 'Leadership must decide whether the residual risk is still acceptable.' }
+    ]
+  }),
+  createStep1DryRunScenario({
+    id: 'supplier-platform-outage',
+    functionKey: 'general',
+    title: 'Supplier outage on a regulated platform',
+    summary: 'Good first example for third-party and resilience risk.',
+    bestFor: 'Third-party, resilience, and escalation walkthroughs',
+    nextStep: 'Review the starter risks, then continue to see how the platform turns a supplier resilience issue into linked loss and management actions.',
+    promptLabel: 'Supplier outage',
+    event: 'A critical supplier with privileged access is compromised and disrupts a regulated digital platform during a peak operating period.',
+    asset: 'Customer-facing regulated platform, supplier integration layer, and dependent support workflows',
+    cause: 'Supplier compromise leading to service disruption, delayed response, and uncertain recovery sequencing',
+    impact: 'Service outage, customer disruption, manual-workaround strain, and regulatory scrutiny',
+    urgency: 'high',
+    geographies: ['United Arab Emirates'],
+    risks: [
+      { title: 'Third-party service disruption', category: 'Third-Party', source: 'dry-run', description: 'Supplier dependency leads to a material service outage.' },
+      { title: 'Regulatory reporting delay', category: 'Compliance', source: 'dry-run', description: 'Incident handling delays increase regulatory exposure.' },
+      { title: 'Manual recovery backlog', category: 'Business Continuity', source: 'dry-run', description: 'Fallback operations create sustained pressure on service teams and restoration priorities.' }
+    ]
+  }),
+  createStep1DryRunScenario({
     id: 'dc-recovery-failure',
+    functionKey: 'general',
     title: 'Data centre recovery shortfall during a critical outage',
     summary: 'Useful for resilience, continuity, and executive recovery planning walkthroughs.',
     bestFor: 'Resilience, continuity, and treatment-planning walkthroughs',
-    nextStep: 'Load this when you want a resilience-heavy case that tests recovery capability more than a pure cyber intrusion.',
+    nextStep: 'Load this when you want a continuity-heavy case that tests recovery capability more than a pure cyber intrusion.',
+    promptLabel: 'Recovery shortfall',
     event: 'A critical hosting location suffers a prolonged outage and recovery does not meet the expected service timeline.',
     asset: 'Primary hosting environment, recovery runbooks, and customer-facing digital services',
     cause: 'Facility or infrastructure failure combined with weak recovery preparedness',
@@ -477,12 +1161,23 @@ const STEP1_DRY_RUN_SCENARIOS = [
     urgency: 'critical',
     geographies: ['United Arab Emirates', 'Saudi Arabia'],
     risks: [
-      { title: 'Recovery capability shortfall', category: 'Resilience', source: 'dry-run', description: 'Recovery dependencies are slower or weaker than assumed.' },
+      { title: 'Recovery capability shortfall', category: 'Business Continuity', source: 'dry-run', description: 'Recovery dependencies are slower or weaker than assumed.' },
       { title: 'Contractual service breach', category: 'Commercial', source: 'dry-run', description: 'Customer commitments are missed during a prolonged outage.' },
       { title: 'Executive escalation pressure', category: 'Governance', source: 'dry-run', description: 'Leadership needs to decide on interim service, communication, and investment actions.' }
     ]
-  }
+  })
 ];
+
+STEP1_DRY_RUN_SCENARIOS.sort((left, right) => {
+  const explicitOrder = ['supplier-platform-outage', 'dc-recovery-failure'];
+  const leftIndex = explicitOrder.indexOf(left.id);
+  const rightIndex = explicitOrder.indexOf(right.id);
+  if (leftIndex !== -1 || rightIndex !== -1) {
+    return (leftIndex === -1 ? Number.MAX_SAFE_INTEGER : leftIndex)
+      - (rightIndex === -1 ? Number.MAX_SAFE_INTEGER : rightIndex);
+  }
+  return String(left.title || '').localeCompare(String(right.title || ''));
+});
 
 function buildDryRunNarrative(example) {
   return composeGuidedNarrative({
@@ -496,7 +1191,8 @@ function buildDryRunNarrative(example) {
 
 function getLoadedDryRunScenario(draft = AppState.draft) {
   const loadedId = draft?.loadedDryRunId;
-  return STEP1_DRY_RUN_SCENARIOS.find(example => example.id === loadedId) || null;
+  const availableExamples = getStep1ExampleExperienceModel(getEffectiveSettings(), draft).availableExamples || [];
+  return availableExamples.find(example => example.id === loadedId) || null;
 }
 
 function clearLoadedDryRunFlag({ save = false } = {}) {
@@ -528,14 +1224,14 @@ function renderLoadedDryRunBanner(example) {
     <div class="flex items-center justify-between" style="flex-wrap:wrap;gap:var(--sp-3)">
       <div>
         <div class="context-panel-title">Dry-run example loaded</div>
-        <p class="context-panel-copy" style="margin-top:6px"><strong>${example.title}</strong> is active. ${example.nextStep}</p>
+        <p class="context-panel-copy" style="margin-top:6px"><strong>${escapeHtml(example.title)}</strong> is active. ${escapeHtml(example.nextStep)}</p>
       </div>
       <button class="btn btn--ghost btn--sm" id="btn-clear-dry-run" type="button">Clear Example</button>
     </div>
     <div class="citation-chips" style="margin-top:var(--sp-4)">
       <span class="badge badge--gold">Dry run</span>
-      <span class="badge badge--neutral">Best for: ${example.bestFor}</span>
-      <span class="badge badge--neutral">${example.risks.length} starter risks</span>
+      <span class="badge badge--neutral">Best for: ${escapeHtml(example.bestFor)}</span>
+      <span class="badge badge--neutral">${Array.isArray(example.risks) ? example.risks.length : 0} starter risks</span>
     </div>
   </div>`;
 }
@@ -613,8 +1309,12 @@ function renderWizard1() {
   const scenarioGeographies = getScenarioGeographies();
   const regs = deriveApplicableRegulations(buList.find(b => b.id === draft.buId), selectedRisks, scenarioGeographies);
   const recommendation = getStep1RecommendedAction(draft, selectedRisks);
+  const exampleModel = getStep1ExampleExperienceModel(settings, draft);
   const activeDryRun = getLoadedDryRunScenario(draft);
-  const featuredDryRun = STEP1_DRY_RUN_SCENARIOS[0] || null;
+  const featuredDryRun = STEP1_DRY_RUN_SCENARIOS.find(example => example.id === 'supplier-platform-outage')
+    || exampleModel.recommendedExamples[0]
+    || exampleModel.availableExamples[0]
+    || null;
   const hasScenarioDraft = !!String(draft.narrative || draft.sourceNarrative || '').trim();
   const hasImportedSource = !!String(draft.uploadedRegisterName || '').trim() || (riskCandidates || []).some(risk => risk.source === 'register' || risk.source === 'ai+register');
   const stepReady = !!(hasScenarioDraft || selectedRisks.length);
@@ -644,8 +1344,25 @@ function renderWizard1() {
         <div class="wizard-body">
           ${renderAssessmentReadinessStrip(readinessModel)}
           ${renderContextInfluencePreview(contextPreviewModel)}
-          ${renderStep1GuidedBuilderCard(draft, recommendation)}
-          ${renderStep1SupportBand({ draft, hasScenarioDraft, hasImportedSource, featuredDryRun, activeDryRun, buList, scenarioGeographies, regs, settings })}
+          ${renderStep1GuidedBuilderCard(draft, recommendation, exampleModel.functionLabel, exampleModel.recommendedExamples.map(example => ({
+            label: example.promptLabel,
+            prompt: example.event
+          })))}
+          ${renderStep1SupportBand({
+            draft,
+            hasScenarioDraft,
+            hasImportedSource,
+            featuredDryRun,
+            recommendedDryRuns: exampleModel.recommendedExamples,
+            learnedDryRuns: exampleModel.learnedExamples,
+            availableDryRuns: exampleModel.availableExamples,
+            functionLabel: exampleModel.functionLabel,
+            activeDryRun,
+            buList,
+            scenarioGeographies,
+            regs,
+            settings
+          })}
           ${renderStep1ScopeBand({ draft, selectedRisks, riskCandidates, regs })}
         </div>
         <div class="wizard-footer">
@@ -735,7 +1452,7 @@ function renderWizard1() {
   });
   document.querySelectorAll('.btn-load-dry-run').forEach(button => {
     button.addEventListener('click', () => {
-      const example = STEP1_DRY_RUN_SCENARIOS.find(entry => entry.id === button.dataset.dryRunId);
+      const example = (exampleModel.availableExamples || []).find(entry => entry.id === button.dataset.dryRunId);
       if (!example) return;
       if (hasStep1Content() && !window.confirm('Load this dry-run example and replace the current step-1 scenario draft and shortlist?')) return;
       applyDryRunScenario(example);

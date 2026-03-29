@@ -409,8 +409,22 @@ function extractScenarioPattern(assessment) {
   return {
     id: String(assessment.id || '').trim(),
     buId: String(assessment.buId || '').trim(),
+    title: String(assessment.scenarioTitle || assessment.structuredScenario?.attackType || '').trim(),
     scenarioType: String(assessment.structuredScenario?.attackType || assessment.scenarioTitle || '').trim(),
     geography: String(assessment.geography || '').trim(),
+    narrative: String(assessment.enhancedNarrative || assessment.narrative || '').trim(),
+    guidedInput: assessment.guidedInput && typeof assessment.guidedInput === 'object'
+      ? {
+          event: String(assessment.guidedInput.event || '').trim(),
+          asset: String(assessment.guidedInput.asset || '').trim(),
+          cause: String(assessment.guidedInput.cause || '').trim(),
+          impact: String(assessment.guidedInput.impact || '').trim(),
+          urgency: String(assessment.guidedInput.urgency || '').trim()
+        }
+      : {},
+    selectedRiskTitles: Array.isArray(assessment.selectedRisks)
+      ? assessment.selectedRisks.map(item => String(item?.title || '').trim()).filter(Boolean).slice(0, 4)
+      : [],
     posture: assessment.results.toleranceBreached
       ? 'above-tolerance'
       : assessment.results.nearTolerance
@@ -1848,10 +1862,15 @@ function launchPilotSampleAssessment() {
   resetDraft();
   Router.navigate('/wizard/1');
   window.setTimeout(() => {
-    const sampleScenario = Array.isArray(STEP1_DRY_RUN_SCENARIOS) ? STEP1_DRY_RUN_SCENARIOS[0] : null;
+    // The sample path should feel relevant to the user’s current function rather than always loading the same generic case.
+    const experienceModel = typeof getStep1ExampleExperienceModel === 'function'
+      ? getStep1ExampleExperienceModel(getEffectiveSettings(), AppState.draft)
+      : null;
+    const sampleScenario = experienceModel?.recommendedExamples?.[0]
+      || (Array.isArray(STEP1_DRY_RUN_SCENARIOS) ? STEP1_DRY_RUN_SCENARIOS[0] : null);
     if (sampleScenario && typeof applyDryRunScenario === 'function') {
       applyDryRunScenario(sampleScenario);
-      UI.toast('Sample assessment path loaded. It includes linked third-party, resilience, and regulatory angles so you can see a fuller pilot workflow quickly.', 'info', 5500);
+      UI.toast(`Sample assessment path loaded for ${experienceModel?.functionLabel?.toLowerCase?.() || 'your workspace'}.`, 'info', 4500);
       return;
     }
     const fallbackTemplate = Array.isArray(ScenarioTemplates) ? ScenarioTemplates[0] : null;
