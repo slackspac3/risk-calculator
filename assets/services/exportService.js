@@ -999,6 +999,9 @@ const ExportService = (() => {
   }
 
   function buildBoardNoteHtml(memo) {
+    const safe = value => (typeof escapeHtml === 'function'
+      ? escapeHtml(String(value ?? ''))
+      : String(value ?? ''));
     const postureBadge = memo.postureTone === 'danger'
       ? 'Above tolerance — escalate'
       : memo.postureTone === 'warning'
@@ -1012,11 +1015,29 @@ const ExportService = (() => {
     const treatmentLine = memo.treatmentDecision
       ? String(memo.treatmentDecision.action || '').trim()
       : '';
+    const thresholdCards = [memo.thresholdModel?.single, memo.thresholdModel?.annual].filter(Boolean);
+    const impactMix = Array.isArray(memo.impactMix) ? memo.impactMix.slice(0, 4) : [];
+    const metrics = Array.isArray(memo.metrics) ? memo.metrics : [];
+    const valueSummary = memo.valueSummary || null;
+    const postureGlyph = memo.postureTone === 'success' ? '✓' : '!';
+    const valueItems = valueSummary
+      ? [
+          { label: 'Cycle time', value: valueSummary.cycleTime, copy: 'Measured from first saved draft to completed assessment.' },
+          { label: 'Internal effort avoided', value: valueSummary.internalHoursAvoided, copy: `Directional effort avoided versus the ${valueSummary.domainLabel.toLowerCase()} baseline.` },
+          { label: 'External specialist equivalent', value: valueSummary.externalEquivalentDays, copy: `Directional UAE-style benchmark for ${valueSummary.complexityLabel.toLowerCase()} work.` },
+          {
+            label: valueSummary.modelledReduction ? 'Modelled annual reduction' : 'Directional internal cost avoided',
+            value: valueSummary.modelledReduction || valueSummary.internalCostAvoided,
+            copy: valueSummary.modelledReductionSource || `Directional value at the current ${valueSummary.domainLabel.toLowerCase()} rate card.`
+          }
+        ]
+      : [];
+    // The original board note read like a plain memo even though the product already had stronger threshold and impact visuals.
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Board Note — ${memo.title}</title>
+<title>Board Note — ${safe(memo.title)}</title>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
@@ -1038,18 +1059,26 @@ body {
   line-height: 1.6;
 }
 .page {
-  max-width: 900px;
+  max-width: 960px;
   margin: 0 auto;
-  padding: 64px 48px;
+  padding: 56px 44px 68px;
+  position: relative;
 }
-/* Header */
+.page::before {
+  content: '';
+  position: absolute;
+  inset: 0 44px auto;
+  height: 240px;
+  background: radial-gradient(ellipse 70% 52% at 25% 0%, rgba(3,209,168,.08), transparent 70%);
+  pointer-events: none;
+}
 .doc-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  padding-bottom: 32px;
+  padding-bottom: 30px;
   border-bottom: 1px solid var(--ink-rule);
-  margin-bottom: 48px;
+  margin-bottom: 28px;
   gap: 24px;
 }
 .doc-header__left { flex: 1; }
@@ -1067,7 +1096,7 @@ body {
   font-weight: 800;
   line-height: 1.05;
   color: var(--ink);
-  max-width: 16ch;
+  max-width: 15ch;
   letter-spacing: -.02em;
 }
 .doc-meta {
@@ -1076,6 +1105,7 @@ body {
   color: var(--ink-mid);
   font-weight: 300;
 }
+.doc-meta strong { color: var(--ink); font-weight: 600; }
 .doc-posture-badge {
   display: inline-flex;
   align-items: center;
@@ -1103,37 +1133,50 @@ body {
   color: var(--danger);
   border-color: rgba(172,67,46,.22);
 }
-/* Decision block */
-.decision-block {
-  padding: 36px 40px;
-  border-radius: 20px;
-  border: 1px solid var(--ink-rule);
-  background: var(--surface-card);
-  margin-bottom: 40px;
+.hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(300px, .8fr);
+  gap: 20px;
+  margin-bottom: 22px;
+}
+.hero-card {
   position: relative;
   overflow: hidden;
+  border-radius: 20px;
+  border: 1px solid var(--ink-rule);
+  background: linear-gradient(180deg, rgba(255,255,255,.82), rgba(255,255,255,.68));
+  box-shadow: 0 18px 40px rgba(18,24,20,.06);
+}
+.decision-block {
+  padding: 34px 36px;
+  min-height: 100%;
 }
 .decision-block::before {
   content: '';
   position: absolute;
   left: 0; top: 0; bottom: 0;
   width: 4px;
-  background: var(--ink);
+  background: linear-gradient(180deg, var(--ink), rgba(26,30,27,.24));
   border-radius: 4px 0 0 4px;
 }
-.decision-label {
+.decision-label,
+.section-label {
   font-size: 10px;
   font-weight: 700;
   letter-spacing: .16em;
   text-transform: uppercase;
   color: var(--ink-soft);
+}
+.decision-label { margin-bottom: 12px; }
+.section-label {
   margin-bottom: 12px;
+  display: block;
 }
 .decision-headline {
   font-family: 'Syne', sans-serif;
   font-size: 28px;
   font-weight: 700;
-  line-height: 1.2;
+  line-height: 1.16;
   color: var(--ink);
   margin-bottom: 16px;
   letter-spacing: -.01em;
@@ -1145,7 +1188,7 @@ body {
   color: var(--ink-mid);
   max-width: 62ch;
   font-weight: 300;
-  margin-bottom: 20px;
+  margin-bottom: 18px;
 }
 .decision-priority {
   display: inline-flex;
@@ -1159,38 +1202,127 @@ body {
   border: 1px solid var(--ink-rule);
   color: var(--ink);
 }
-/* Scenario */
-.scenario-block {
-  margin-bottom: 48px;
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
 }
-.section-label {
-  font-size: 10px;
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--ink-rule);
+  background: rgba(26,30,27,.035);
+  font-size: 11px;
   font-weight: 700;
-  letter-spacing: .16em;
+  color: rgba(26,30,27,.7);
+}
+.signal-card {
+  padding: 26px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  background: linear-gradient(180deg, rgba(3,209,168,.06), rgba(255,255,255,.75));
+}
+.signal-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .12em;
   text-transform: uppercase;
   color: var(--ink-soft);
-  margin-bottom: 14px;
-  display: block;
 }
-.scenario-text {
-  font-size: 16px;
-  line-height: 1.85;
+.signal-note {
+  margin-top: 8px;
+  font-size: 13px;
+  line-height: 1.7;
   color: var(--ink-mid);
-  font-weight: 300;
-  max-width: 66ch;
 }
-/* Metrics */
+.signal-ring {
+  width: 124px;
+  height: 124px;
+  border-radius: 50%;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: inset 0 0 0 1px rgba(26,30,27,.08);
+}
+.signal-ring.success { background: radial-gradient(circle at center, rgba(3,209,168,.18), rgba(3,209,168,.04) 66%); }
+.signal-ring.warning { background: radial-gradient(circle at center, rgba(184,154,42,.18), rgba(184,154,42,.05) 66%); }
+.signal-ring.danger { background: radial-gradient(circle at center, rgba(172,67,46,.16), rgba(172,67,46,.04) 66%); }
+.signal-ring__inner {
+  width: 78px;
+  height: 78px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,255,255,.9);
+  font-family: 'Syne', sans-serif;
+  font-size: 30px;
+  font-weight: 800;
+}
+.signal-stack {
+  display: grid;
+  gap: 12px;
+}
+.signal-stat {
+  padding: 14px 14px 12px;
+  border-radius: 16px;
+  background: rgba(26,30,27,.035);
+  border: 1px solid rgba(26,30,27,.08);
+}
+.signal-stat__label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.signal-stat__copy {
+  margin-top: 8px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--ink-mid);
+}
+.signal-track {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(26,30,27,.08);
+  overflow: hidden;
+  margin-top: 10px;
+}
+.signal-track span,
+.track-fill,
+.mix-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+}
+.signal-track span,
+.track-fill {
+  background: linear-gradient(90deg, var(--accent), rgba(3,209,168,.4));
+}
+.signal-track.warning span,
+.track-fill.warning { background: linear-gradient(90deg, #b89a2a, rgba(184,154,42,.45)); }
+.signal-track.danger span,
+.track-fill.danger { background: linear-gradient(90deg, var(--danger), rgba(172,67,46,.42)); }
 .metrics-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
-  margin-bottom: 48px;
+  margin-bottom: 20px;
 }
-.metric-card {
-  background: var(--surface-card);
+.metric-card,
+.insight-card,
+.analysis-card {
+  background: linear-gradient(180deg, rgba(255,255,255,.84), rgba(255,255,255,.68));
   border: 1px solid var(--ink-rule);
-  border-radius: 16px;
+  border-radius: 18px;
   padding: 22px 20px;
+  box-shadow: 0 14px 28px rgba(18,24,20,.04);
 }
 .metric-label {
   font-size: 10px;
@@ -1214,40 +1346,167 @@ body {
   line-height: 1.5;
   font-weight: 300;
 }
-/* Caveat blocks */
-.caveat-section { margin-bottom: 40px; }
-.caveat-card {
-  background: rgba(26,30,27,.03);
-  border: 1px solid var(--ink-rule);
+.value-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+  padding: 16px 18px;
+  border: 1px solid rgba(3,209,168,.16);
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(3,209,168,.055), rgba(255,255,255,.62));
+}
+.value-item {
+  padding: 10px 12px;
   border-radius: 14px;
-  padding: 20px 24px;
-  font-size: 14px;
-  line-height: 1.8;
+  background: rgba(255,255,255,.72);
+  border: 1px solid rgba(26,30,27,.08);
+}
+.value-item__label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.value-item__value {
+  margin-top: 8px;
+  font-family: 'Syne', sans-serif;
+  font-size: 21px;
+  line-height: 1.1;
+  font-weight: 800;
+  letter-spacing: -.02em;
+}
+.value-item__copy {
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--ink-mid);
+}
+.analysis-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr);
+  gap: 16px;
+  margin-bottom: 18px;
+}
+.analysis-card__title {
+  font-family: 'Syne', sans-serif;
+  font-size: 22px;
+  line-height: 1.1;
+  letter-spacing: -.02em;
+  margin-bottom: 12px;
+}
+.track-row + .track-row,
+.mix-row + .mix-row {
+  margin-top: 14px;
+}
+.track-head,
+.mix-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+.track-name,
+.mix-name {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: rgba(26,30,27,.54);
+}
+.track-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  background: rgba(26,30,27,.05);
+  border: 1px solid rgba(26,30,27,.08);
+}
+.track-status.success {
+  color: #0b7f68;
+  background: rgba(3,209,168,.1);
+  border-color: rgba(3,209,168,.24);
+}
+.track-status.warning {
+  color: #7a6012;
+  background: rgba(184,154,42,.12);
+  border-color: rgba(184,154,42,.24);
+}
+.track-status.danger {
+  color: var(--danger);
+  background: rgba(172,67,46,.08);
+  border-color: rgba(172,67,46,.22);
+}
+.track {
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(26,30,27,.08);
+  overflow: hidden;
+  margin-top: 10px;
+}
+.track-foot,
+.mix-foot,
+.body-copy {
+  margin-top: 10px;
+  font-size: 13px;
+  line-height: 1.75;
   color: var(--ink-mid);
   font-weight: 300;
 }
-.caveat-card strong {
+.body-copy strong,
+.mix-foot strong {
   color: var(--ink);
-  font-weight: 600;
-  display: block;
-  margin-bottom: 6px;
+  font-weight: 700;
 }
-/* Footer */
+.mix-bar {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(26,30,27,.08);
+  overflow: hidden;
+  margin-top: 8px;
+}
+.mix-bar span {
+  background: linear-gradient(90deg, var(--accent), rgba(3,209,168,.35));
+}
+.insight-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.insight-card--wide { grid-column: 1 / -1; }
 .doc-footer {
   font-size: 11px;
   color: var(--ink-soft);
   border-top: 1px solid var(--ink-rule);
   padding-top: 24px;
-  margin-top: 48px;
+  margin-top: 40px;
   font-weight: 300;
   letter-spacing: .02em;
+}
+@media (max-width: 820px) {
+  .page { padding: 40px 24px 48px; }
+  .page::before { inset: 0 24px auto; }
+  .hero-grid,
+  .analysis-grid,
+  .metrics-grid,
+  .value-strip,
+  .insight-grid { grid-template-columns: 1fr; }
+  .insight-card--wide { grid-column: auto; }
 }
 @media print {
   body { background: #fff; }
   .page { padding: 32px 24px; }
-  .decision-block, .metric-card, .caveat-card {
-    break-inside: avoid;
-  }
+  .page::before { display: none; }
+  .hero-card,
+  .metric-card,
+  .value-item,
+  .analysis-card,
+  .insight-card { break-inside: avoid; }
 }
 </style>
 </head>
@@ -1255,56 +1514,118 @@ body {
 <div class="page">
   <div class="doc-header">
     <div class="doc-header__left">
-      <div class="doc-eyebrow">Board note · Risk scenario · ${memo.completedLabel}</div>
-      <h1 class="doc-title">${memo.title}</h1>
-      <div class="doc-meta">${memo.businessContext}</div>
+      <div class="doc-eyebrow">Board note · Risk scenario · ${safe(memo.completedLabel)}</div>
+      <h1 class="doc-title">${safe(memo.title)}</h1>
+      <div class="doc-meta"><strong>${safe(memo.businessContext)}</strong></div>
     </div>
-    <span class="doc-posture-badge ${memo.postureTone}">${postureBadge}</span>
+    <span class="doc-posture-badge ${memo.postureTone}">${safe(postureBadge)}</span>
   </div>
 
-  <div class="decision-block">
-    <div class="decision-label">Management action</div>
-    <div class="decision-headline">${decision}</div>
-    <p class="decision-rationale">${rationale}</p>
-    ${priority ? `<div class="decision-priority">→ ${priority}</div>` : ''}
-  </div>
+  <div class="hero-grid">
+    <div class="hero-card decision-block">
+      <div class="decision-label">Management action</div>
+      <div class="decision-headline">${safe(decision)}</div>
+      <p class="decision-rationale">${safe(rationale)}</p>
+      ${priority ? `<div class="decision-priority">→ ${safe(priority)}</div>` : ''}
+      <div class="chip-row">
+        <span class="chip">${safe(memo.posture)}</span>
+        <span class="chip">${safe(memo.confidenceFrame?.label || 'Confidence review')}</span>
+        <span class="chip">${safe(memo.businessContext)}</span>
+      </div>
+    </div>
 
-  <div class="scenario-block">
-    <span class="section-label">Scenario</span>
-    <p class="scenario-text">${memo.scenarioSummary}</p>
+    <div class="hero-card signal-card">
+      <div>
+        <div class="signal-title">At a glance</div>
+        <div class="signal-note">${safe(memo.thresholdModel?.single?.summary || memo.executiveDecision?.rationale || 'Review the tolerance position before formal commitment.')}</div>
+      </div>
+      <div class="signal-ring ${memo.postureTone}">
+        <div class="signal-ring__inner">${safe(postureGlyph)}</div>
+      </div>
+      <div class="signal-stack">
+        ${thresholdCards.slice(0, 2).map(item => `
+          <div class="signal-stat">
+            <div class="signal-stat__label">${safe(item.title)}</div>
+            <div class="signal-stat__copy">${safe(item.status)} · ${safe(item.summary)}</div>
+            <div class="signal-track ${item.statusTone === 'success' ? '' : item.statusTone}"><span style="width:${Math.max(0, Math.min(Number(item.ratio || 0), 100))}%"></span></div>
+          </div>`).join('')}
+      </div>
+    </div>
   </div>
 
   <div class="metrics-grid">
-    ${(Array.isArray(memo.metrics) ? memo.metrics : []).map(m => `
+    ${metrics.map(item => `
       <div class="metric-card">
-        <div class="metric-label">${m.label}</div>
-        <div class="metric-value">${m.value}</div>
-        <div class="metric-copy">${m.copy}</div>
+        <div class="metric-label">${safe(item.label)}</div>
+        <div class="metric-value">${safe(item.value)}</div>
+        <div class="metric-copy">${safe(item.copy)}</div>
       </div>`).join('')}
   </div>
 
-  ${nextStep ? `
-  <div class="caveat-section">
-    <span class="section-label">Next steps required</span>
-    <div class="caveat-card">
-      <strong>${nextStep.title}</strong>${nextStep.copy}
-    </div>
+  ${valueItems.length ? `
+  <div class="value-strip">
+    ${valueItems.map(item => `<div class="value-item"><div class="value-item__label">${safe(item.label)}</div><div class="value-item__value">${safe(item.value)}</div><div class="value-item__copy">${safe(item.copy)}</div></div>`).join('')}
   </div>` : ''}
 
-  <div class="caveat-section">
-    <span class="section-label">Biggest caveat</span>
-    <div class="caveat-card">${topGap}</div>
+  <div class="analysis-grid">
+    <div class="analysis-card">
+      <div class="section-label">Tolerance interpretation</div>
+      <div class="analysis-card__title">How this sits against governance limits</div>
+      ${thresholdCards.map(item => `
+        <div class="track-row">
+          <div class="track-head">
+            <div class="track-name">${safe(item.title)}</div>
+            <span class="track-status ${item.statusTone}">${safe(item.status)}</span>
+          </div>
+          <div class="track"><span class="track-fill ${item.statusTone === 'success' ? '' : item.statusTone}" style="width:${Math.max(0, Math.min(Number(item.ratio || 0), 100))}%"></span></div>
+          <div class="track-foot">${safe(item.summary)}</div>
+        </div>`).join('')}
+    </div>
+
+    <div class="analysis-card">
+      <div class="section-label">Main drivers of impact</div>
+      <div class="analysis-card__title">Where the exposure is concentrated</div>
+      ${impactMix.length
+        ? impactMix.map(item => `
+          <div class="mix-row">
+            <div class="mix-head">
+              <div class="mix-name">${safe(item.label)}</div>
+              <strong>${safe(item.valueLabel || item.value)}</strong>
+            </div>
+            <div class="mix-bar"><span style="width:${Math.max(0, Math.min(Number(item.width || 0), 100))}%"></span></div>
+            <div class="mix-foot">This component contributes <strong>${safe(item.valueLabel || item.value)}</strong> of the current scenario view.</div>
+          </div>`).join('')
+        : `<div class="body-copy">No material impact mix is available for this scenario yet.</div>`}
+    </div>
   </div>
 
-  ${treatmentLine ? `
-  <div class="caveat-section">
-    <span class="section-label">Treatment path</span>
-    <div class="caveat-card">${treatmentLine}</div>
-  </div>` : ''}
+  <div class="insight-grid">
+    <div class="insight-card insight-card--wide">
+      <span class="section-label">Scenario</span>
+      <div class="body-copy">${safe(memo.scenarioSummary)}</div>
+    </div>
+
+    ${nextStep ? `
+    <div class="insight-card">
+      <span class="section-label">Next step required</span>
+      <div class="body-copy"><strong>${safe(nextStep.title)}</strong><br>${safe(nextStep.copy)}</div>
+    </div>` : ''}
+
+    <div class="insight-card">
+      <span class="section-label">Biggest caveat</span>
+      <div class="body-copy">${safe(topGap)}</div>
+    </div>
+
+    ${treatmentLine ? `
+    <div class="insight-card insight-card--wide">
+      <span class="section-label">Treatment path</span>
+      <div class="body-copy">${safe(treatmentLine)}</div>
+    </div>` : ''}
+  </div>
 
   <div class="doc-footer">
-    Risk Intelligence Platform · ${memo.completedLabel} ·
-    Confidence: ${memo.confidenceFrame?.label || 'Moderate'} ·
+    Risk Intelligence Platform · ${safe(memo.completedLabel)} ·
+    Confidence: ${safe(memo.confidenceFrame?.label || 'Moderate')} ·
     For management discussion only. Validate assumptions before
     formal commitment.
   </div>
