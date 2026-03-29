@@ -434,5 +434,201 @@
     ],
     "contentExcerpt": "The COSO Internal Control Framework is relevant for financial reporting integrity, fraud risk, control design, monitoring, segregation of duties, and management accountability. It is especially useful where scenarios involve payment manipulation, approval breakdown, reporting error, compliance control weakness, or unclear control ownership.",
     "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-dora-34",
+    "title": "EU Digital Operational Resilience Act (DORA) Reference",
+    "url": "#/admin/docs",
+    "tags": [
+      "eu",
+      "operational",
+      "resilience",
+      "financial",
+      "all-bu"
+    ],
+    "contentExcerpt": "DORA sets operational resilience expectations for financial entities and critical ICT providers across governance, ICT risk management, major incident reporting, testing, third-party oversight, and resilience learning. It is relevant when operational disruption, dependency risk, cyber incidents, or control breakdown could affect regulated financial services, supervisory posture, or outsourcing assurance.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-nis2-35",
+    "title": "EU NIS2 Directive Cyber and Operational Resilience Baseline",
+    "url": "#/admin/docs",
+    "tags": [
+      "eu",
+      "cyber",
+      "regulatory",
+      "operational",
+      "all-bu"
+    ],
+    "contentExcerpt": "NIS2 raises cybersecurity and resilience expectations for essential and important entities, covering governance accountability, risk management, incident reporting, supply chain security, continuity, and supervisory enforcement. It is useful where cyber, continuity, supplier, or governance issues intersect with European regulatory exposure or cross-border operations.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-csrd-esrs-36",
+    "title": "EU CSRD and ESRS Sustainability Reporting Reference",
+    "url": "#/admin/docs",
+    "tags": [
+      "eu",
+      "esg",
+      "sustainability",
+      "reporting",
+      "all-bu"
+    ],
+    "contentExcerpt": "The Corporate Sustainability Reporting Directive (CSRD) and European Sustainability Reporting Standards (ESRS) formalise governance, strategy, risk, metrics, and impact disclosure expectations for sustainability topics. They are relevant for ESG, climate, value-chain, governance, and assurance scenarios where reporting quality, control maturity, or disclosure credibility could materially affect stakeholders.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-nist-csf-37",
+    "title": "NIST Cybersecurity Framework 2.0 Reference",
+    "url": "#/admin/docs",
+    "tags": [
+      "us",
+      "cyber",
+      "governance",
+      "controls",
+      "all-bu"
+    ],
+    "contentExcerpt": "NIST CSF 2.0 provides a widely used governance and cybersecurity structure across Govern, Identify, Protect, Detect, Respond, and Recover. It is relevant for cyber and operational scenarios where management needs a defensible way to discuss capability, control maturity, and resilience improvement without jumping straight to technical detail.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-sec-cyber-38",
+    "title": "US SEC Cybersecurity Disclosure Rules Reference",
+    "url": "#/admin/docs",
+    "tags": [
+      "us",
+      "cyber",
+      "financial",
+      "disclosure",
+      "all-bu"
+    ],
+    "contentExcerpt": "The SEC cybersecurity disclosure rules are relevant where material cyber incidents, cyber governance, and risk-management transparency could affect public reporting, investor scrutiny, board oversight, or disclosure controls. They help frame scenarios where cyber events become securities, governance, or executive-communication issues rather than only technical incidents.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-hipaa-39",
+    "title": "US HIPAA Security and Breach Notification Reference",
+    "url": "#/admin/docs",
+    "tags": [
+      "us",
+      "health",
+      "privacy",
+      "regulatory",
+      "all-bu"
+    ],
+    "contentExcerpt": "HIPAA Security and Breach Notification requirements are relevant where protected health information, healthcare services, or regulated health operations are in scope. They help frame scenarios involving confidentiality, integrity, availability, patient impact, breach-notification obligations, and the cost of remediation in health-related environments.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-basel-opres-40",
+    "title": "Basel Committee Principles for Operational Resilience",
+    "url": "#/admin/docs",
+    "tags": [
+      "global",
+      "financial",
+      "operational",
+      "resilience",
+      "all-bu"
+    ],
+    "contentExcerpt": "The Basel Committee principles for operational resilience help financial institutions define important business services, impact tolerances, dependencies, scenario testing, and recovery expectations. They are relevant when operational, continuity, third-party, or cyber scenarios could materially affect regulated financial operations or supervisory scrutiny.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-bcbs239-41",
+    "title": "BCBS 239 Risk Data Aggregation and Reporting Reference",
+    "url": "#/admin/docs",
+    "tags": [
+      "global",
+      "financial",
+      "governance",
+      "data",
+      "all-bu"
+    ],
+    "contentExcerpt": "BCBS 239 is relevant for risk data aggregation, reporting governance, data quality, timeliness, and senior-management decision support. It helps frame scenarios where fragmented data, reporting weakness, or poor control over critical management information could amplify financial, operational, or regulatory risk.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-uae-sf-42",
+    "title": "UAE Sustainable Finance Principles Reference",
+    "url": "#/admin/docs",
+    "tags": [
+      "uae",
+      "esg",
+      "sustainability",
+      "financial",
+      "all-bu"
+    ],
+    "contentExcerpt": "The UAE Sustainable Finance Principles are relevant for governance, climate and sustainability integration, transition planning, financial decision-making, and market-facing sustainability posture. They help frame ESG scenarios in a regional context where sustainability commitments, financing decisions, and disclosure quality influence trust and strategic direction.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-adx-esg-43",
+    "title": "ADX ESG Disclosure Guidance Reference",
+    "url": "#/admin/docs",
+    "tags": [
+      "uae",
+      "esg",
+      "reporting",
+      "governance",
+      "all-bu"
+    ],
+    "contentExcerpt": "ADX ESG disclosure guidance is relevant where listed-entity governance, sustainability disclosure, board oversight, and non-financial reporting quality are material. It helps ground ESG and governance scenarios in a UAE capital-markets context rather than only general global reporting language.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-abu-dhabi-ehsms-44",
+    "title": "Abu Dhabi EHSMS Regulatory Framework Reference",
+    "url": "#/admin/docs",
+    "tags": [
+      "uae",
+      "hse",
+      "environment",
+      "operations",
+      "all-bu"
+    ],
+    "contentExcerpt": "The Abu Dhabi Environment, Health and Safety Management System (EHSMS) regulatory framework is relevant for hazard management, contractor oversight, incident investigation, operational controls, emergency readiness, and leadership accountability. It helps frame HSE scenarios in a UAE operating context where safety and environmental control failures can trigger shutdowns, remediation, and regulatory action.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-uae-fire-life-45",
+    "title": "UAE Fire and Life Safety Code Reference",
+    "url": "#/admin/docs",
+    "tags": [
+      "uae",
+      "hse",
+      "business-continuity",
+      "facilities",
+      "all-bu"
+    ],
+    "contentExcerpt": "The UAE Fire and Life Safety Code is relevant where facility resilience, occupancy safety, emergency preparedness, suppression controls, and incident response capability affect business continuity and HSE exposure. It supports scenarios involving site shutdown, safety incidents, and resilience of physical operating locations.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-uncitral-proc-46",
+    "title": "UNCITRAL Model Law on Public Procurement Reference",
+    "url": "#/admin/docs",
+    "tags": [
+      "global",
+      "procurement",
+      "public-sector",
+      "governance",
+      "all-bu"
+    ],
+    "contentExcerpt": "The UNCITRAL Model Law on Public Procurement is relevant for tender design, transparency, fairness, challenge risk, supplier selection, and governance of public-sector procurement. It helps frame procurement scenarios where process weakness, conflict of interest, or poor sourcing governance could create legal, operational, or reputational exposure.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-worldbank-proc-47",
+    "title": "World Bank Procurement Framework Reference",
+    "url": "#/admin/docs",
+    "tags": [
+      "global",
+      "procurement",
+      "sourcing",
+      "governance",
+      "all-bu"
+    ],
+    "contentExcerpt": "The World Bank Procurement Framework is relevant for value-for-money sourcing, market approach, bid governance, contract management, fraud and corruption control, and supplier performance oversight. It helps assess procurement and sourcing scenarios where governance quality materially affects delivery, cost, resilience, or integrity.",
+    "lastUpdated": "2024-06-15"
   }
 ]
