@@ -3541,6 +3541,28 @@ function guessRisksFromText(text, { lensHint = null } = {}) {
   const source = String(text || '').toLowerCase();
   const lensKey = normaliseScenarioLensHint(lensHint);
   const specialisedSeeds = (() => {
+    if (/exploitative labor|exploitative labour|forced labor|forced labour|child labor|child labour|modern slavery|labor practice|labour practice|worker exploitation|worker abuse|human rights/.test(source)) {
+      return [
+        {
+          title: 'Supplier labor-practice and due-diligence failure',
+          category: 'Procurement',
+          regulations: ['ISO 20400', 'ISO 37301'],
+          description: 'Weak sub-tier oversight or sourcing due diligence may have allowed exploitative labor practices to persist inside the supply base.'
+        },
+        {
+          title: 'ESG and human-rights disclosure or remediation exposure',
+          category: 'ESG',
+          regulations: ['IFRS S1', 'GRI Universal Standards'],
+          description: 'Once abusive labor practices are identified, management may face disclosure, remediation, and stakeholder scrutiny over the wider operating model.'
+        },
+        {
+          title: 'Regulatory or compliance action over supplier conduct',
+          category: 'Compliance',
+          regulations: ['ISO 37301'],
+          description: 'Exploitative labor practices can trigger investigation, fines, contract challenge, and assurance pressure around supplier governance.'
+        }
+      ];
+    }
     if (/collud|price fix|bid rig|inflate (?:their |the )?bid|cartel|anti-?competitive|competition law/.test(source)) {
       return [
         {
@@ -3930,6 +3952,38 @@ function composeGuidedNarrative(guidedInput = {}, { lensLabel = '', lensKey = ''
     if (!text) return '';
     return text.charAt(0).toLowerCase() + text.slice(1);
   };
+  const inferScenarioContext = () => {
+    const text = [event, asset, cause, impact, resolvedLensKey, resolvedLensLabel].filter(Boolean).join(' ').toLowerCase();
+    if (/exploitative labor|exploitative labour|forced labor|forced labour|child labor|child labour|modern slavery|labor practice|labour practice|worker exploitation|worker abuse|human rights/.test(text)) {
+      return {
+        positioning: 'This points to a combined procurement, compliance, and ESG issue rather than a simple supplier-performance problem.',
+        affected: 'the supplier due-diligence, sourcing-governance, and contract-management path around the affected category',
+        driver: 'weak sub-tier supplier oversight, delayed escalation, or inadequate sourcing due diligence',
+        impact: 'regulatory fines, supplier remediation cost, contract challenge, and stakeholder scrutiny',
+        followOn: 'Once exploitative labor practices are confirmed, management usually has to make rapid supplier, remediation, and disclosure decisions under regulatory and reputational pressure.'
+      };
+    }
+    if (/collud|price fix|bid rig|cartel|anti-?competitive|inflate (?:their |the )?bid|competition law/.test(text)) {
+      return {
+        positioning: 'This points to a procurement-integrity issue rather than a routine supplier-performance problem.',
+        affected: 'the pricing challenge, sourcing-governance, and contract-award path for the category in scope',
+        driver: 'supplier collusion, weak tender challenge, or poor detection of distorted pricing patterns',
+        impact: 'commercial overpayment, challenge to the award decision, and regulatory scrutiny',
+        followOn: 'If the pattern is not challenged quickly, the organisation can lock in avoidable cost and face questions about how the sourcing decision was governed.'
+      };
+    }
+    if (/single[- ]source|sole source|supplier shortfall|supplier concentration|critical supplier/.test(text)) {
+      return {
+        positioning: 'This points to a concentration and resilience issue in the supplier base, not just an isolated vendor problem.',
+        affected: 'the supplier concentration, fallback options, and continuity posture for the category in scope',
+        driver: 'weak substitution planning, concentrated spend, or late detection of supplier stress',
+        impact: 'delivery pressure, continuity strain, and stronger commercial leverage for the supplier',
+        followOn: 'Once a critical category becomes concentrated, continuity, pricing power, and contract performance usually deteriorate together.'
+      };
+    }
+    return null;
+  };
+  const inferredContext = inferScenarioContext();
   const defaultsByLens = {
     procurement: {
       affected: 'the sourcing decision, contract award path, or spend category in scope',
@@ -3980,19 +4034,31 @@ function composeGuidedNarrative(guidedInput = {}, { lensLabel = '', lensKey = ''
     }
   };
   const defaults = defaultsByLens[resolvedLensKey] || defaultsByLens.general;
+  const resolvedArea = asset || inferredContext?.affected || defaults.affected;
+  const resolvedDriver = cause || inferredContext?.driver || '';
+  const resolvedImpact = impact
+    ? (inferredContext?.impact && !String(impact).toLowerCase().includes(String(inferredContext.impact).toLowerCase())
+        ? `${lowerFirst(impact)}, alongside ${lowerFirst(inferredContext.impact)}`
+        : impact)
+    : (inferredContext?.impact || defaults.impact);
   const parts = [];
   if (event) {
     parts.push(`${urgencyPrefix} ${lensPrefix}scenario: ${event.charAt(0).toUpperCase() + event.slice(1)}.`);
   } else if (cause) {
     parts.push(`${urgencyPrefix} ${lensPrefix}scenario: ${cause.charAt(0).toUpperCase() + cause.slice(1)} could trigger a material issue.`);
   }
-  parts.push(`The area most exposed is ${asset || defaults.affected}.`);
-  if (cause) {
-    parts.push(`The most likely driver is ${lowerFirst(cause)}.`);
+  if (inferredContext?.positioning) {
+    // Keep the draft preview closer to a real management scenario by naming the issue shape, not just restating the user's sentence.
+    parts.push(inferredContext.positioning);
   }
-  parts.push(`If this develops, it could create ${lowerFirst(impact || defaults.impact)}.`);
-  if (!impact && defaults.followOn) {
-    parts.push(defaults.followOn);
+  parts.push(`The area most exposed is ${resolvedArea}.`);
+  if (resolvedDriver) {
+    parts.push(`The most likely driver is ${lowerFirst(resolvedDriver)}.`);
+  }
+  parts.push(`If this develops, it could create ${lowerFirst(resolvedImpact)}.`);
+  const followOn = inferredContext?.followOn || defaults.followOn;
+  if (followOn) {
+    parts.push(followOn);
   }
   if (asset && /identity|directory|sso|email|azure ad|active directory/i.test(`${event} ${asset} ${cause}`.toLowerCase())) {
     parts.push('Likely knock-on effects include mailbox compromise, privileged misuse, downstream service disruption, and data exposure if the event is not contained quickly.');

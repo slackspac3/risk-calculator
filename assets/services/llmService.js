@@ -403,6 +403,31 @@ const LLMService = (() => {
   function _extractRiskCandidates(text, { lensHint = null } = {}) {
     const source = String(text || '').toLowerCase();
     const lensKey = _normaliseScenarioHintKey(lensHint);
+    if (/exploitative labor|exploitative labour|forced labor|forced labour|child labor|child labour|modern slavery|labor practice|labour practice|worker exploitation|worker abuse|human rights/.test(source)) {
+      return [
+        {
+          key: 'procurement',
+          title: 'Supplier labor-practice and due-diligence failure',
+          category: 'Procurement',
+          regulations: ['ISO 20400', 'ISO 37301'],
+          description: 'Weak sub-tier oversight or sourcing due diligence may have allowed exploitative labor practices to persist inside the supply base.'
+        },
+        {
+          key: 'esg',
+          title: 'ESG and human-rights disclosure or remediation exposure',
+          category: 'ESG',
+          regulations: ['IFRS S1', 'GRI Universal Standards'],
+          description: 'Once abusive labor practices are identified, management may face disclosure, remediation, and stakeholder scrutiny over the wider operating model.'
+        },
+        {
+          key: 'compliance',
+          title: 'Regulatory or compliance action over supplier conduct',
+          category: 'Compliance',
+          regulations: ['ISO 37301'],
+          description: 'Exploitative labor practices can trigger investigation, fines, contract challenge, and assurance pressure around supplier governance.'
+        }
+      ];
+    }
     if (/collud|price fix|bid rig|inflate (?:their |the )?bid|cartel|anti-?competitive|competition law/.test(source)) {
       return [
         {
@@ -1556,6 +1581,13 @@ ${businessUnit.selectedDepartmentContext}` : ''
         'The most likely progression is weak sourcing governance, contract control failure, or poor supplier fit leading to commercial downside, assurance gaps, or downstream service issues.',
         'This should be assessed for commercial exposure, control weakness, supplier dependence, and whether the decision creates broader compliance or continuity risk.'
       ].join(' ');
+      if (/exploitative labor|exploitative labour|forced labor|forced labour|child labor|child labour|modern slavery|labor practice|labour practice|worker exploitation|worker abuse|human rights/.test(intakeText)) {
+        scenarioExpansion = [
+          _buildScenarioLead({ geography, businessUnit, asset: asset || 'the sourcing category or supplier relationship in scope', cause: cause || 'weak sub-tier supplier oversight or delayed detection of exploitative labor practices', impact: impact || 'regulatory fines, remediation cost, and stakeholder scrutiny', scenarioLabel: 'supplier labor-practice scenario' }),
+          'The most likely progression is discovery of abusive labor conditions in the sub-tier supply base, followed by urgent due-diligence review, supplier remediation decisions, and challenge over how the sourcing relationship was governed.',
+          'This should be assessed as a combined procurement, compliance, and ESG issue with implications for contract continuity, management oversight, and external scrutiny.'
+        ].join(' ');
+      }
       if (/collud|price fix|bid rig|inflate (?:their |the )?bid|cartel|anti-?competitive|competition law/.test(intakeText)) {
         scenarioExpansion = [
           _buildScenarioLead({ geography, businessUnit, asset: asset || 'the sourcing event or contract award in scope', cause: cause || 'supplier collusion or bid-rigging behaviour', impact: impact || 'commercial overpayment, challenge to the award decision, and regulatory scrutiny', scenarioLabel: 'procurement collusion scenario' }),
