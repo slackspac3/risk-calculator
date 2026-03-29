@@ -317,5 +317,122 @@
     ],
     "contentExcerpt": "ISO 31000 provides principles and guidance for enterprise risk management. It is relevant for governance, risk criteria, appetite, decision-making, treatment planning, assurance, and integration with business objectives. It helps ensure cyber, privacy, continuity, and third-party risk analysis stays aligned to broader organisational risk management practice.",
     "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-coso-erm-25",
+    "title": "COSO Enterprise Risk Management - Strategy and Performance",
+    "url": "#/admin/docs",
+    "tags": [
+      "strategic",
+      "enterprise-risk",
+      "governance",
+      "all-bu"
+    ],
+    "contentExcerpt": "COSO ERM links risk to strategy-setting, performance, governance, and decision-making. It is relevant when scenarios concern strategic execution, market shifts, major transformation programmes, portfolio choices, appetite calibration, and management's ability to translate objectives into operating action. It helps frame risk as uncertainty around value creation rather than only control failure.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-iso37301-26",
+    "title": "ISO 37301 Compliance Management Systems Reference",
+    "url": "#/admin/docs",
+    "tags": [
+      "compliance",
+      "governance",
+      "controls",
+      "all-bu"
+    ],
+    "contentExcerpt": "ISO 37301 sets requirements and guidance for compliance management systems. It is relevant for obligations registers, accountability, monitoring, escalation, policy governance, investigations, disciplinary mechanisms, and management review. It helps distinguish one-off regulatory issues from broader compliance-system weaknesses that could drive repeated failures.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-ifrs-s1s2-27",
+    "title": "IFRS S1 and IFRS S2 Sustainability Disclosure Baseline",
+    "url": "#/admin/docs",
+    "tags": [
+      "esg",
+      "sustainability",
+      "climate",
+      "all-bu"
+    ],
+    "contentExcerpt": "IFRS S1 and IFRS S2 establish baseline sustainability and climate-related disclosure expectations. They are relevant for governance, strategy, risk management, metrics, targets, and disclosure controls. They help frame ESG scenarios around disclosure quality, climate transition pressure, board oversight, and investor-facing governance rather than only reputational rhetoric.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-gri-28",
+    "title": "GRI Universal Standards Governance and Impact Reference",
+    "url": "#/admin/docs",
+    "tags": [
+      "esg",
+      "sustainability",
+      "reporting",
+      "all-bu"
+    ],
+    "contentExcerpt": "The GRI Universal Standards support impact-based sustainability reporting across governance, material topics, stakeholder engagement, and due diligence. They are useful where the organisation needs to assess social, environmental, or governance impacts that could translate into disclosure risk, stakeholder pressure, remediation cost, or long-term trust issues.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-iso20400-29",
+    "title": "ISO 20400 Sustainable Procurement Guidance",
+    "url": "#/admin/docs",
+    "tags": [
+      "procurement",
+      "sourcing",
+      "supply-chain",
+      "all-bu"
+    ],
+    "contentExcerpt": "ISO 20400 provides guidance for sustainable procurement, including sourcing strategy, supplier selection, contract lifecycle, ethics, and value-chain impact. It is relevant when procurement scenarios involve weak tender controls, poor supplier fit, concentration risk, labour or sustainability exposure, or sourcing decisions that create long-term operational and reputational consequences.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-iso45001-30",
+    "title": "ISO 45001 Occupational Health and Safety Management Reference",
+    "url": "#/admin/docs",
+    "tags": [
+      "hse",
+      "health-safety",
+      "operations",
+      "all-bu"
+    ],
+    "contentExcerpt": "ISO 45001 sets requirements for occupational health and safety management systems. It is relevant for hazard identification, worker participation, incident investigation, operational controls, contractor safety, leadership accountability, and continual improvement. It helps ground HSE scenarios in management-system strength rather than only individual unsafe acts.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-iso14001-31",
+    "title": "ISO 14001 Environmental Management Systems Reference",
+    "url": "#/admin/docs",
+    "tags": [
+      "hse",
+      "environment",
+      "esg",
+      "all-bu"
+    ],
+    "contentExcerpt": "ISO 14001 provides a framework for environmental management systems covering environmental aspects, legal obligations, operational controls, emergency preparedness, and performance improvement. It is useful where environmental incidents, remediation obligations, climate transition pressure, or sustainability-control failures could materially affect the business.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-nfpa1600-32",
+    "title": "NFPA 1600 Crisis and Continuity Program Reference",
+    "url": "#/admin/docs",
+    "tags": [
+      "business-continuity",
+      "crisis-management",
+      "resilience",
+      "all-bu"
+    ],
+    "contentExcerpt": "NFPA 1600 provides criteria for emergency management, business continuity, and crisis management programmes. It is relevant where scenarios test crisis coordination, continuity activation, incident communications, dependency analysis, and recovery governance. It helps teams assess whether continuity capability is operationally credible under stress.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-coso-ic-33",
+    "title": "COSO Internal Control Framework for Financial and Compliance Risk",
+    "url": "#/admin/docs",
+    "tags": [
+      "financial",
+      "compliance",
+      "controls",
+      "all-bu"
+    ],
+    "contentExcerpt": "The COSO Internal Control Framework is relevant for financial reporting integrity, fraud risk, control design, monitoring, segregation of duties, and management accountability. It is especially useful where scenarios involve payment manipulation, approval breakdown, reporting error, compliance control weakness, or unclear control ownership.",
+    "lastUpdated": "2024-06-15"
   }
 ]

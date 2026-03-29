@@ -3734,27 +3734,29 @@ function buildScenarioNarrative(introOverride = '') {
 function guessRisksFromText(text) {
   const source = String(text || '').toLowerCase();
   const patterns = [
-    ['Ransomware attack on critical platforms', 'Cyber', ['UAE PDPL']],
-    ['Cloud misconfiguration exposing sensitive data', 'Cloud', ['UAE PDPL']],
-    ['Data breach involving regulated or personal data', 'Data Protection', ['UAE PDPL', 'GDPR']],
-    ['Insider misuse of privileged access', 'Insider Threat', ['UAE Cybersecurity Council Guidance']],
-    ['Third-party or supply chain compromise', 'Third Party', ['BIS Export Controls']],
-    ['Export control or sanctions breach', 'Regulatory', ['BIS Export Controls', 'OFAC Sanctions']],
-    ['Operational outage affecting core services', 'Operational Resilience', ['UAE NESA IAS']],
-    ['Fraud or payment manipulation event', 'Financial Crime', ['UAE AML/CFT']]
+    { title: 'Strategic execution or market-position risk', category: 'Strategic', regulations: ['ISO 31000', 'COSO ERM'], terms: ['strategy', 'strategic', 'expansion', 'transformation', 'growth', 'market', 'competitive', 'portfolio', 'investment'] },
+    { title: 'Operational breakdown affecting core services', category: 'Operational', regulations: ['ISO 31000', 'ISO 22301'], terms: ['outage', 'availability', 'disruption', 'failure', 'breakdown', 'backlog', 'capacity', 'process failure'] },
+    { title: 'Cyber compromise of critical platforms or data', category: 'Cyber', regulations: ['UAE PDPL', 'ISO 27001'], terms: ['ransom', 'malware', 'phish', 'identity', 'credential', 'sso', 'entra', 'azure ad', 'breach', 'exfil', 'cloud', 'misconfig', 'vulnerability', 'privileged'] },
+    { title: 'Third-party dependency or supplier failure', category: 'Third-Party', regulations: ['ISO 27036', 'ISO 28000'], terms: ['vendor', 'supplier', 'third-party', 'third party', 'outsourc', 'dependency', 'subprocessor', 'partner'] },
+    { title: 'Regulatory or licensing exposure', category: 'Regulatory', regulations: ['BIS Export Controls', 'OFAC Sanctions'], terms: ['regulator', 'regulatory', 'licence', 'license', 'supervisory', 'filing', 'notification', 'sanction', 'export control'] },
+    { title: 'Financial loss, fraud, or capital exposure', category: 'Financial', regulations: ['UAE AML/CFT', 'PCI-DSS 4.0'], terms: ['fraud', 'payment', 'invoice', 'treasury', 'liquidity', 'cash', 'capital', 'financial reporting', 'misstatement'] },
+    { title: 'ESG or sustainability disclosure risk', category: 'ESG', regulations: ['IFRS S1', 'IFRS S2'], terms: ['esg', 'sustainability', 'climate', 'emission', 'carbon', 'greenwashing', 'social impact', 'governance failure'] },
+    { title: 'Compliance control or policy breakdown', category: 'Compliance', regulations: ['ISO 37301', 'UAE PDPL'], terms: ['policy breach', 'control failure', 'non-compliance', 'compliance', 'obligation', 'conduct', 'ethics'] },
+    { title: 'Supply chain resilience disruption', category: 'Supply Chain', regulations: ['ISO 28000', 'ISO 22301'], terms: ['supply chain', 'logistics', 'inventory', 'fulfilment', 'shipment', 'single source', 'upstream'] },
+    { title: 'Procurement governance or sourcing risk', category: 'Procurement', regulations: ['ISO 20400', 'ISO 37301'], terms: ['procurement', 'sourcing', 'tender', 'bid', 'contract award', 'vendor selection', 'purchasing'] },
+    { title: 'Business continuity and recovery failure', category: 'Business Continuity', regulations: ['ISO 22301', 'NFPA 1600'], terms: ['continuity', 'recovery', 'dr', 'disaster recovery', 'rto', 'rpo', 'crisis management'] },
+    { title: 'Health, safety, and environmental incident exposure', category: 'HSE', regulations: ['ISO 45001', 'ISO 14001'], terms: ['hse', 'health and safety', 'safety', 'injury', 'environmental', 'spill', 'incident', 'worker'] }
   ];
-  const found = patterns.filter(([title]) => {
-    const key = title.toLowerCase();
-    return source.includes('ransom') && key.includes('ransom')
-      || source.includes('cloud') && key.includes('cloud')
-      || (source.includes('breach') || source.includes('privacy')) && key.includes('data breach')
-      || (source.includes('insider') || source.includes('privileged')) && key.includes('insider')
-      || (source.includes('vendor') || source.includes('supplier') || source.includes('third')) && key.includes('third-party')
-      || (source.includes('export') || source.includes('sanction') || source.includes('bis')) && key.includes('export control')
-      || (source.includes('outage') || source.includes('availability') || source.includes('disruption')) && key.includes('operational outage')
-      || (source.includes('fraud') || source.includes('payment') || source.includes('invoice')) && key.includes('fraud');
-  }).map(([title, category, regulations]) => ({ title, category, regulations, description: 'Extracted from the provided narrative or risk register.' }));
-  return found.length ? found : [{ title: 'Technology and cyber risk requiring further triage', category: 'General', regulations: [] }];
+  // Keep the fallback lens enterprise-wide so strategic or operational text is not silently forced into cyber.
+  const found = patterns
+    .filter(({ terms }) => terms.some(term => source.includes(term)))
+    .map(({ title, category, regulations }) => ({
+      title,
+      category,
+      regulations,
+      description: 'Extracted from the provided narrative or risk register.'
+    }));
+  return found.length ? found : [{ title: 'Material enterprise risk requiring further triage', category: 'General', regulations: ['ISO 31000'] }];
 }
 
 function parseRegisterText(text) {
