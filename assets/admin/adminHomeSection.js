@@ -81,12 +81,12 @@
                     UI.dashboardOverviewCard({
                       label: 'External specialist equivalent',
                       value: valueSummary.externalEquivalentDaysLabel,
-                      foot: 'Directional UAE-style advisory effort benchmark across the completed set.'
+                      foot: 'Directional Big 4-style UAE advisory effort benchmark across the completed set.'
                     })
                   ].join('')}
                 </div>
                 <div class="admin-value-summary__foot">
-                  <span>Directional value at the current rate card: <strong>${fmtCurrency(valueSummary.internalCostAvoidedUsd)}</strong> internal cost avoided and <strong>${fmtCurrency(valueSummary.externalEquivalentValueUsd)}</strong> external-equivalent value.</span>
+                  <span>Directional value at the current Big 4-style UAE rate card: <strong>${fmtCurrency(valueSummary.internalCostAvoidedUsd)}</strong> internal cost avoided and <strong>${fmtCurrency(valueSummary.externalEquivalentValueUsd)}</strong> external-equivalent value.</span>
                   <span>${valueSummary.trackedReductionCases ? `Modelled annual exposure reduction from saved better-outcome cases: ${fmtCurrency(valueSummary.totalModelledReductionUsd)}.` : 'No saved better-outcome case is attached yet, so modelled reduction is not included.'}</span>
                 </div>
               `

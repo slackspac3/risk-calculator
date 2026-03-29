@@ -808,7 +808,7 @@ function renderUserDashboard() {
               {
                 label: 'External specialist equivalent',
                 value: workspaceValueSummary.externalEquivalentDaysLabel,
-                foot: 'Directional UAE-style advisory effort benchmark.'
+                foot: 'Directional Big 4-style UAE advisory effort benchmark.'
               }
             ].map(card => `
               <div class="dashboard-glance-stat">
@@ -819,7 +819,7 @@ function renderUserDashboard() {
             `).join('')}
           </section>
           <div class="dashboard-value-note">
-            <span>Directional value at the current rate card: <strong>${fmtCurrency(workspaceValueSummary.internalCostAvoidedUsd)}</strong> internal cost avoided and <strong>${fmtCurrency(workspaceValueSummary.externalEquivalentValueUsd)}</strong> external-equivalent value.</span>
+            <span>Directional value at the current Big 4-style UAE rate card: <strong>${fmtCurrency(workspaceValueSummary.internalCostAvoidedUsd)}</strong> internal cost avoided and <strong>${fmtCurrency(workspaceValueSummary.externalEquivalentValueUsd)}</strong> external-equivalent value.</span>
             <span>${workspaceValueSummary.trackedReductionCases ? `Modelled annual reduction from saved better-outcome cases: ${fmtCurrency(workspaceValueSummary.totalModelledReductionUsd)}.` : 'No saved better-outcome case is attached yet, so modelled reduction is not included.'}</span>
           </div>
         ` : ''}

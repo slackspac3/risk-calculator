@@ -2,19 +2,19 @@
   'use strict';
 
   const DOMAIN_CONFIG = Object.freeze({
-    strategic: Object.freeze({ label: 'Strategic', manualHours: 12, externalDays: 2.5 }),
-    operational: Object.freeze({ label: 'Operational', manualHours: 10, externalDays: 1.75 }),
-    cyber: Object.freeze({ label: 'Cyber', manualHours: 12, externalDays: 2.5 }),
-    'third-party': Object.freeze({ label: 'Third-party', manualHours: 9, externalDays: 1.75 }),
-    regulatory: Object.freeze({ label: 'Regulatory', manualHours: 11, externalDays: 2.0 }),
-    financial: Object.freeze({ label: 'Financial', manualHours: 9, externalDays: 1.75 }),
-    esg: Object.freeze({ label: 'ESG', manualHours: 11, externalDays: 2.0 }),
-    compliance: Object.freeze({ label: 'Compliance', manualHours: 10, externalDays: 2.0 }),
-    'supply-chain': Object.freeze({ label: 'Supply chain', manualHours: 10, externalDays: 1.75 }),
-    procurement: Object.freeze({ label: 'Procurement', manualHours: 8, externalDays: 1.5 }),
-    'business-continuity': Object.freeze({ label: 'Business continuity', manualHours: 11, externalDays: 2.0 }),
-    hse: Object.freeze({ label: 'HSE', manualHours: 11, externalDays: 2.0 }),
-    general: Object.freeze({ label: 'General enterprise', manualHours: 9, externalDays: 1.5 })
+    strategic: Object.freeze({ label: 'Strategic', manualHours: 12, externalDays: 3.5 }),
+    operational: Object.freeze({ label: 'Operational', manualHours: 10, externalDays: 2.5 }),
+    cyber: Object.freeze({ label: 'Cyber', manualHours: 12, externalDays: 3.25 }),
+    'third-party': Object.freeze({ label: 'Third-party', manualHours: 9, externalDays: 2.5 }),
+    regulatory: Object.freeze({ label: 'Regulatory', manualHours: 11, externalDays: 3.0 }),
+    financial: Object.freeze({ label: 'Financial', manualHours: 9, externalDays: 2.75 }),
+    esg: Object.freeze({ label: 'ESG', manualHours: 11, externalDays: 3.0 }),
+    compliance: Object.freeze({ label: 'Compliance', manualHours: 10, externalDays: 3.0 }),
+    'supply-chain': Object.freeze({ label: 'Supply chain', manualHours: 10, externalDays: 2.75 }),
+    procurement: Object.freeze({ label: 'Procurement', manualHours: 8, externalDays: 2.5 }),
+    'business-continuity': Object.freeze({ label: 'Business continuity', manualHours: 11, externalDays: 3.0 }),
+    hse: Object.freeze({ label: 'HSE', manualHours: 11, externalDays: 3.0 }),
+    general: Object.freeze({ label: 'General enterprise', manualHours: 9, externalDays: 2.5 })
   });
 
   const DEFAULT_BENCHMARK_SETTINGS = Object.freeze({
@@ -34,19 +34,20 @@
       general: 40
     }),
     externalDayRatesUsd: Object.freeze({
-      strategic: 2200,
-      operational: 1600,
-      cyber: 1900,
-      'third-party': 1700,
-      regulatory: 1850,
-      financial: 1750,
-      esg: 1700,
-      compliance: 1800,
-      'supply-chain': 1650,
-      procurement: 1600,
-      'business-continuity': 1750,
-      hse: 1800,
-      general: 1700
+      // Seed the pilot with a blended Big 4-style UAE advisory benchmark rather than conservative individual-specialist rates.
+      strategic: 5200,
+      operational: 3900,
+      cyber: 4600,
+      'third-party': 4100,
+      regulatory: 4700,
+      financial: 4500,
+      esg: 4300,
+      compliance: 4500,
+      'supply-chain': 4050,
+      procurement: 3900,
+      'business-continuity': 4300,
+      hse: 4200,
+      general: 4000
     })
   });
 

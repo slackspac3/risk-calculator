@@ -83,7 +83,7 @@ const AdminPlatformDefaultsSection = (() => {
     </div>
     <details class="dashboard-disclosure card mt-5 admin-value-rate-card">
       <summary>Pilot value assumptions <span class="badge badge--neutral">Phase 2</span></summary>
-      <div class="dashboard-disclosure-copy">Directional ROI and advisory-equivalent value use these domain-specific assumptions. Keep them conservative and tune them before using AED totals in leadership reporting.</div>
+      <div class="dashboard-disclosure-copy">Directional ROI and advisory-equivalent value use these domain-specific assumptions. The defaults now reflect a blended Big 4-style UAE benchmark, but you should still tune them before using AED totals in leadership reporting.</div>
       <div class="dashboard-disclosure-body">
         <div class="admin-workbench-strip admin-workbench-strip--compact">
           <div>
@@ -96,7 +96,7 @@ const AdminPlatformDefaultsSection = (() => {
           ${benchmarkDomains.map(domain => `<div class="value-rate-card-row">
             <div class="value-rate-card-row__head">
               <strong>${escapeHtml(domain.label)}</strong>
-              <span>Directional UAE benchmark</span>
+              <span>Directional Big 4-style UAE benchmark</span>
             </div>
             <div class="value-rate-card-row__inputs">
               <div class="form-group">

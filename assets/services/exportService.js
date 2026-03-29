@@ -307,12 +307,12 @@ const ExportService = (() => {
           <div class="section-label">Value created by this assessment</div>
           <div class="decision-row"><div class="section-label">Measured cycle time</div><div class="body-copy"><strong>${memo.valueSummary.cycleTime}</strong><br>Measured from the first saved draft to the completed assessment.</div></div>
           <div class="decision-row"><div class="section-label">Directional internal effort avoided</div><div class="body-copy"><strong>${memo.valueSummary.internalHoursAvoided}</strong><br>Directional effort avoided versus the ${memo.valueSummary.domainLabel.toLowerCase()} baseline.</div></div>
-          <div class="decision-row"><div class="section-label">External specialist equivalent</div><div class="body-copy"><strong>${memo.valueSummary.externalEquivalentDays}</strong><br>Directional UAE-style advisory benchmark for ${memo.valueSummary.complexityLabel.toLowerCase()} work.</div></div>
+          <div class="decision-row"><div class="section-label">External specialist equivalent</div><div class="body-copy"><strong>${memo.valueSummary.externalEquivalentDays}</strong><br>Directional Big 4-style UAE advisory benchmark for ${memo.valueSummary.complexityLabel.toLowerCase()} work.</div></div>
         </div>
         <div class="card">
           <div class="section-label">Economic framing</div>
           <div class="body-copy">Directional internal cost avoided at the current rate card: <strong>${memo.valueSummary.internalCostAvoided}</strong>.</div>
-          <div class="decision-row"><div class="section-label">External-equivalent value</div><div class="body-copy"><strong>${memo.valueSummary.externalEquivalentValue}</strong><br>Use this as the comparable UAE external-specialist benchmark, not as booked savings.</div></div>
+          <div class="decision-row"><div class="section-label">External-equivalent value</div><div class="body-copy"><strong>${memo.valueSummary.externalEquivalentValue}</strong><br>Use this as the comparable Big 4-style UAE advisory benchmark, not as booked savings.</div></div>
           <div class="decision-row"><div class="section-label">Modelled annual reduction</div><div class="body-copy"><strong>${memo.valueSummary.modelledReduction || 'Not quantified yet'}</strong><br>${memo.valueSummary.modelledReductionSource}</div></div>
         </div>
       </div>` : ''}
@@ -666,7 +666,7 @@ const ExportService = (() => {
           <div class="section-label">Value created by this assessment</div>
           <div class="decision-row"><div class="section-label">Measured cycle time</div><div class="body-copy"><strong>${valueModel.measured?.platformDurationLabel || 'No measured cycle time yet'}</strong><br>Measured from the first saved draft to the completed result.</div></div>
           <div class="decision-row"><div class="section-label">Directional internal effort avoided</div><div class="body-copy"><strong>${valueModel.directional?.internalHoursAvoidedLabel || '0 hours'}</strong><br>Against the ${String(valueModel.domain?.label || 'general enterprise').toLowerCase()} baseline for this complexity.</div></div>
-          <div class="decision-row"><div class="section-label">External specialist equivalent</div><div class="body-copy"><strong>${valueModel.directional?.externalEquivalentDaysLabel || 'No specialist-day benchmark yet'}</strong><br>Directional UAE-style advisory benchmark.</div></div>
+          <div class="decision-row"><div class="section-label">External specialist equivalent</div><div class="body-copy"><strong>${valueModel.directional?.externalEquivalentDaysLabel || 'No specialist-day benchmark yet'}</strong><br>Directional Big 4-style UAE advisory benchmark.</div></div>
         </div>
         <div class="card">
           <div class="section-label">Economic framing</div>
@@ -1024,7 +1024,7 @@ const ExportService = (() => {
       ? [
           { label: 'Cycle time', value: valueSummary.cycleTime, copy: 'Measured from first saved draft to completed assessment.' },
           { label: 'Internal effort avoided', value: valueSummary.internalHoursAvoided, copy: `Directional effort avoided versus the ${valueSummary.domainLabel.toLowerCase()} baseline.` },
-          { label: 'External specialist equivalent', value: valueSummary.externalEquivalentDays, copy: `Directional UAE-style benchmark for ${valueSummary.complexityLabel.toLowerCase()} work.` },
+          { label: 'External specialist equivalent', value: valueSummary.externalEquivalentDays, copy: `Directional Big 4-style UAE advisory benchmark for ${valueSummary.complexityLabel.toLowerCase()} work.` },
           {
             label: valueSummary.modelledReduction ? 'Modelled annual reduction' : 'Directional internal cost avoided',
             value: valueSummary.modelledReduction || valueSummary.internalCostAvoided,

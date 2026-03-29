@@ -704,7 +704,7 @@ function renderAssessmentValueBand(valueModel) {
     ? `Directional internal cost avoided at the current rate card: ${fmtCurrency(valueModel.cost.internalCostAvoidedUsd)}.`
     : 'Directional internal cost avoided is not available yet.';
   const externalValueNote = valueModel.cost?.externalEquivalentValueUsd
-    ? `External-equivalent value at the current rate card: ${fmtCurrency(valueModel.cost.externalEquivalentValueUsd)}.`
+    ? `External-equivalent value at the current Big 4-style UAE rate card: ${fmtCurrency(valueModel.cost.externalEquivalentValueUsd)}.`
     : 'External-equivalent value is not available yet.';
   return `<section class="results-value-band card card--elevated anim-fade-in">
     <div class="results-value-band__head">
@@ -728,7 +728,7 @@ function renderAssessmentValueBand(valueModel) {
       <article class="results-value-card">
         <span class="results-value-card__label">External specialist equivalent</span>
         <strong>${escapeHtml(String(valueModel.directional?.externalEquivalentDaysLabel || 'No specialist-day benchmark yet'))}</strong>
-        <span class="results-value-card__foot">Directional UAE-style advisory equivalent for this domain and complexity.</span>
+        <span class="results-value-card__foot">Directional Big 4-style UAE advisory equivalent for this domain and complexity.</span>
       </article>
       <article class="results-value-card">
         <span class="results-value-card__label">Modelled annual reduction</span>
