@@ -3983,65 +3983,7 @@ function composeGuidedNarrative(guidedInput = {}) {
 
 // ─── APP BAR ──────────────────────────────────────────────────
 function renderAppBar() {
-  const currentUser = AuthService.getCurrentUser();
-  const currentHash = String(window.location.hash || '#/');
-  const homeHref = currentUser?.role === 'admin' ? '#/admin/home' : currentUser ? '#/dashboard' : '#/';
-  const settingsHref = currentUser?.role === 'admin' ? '#/admin/settings/org' : '#/settings';
-  const nonAdminCapability = currentUser && currentUser.role !== 'admin'
-    ? getNonAdminCapabilityState(currentUser, getUserSettings(), getAdminSettings())
-    : null;
-  const isOversightUser = !!(nonAdminCapability?.canManageBusinessUnit || nonAdminCapability?.canManageDepartment);
-  const navLinks = currentUser?.role === 'admin'
-    ? [
-        // Keep the app bar at the section level so detailed admin destinations only live in the sidebar.
-        { href: '#/admin/home', label: 'Platform Home', active: currentHash.startsWith('#/admin/home') },
-        { href: '#/admin/settings/org', label: 'Admin Console', active: currentHash.startsWith('#/admin/') }
-      ]
-    : currentUser
-      ? [
-          { href: '#/dashboard', label: isOversightUser ? 'Workspace' : 'Dashboard', active: currentHash.startsWith('#/dashboard') },
-          { href: '#/settings', label: isOversightUser ? (nonAdminCapability?.experience?.primaryActionLabel || 'Role Context') : 'Personal Settings', active: currentHash.startsWith('#/settings') }
-        ]
-      : [
-          { href: '#/', label: 'Home', active: currentHash === '#/' || currentHash === '' }
-        ];
-  const bar = document.getElementById('app-bar');
-  bar.innerHTML = `
-    <div class="bar-inner">
-      <a href="${homeHref}" class="bar-logo">
-        <span class="bar-logo-mark" aria-hidden="true">
-          <img src="assets/brand/g42-catalyst-symbol-logo-inverted-rgb.svg" alt="">
-        </span>
-        <span class="bar-logo-text">Risk <span>Intelligence</span> Platform</span>
-      </a>
-      <nav class="flex items-center gap-3">
-        ${navLinks.map(link => `<a href="${link.href}" class="bar-nav-link${link.active ? ' active' : ''}">${link.label}</a>`).join('')}
-      </nav>
-      <div class="bar-spacer"></div>
-      ${currentUser ? `
-        <a href="#/help" class="btn btn--ghost btn--sm${currentHash.startsWith('#/help') ? ' active' : ''}" id="btn-open-help">Help</a>
-        <span class="bar-nav-link" style="pointer-events:none">${currentUser.displayName}</span>
-        <button type="button" class="btn btn--ghost btn--sm" id="btn-sign-out">Sign Out</button>
-      ` : `<a href="#/login" class="bar-nav-link bar-nav-link--admin">Sign In</a>`}
-      <div class="currency-toggle" role="group" aria-label="Currency">
-        <button id="cur-usd" class="${AppState.currency==='USD'?'active':''}">USD</button>
-        <button id="cur-aed" class="${AppState.currency==='AED'?'active':''}">AED</button>
-      </div>
-      <span class="bar-poc-tag">PoC</span>
-    </div>`;
-  const pocTag = document.querySelector('.bar-poc-tag');
-  if (pocTag && (
-    (typeof DemoMode !== 'undefined' && DemoMode.isDemoRunning())
-    || window.__RISK_CALCULATOR_RELEASE__?.channel === 'production'
-  )) {
-    pocTag.classList.add('bar-poc-tag--hidden');
-  }
-  document.getElementById('cur-usd').addEventListener('click', () => { AppState.currency='USD'; renderAppBar(); Router.resolve(); });
-  document.getElementById('cur-aed').addEventListener('click', () => { AppState.currency='AED'; renderAppBar(); Router.resolve(); });
-  document.getElementById('btn-sign-out')?.addEventListener('click', () => {
-    performLogout();
-  });
-  updateWizardProgressBar(window.location.hash.replace('#', ''));
+  return window.AppShellNavigation.renderAppBar();
 }
 
 // ─── LANDING ──────────────────────────────────────────────────
@@ -5872,115 +5814,20 @@ function renderAdminHome() {
   const preferredAdminRoute = `/admin/settings/${getPreferredAdminSection()}`;
   const docCount = getDocList().length;
 
-  setPage(adminLayout('home', `
-    <div class="settings-shell">
-      <div class="settings-shell__header">
-        <div class="flex items-center justify-between" style="gap:var(--sp-4);flex-wrap:wrap">
-          <div>
-            <h2>Platform Home</h2>
-            <p style="margin-top:6px">A clean admin front door for starting assessments, checking the platform posture, and opening the admin console only when you need to change structure, defaults, access, or libraries.</p>
-          </div>
-          <div class="admin-shell-note">Keep administration deliberate: start assessment work from here, then open the console only for platform changes.</div>
-        </div>
-        <div class="admin-guidance-strip">
-          <span class="admin-guidance-strip__label">Admin guidance</span>
-          <strong>Assess first, administer second</strong>
-          <span>This page is the admin workspace front door. Use it to start new analysis, review the current platform footprint, and then move into the console when a governed change is actually needed.</span>
-        </div>
-      </div>
-      <div class="admin-overview-grid">
-        ${[
-          UI.dashboardOverviewCard({
-            label: 'Assessments saved',
-            value: assessments.length,
-            foot: completedAssessments.length ? `${completedAssessments.length} completed result${completedAssessments.length === 1 ? '' : 's'} are currently available.` : 'No completed results are currently saved.'
-          }),
-          UI.dashboardOverviewCard({
-            label: 'Needs review',
-            value: reviewQueue.length,
-            foot: reviewQueue.length ? 'Completed scenarios are waiting for management attention.' : 'No completed scenario currently needs escalation.'
-          }),
-          UI.dashboardOverviewCard({
-            label: 'Businesses',
-            value: companyEntities.length,
-            foot: departmentEntities.length ? `${departmentEntities.length} departments are attached across the current structure.` : 'No departments are configured yet.'
-          }),
-          UI.dashboardOverviewCard({
-            label: 'Managed users',
-            value: managedAccounts.length,
-            foot: managedAccounts.length ? 'Shared users and role assignments are active in the platform.' : 'No managed users are currently configured.'
-          })
-        ].join('')}
-      </div>
-      <div class="grid-2" style="margin-top:var(--sp-6);align-items:start">
-        ${UI.dashboardSectionCard({
-          title: 'Assessment workspace',
-          description: 'Start a new guided assessment from here instead of dropping straight into the wizard on login.',
-          className: 'dashboard-section-card--spotlight',
-          body: `
-            <div class="form-help">Use the same guided workflow as end users when you want to model a scenario directly or review the working experience from the front door.</div>
-            <div class="flex items-center gap-3" style="flex-wrap:wrap">
-              <button type="button" class="btn btn--primary" id="btn-admin-home-start-assessment">Start Guided Assessment</button>
-              <a class="btn btn--secondary" href="#/dashboard">Open User Workspace</a>
-            </div>
-          `
-        })}
-        ${UI.dashboardSectionCard({
-          title: 'Admin console',
-          description: 'Key administration paths stay one click away without becoming the default landing page.',
-          body: `
-            <div class="flex items-center gap-3" style="flex-wrap:wrap">
-              <button type="button" class="btn btn--secondary" id="btn-admin-home-open-console">Open Admin Console</button>
-              <button type="button" class="btn btn--ghost" id="btn-admin-home-users">User Accounts</button>
-              <button type="button" class="btn btn--ghost" id="btn-admin-home-defaults">Platform Defaults</button>
-              <button type="button" class="btn btn--ghost" id="btn-admin-home-docs">Document Library</button>
-            </div>
-            <div class="form-help">Structure, defaults, user access, and libraries stay grouped behind the console so the top-level experience remains calm.</div>
-          `
-        })}
-      </div>
-      <div style="margin-top:var(--sp-6)">
-        ${UI.dashboardSectionCard({
-          title: 'Platform snapshot',
-          description: 'A compact read on the current administration footprint before you go deeper.',
-          body: `
-            <div class="form-help">Structure: ${companyEntities.length} business entity${companyEntities.length === 1 ? '' : 'ies'} and ${departmentEntities.length} department${departmentEntities.length === 1 ? '' : 's'}.</div>
-            <div class="form-help">Documents: ${docCount} library item${docCount === 1 ? '' : 's'} currently available for AI grounding.</div>
-            <div class="form-help">Review queue: ${reviewQueue.length ? `${reviewQueue.length} completed assessment${reviewQueue.length === 1 ? '' : 's'} need management attention.` : 'No completed scenario currently needs escalation.'}</div>
-          `
-        })}
-      </div>
-    </div>`));
-
+  setPage(window.AdminHomeSection.render({
+    settings,
+    companyStructure,
+    assessments,
+    completedAssessments,
+    reviewQueue,
+    companyEntities,
+    departmentEntities,
+    managedAccounts,
+    preferredAdminRoute,
+    docCount
+  }));
   // Admins should land on a real home view, not be thrown directly into a settings subsection or wizard step.
-  document.getElementById('btn-admin-home-start-assessment')?.addEventListener('click', () => {
-    resetDraft();
-    openDraftWorkspaceRoute();
-  });
-  document.getElementById('btn-admin-home-open-console')?.addEventListener('click', () => {
-    Router.navigate(preferredAdminRoute);
-  });
-  document.getElementById('btn-admin-home-users')?.addEventListener('click', () => {
-    Router.navigate('/admin/settings/users');
-  });
-  document.getElementById('btn-admin-home-defaults')?.addEventListener('click', () => {
-    Router.navigate('/admin/settings/defaults');
-  });
-  document.getElementById('btn-admin-home-docs')?.addEventListener('click', () => {
-    Router.navigate('/admin/docs');
-  });
-  document.getElementById('btn-admin-logout')?.addEventListener('click', () => { performLogout(); });
-  document.querySelectorAll('[data-admin-route]').forEach(button => {
-    button.addEventListener('click', event => {
-      event.preventDefault();
-      const route = button.dataset.adminRoute || '/admin/home';
-      if (route.startsWith('/admin/settings/')) {
-        const section = route.split('/').pop() || 'org';
-        setPreferredAdminSection(section);
-      }
-      Router.navigate(route);
-    });
-  });
+  window.AdminHomeSection.bind({ preferredAdminRoute });
 }
 
 function renderUserSettings() {
@@ -7691,42 +7538,7 @@ async function init() {
   BenchmarkService.init(AppState.benchmarkList);
   activateAuthenticatedState();
 
-  Router
-    .on('/login', renderLogin)
-    .on('/', () => {
-      if (!AuthService.isAuthenticated()) {
-        Router.navigate('/login');
-        return;
-      }
-      Router.navigate('/dashboard');
-    })
-    .on('/dashboard', renderUserDashboard)
-    .on('/wizard/1', withAuth(renderWizard1))
-    .on('/wizard/2', withAuth(renderWizard2))
-    .on('/wizard/3', withAuth(renderWizard3))
-    .on('/wizard/4', withAuth(renderWizard4))
-    .on('/results/:id', withAuth(params => renderResults(params.id)))
-    .on('/settings', renderUserSettings)
-    .on('/help', withAuth(renderHelpPage))
-    .on('/admin', renderLogin)
-    .on('/admin/home', renderAdminHome)
-    .on('/admin/settings', () => safeRenderAdminSettings(getPreferredAdminSection()))
-    .on('/admin/settings/org', () => safeRenderAdminSettings('org'))
-    .on('/admin/settings/company', () => safeRenderAdminSettings('company'))
-    .on('/admin/settings/defaults', () => safeRenderAdminSettings('defaults'))
-    .on('/admin/settings/governance', () => safeRenderAdminSettings('governance'))
-    .on('/admin/settings/access', () => safeRenderAdminSettings('access'))
-    .on('/admin/settings/users', () => safeRenderAdminSettings('users'))
-    .on('/admin/settings/audit', () => safeRenderAdminSettings('audit'))
-    .on('/admin/bu', renderAdminBU)
-    .on('/admin/docs', renderAdminDocs)
-    .notFound(() => {
-      if (!AuthService.isAuthenticated()) {
-        Router.navigate('/login');
-        return;
-      }
-      setPage(`<div class="container" style="padding:var(--sp-12)"><h2>Page Not Found</h2><a href="#/dashboard" class="btn btn--primary" style="margin-top:var(--sp-4)">← Dashboard</a></div>`);
-    });
+  window.AppRoutes.register(Router);
 
   Router.init();
 }
