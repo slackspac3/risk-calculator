@@ -11,6 +11,20 @@
 const RAGService = (() => {
   let _docs = [];
   let _buData = [];
+  const LENS_TAGS = [
+    'strategic',
+    'operational',
+    'cyber',
+    'third-party',
+    'regulatory',
+    'financial',
+    'esg',
+    'compliance',
+    'supply-chain',
+    'procurement',
+    'business-continuity',
+    'hse'
+  ];
 
   const TOPIC_RULES = [
     {
@@ -55,6 +69,25 @@ const RAGService = (() => {
     return patterns.some(pattern => q.includes(String(pattern || '').toLowerCase()));
   }
 
+  function _getMatchingLensTags(query = '') {
+    const q = String(query || '').toLowerCase();
+    const aliases = new Map([
+      ['third-party', ['third-party', 'third party', 'vendor', 'supplier']],
+      ['supply-chain', ['supply-chain', 'supply chain', 'logistics', 'inventory']],
+      ['business-continuity', ['business-continuity', 'business continuity', 'continuity', 'recovery', 'disaster recovery', 'rto', 'rpo']],
+      ['esg', ['esg', 'sustainability', 'climate']],
+      ['hse', ['hse', 'health and safety', 'safety', 'environmental']],
+      ['cyber', ['cyber', 'identity', 'phishing', 'ransomware', 'cloud', 'breach']],
+      ['operational', ['operational', 'process failure', 'breakdown', 'service failure']],
+      ['strategic', ['strategic', 'strategy', 'market', 'transformation']],
+      ['regulatory', ['regulatory', 'regulator', 'licence', 'license', 'sanction', 'export control']],
+      ['financial', ['financial', 'fraud', 'payment', 'treasury', 'capital']],
+      ['compliance', ['compliance', 'non-compliance', 'policy breach', 'ethics']],
+      ['procurement', ['procurement', 'sourcing', 'tender', 'bid', 'contract award']]
+    ]);
+    return LENS_TAGS.filter(tag => (aliases.get(tag) || [tag]).some(pattern => q.includes(pattern)));
+  }
+
   function _classifyDocSource(doc) {
     const tags = Array.isArray(doc.tags) ? doc.tags.map(tag => String(tag || '').toLowerCase()) : [];
     const text = `${doc.title || ''} ${doc.url || ''} ${tags.join(' ')}`.toLowerCase();
@@ -67,6 +100,11 @@ const RAGService = (() => {
   function _buildRelevanceReasons(doc, query, buId) {
     const tags = Array.isArray(doc.tags) ? doc.tags.map(tag => String(tag || '').toLowerCase()) : [];
     const reasons = [];
+    const matchingLensTags = _getMatchingLensTags(query);
+    const exactLensMatches = matchingLensTags.filter(tag => tags.includes(tag));
+    if (exactLensMatches.length) {
+      reasons.push(`Exact ${exactLensMatches[0].replace(/-/g, ' ')} lens match`);
+    }
     TOPIC_RULES.forEach(rule => {
       if (!_queryIncludesAny(query, rule.patterns)) return;
       if ((rule.docIds || []).includes(doc.id) || (rule.docTags || []).some(tag => tags.includes(tag))) {
@@ -116,8 +154,10 @@ const RAGService = (() => {
     let score = 0;
     const q = query.toLowerCase();
     const words = q.split(/\W+/).filter(w => w.length > 3);
+    const tags = Array.isArray(doc.tags) ? doc.tags.map(tag => String(tag || '').toLowerCase()) : [];
+    const matchingLensTags = _getMatchingLensTags(query);
 
-    const text = `${doc.title} ${doc.contentExcerpt || ''} ${doc.contentFull || ''} ${doc.tags.join(' ')}`.toLowerCase();
+    const text = `${doc.title} ${doc.contentExcerpt || ''} ${doc.contentFull || ''} ${tags.join(' ')}`.toLowerCase();
 
     words.forEach(w => {
       const hits = (text.match(new RegExp(w, 'g')) || []).length;
@@ -133,15 +173,20 @@ const RAGService = (() => {
       'data', 'loss', 'incident', 'vulnerability', 'access', 'cloud', 'payment',
       'regulatory', 'compliance', 'third-party', 'insider', 'supply', 'privacy', 'continuity', 'resilience', 'risk'];
     riskKeywords.forEach(kw => {
-      if (q.includes(kw) && doc.tags.some(t => t.includes(kw.split('-')[0]))) {
+      if (q.includes(kw) && tags.some(t => t.includes(kw.split('-')[0]))) {
         score += 3;
       }
     });
 
+    // Keep the weighting modest: exact lens alignment should nudge ranking, not overwhelm textual relevance.
+    matchingLensTags.forEach(tag => {
+      if (tags.includes(tag)) score += 4;
+    });
+
     score += _topicBoost(doc, query);
 
-    if ((doc.tags || []).includes('all-bu')) score += 0.75;
-    if ((doc.tags || []).includes('nist') || (doc.tags || []).includes('iso')) score += 0.5;
+    if (tags.includes('all-bu')) score += 0.75;
+    if (tags.includes('nist') || tags.includes('iso')) score += 0.5;
 
     const daysSince = (Date.now() - new Date(doc.lastUpdated).getTime()) / 86400000;
     score += Math.max(0, 1 - daysSince / 365);
