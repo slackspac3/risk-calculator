@@ -1313,7 +1313,7 @@ function applyDryRunScenario(example) {
 }
 
 
-function seedRisksFromScenarioDraft(narrative, { force = false } = {}) {
+function seedRisksFromScenarioDraft(narrative, { force = false, replaceGenerated = false } = {}) {
   const draftText = String(narrative || '').trim();
   if (!draftText) return 0;
   const existingCandidates = getRiskCandidates();
@@ -1327,7 +1327,8 @@ function seedRisksFromScenarioDraft(narrative, { force = false } = {}) {
       description: risk.description || 'Generated from the current scenario draft to give you a clear shortlist for the next step.'
     }));
   if (!extractedRisks.length) return 0;
-  appendRiskCandidates(extractedRisks, { selectNew: true });
+  if (replaceGenerated) replaceSuggestedRiskCandidates(extractedRisks, { selectNew: true });
+  else appendRiskCandidates(extractedRisks, { selectNew: true });
   if (!AppState.draft.scenarioTitle && getSelectedRisks()[0]) AppState.draft.scenarioTitle = getSelectedRisks()[0].title;
   return extractedRisks.length;
 }
@@ -1348,6 +1349,19 @@ function persistAndRenderStep1({
   if (refreshRegulations) updateStep1ApplicableRegulations(buList, scenarioGeographies);
   saveDraft();
   renderWizard1();
+}
+
+function clearStep1StaleAssistState(nextNarrative, { clearGeneratedRisks = false } = {}) {
+  const nextSeed = normaliseScenarioSeedText(nextNarrative);
+  if (!nextSeed) return;
+  const currentSeeds = [
+    AppState.draft.sourceNarrative,
+    AppState.draft.narrative,
+    AppState.draft.enhancedNarrative
+  ].map(normaliseScenarioSeedText).filter(Boolean);
+  if (currentSeeds.some(seed => seed === nextSeed)) return;
+  // Once the underlying scenario changes, stale AI summaries and generated cards become misleading against the visible draft.
+  clearScenarioAssistArtifacts({ clearGeneratedRisks });
 }
 
 function updateStep1GuidedPreview() {
@@ -1384,6 +1398,7 @@ function bindStep1PrimaryInputs({ buList, wizardGeographyInput }) {
     document.getElementById(`guided-${key}`).addEventListener('input', function() {
       AppState.draft.guidedInput[key] = this.value;
       clearLoadedDryRunFlag();
+      clearStep1StaleAssistState(composeStep1GuidedNarrative(AppState.draft.guidedInput, getEffectiveSettings(), AppState.draft));
       updateStep1GuidedPreview();
       markDraftDirty();
       scheduleDraftAutosave();
@@ -1393,12 +1408,14 @@ function bindStep1PrimaryInputs({ buList, wizardGeographyInput }) {
   document.getElementById('guided-urgency').addEventListener('change', function() {
     AppState.draft.guidedInput.urgency = this.value;
     clearLoadedDryRunFlag();
+    clearStep1StaleAssistState(composeStep1GuidedNarrative(AppState.draft.guidedInput, getEffectiveSettings(), AppState.draft));
     updateStep1GuidedPreview();
     markDraftDirty();
     scheduleDraftAutosave();
   });
 
   document.getElementById('intake-risk-statement').addEventListener('input', function() {
+    clearStep1StaleAssistState(this.value);
     AppState.draft.narrative = this.value;
     AppState.draft.sourceNarrative = this.value;
     // Preserve the current function-aware lens while the user edits so later shortlist and AI steps do not reclassify the draft from scratch on every keystroke.
@@ -1416,19 +1433,21 @@ function bindStep1ScenarioActions({ buList, settings, exampleModel }) {
       UI.toast('Answer at least one guided question first.', 'warning');
       return;
     }
+    clearStep1StaleAssistState(composed, { clearGeneratedRisks: true });
     AppState.draft.narrative = composed;
     AppState.draft.sourceNarrative = composed;
     AppState.draft.scenarioLens = getStep1PreferredScenarioLens(settings, AppState.draft);
     document.getElementById('intake-risk-statement').value = composed;
-    const seededCount = seedRisksFromScenarioDraft(composed, { force: !getRiskCandidates().length });
+    const seededCount = seedRisksFromScenarioDraft(composed, { force: true, replaceGenerated: true });
     persistAndRenderStep1();
-    UI.toast(seededCount ? `Scenario draft created and ${seededCount} risk${seededCount === 1 ? '' : 's'} added to the shortlist.` : 'Scenario draft created from guided answers.', 'success');
+    UI.toast(seededCount ? `Scenario draft created and shortlist refreshed with ${seededCount} aligned risk${seededCount === 1 ? '' : 's'}.` : 'Scenario draft created from guided answers.', 'success');
   });
 
   document.querySelectorAll('.guided-prompt-chip').forEach(btn => {
     btn.addEventListener('click', () => {
       AppState.draft.guidedInput.event = btn.dataset.prompt;
       document.getElementById('guided-event').value = btn.dataset.prompt;
+      clearStep1StaleAssistState(composeStep1GuidedNarrative(AppState.draft.guidedInput, settings, AppState.draft));
       updateStep1GuidedPreview();
       markDraftDirty();
       scheduleDraftAutosave();
@@ -1472,7 +1491,8 @@ function bindStep1ScenarioActions({ buList, settings, exampleModel }) {
       UI.toast('Enter or build a scenario draft first.', 'warning');
       return;
     }
-    const seededCount = seedRisksFromScenarioDraft(narrative, { force: true });
+    clearStep1StaleAssistState(narrative, { clearGeneratedRisks: true });
+    const seededCount = seedRisksFromScenarioDraft(narrative, { force: true, replaceGenerated: true });
     AppState.draft.narrative = narrative;
     AppState.draft.sourceNarrative = AppState.draft.sourceNarrative || narrative;
     persistAndRenderStep1();
@@ -1635,6 +1655,7 @@ function normaliseAssessmentTokens(text) {
 function buildStep1AssessmentSignals(narrative) {
   const guidedInput = AppState.draft?.guidedInput || {};
   return {
+    scenarioLens: AppState.draft?.scenarioLens || getStep1PreferredScenarioLens(getEffectiveSettings(), AppState.draft),
     eventTokens: normaliseAssessmentTokens(guidedInput.event || narrative).slice(0, 14),
     assetTokens: normaliseAssessmentTokens(guidedInput.asset).slice(0, 10),
     causeTokens: normaliseAssessmentTokens(guidedInput.cause).slice(0, 10),
@@ -1673,6 +1694,17 @@ function scoreRiskForCurrentAssessment(risk, assessmentSignals, selectedIds) {
   if (risk.source === 'ai+register' || risk.source === 'register') {
     score += 2;
   }
+  const hasLensMatch = typeof riskMatchesLens === 'function'
+    ? riskMatchesLens(risk, assessmentSignals.scenarioLens)
+    : true;
+  const lensLabel = String(assessmentSignals?.scenarioLens?.label || 'current').trim().toLowerCase();
+  if (!hasLensMatch) {
+    score -= 6;
+    reasons.push(`Sits outside the current ${lensLabel} scenario lens.`);
+  } else if (assessmentSignals?.scenarioLens?.key && assessmentSignals.scenarioLens.key !== 'general') {
+    score += 2;
+    reasons.push(`Matches the current ${lensLabel} scenario lens.`);
+  }
 
   const eventMatches = countAssessmentMatches(assessmentSignals.eventTokens, haystack);
   const assetMatches = countAssessmentMatches(assessmentSignals.assetTokens, haystack);
@@ -1701,7 +1733,7 @@ function scoreRiskForCurrentAssessment(risk, assessmentSignals, selectedIds) {
   }
 
   const fit = selectedIds.has(risk.id)
-    ? 'selected'
+    ? (score >= 8 ? 'selected' : 'selected-review')
     : score >= 8
       ? 'strong'
       : score >= 4
@@ -1715,6 +1747,7 @@ function scoreRiskForCurrentAssessment(risk, assessmentSignals, selectedIds) {
 }
 
 function explainRiskFit(match, selected) {
+  if (selected && match?.reasons?.length) return `Already included in this assessment. ${match.reasons.join(' ')}`;
   if (selected) return 'Already included in this assessment.';
   if (match?.reasons?.length) return match.reasons.join(' ');
   if (match?.fit === 'strong') return 'Good fit because it closely matches the current scenario draft.';
@@ -1724,7 +1757,15 @@ function explainRiskFit(match, selected) {
 
 function renderRiskSelectionSection(title, subtitle, risks, selectedIds, regulations, sectionClass = '') {
   if (!risks.length) return '';
-  const sourceLabel = risk => risk.source === 'manual' ? 'Manual' : risk.source === 'dry-run' ? 'Example' : risk.source === 'register' || risk.source === 'ai+register' ? 'Upload' : 'AI generated';
+  const sourceLabel = risk => risk.source === 'manual'
+    ? 'Manual'
+    : risk.source === 'dry-run'
+      ? 'Example'
+      : risk.source === 'scenario-draft'
+        ? 'Built draft'
+        : risk.source === 'register' || risk.source === 'ai+register'
+          ? 'Upload'
+          : 'AI generated';
   // Risk titles, descriptions, and regulation labels can come from uploaded files or AI suggestions, so escape before rendering.
   return `<div class="${escapeHtml(String(sectionClass))}" style="display:flex;flex-direction:column;gap:var(--sp-4)"><div><div class="context-panel-title">${escapeHtml(String(title))}</div><div class="context-panel-copy" style="margin-top:6px">${escapeHtml(String(subtitle))}</div></div><div class="risk-selection-grid">${risks.map(({ risk, match }) => `<div class="risk-pick-card"><div class="risk-pick-head" style="align-items:flex-start"><label style="display:flex;gap:12px;align-items:flex-start;flex:1;cursor:pointer"><input type="checkbox" class="risk-select-checkbox" data-risk-id="${escapeHtml(String(risk.id || ''))}" ${selectedIds.has(risk.id) ? 'checked' : ''} style="margin-top:4px"><div><div class="risk-pick-title">${escapeHtml(String(risk.title || 'Untitled risk'))}</div><div class="risk-pick-badges"><span class="risk-pick-badge">${escapeHtml(String(risk.category || 'Uncategorized'))}</span><span class="risk-pick-badge risk-pick-badge--source">${escapeHtml(String(sourceLabel(risk)))}</span></div></div></label><button class="btn btn--ghost btn--sm btn-remove-risk" data-risk-id="${escapeHtml(String(risk.id || ''))}" type="button">Remove</button></div>${risk.description ? `<p class="risk-pick-desc">${escapeHtml(String(risk.description))}</p>` : ''}<div class="form-help" style="margin-bottom:10px">${escapeHtml(String(explainRiskFit(match, selectedIds.has(risk.id))))}</div><div class="citation-chips">${(risk.regulations || []).length ? risk.regulations.slice(0, 4).map(tag => `<span class="badge badge--neutral">${escapeHtml(String(tag))}</span>`).join('') : regulations.slice(0, 2).map(tag => `<span class="badge badge--neutral">${escapeHtml(String(tag))}</span>`).join('')}</div></div>`).join('')}</div></div>`;
 }
@@ -1745,6 +1786,7 @@ function renderSelectedRiskCards(riskCandidates, selectedRisks, regulations) {
       return { risk, match, score: match.score };
     })
     .sort((a, b) => b.score - a.score || String(a.risk.title || '').localeCompare(String(b.risk.title || '')));
+  const selectedReviewCount = ranked.filter(item => selectedIds.has(item.risk.id) && item.match.fit === 'selected-review').length;
   const recommended = ranked.filter(item => selectedIds.has(item.risk.id) || item.match.fit === 'strong' || item.score >= 4);
   const extras = ranked.filter(item => !recommended.includes(item));
   const selectedCount = selectedRisks.length;
@@ -1755,6 +1797,7 @@ function renderSelectedRiskCards(riskCandidates, selectedRisks, regulations) {
       : 'Choose the risks that share the same event, scope, or business impact.';
   const additionalRisksDisclosureKey = getDisclosureStateKey('/wizard/1', 'show additional possible risks');
   return `${linkedRecommendations.length ? `<div class="card mb-4" style="background:var(--bg-elevated)"><div class="context-panel-title">Suggested linked-risk groupings</div><div style="display:flex;flex-direction:column;gap:var(--sp-3);margin-top:var(--sp-3)">${linkedRecommendations.map(group => `<div><div style="font-size:.78rem;font-weight:600;color:var(--text-primary)">${escapeHtml(String(group.label || 'Linked risks'))}</div><div class="context-panel-copy" style="margin-top:4px">${escapeHtml(String((Array.isArray(group.risks) ? group.risks : []).join(', ')))}</div></div>`).join('')}</div><div class="context-panel-foot">${escapeHtml(String(AppState.draft.linkAnalysis || 'Treat these as linked where one control or event could trigger the others in the same scenario.'))}</div></div>` : ''}
+  ${selectedReviewCount ? `<div class="wizard-summary-band wizard-summary-band--quiet mb-4"><div><div class="wizard-summary-band__label">Scope review suggested</div><strong>${selectedReviewCount} selected risk${selectedReviewCount === 1 ? '' : 's'} may sit outside the current scenario lens</strong><div class="wizard-summary-band__copy">Keep them only if they clearly belong in the same event path, business impact, and management discussion.</div></div></div>` : ''}
   <div class="flex items-center gap-3 mb-4" style="flex-wrap:wrap">
     <button class="btn btn--ghost btn--sm" id="btn-select-all-risks" type="button">Select All</button>
     <button class="btn btn--ghost btn--sm" id="btn-clear-all-risks" type="button">Clear All</button>

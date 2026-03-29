@@ -5,6 +5,7 @@
     'material technology and cyber risk requiring structured assessment',
     'technology outage affecting core business services'
   ]);
+  const REFRESHABLE_SUGGESTED_RISK_SOURCES = new Set(['ai', 'ai+register', 'register', 'scenario-draft']);
 
   function normaliseRisk(risk, source = 'manual') {
     const parsedLine = typeof risk === 'string' ? parseStructuredRiskLine(risk) : parseStructuredRiskLine(risk?.title);
@@ -78,6 +79,21 @@
       : getRiskCandidates();
     const merged = mergeRisks(baseCandidates, incomingRisks);
     const existingIds = new Set(Array.isArray(AppState.draft.selectedRiskIds) ? AppState.draft.selectedRiskIds : []);
+    const selectedIds = merged
+      .filter((risk) => existingIds.has(risk.id) || (selectNew && incomingTitles.has(risk.title.toLowerCase())))
+      .map((risk) => risk.id);
+    AppState.draft.riskCandidates = merged;
+    AppState.draft.selectedRiskIds = selectedIds;
+    AppState.draft.selectedRisks = merged.filter((risk) => selectedIds.includes(risk.id));
+  }
+
+  function replaceSuggestedRiskCandidates(incoming, { selectNew = true } = {}) {
+    const incomingRisks = mergeRisks([], incoming || []);
+    const incomingTitles = new Set(incomingRisks.map((risk) => risk.title.toLowerCase()));
+    const existingIds = new Set(Array.isArray(AppState.draft.selectedRiskIds) ? AppState.draft.selectedRiskIds : []);
+    // When the analyst refreshes Step 1 suggestions, stale AI/register cards from the previous draft make the shortlist look unrelated.
+    const preservedCandidates = getRiskCandidates().filter((risk) => !REFRESHABLE_SUGGESTED_RISK_SOURCES.has(String(risk?.source || '').trim().toLowerCase()));
+    const merged = mergeRisks(preservedCandidates, incomingRisks);
     const selectedIds = merged
       .filter((risk) => existingIds.has(risk.id) || (selectNew && incomingTitles.has(risk.title.toLowerCase())))
       .map((risk) => risk.id);
@@ -240,6 +256,32 @@
     return current || enhanced || base;
   }
 
+  function clearScenarioAssistArtifacts({ clearGeneratedRisks = false } = {}) {
+    AppState.draft.llmAssisted = false;
+    AppState.draft.scenarioTitle = '';
+    AppState.draft.enhancedNarrative = '';
+    AppState.draft.intakeSummary = '';
+    AppState.draft.linkAnalysis = '';
+    AppState.draft.workflowGuidance = [];
+    AppState.draft.benchmarkBasis = '';
+    AppState.draft.confidenceLabel = '';
+    AppState.draft.evidenceQuality = '';
+    AppState.draft.evidenceSummary = '';
+    AppState.draft.primaryGrounding = [];
+    AppState.draft.supportingReferences = [];
+    AppState.draft.inferredAssumptions = [];
+    AppState.draft.missingInformation = [];
+    AppState.draft.citations = [];
+    if (!clearGeneratedRisks) return;
+    const preservedCandidates = getRiskCandidates().filter((risk) => !REFRESHABLE_SUGGESTED_RISK_SOURCES.has(String(risk?.source || '').trim().toLowerCase()));
+    const selectedIds = new Set(Array.isArray(AppState.draft.selectedRiskIds) ? AppState.draft.selectedRiskIds : []);
+    AppState.draft.riskCandidates = preservedCandidates;
+    AppState.draft.selectedRiskIds = preservedCandidates
+      .filter((risk) => selectedIds.has(risk.id))
+      .map((risk) => risk.id);
+    AppState.draft.selectedRisks = preservedCandidates.filter((risk) => AppState.draft.selectedRiskIds.includes(risk.id));
+  }
+
   function normaliseScenarioSeedText(value) {
     const raw = String(value || '').replace(/\s+/g, ' ').trim();
     if (!raw) return '';
@@ -309,8 +351,8 @@
     AppState.draft.supportingReferences = Array.isArray(result.supportingReferences) ? result.supportingReferences : (AppState.draft.supportingReferences || []);
     AppState.draft.inferredAssumptions = Array.isArray(result.inferredAssumptions) ? result.inferredAssumptions : (AppState.draft.inferredAssumptions || []);
     AppState.draft.missingInformation = Array.isArray(result.missingInformation) ? result.missingInformation : (AppState.draft.missingInformation || []);
-    // AI summaries can drift away from the active domain lens; if no shortlist items align, prefer a lens-aware local shortlist over unrelated cards.
-    appendRiskCandidates(
+    // Refresh AI-generated suggestions from the current scenario so old AI/register cards do not stay selected after the analyst rewrites the draft.
+    replaceSuggestedRiskCandidates(
       getAlignedRiskSeed(result.risks, resolvedNarrative || narrative, AppState.draft.scenarioLens),
       { selectNew: true }
     );
@@ -324,7 +366,7 @@
 
   function applyRegisterAnalysisResultToDraft(result, { parsedFallback = [] } = {}) {
     const extractedRisks = Array.isArray(result?.risks) && result.risks.length ? result.risks : parsedFallback;
-    appendRiskCandidates(extractedRisks, { selectNew: true });
+    replaceSuggestedRiskCandidates(extractedRisks, { selectNew: true });
     const workbookSummary = AppState.draft.registerMeta?.sheetCount > 1 ? ` across ${AppState.draft.registerMeta.sheetCount} sheets` : '';
     AppState.draft.intakeSummary = result.summary || `Extracted ${getSelectedRisks().length} risks from ${AppState.draft.uploadedRegisterName}${workbookSummary}.`;
     AppState.draft.linkAnalysis = result.linkAnalysis || AppState.draft.linkAnalysis;
@@ -350,6 +392,9 @@
     syncRiskSelection,
     getSelectedRisks,
     appendRiskCandidates,
+    replaceSuggestedRiskCandidates,
+    clearScenarioAssistArtifacts,
+    riskMatchesLens,
     getLinkedRiskRecommendations,
     getScenarioMultipliers,
     deriveApplicableRegulations,
@@ -369,6 +414,9 @@
     syncRiskSelection,
     getSelectedRisks,
     appendRiskCandidates,
+    replaceSuggestedRiskCandidates,
+    clearScenarioAssistArtifacts,
+    riskMatchesLens,
     getLinkedRiskRecommendations,
     getScenarioMultipliers,
     deriveApplicableRegulations,

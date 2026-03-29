@@ -3540,6 +3540,54 @@ function normaliseScenarioLensHint(value) {
 function guessRisksFromText(text, { lensHint = null } = {}) {
   const source = String(text || '').toLowerCase();
   const lensKey = normaliseScenarioLensHint(lensHint);
+  const specialisedSeeds = (() => {
+    if (/collud|price fix|bid rig|inflate (?:their |the )?bid|cartel|anti-?competitive|competition law/.test(source)) {
+      return [
+        {
+          title: 'Procurement collusion or bid-rigging exposure',
+          category: 'Procurement',
+          regulations: ['ISO 20400', 'ISO 37301'],
+          description: 'Competing suppliers may be coordinating bids or pricing in a way that distorts the award decision and weakens procurement integrity.'
+        },
+        {
+          title: 'Commercial overpayment on a critical contract award',
+          category: 'Financial',
+          regulations: ['COSO Internal Control Framework'],
+          description: 'Artificially inflated bids can lock the organisation into avoidable cost, weaker value-for-money, and downstream budget pressure.'
+        },
+        {
+          title: 'Competition-law or sourcing-governance scrutiny',
+          category: 'Regulatory',
+          regulations: ['ISO 37301'],
+          description: 'Suspicious bid behaviour can trigger challenge, remediation, and management scrutiny over how the sourcing decision was governed.'
+        }
+      ];
+    }
+    if (/single[- ]source|sole source|supplier shortfall|supplier concentration|critical supplier/.test(source)) {
+      return [
+        {
+          title: 'Single-source supplier dependency on a critical spend category',
+          category: 'Procurement',
+          regulations: ['ISO 20400', 'ISO 28000'],
+          description: 'One supplier now carries disproportionate delivery or commercial leverage over a critical category.'
+        },
+        {
+          title: 'Supply chain resilience shortfall from limited fallback options',
+          category: 'Supply Chain',
+          regulations: ['ISO 28000', 'ISO 22301'],
+          description: 'Weak substitution or delayed fallback could turn a supplier issue into a material continuity problem.'
+        },
+        {
+          title: 'Contractual delivery or service failure from supplier concentration',
+          category: 'Third-Party',
+          regulations: ['ISO 27036', 'ISO 28000'],
+          description: 'Concentrated dependency can create missed obligations, delayed delivery, and harder commercial escalation when the supplier slips.'
+        }
+      ];
+    }
+    return [];
+  })();
+  if (specialisedSeeds.length) return specialisedSeeds;
   const patterns = [
     { key: 'strategic', title: 'Strategic execution or market-position risk', category: 'Strategic', regulations: ['ISO 31000', 'COSO ERM'], terms: ['strategy', 'strategic', 'expansion', 'transformation', 'growth', 'market', 'competitive', 'portfolio', 'investment'] },
     { key: 'operational', title: 'Operational breakdown affecting core services', category: 'Operational', regulations: ['ISO 31000', 'ISO 22301'], terms: ['outage', 'availability', 'disruption', 'failure', 'breakdown', 'backlog', 'capacity', 'process failure'] },
@@ -3877,35 +3925,74 @@ function composeGuidedNarrative(guidedInput = {}, { lensLabel = '', lensKey = ''
   const resolvedLensLabel = String(lensLabel || '').trim();
   const resolvedLensKey = normaliseScenarioLensHint(lensKey || lensLabel);
   const lensPrefix = resolvedLensLabel ? `${resolvedLensLabel} ` : '';
-  let primaryClause = event;
-  if (cause && event) {
-    primaryClause = `${cause.toLowerCase()} could lead to ${event.charAt(0).toLowerCase() + event.slice(1)}`;
-  } else if (cause) {
-    primaryClause = `${cause} could trigger a material ${resolvedLensLabel ? resolvedLensLabel.toLowerCase() + ' ' : ''}scenario`;
-  } else if (event) {
-    primaryClause = `${event.charAt(0).toLowerCase() + event.slice(1)}`;
-  }
-
+  const lowerFirst = (value = '') => {
+    const text = String(value || '').trim();
+    if (!text) return '';
+    return text.charAt(0).toLowerCase() + text.slice(1);
+  };
+  const defaultsByLens = {
+    procurement: {
+      affected: 'the sourcing decision, contract award path, or spend category in scope',
+      impact: 'commercial overpayment, award challenge, supplier-governance strain, and regulatory scrutiny',
+      followOn: 'This kind of procurement event usually weakens challenge over pricing, supplier fit, and management confidence in the award decision.'
+    },
+    'supply-chain': {
+      affected: 'the critical supply path, inventory position, or delivery commitment in scope',
+      impact: 'delivery shortfall, customer or programme delay, and continuity pressure',
+      followOn: 'This kind of supply-chain event often cascades into workaround cost, contractual pressure, and weaker fallback options.'
+    },
+    compliance: {
+      affected: 'the control, policy, or obligation set in scope',
+      impact: 'remediation burden, assurance pressure, and regulatory scrutiny',
+      followOn: 'This usually becomes more serious when exceptions, approvals, or reporting quality are not challenged early.'
+    },
+    regulatory: {
+      affected: 'the regulated activity, licence condition, or filing obligation in scope',
+      impact: 'enforcement pressure, remediation cost, and management escalation'
+    },
+    financial: {
+      affected: 'the financial process, transaction flow, or commercial exposure in scope',
+      impact: 'direct monetary loss, control pressure, and delayed detection'
+    },
+    strategic: {
+      affected: 'the strategic objective, programme, or operating model in scope',
+      impact: 'value erosion, management distraction, and corrective execution cost'
+    },
+    operational: {
+      affected: 'the operating process or service in scope',
+      impact: 'service degradation, backlog growth, and recovery effort'
+    },
+    'business-continuity': {
+      affected: 'the recovery-critical service or fallback operating model in scope',
+      impact: 'extended disruption, missed recovery objectives, and continuity escalation'
+    },
+    hse: {
+      affected: 'the people, site, or environment in scope',
+      impact: 'harm, shutdown pressure, remediation cost, and regulatory attention'
+    },
+    cyber: {
+      affected: 'the critical platform, dataset, or identity path in scope',
+      impact: 'service disruption, data exposure, fraud risk, and response cost'
+    },
+    general: {
+      affected: 'the business activity or dependency in scope',
+      impact: 'material operational, financial, or regulatory consequences'
+    }
+  };
+  const defaults = defaultsByLens[resolvedLensKey] || defaultsByLens.general;
   const parts = [];
-  if (primaryClause) {
-    parts.push(`${urgencyPrefix} ${lensPrefix}scenario: ${primaryClause.charAt(0).toUpperCase() + primaryClause.slice(1)}.`);
+  if (event) {
+    parts.push(`${urgencyPrefix} ${lensPrefix}scenario: ${event.charAt(0).toUpperCase() + event.slice(1)}.`);
+  } else if (cause) {
+    parts.push(`${urgencyPrefix} ${lensPrefix}scenario: ${cause.charAt(0).toUpperCase() + cause.slice(1)} could trigger a material issue.`);
   }
-  if (asset) {
-    const assetLead = resolvedLensKey === 'procurement'
-      ? 'The sourcing decision or dependency in scope is'
-      : resolvedLensKey === 'strategic'
-        ? 'The strategic objective or capability in scope is'
-        : 'The primary asset, service, or activity in scope is';
-    parts.push(`${assetLead} ${asset}.`);
-  }
-  if (impact) {
-    const impactLead = resolvedLensKey === 'procurement' || resolvedLensKey === 'supply-chain'
-      ? 'If this develops, it could create'
-      : 'If the scenario develops, it could result in';
-    parts.push(`${impactLead} ${impact.charAt(0).toLowerCase() + impact.slice(1)}.`);
-  }
+  parts.push(`The area most exposed is ${asset || defaults.affected}.`);
   if (cause) {
-    parts.push(`The most likely driver is ${cause.charAt(0).toLowerCase() + cause.slice(1)}.`);
+    parts.push(`The most likely driver is ${lowerFirst(cause)}.`);
+  }
+  parts.push(`If this develops, it could create ${lowerFirst(impact || defaults.impact)}.`);
+  if (!impact && defaults.followOn) {
+    parts.push(defaults.followOn);
   }
   if (asset && /identity|directory|sso|email|azure ad|active directory/i.test(`${event} ${asset} ${cause}`.toLowerCase())) {
     parts.push('Likely knock-on effects include mailbox compromise, privileged misuse, downstream service disruption, and data exposure if the event is not contained quickly.');

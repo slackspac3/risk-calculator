@@ -403,6 +403,56 @@ const LLMService = (() => {
   function _extractRiskCandidates(text, { lensHint = null } = {}) {
     const source = String(text || '').toLowerCase();
     const lensKey = _normaliseScenarioHintKey(lensHint);
+    if (/collud|price fix|bid rig|inflate (?:their |the )?bid|cartel|anti-?competitive|competition law/.test(source)) {
+      return [
+        {
+          key: 'procurement',
+          title: 'Procurement collusion or bid-rigging exposure',
+          category: 'Procurement',
+          regulations: ['ISO 20400', 'ISO 37301'],
+          description: 'Competing suppliers may be coordinating bids or pricing in a way that distorts the sourcing decision and weakens procurement integrity.'
+        },
+        {
+          key: 'financial',
+          title: 'Commercial overpayment on a critical contract award',
+          category: 'Financial',
+          regulations: ['COSO Internal Control Framework'],
+          description: 'Artificially inflated bids can lock the organisation into avoidable cost, weaker value-for-money, and downstream budget pressure.'
+        },
+        {
+          key: 'regulatory',
+          title: 'Competition-law or sourcing-governance scrutiny',
+          category: 'Regulatory',
+          regulations: ['ISO 37301'],
+          description: 'Suspicious bid behaviour can trigger challenge, remediation, and management scrutiny over how the sourcing decision was governed.'
+        }
+      ];
+    }
+    if (/single[- ]source|sole source|supplier shortfall|supplier concentration|critical supplier/.test(source)) {
+      return [
+        {
+          key: 'procurement',
+          title: 'Single-source supplier dependency on a critical spend category',
+          category: 'Procurement',
+          regulations: ['ISO 20400', 'ISO 28000'],
+          description: 'One supplier now carries disproportionate delivery or commercial leverage over a critical category.'
+        },
+        {
+          key: 'supply-chain',
+          title: 'Supply chain resilience shortfall from limited fallback options',
+          category: 'Supply Chain',
+          regulations: ['ISO 28000', 'ISO 22301'],
+          description: 'Weak substitution or delayed fallback could turn a supplier issue into a material continuity problem.'
+        },
+        {
+          key: 'third-party',
+          title: 'Contractual delivery or service failure from supplier concentration',
+          category: 'Third-Party',
+          regulations: ['ISO 27036', 'ISO 28000'],
+          description: 'Concentrated dependency can create missed obligations, delayed delivery, and harder commercial escalation when the supplier slips.'
+        }
+      ];
+    }
     const catalog = [
       { key: 'strategic', title: 'Strategic execution or market-position risk', category: 'Strategic', regulations: ['ISO 31000', 'COSO ERM'], terms: ['strategy', 'strategic', 'expansion', 'transformation', 'market', 'competitive', 'portfolio', 'investment'] },
       { key: 'operational', title: 'Operational breakdown affecting core services', category: 'Operational', regulations: ['ISO 31000', 'ISO 22301'], terms: ['outage', 'availability', 'disruption', 'failure', 'breakdown', 'backlog', 'capacity', 'process failure'] },
@@ -624,6 +674,47 @@ const LLMService = (() => {
     const causeText = cause ? `The most credible initial path is ${cause.toLowerCase()}` : '';
     const impactText = impact ? `The likely business effect is ${impact.toLowerCase()}` : '';
     return _ensureSentence([`${place}, ${org} could face a material ${focus}`.replace(/\s+/g, ' ').trim(), causeText, impactText].filter(Boolean).join(' '));
+  }
+
+  function _buildRiskContextSummary({ classification, asset = '', impact = '', riskTitles = [] } = {}) {
+    const label = String(classification?.label || classification?.scenarioType || 'enterprise').trim().toLowerCase();
+    const focus = asset ? ` around ${asset}` : '';
+    const impactText = String(impact || classification?.effect || '').trim();
+    const firstRisk = String(riskTitles?.[0]?.title || '').trim();
+    const secondRisk = String(riskTitles?.[1]?.title || '').trim();
+    const impactTail = impactText
+      ? ` Likely consequences include ${impactText.charAt(0).toLowerCase() + impactText.slice(1)}.`
+      : '';
+    const riskTail = firstRisk
+      ? ` Primary pressure points are ${firstRisk}${secondRisk ? ` and ${secondRisk.toLowerCase()}` : ''}.`
+      : '';
+    return _cleanUserFacingText(`AI reframed this as a ${label} scenario${focus}.${impactTail}${riskTail}`, { maxSentences: 3 });
+  }
+
+  function _buildRiskContextLinkAnalysis({ classification, riskTitles = [] } = {}) {
+    const key = String(classification?.key || 'general').trim();
+    if (key === 'procurement') {
+      return 'The main chain is distorted sourcing governance, commercial overpayment, and possible regulatory or assurance challenge. Keep only the risks that belong in that chain.';
+    }
+    if (key === 'supply-chain' || key === 'third-party') {
+      return 'The main chain is dependency weakness, delivery or service disruption, and wider continuity or commercial consequences. Keep only the risks that belong in that chain.';
+    }
+    if (key === 'compliance' || key === 'regulatory') {
+      return 'The main chain is control or obligation failure, management challenge, and regulatory or assurance consequences. Keep only the risks that share that same path.';
+    }
+    if (key === 'financial') {
+      return 'The main chain is control weakness or manipulation, direct financial loss, and escalation through assurance, legal, or treasury response. Keep only the risks that fit that path.';
+    }
+    if ((Array.isArray(riskTitles) ? riskTitles.length : 0) > 1) {
+      return 'Several selected risks appear capable of cascading together. Keep only the risks that clearly belong in the same event path and business consequence chain.';
+    }
+    return 'A single primary risk driver was identified from the intake. Keep only the risk that best represents the same scenario and business consequence.';
+  }
+
+  function _looksGenericRiskContextCopy(value = '') {
+    const text = String(value || '').replace(/\s+/g, ' ').trim().toLowerCase();
+    if (!text) return true;
+    return /ai expanded the scenario into a clearer risk narrative|suggested draft|candidate risk identified from the intake text|a single primary risk driver was identified from the intake/.test(text);
   }
 
   function _isGenericRiskTitle(title = '') {
@@ -1353,9 +1444,10 @@ ${businessUnit.selectedDepartmentContext}` : ''
       scenarioLensHint: input.scenarioLensHint
     });
     const resolvedClassificationKey = String(classification?.key || 'general').trim() || 'general';
+    const intakeText = [statement, asset, cause, impact].filter(Boolean).join(' ').toLowerCase();
 
     let scenarioExpansion = _ensureSentence(statement) || _buildScenarioLead({ geography, businessUnit });
-    let summary = `AI expanded the scenario into a clearer risk narrative for ${businessUnit}.`;
+    let summary = _buildRiskContextSummary({ classification, asset, impact, riskTitles: [] });
     let riskTitles = _extractRiskCandidates([statement, cause, impact].join('\n'), { lensHint: input.scenarioLensHint || classification });
 
     if (resolvedClassificationKey === 'identity') {
@@ -1464,6 +1556,13 @@ ${businessUnit.selectedDepartmentContext}` : ''
         'The most likely progression is weak sourcing governance, contract control failure, or poor supplier fit leading to commercial downside, assurance gaps, or downstream service issues.',
         'This should be assessed for commercial exposure, control weakness, supplier dependence, and whether the decision creates broader compliance or continuity risk.'
       ].join(' ');
+      if (/collud|price fix|bid rig|inflate (?:their |the )?bid|cartel|anti-?competitive|competition law/.test(intakeText)) {
+        scenarioExpansion = [
+          _buildScenarioLead({ geography, businessUnit, asset: asset || 'the sourcing event or contract award in scope', cause: cause || 'supplier collusion or bid-rigging behaviour', impact: impact || 'commercial overpayment, challenge to the award decision, and regulatory scrutiny', scenarioLabel: 'procurement collusion scenario' }),
+          'The most likely progression is coordinated supplier behaviour distorting price discovery, weakening the integrity of the sourcing process, and pushing management toward an overpriced or poorly governed contract award.',
+          'This should be assessed for avoidable commercial leakage, challenge to procurement governance, and whether competition or compliance scrutiny could follow once the pattern becomes visible.'
+        ].join(' ');
+      }
     } else if (resolvedClassificationKey === 'business-continuity') {
       scenarioExpansion = [
         _buildScenarioLead({ geography, businessUnit, asset: asset || 'the recovery-critical service or process', cause: cause || 'weak continuity or recovery execution', impact: impact || 'extended outage and recovery pressure', scenarioLabel: 'business continuity risk scenario' }),
@@ -1482,6 +1581,8 @@ ${businessUnit.selectedDepartmentContext}` : ''
         _ensureSentence(statement)
       ].join(' ');
     }
+
+    summary = _buildRiskContextSummary({ classification, asset, impact, riskTitles });
 
     return {
       scenarioExpansion: _dedupeSentences(scenarioExpansion),
@@ -1521,10 +1622,8 @@ ${businessUnit.selectedDepartmentContext}` : ''
         ];
     return {
       enhancedStatement: riskStatement ? scenarioExpansion.scenarioExpansion : '',
-      summary: registerText ? `AI identified ${risks.length} candidate risk${risks.length > 1 ? 's' : ''} from the uploaded material and expanded the scenario into a more realistic assessment narrative.` : scenarioExpansion.summary,
-      linkAnalysis: risks.length > 1
-        ? 'Several selected risks appear capable of cascading together. Treat them as linked if one event could trigger operational, regulatory, or third-party consequences in the same chain.'
-        : 'A single primary risk driver was identified from the intake.',
+      summary: registerText ? `AI identified ${risks.length} candidate risk${risks.length > 1 ? 's' : ''} from the uploaded material and reframed them into one coherent ${scenarioLens.label.toLowerCase()} scenario.` : scenarioExpansion.summary,
+      linkAnalysis: _buildRiskContextLinkAnalysis({ classification, riskTitles: scenarioExpansion.riskTitles }),
       scenarioLens: _buildScenarioLens(classification),
       risks,
       regulations: Array.from(new Set([...(input.applicableRegulations || []), ...risks.flatMap(r => r.regulations || [])])),
@@ -1708,6 +1807,7 @@ Treat the primary lens hint as the leading domain for this scenario unless the n
       businessUnit: input.businessUnit,
       scenarioLensHint: input.scenarioLensHint
     });
+    const fallbackScenarioExpansion = _buildScenarioExpansion({ ...input, classification });
     if (_isDirectCompassUrl(_compassApiUrl) && !_compassApiKey) {
       await new Promise(r => setTimeout(r, 1400 + Math.random() * 600));
     }
@@ -1794,11 +1894,19 @@ Treat the primary lens hint as the leading domain for this scenario unless the n
             ...parsed,
             scenarioLens: _normaliseScenarioLens(parsed.scenarioLens, _buildScenarioLens(classification)),
             enhancedStatement: _buildEnhancedNarrative(input, parsed.enhancedStatement),
-            summary: _cleanUserFacingText(parsed.summary || '', { maxSentences: 3 }),
-            linkAnalysis: _cleanUserFacingText(parsed.linkAnalysis || '', { maxSentences: 3 }),
+            summary: _cleanUserFacingText(
+              _looksGenericRiskContextCopy(parsed.summary) ? fallbackScenarioExpansion.summary : (parsed.summary || fallbackScenarioExpansion.summary),
+              { maxSentences: 3 }
+            ),
+            linkAnalysis: _cleanUserFacingText(
+              _looksGenericRiskContextCopy(parsed.linkAnalysis)
+                ? _buildRiskContextLinkAnalysis({ classification, riskTitles: fallbackScenarioExpansion.riskTitles })
+                : (parsed.linkAnalysis || _buildRiskContextLinkAnalysis({ classification, riskTitles: fallbackScenarioExpansion.riskTitles })),
+              { maxSentences: 3 }
+            ),
             workflowGuidance: _normaliseGuidance(parsed.workflowGuidance),
             benchmarkBasis: _normaliseBenchmarkBasis(parsed.benchmarkBasis || 'Use FAIR-aligned assumptions, test them against control evidence, and prefer local regulatory or operational comparators where credible before falling back to mature global incident patterns.'),
-            risks: _normaliseRiskCards(parsed.risks),
+            risks: _normaliseRiskCards(Array.isArray(parsed.risks) && parsed.risks.length ? parsed.risks : fallbackScenarioExpansion.riskTitles),
             regulations: Array.from(new Set((parsed.regulations || []).map(String).filter(Boolean))),
             citations: input.citations || []
           }, evidenceMeta), evidenceMeta, {
