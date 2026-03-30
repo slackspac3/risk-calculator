@@ -726,5 +726,160 @@
     ],
     "contentExcerpt": "The World Bank Procurement Framework is relevant for value-for-money sourcing, market approach, bid governance, contract management, fraud and corruption control, and supplier performance oversight. It helps assess procurement and sourcing scenarios where governance quality materially affects delivery, cost, resilience, or integrity.",
     "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-oecd-rbc-48",
+    "title": "OECD Due Diligence Guidance for Responsible Business Conduct",
+    "url": "#/admin/docs",
+    "tags": [
+      "procurement",
+      "supply-chain",
+      "esg",
+      "compliance",
+      "human-rights",
+      "global",
+      "all-bu"
+    ],
+    "contentExcerpt": "The OECD due diligence guidance is relevant where supplier conduct, human-rights exposure, environmental harm, grievance handling, remediation, or value-chain oversight could create legal, operational, financing, or reputation risk. It helps ground procurement and ESG scenarios in structured due-diligence expectations rather than ad hoc ethics language.",
+    "lastUpdated": "2025-06-15"
+  },
+  {
+    "id": "doc-ungp-49",
+    "title": "UN Guiding Principles on Business and Human Rights Reference",
+    "url": "#/admin/docs",
+    "tags": [
+      "procurement",
+      "supply-chain",
+      "esg",
+      "compliance",
+      "human-rights",
+      "global",
+      "all-bu"
+    ],
+    "contentExcerpt": "The UN Guiding Principles are relevant when the organisation may cause, contribute to, or be directly linked to adverse human-rights impacts through suppliers, portfolio companies, projects, or services. They help frame labour-practice, worker-welfare, remediation, and governance scenarios with a recognised global accountability model.",
+    "lastUpdated": "2025-06-15"
+  },
+  {
+    "id": "doc-iso31010-50",
+    "title": "ISO 31010 Risk Assessment Techniques Reference",
+    "url": "#/admin/docs",
+    "tags": [
+      "strategic",
+      "operational",
+      "risk-management",
+      "enterprise-risk",
+      "controls",
+      "all-bu"
+    ],
+    "contentExcerpt": "ISO 31010 provides guidance on selecting and applying risk assessment techniques, including scenario analysis, bow-tie logic, fault-tree style thinking, and consequence assessment. It is useful when teams need more disciplined event-path and impact reasoning across enterprise, operational, procurement, continuity, or compliance assessments.",
+    "lastUpdated": "2025-06-15"
+  },
+  {
+    "id": "doc-iso22361-51",
+    "title": "ISO 22361 Crisis Management Reference",
+    "url": "#/admin/docs",
+    "tags": [
+      "operational",
+      "business-continuity",
+      "crisis-management",
+      "resilience",
+      "all-bu"
+    ],
+    "contentExcerpt": "ISO 22361 is relevant where scenarios test crisis leadership, decision rights, communications, escalation, cross-functional coordination, and management under uncertainty. It strengthens continuity retrieval for scenarios that are less about static plans and more about whether the organisation can lead effectively during disruption.",
+    "lastUpdated": "2025-06-15"
+  },
+  {
+    "id": "doc-iec62443-52",
+    "title": "IEC 62443 Industrial and Operational Technology Security Reference",
+    "url": "#/admin/docs",
+    "tags": [
+      "operational",
+      "cyber",
+      "hse",
+      "business-continuity",
+      "ot",
+      "facilities",
+      "all-bu"
+    ],
+    "contentExcerpt": "IEC 62443 is relevant for industrial control systems, site operations, plant networks, safety-critical automation, and operational technology governance. It helps ground scenarios where cyber and operational disruption intersect with facility resilience, worker safety, production continuity, or control-system exposure.",
+    "lastUpdated": "2025-06-15"
+  },
+  {
+    "id": "doc-nist-800161-53",
+    "title": "NIST SP 800-161 Supply Chain Risk Management Reference",
+    "url": "#/admin/docs",
+    "tags": [
+      "supply-chain",
+      "third-party",
+      "procurement",
+      "compliance",
+      "cyber",
+      "global",
+      "all-bu"
+    ],
+    "contentExcerpt": "NIST SP 800-161 is relevant for supplier assurance, dependency mapping, sub-tier visibility, sourcing governance, product integrity, and supply chain security risk management. It helps retrieval treat supplier, procurement, and concentration scenarios as structured dependency problems rather than generic vendor issues.",
+    "lastUpdated": "2025-06-15"
+  },
+  {
+    "id": "doc-ilo-osh-54",
+    "title": "ILO-OSH 2001 Occupational Safety and Health Management Guidance",
+    "url": "#/admin/docs",
+    "tags": [
+      "hse",
+      "operational",
+      "health-safety",
+      "human-rights",
+      "operations",
+      "global",
+      "all-bu"
+    ],
+    "contentExcerpt": "ILO-OSH is relevant where contractor safety, worker welfare, supervision, incident prevention, corrective action, and continuous improvement matter. It strengthens HSE retrieval for scenarios involving labour practices, unsafe conditions, site controls, and operational accountability beyond pure regulatory citation.",
+    "lastUpdated": "2025-06-15"
+  },
+  {
+    "id": "doc-sasb-55",
+    "title": "SASB Sector Materiality Reference for Sustainability Risks",
+    "url": "#/admin/docs",
+    "tags": [
+      "strategic",
+      "esg",
+      "sustainability",
+      "reporting",
+      "global",
+      "all-bu"
+    ],
+    "contentExcerpt": "The SASB standards are useful when ESG scenarios need sector-specific materiality, governance, disclosure quality, and financially relevant sustainability framing. They help separate broad sustainability language from the issues most likely to matter economically in board and investor discussions.",
+    "lastUpdated": "2025-06-15"
+  },
+  {
+    "id": "doc-tnfd-56",
+    "title": "TNFD Nature-Related Risk and Disclosure Reference",
+    "url": "#/admin/docs",
+    "tags": [
+      "strategic",
+      "esg",
+      "sustainability",
+      "supply-chain",
+      "environment",
+      "global",
+      "all-bu"
+    ],
+    "contentExcerpt": "TNFD is relevant when nature-related dependencies, ecosystem exposure, land or water impacts, and value-chain environmental stress could affect continuity, regulation, financing, or disclosure credibility. It broadens ESG grounding beyond climate-only scenarios and helps connect supply chain and environmental risk.",
+    "lastUpdated": "2025-06-15"
+  },
+  {
+    "id": "doc-iso37001-57",
+    "title": "ISO 37001 Anti-Bribery Management Systems Reference",
+    "url": "#/admin/docs",
+    "tags": [
+      "compliance",
+      "procurement",
+      "financial",
+      "anti-bribery",
+      "governance",
+      "all-bu"
+    ],
+    "contentExcerpt": "ISO 37001 is relevant for procurement integrity, conflict of interest, facilitation payments, third-party due diligence, gifts and hospitality, investigation workflows, and anti-bribery controls. It helps ground procurement and compliance scenarios where corruption or collusion risk may be the true driver.",
+    "lastUpdated": "2025-06-15"
   }
 ]

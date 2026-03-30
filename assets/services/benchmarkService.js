@@ -205,17 +205,18 @@ const BenchmarkService = (() => {
     if (/ransom|encrypt|extortion/.test(q)) return 'ransomware';
     if (/cloud|storage bucket|misconfig|tenant|saas|public exposure/.test(q)) return 'cloud';
     if (/privacy|data breach|data exposure|pii|phi|privacy incident/.test(q)) return 'data-breach';
-    if (/procurement|sourcing|tender|bid|contract award|vendor selection|purchasing/.test(q)) return 'procurement';
-    if (/supply chain|logistics|inventory|shipment|upstream|single source/.test(q)) return 'supply-chain';
+    // Treat labour-rights and supplier-diligence scenarios as procurement-first unless the text is clearly about logistics or continuity.
+    if (/procurement|sourcing|tender|bid|bid rigging|contract award|vendor selection|purchasing|collusion|kickback|conflict of interest|supplier due diligence|modern slavery|forced labor|forced labour|exploitative labor|exploitative labour|human rights/.test(q)) return 'procurement';
+    if (/supply chain|logistics|inventory|shipment|upstream|sub tier|sub-tier|single source|sole source|dependency/.test(q)) return 'supply-chain';
     if (/supplier|vendor|third party|third-party|outsourcing/.test(q)) return 'third-party';
     if (/business continuity|continuity|disaster recovery|recovery objective|recovery plan|rto|rpo|crisis management/.test(q)) return 'business-continuity';
-    if (/health and safety|occupational safety|injury|worker safety|hse|ehs|environmental|spill|hazard/.test(q)) return 'hse';
+    if (/health and safety|occupational safety|injury|worker safety|contractor safety|hse|ehs|environmental|spill|hazard|site shutdown|near miss/.test(q)) return 'hse';
     if (/strategy|strategic|market shift|competitive|transformation|portfolio|investment/.test(q)) return 'strategic';
     if (/operational|process failure|capacity|breakdown|service failure|backlog|workflow/.test(q)) return 'operational';
-    if (/regulator|regulatory|licen|filing|supervisory|sanction/.test(q)) return 'regulatory';
-    if (/fraud|payment|invoice|treasury|liquidity|capital|financial control/.test(q)) return 'financial';
-    if (/compliance|non-compliance|policy breach|conduct|ethics|assurance/.test(q)) return 'compliance';
-    if (/esg|sustainability|climate|emission|carbon|greenwashing/.test(q)) return 'esg';
+    if (/regulator|regulatory|licen|filing|supervisory|sanction|enforcement/.test(q)) return 'regulatory';
+    if (/fraud|payment|invoice|treasury|liquidity|capital|financial control|misstatement|journal entry|revenue recognition/.test(q)) return 'financial';
+    if (/compliance|non-compliance|policy breach|conduct|ethics|assurance|anti bribery|anti-bribery|corruption/.test(q)) return 'compliance';
+    if (/esg|sustainability|climate|emission|carbon|greenwashing|disclosure|nature related|transition plan/.test(q)) return 'esg';
     return 'general';
   }
 
