@@ -58,6 +58,18 @@ function buildStep2NarrativeEditSummary(before, after) {
   return `Analyst materially rewrote the ${lensLabel} narrative after AI structure support.`;
 }
 
+function getStep2PriorMessages() {
+  return Array.isArray(AppState?.draft?.llmContext) ? AppState.draft.llmContext : [];
+}
+
+function appendStep2LlmContext(userText, assistantText) {
+  if (typeof dispatchDraftAction !== 'function') return;
+  const user = String(userText || '').trim();
+  const assistant = String(assistantText || '').trim();
+  if (!user || !assistant) return;
+  dispatchDraftAction('APPEND_LLM_CONTEXT', { user, assistant });
+}
+
 function recordStep2NarrativeEditIfNeeded(nextNarrative) {
   const username = AuthService.getCurrentUser()?.username || '';
   if (!username || typeof LearningStore === 'undefined' || typeof LearningStore.recordNarrativeEdit !== 'function') return;
@@ -658,6 +670,8 @@ async function runLLMAssist() {
         }
         el.value = (el.value || '') + text;
       }
+    }, {
+      priorMessages: getStep2PriorMessages()
     });
     narrative = document.getElementById('scenario-narrative')?.value.trim()
       || document.getElementById('narrative')?.value.trim()
@@ -684,6 +698,7 @@ async function runLLMAssist() {
     AppState.draft.inputRationale = result.inputRationale || AppState.draft.inputRationale;
     AppState.draft.benchmarkReferences = Array.isArray(result.benchmarkReferences) ? result.benchmarkReferences : (AppState.draft.benchmarkReferences || []);
     AppState.draft.inputProvenance = Array.isArray(result.inputProvenance) ? result.inputProvenance : (AppState.draft.inputProvenance || []);
+    appendStep2LlmContext(scenarioText, result.draftNarrative || result.enhancedStatement || narrative);
     const s = result.suggestedInputs;
     if (s) {
       const aiPayload = _buildAiFairInputPayload(result, benchmarkCandidates, AppState.draft.citations);

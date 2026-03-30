@@ -93,7 +93,7 @@
         assessments: Array.isArray(source.assessments) ? source.assessments : fallback.assessments,
         savedAssessments: source.savedAssessments && typeof source.savedAssessments === 'object' ? source.savedAssessments : fallback.savedAssessments,
         learningStore: source.learningStore && typeof source.learningStore === 'object' ? source.learningStore : fallback.learningStore,
-        draft: source.draft && typeof source.draft === 'object' ? source.draft : fallback.draft,
+        draft: source.draft && typeof source.draft === 'object' ? normaliseDraftState(source.draft) : fallback.draft,
         draftWorkspace: source.draftWorkspace && typeof source.draftWorkspace === 'object' ? source.draftWorkspace : fallback.draftWorkspace,
         _meta: {
           revision: Number(source._meta?.revision || fallback._meta.revision || 0),
@@ -118,6 +118,26 @@
       draftDirty: updates.draftDirty !== undefined ? !!updates.draftDirty : state.draftDirty,
       draftLastSavedAt: updates.draftLastSavedAt !== undefined ? Number(updates.draftLastSavedAt || 0) : state.draftLastSavedAt,
       draftSaveTimer: updates.draftSaveTimer !== undefined ? updates.draftSaveTimer : state.draftSaveTimer
+    };
+  }
+
+  function normaliseLlmContext(messages = []) {
+    const source = Array.isArray(messages) ? messages : [];
+    return source
+      .filter(item => item && typeof item === 'object')
+      .map(item => ({
+        role: String(item.role || '').trim().toLowerCase() === 'assistant' ? 'assistant' : 'user',
+        content: String(item.content || '').trim()
+      }))
+      .filter(item => item.content)
+      .slice(-20);
+  }
+
+  function normaliseDraftState(draft) {
+    const source = draft && typeof draft === 'object' ? draft : {};
+    return {
+      ...source,
+      llmContext: normaliseLlmContext(source.llmContext)
     };
   }
 
@@ -177,13 +197,39 @@
     }
     if (actionType === 'RESET_DRAFT') {
       return appendStateTransitionLog(applyDraftAssessmentState(state, {
-        draft: safePayload.draft && typeof safePayload.draft === 'object' ? safePayload.draft : {},
+        draft: {
+          ...(safePayload.draft && typeof safePayload.draft === 'object' ? safePayload.draft : {}),
+          llmContext: []
+        },
         draftDirty: false,
         draftLastSavedAt: 0,
         draftSaveTimer: null
       }), 'draft', actionType, {
         id: safePayload.draft?.id || ''
       });
+    }
+    if (actionType === 'APPEND_LLM_CONTEXT') {
+      const nextContext = normaliseLlmContext([
+        ...(state?.draft?.llmContext || []),
+        { role: 'user', content: String(safePayload.user || '').trim() },
+        { role: 'assistant', content: String(safePayload.assistant || '').trim() }
+      ]);
+      return appendStateTransitionLog(applyDraftAssessmentState(state, {
+        draft: {
+          ...(state?.draft || {}),
+          llmContext: nextContext
+        }
+      }), 'draft', actionType, {
+        messages: nextContext.length
+      });
+    }
+    if (actionType === 'CLEAR_LLM_CONTEXT') {
+      return appendStateTransitionLog(applyDraftAssessmentState(state, {
+        draft: {
+          ...(state?.draft || {}),
+          llmContext: []
+        }
+      }), 'draft', actionType);
     }
     return state;
   }
@@ -301,7 +347,11 @@
   }
 
   function dispatchDraftAction(type, payload = {}) {
-    return writeAppState(reduceDraftAction(AppState, type, payload));
+    const actionType = String(type || '').trim().toUpperCase();
+    const preparedState = actionType === 'RESET_DRAFT'
+      ? reduceDraftAction(AppState, 'CLEAR_LLM_CONTEXT', {})
+      : AppState;
+    return writeAppState(reduceDraftAction(preparedState, type, payload));
   }
 
   function updateSimulationLifecycleState(updates = {}) {

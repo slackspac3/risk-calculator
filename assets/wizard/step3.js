@@ -3,6 +3,10 @@ function formatPlainCurrency(value, currency = 'USD') {
   return `${getCurrencyPrefix(currency)}${displayValue.toLocaleString(currency === 'AED' ? 'en-AE' : 'en-US')}`;
 }
 
+function getStep3PriorMessages() {
+  return Array.isArray(AppState?.draft?.llmContext) ? AppState.draft.llmContext : [];
+}
+
 function describeExposureBand(value) {
   const num = Number(value || 0);
   if (num <= 0.25) return 'low chance of succeeding';
@@ -1474,7 +1478,8 @@ function renderWizard3() {
         improvementRequest: request,
         businessUnit: buContext,
         adminSettings: aiContext.adminSettings,
-        citations
+        citations,
+        priorMessages: getStep3PriorMessages()
       });
       applySuggestedTreatmentInputs(result.suggestedInputs || {});
       AppState.draft.workflowGuidance = Array.isArray(result.workflowGuidance) ? result.workflowGuidance : (AppState.draft.workflowGuidance || []);

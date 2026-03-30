@@ -31,14 +31,26 @@ const LLMService = (() => {
   }
 
   function _buildPromptPayload(systemPrompt, userPrompt, options = {}) {
+    const priorMessages = (Array.isArray(options.priorMessages) ? options.priorMessages : [])
+      .filter(item => item && typeof item === 'object')
+      .map(item => ({
+        role: String(item.role || '').trim().toLowerCase() === 'assistant' ? 'assistant' : 'user',
+        content: _sanitizeAiText(item.content || '', { maxChars: 4000 })
+      }))
+      .filter(item => item.content)
+      .slice(-20);
     const guardrails = _guardrails();
     if (guardrails?.buildPromptPayload) {
-      return guardrails.buildPromptPayload(systemPrompt, userPrompt, { maxChars: Number(options.maxPromptChars || 18000) });
+      return {
+        ...guardrails.buildPromptPayload(systemPrompt, userPrompt, { maxChars: Number(options.maxPromptChars || 18000) }),
+        priorMessages
+      };
     }
     return {
       systemPrompt: _sanitizeAiText(systemPrompt, { maxChars: 6000 }),
       userPrompt: _sanitizeAiText(userPrompt, { maxChars: Number(options.maxPromptChars || 18000) }),
-      truncated: false
+      truncated: false,
+      priorMessages
     };
   }
 
@@ -716,6 +728,7 @@ const LLMService = (() => {
               temperature: Number(options.temperature ?? 0.3),
               messages: [
                 { role: 'system', content: promptPayload.systemPrompt },
+                ...(Array.isArray(promptPayload.priorMessages) ? promptPayload.priorMessages : []),
                 { role: 'user', content: promptPayload.userPrompt }
               ]
             })
@@ -794,6 +807,7 @@ const LLMService = (() => {
         temperature: Number(options.temperature ?? 0.3),
         messages: [
           { role: 'system', content: promptPayload.systemPrompt },
+          ...(Array.isArray(promptPayload.priorMessages) ? promptPayload.priorMessages : []),
           { role: 'user', content: promptPayload.userPrompt }
         ]
       })
@@ -2509,7 +2523,11 @@ ${evidenceMeta.promptBlock}
 
 Treat the primary lens hint as the leading domain for this scenario unless the narrative clearly contradicts it.`;
 
-        const raw = await _callLLM(systemPrompt, userPrompt, { taskName: 'generateScenarioAndInputs', maxPromptChars: 24000 });
+        const raw = await _callLLM(systemPrompt, userPrompt, {
+          taskName: 'generateScenarioAndInputs',
+          maxPromptChars: 24000,
+          priorMessages: Array.isArray(buContext?.priorMessages) ? buContext.priorMessages : []
+        });
         if (raw) {
           const parsed = JSON.parse(raw.replace(/```json\n?|```/g, '').trim());
           const fallback = _generateStub(narrative, buContext, retrievedDocs, benchmarkCandidates);
@@ -2665,7 +2683,8 @@ Return only the refined scenario narrative text.`;
         taskName: 'streamNarrativeRefinement',
         maxCompletionTokens: Number(options.maxCompletionTokens || 500),
         maxPromptChars: Number(options.maxPromptChars || 24000),
-        temperature: Number(options.temperature ?? 0.4)
+        temperature: Number(options.temperature ?? 0.4),
+        priorMessages: Array.isArray(options.priorMessages) ? options.priorMessages : []
       }, onChunk);
       const cleaned = _cleanUserFacingText(streamed || '', { maxSentences: 4 });
       if (cleaned) refinedNarrative = cleaned;
@@ -2673,7 +2692,14 @@ Return only the refined scenario narrative text.`;
       throw _normaliseLLMError(error);
     }
 
-    const result = await generateScenarioAndInputs(refinedNarrative, buContext, retrievedDocs, benchmarkCandidates);
+    const result = await generateScenarioAndInputs(
+      refinedNarrative,
+      Array.isArray(options.priorMessages) && options.priorMessages.length
+        ? { ...buContext, priorMessages: options.priorMessages }
+        : buContext,
+      retrievedDocs,
+      benchmarkCandidates
+    );
     return {
       ...result,
       draftNarrative: refinedNarrative,
@@ -2772,7 +2798,12 @@ Evidence quality context:
 ${evidenceMeta.promptBlock}
 
 Treat the primary lens hint as the leading domain for this scenario unless the narrative clearly contradicts it.`;
-        const raw = await _callLLM(systemPrompt, userPrompt, { taskName: 'enhanceRiskContext', temperature: 0.6, maxPromptChars: 24000 });
+        const raw = await _callLLM(systemPrompt, userPrompt, {
+          taskName: 'enhanceRiskContext',
+          temperature: 0.6,
+          maxPromptChars: 24000,
+          priorMessages: Array.isArray(input?.priorMessages) ? input.priorMessages : []
+        });
         if (raw) {
           const parsed = JSON.parse(raw.replace(/```json\n?|```/g, '').trim());
           const candidateResult = {
@@ -2922,7 +2953,8 @@ ${_truncateText(evidenceMeta.promptBlock || '', 240)}`;
           taskName: 'analyseRiskRegister',
           maxCompletionTokens: 2800,
           maxPromptChars: 9000,
-          timeoutMs: 45000
+          timeoutMs: 45000,
+          priorMessages: Array.isArray(input?.priorMessages) ? input.priorMessages : []
         });
         if (raw) {
           const parsed = JSON.parse(raw.replace(/```json\n?|```/g, '').trim());
@@ -3577,7 +3609,10 @@ Instructions:
 
 Evidence quality context:
 ${evidenceMeta.promptBlock}`;
-        const raw = await _callLLM(systemPrompt, userPrompt, { taskName: 'suggestTreatmentImprovement' });
+        const raw = await _callLLM(systemPrompt, userPrompt, {
+          taskName: 'suggestTreatmentImprovement',
+          priorMessages: Array.isArray(input?.priorMessages) ? input.priorMessages : []
+        });
         if (raw) {
           const parsed = JSON.parse(String(raw).replace(/```json\n?|```/g, '').trim());
           const ensureRange = (value, fallbackRange) => ({

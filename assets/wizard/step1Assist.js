@@ -17,6 +17,18 @@
     document.querySelectorAll('.ai-unavailable-banner').forEach(node => node.remove());
   }
 
+  function _getStep1PriorMessages() {
+    return Array.isArray(AppState?.draft?.llmContext) ? AppState.draft.llmContext : [];
+  }
+
+  function _appendStep1LlmContext(userText, assistantText) {
+    if (typeof dispatchDraftAction !== 'function') return;
+    const user = String(userText || '').trim();
+    const assistant = String(assistantText || '').trim();
+    if (!user || !assistant) return;
+    dispatchDraftAction('APPEND_LLM_CONTEXT', { user, assistant });
+  }
+
   function _renderStep1AiUnavailableBanner(target, retryHandler) {
     const targetEl = typeof target === 'string' ? document.getElementById(target) : target;
     if (!targetEl) return;
@@ -71,7 +83,8 @@
         geography: formatScenarioGeographies(getScenarioGeographies()),
         applicableRegulations: deriveApplicableRegulations(aiContext.businessUnit || bu, getSelectedRisks(), getScenarioGeographies()),
         citations,
-        adminSettings: aiContext.adminSettings
+        adminSettings: aiContext.adminSettings,
+        priorMessages: _getStep1PriorMessages()
       });
       const finalDraft = String(result.draftNarrative || result.enhancedStatement || localDraft).trim() || localDraft;
       const guidedDraftSource = String(result.draftNarrativeSource || (result.usedFallback ? 'fallback' : 'ai')).trim() || 'local';
@@ -95,6 +108,7 @@
       AppState.draft.narrative = finalDraft;
       AppState.draft.sourceNarrative = localDraft;
       AppState.draft.enhancedNarrative = finalDraft;
+      _appendStep1LlmContext(localDraft, finalDraft);
       document.getElementById('intake-risk-statement').value = finalDraft;
       saveDraft();
       renderWizard1();
@@ -166,7 +180,8 @@
         applicableRegulations: deriveApplicableRegulations(aiContext.businessUnit || bu, getSelectedRisks(), getScenarioGeographies()),
         guidedInput: { ...AppState.draft.guidedInput },
         citations,
-        adminSettings: aiContext.adminSettings
+        adminSettings: aiContext.adminSettings,
+        priorMessages: _getStep1PriorMessages()
       });
       draftScenarioState.applyScenarioAssistResultToDraft(result, {
         narrative,
@@ -175,6 +190,7 @@
         citations,
         nextNarrative: result.enhancedStatement || narrative
       });
+      _appendStep1LlmContext(assistSeed || narrative, result.enhancedStatement || result.draftNarrative || narrative);
       saveDraft();
       renderWizard1();
       if (result.aiUnavailable) {
@@ -224,7 +240,8 @@
         applicableRegulations: deriveApplicableRegulations(aiContext.businessUnit || bu, getSelectedRisks(), getScenarioGeographies()),
         guidedInput: { ...AppState.draft.guidedInput },
         citations,
-        adminSettings: aiContext.adminSettings
+        adminSettings: aiContext.adminSettings,
+        priorMessages: _getStep1PriorMessages()
       });
       draftScenarioState.applyScenarioAssistResultToDraft(result, {
         narrative,
@@ -233,6 +250,7 @@
         citations,
         nextNarrative: result.enhancedStatement || narrative
       });
+      _appendStep1LlmContext(assistSeed || narrative, result.enhancedStatement || result.draftNarrative || narrative);
       saveDraft();
       renderWizard1();
       if (result.aiUnavailable) {
@@ -271,7 +289,8 @@
         businessUnit: aiContext.businessUnit || bu,
         geography: formatScenarioGeographies(getScenarioGeographies()),
         applicableRegulations: AppState.draft.applicableRegulations || [],
-        adminSettings: aiContext.adminSettings
+        adminSettings: aiContext.adminSettings,
+        priorMessages: _getStep1PriorMessages()
       });
       const parsedFallback = parseRegisterText(AppState.draft.registerFindings).map(title => ({ title, source: 'register' }));
       const extractedRisks = result.risks || parsedFallback;
