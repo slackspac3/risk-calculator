@@ -36,7 +36,8 @@ const STEP2_SCENARIO_TYPE_OPTIONS = [
 
 function renderWizard2() {
   const draft = AppState.draft;
-  const currentThreatType = String(draft.structuredScenario?.attackType || '').trim();
+  const structuredScenario = normaliseStructuredScenario(draft.structuredScenario, { preserveUnknown: true }) || {};
+  const currentThreatType = getStructuredScenarioField(structuredScenario, 'eventPath');
   const threatTypeOptions = currentThreatType && !STEP2_SCENARIO_TYPE_OPTIONS.includes(currentThreatType)
     ? [currentThreatType, ...STEP2_SCENARIO_TYPE_OPTIONS]
     : STEP2_SCENARIO_TYPE_OPTIONS;
@@ -173,7 +174,7 @@ function renderWizard2() {
             body: `<div class="grid-2">
               <div class="form-group">
                 <label class="form-label" for="asset-service">Asset / Service</label>
-                <input class="form-input" id="asset-service" type="text" placeholder="e.g. Payment gateway" value="${draft.structuredScenario?.assetService||''}">
+                <input class="form-input" id="asset-service" type="text" placeholder="e.g. Payment gateway" value="${escapeHtml(getStructuredScenarioField(structuredScenario, 'assetService'))}">
               </div>
               <div class="form-group">
                 <label class="form-label" for="threat-type">Event path</label>
@@ -204,14 +205,14 @@ function renderWizard2() {
   document.getElementById('asset-service')?.addEventListener('input', function() {
     const next = { ...(AppState.draft.structuredScenario || {}) };
     next.assetService = this.value;
-    AppState.draft.structuredScenario = next;
+    AppState.draft.structuredScenario = normaliseStructuredScenario(next, { preserveUnknown: true });
     markDraftDirty();
     scheduleDraftAutosave();
   });
   document.getElementById('threat-type')?.addEventListener('change', function() {
     const next = { ...(AppState.draft.structuredScenario || {}) };
-    next.attackType = this.value;
-    AppState.draft.structuredScenario = next;
+    next.eventPath = this.value;
+    AppState.draft.structuredScenario = normaliseStructuredScenario(next, { preserveUnknown: true });
     markDraftDirty();
     scheduleDraftAutosave();
   });
@@ -283,8 +284,8 @@ function inferStep2CostFocus(draft) {
   const text = [
     draft.enhancedNarrative,
     draft.narrative,
-    draft.structuredScenario?.attackType,
-    draft.structuredScenario?.assetService,
+    getStructuredScenarioField(draft.structuredScenario, 'eventPath'),
+    getStructuredScenarioField(draft.structuredScenario, 'assetService'),
     ...(getSelectedRisks().map(risk => risk.title || ''))
   ].join(' ').toLowerCase();
   const focus = [];
@@ -297,11 +298,11 @@ function inferStep2CostFocus(draft) {
 
 function renderStep2QuantBridge(draft, selectedRisks, scenarioGeographies) {
   const warnings = getStep2NarrativeReadiness(draft, selectedRisks, scenarioGeographies);
-  const structured = draft.structuredScenario || {};
+  const structured = normaliseStructuredScenario(draft.structuredScenario, { preserveUnknown: true }) || {};
   const costFocus = inferStep2CostFocus(draft);
   const scopeChips = [
     structured.assetService ? `Asset / service: ${structured.assetService}` : '',
-    structured.attackType ? `Event path: ${structured.attackType}` : '',
+    structured.eventPath ? `Event path: ${structured.eventPath}` : '',
     scenarioGeographies.length ? `Geography: ${scenarioGeographies.join(', ')}` : '',
     Array.isArray(draft.applicableRegulations) && draft.applicableRegulations.length ? `Regulations: ${draft.applicableRegulations.slice(0, 3).join(', ')}` : ''
   ].filter(Boolean);
@@ -357,13 +358,13 @@ function renderStep2WhyItMattersCard(draft, selectedRisks, scenarioGeographies) 
 }
 
 function renderStep2StructuredSummary(draft, selectedRisks, scenarioGeographies) {
-  const structured = draft.structuredScenario || {};
+  const structured = normaliseStructuredScenario(draft.structuredScenario, { preserveUnknown: true }) || {};
   const assumptions = Array.isArray(draft.inferredAssumptions) ? draft.inferredAssumptions.filter(Boolean).slice(0, 2) : [];
   const missing = Array.isArray(draft.missingInformation) ? draft.missingInformation.filter(Boolean).slice(0, 2) : [];
   const sourceBasis = normaliseCitations(draft.citations || []).slice(0, 2);
   const chips = [
     structured.assetService ? `Asset / service: ${structured.assetService}` : '',
-    structured.attackType ? `Event path: ${structured.attackType}` : '',
+    structured.eventPath ? `Event path: ${structured.eventPath}` : '',
     selectedRisks.length ? `In scope: ${selectedRisks.length} risk${selectedRisks.length === 1 ? '' : 's'}` : '',
     scenarioGeographies.length ? `Geography: ${scenarioGeographies.join(', ')}` : ''
   ].filter(Boolean);
@@ -524,7 +525,7 @@ function renderWizard2AnalystReasoning(draft, result) {
 function renderWizard2AiChangeSummary(result, previousNarrative) {
   const changed = [];
   if (result?.scenarioTitle) changed.push(`Gave the scenario a clearer working title: <strong>${escapeHtml(result.scenarioTitle)}</strong>.`);
-  const structuredCount = ['threatCommunity', 'attackType', 'assetService'].filter(key => String(result?.structuredScenario?.[key] || '').trim()).length;
+  const structuredCount = countStructuredScenarioFields(result?.structuredScenario, ['primaryDriver', 'eventPath', 'assetService']);
   if (structuredCount) changed.push(`Filled ${structuredCount} structured scenario field${structuredCount === 1 ? '' : 's'} to make the scope easier to quantify.`);
   const hasInputs = !!result?.suggestedInputs;
   if (hasInputs) changed.push('Pre-loaded the FAIR starting ranges for the next step so you can challenge them instead of entering everything from scratch.');
@@ -576,7 +577,7 @@ async function runLLMAssist() {
     AppState.draft.scenarioLens = result?.scenarioLens && typeof result.scenarioLens === 'object'
       ? { ...result.scenarioLens }
       : (AppState.draft.scenarioLens || null);
-    AppState.draft.structuredScenario = result.structuredScenario;
+    AppState.draft.structuredScenario = normaliseStructuredScenario(result.structuredScenario, { preserveUnknown: true });
     AppState.draft.llmAssisted = true;
     AppState.draft.enhancedNarrative = narrative;
     AppState.draft.citations = normaliseCitations(result.citations || citations);
@@ -615,7 +616,7 @@ async function runLLMAssist() {
           <div style="font-size:.75rem;color:var(--text-muted)">AI-structured · FAIR inputs pre-loaded to Step 3</div>
         </div>
       </div>
-      ${result.structuredScenario?`<div class="grid-2"><div><div class="form-label" style="font-size:.7rem">Primary driver</div><p style="font-size:.85rem;margin-top:4px">${escapeHtml(String(result.structuredScenario.threatCommunity || 'Not specified'))}</p></div><div><div class="form-label" style="font-size:.7rem">Event path</div><p style="font-size:.85rem;margin-top:4px">${escapeHtml(String(result.structuredScenario.attackType || 'Not specified'))}</p></div></div>`:''}
+      ${result.structuredScenario?`<div class="grid-2"><div><div class="form-label" style="font-size:.7rem">Primary driver</div><p style="font-size:.85rem;margin-top:4px">${escapeHtml(getStructuredScenarioField(result.structuredScenario, 'primaryDriver') || 'Not specified')}</p></div><div><div class="form-label" style="font-size:.7rem">Event path</div><p style="font-size:.85rem;margin-top:4px">${escapeHtml(getStructuredScenarioField(result.structuredScenario, 'eventPath') || 'Not specified')}</p></div></div>`:''}
     </div>${renderScenarioAssistSummaryBlock({
       workflowGuidance: AppState.draft.workflowGuidance,
       confidenceLabel: AppState.draft.confidenceLabel,

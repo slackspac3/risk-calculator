@@ -851,15 +851,18 @@ const ExportService = (() => {
           </div>
         </div>
 
-        ${assessment.structuredScenario ? `
+        ${hasStructuredScenario(assessment.structuredScenario) ? `
         <div class="section">
           <h3>Scenario details</h3>
-          <div class="summary-grid">
-            <div class="card"><div class="section-label">Asset / Service</div><div class="body-copy">${assessment.structuredScenario.assetService || '—'}</div></div>
-            <div class="card"><div class="section-label">Primary driver</div><div class="body-copy">${assessment.structuredScenario.threatCommunity || '—'}</div></div>
-            <div class="card"><div class="section-label">Event path</div><div class="body-copy">${assessment.structuredScenario.attackType || '—'}</div></div>
-            <div class="card"><div class="section-label">Effect</div><div class="body-copy">${assessment.structuredScenario.effect || '—'}</div></div>
-          </div>
+          ${(() => {
+            const structured = normaliseStructuredScenario(assessment.structuredScenario, { preserveUnknown: true }) || {};
+            return `<div class="summary-grid">
+            <div class="card"><div class="section-label">Asset / Service</div><div class="body-copy">${structured.assetService || '—'}</div></div>
+            <div class="card"><div class="section-label">Primary driver</div><div class="body-copy">${structured.primaryDriver || '—'}</div></div>
+            <div class="card"><div class="section-label">Event path</div><div class="body-copy">${structured.eventPath || '—'}</div></div>
+            <div class="card"><div class="section-label">Effect</div><div class="body-copy">${structured.effect || '—'}</div></div>
+          </div>`;
+          })()}
         </div>` : ''}
 
         <div class="section">
@@ -957,7 +960,7 @@ const ExportService = (() => {
           slideIndex: 4,
           type: 'scenario_details',
           title: 'Scenario Details',
-          scenario: assessment.structuredScenario || {},
+          scenario: normaliseStructuredScenario(assessment.structuredScenario, { preserveUnknown: true }) || {},
           narrative: (assessment.narrative || '').substring(0, 400)
         },
         {

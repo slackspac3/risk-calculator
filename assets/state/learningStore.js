@@ -52,7 +52,7 @@ const LearningStore = (() => {
       source?.scenarioTitle,
       source?.scenarioType,
       source?.narrative,
-      source?.structuredScenario?.attackType,
+      getStructuredScenarioField(source?.structuredScenario, 'eventPath'),
       ...(Array.isArray(source?.selectedRiskTitles) ? source.selectedRiskTitles : [])
     ].filter(Boolean).join(' ').toLowerCase();
     if (/procurement|sourcing|vendor|supplier|purchase|third[- ]party|supply chain/.test(haystack)) return 'procurement';
@@ -126,7 +126,7 @@ const LearningStore = (() => {
     return {
       id: String(draft?.templateId || '').trim(),
       title: String(draft?.scenarioTitle || '').trim(),
-      scenarioType: String(draft?.structuredScenario?.attackType || '').trim(),
+      scenarioType: String(getStructuredScenarioField(draft?.structuredScenario, 'eventPath') || '').trim(),
       functionKey: _inferFunctionKey(draft),
       buId: String(draft?.buId || '').trim(),
       buName: String(draft?.buName || '').trim(),
@@ -205,8 +205,8 @@ const LearningStore = (() => {
       scenarioLens: assessment?.scenarioLens && typeof assessment.scenarioLens === 'object'
         ? { ...assessment.scenarioLens }
         : null,
-      title: String(assessment.scenarioTitle || assessment.structuredScenario?.attackType || '').trim(),
-      scenarioType: String(assessment.structuredScenario?.attackType || assessment.scenarioTitle || '').trim(),
+      title: String(assessment.scenarioTitle || getStructuredScenarioField(assessment.structuredScenario, 'eventPath') || '').trim(),
+      scenarioType: String(getStructuredScenarioField(assessment.structuredScenario, 'eventPath') || assessment.scenarioTitle || '').trim(),
       geography: String(assessment.geography || '').trim(),
       narrative: String(assessment.enhancedNarrative || assessment.narrative || '').trim(),
       guidedInput: assessment?.guidedInput && typeof assessment.guidedInput === 'object'

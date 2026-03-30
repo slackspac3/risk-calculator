@@ -1,3 +1,25 @@
+const StructuredScenarioTools = (() => {
+  if (typeof globalThis !== 'undefined' && globalThis.StructuredScenarioModel) {
+    return globalThis.StructuredScenarioModel;
+  }
+  if (typeof module !== 'undefined' && module.exports) {
+    try {
+      return require('./structuredScenarioModel.js');
+    } catch {}
+  }
+  return {
+    normaliseStructuredScenario(value) {
+      return value && typeof value === 'object' ? value : null;
+    },
+    getStructuredScenarioField(source, field) {
+      const scenario = source && typeof source === 'object' ? source : {};
+      if (field === 'primaryDriver') return String(scenario.primaryDriver || scenario.threatCommunity || '').trim();
+      if (field === 'eventPath') return String(scenario.eventPath || scenario.attackType || '').trim();
+      return String(scenario[field] || '').trim();
+    }
+  };
+})();
+
 const ReportPresentation = (() => {
   function clampNumber(value, min = 0, max = 100) {
     return Math.min(max, Math.max(min, Number(value) || 0));
@@ -17,12 +39,12 @@ const ReportPresentation = (() => {
   }
 
   function buildExecutiveScenarioSummary(assessment) {
-    const structured = assessment.structuredScenario || {};
+    const structured = StructuredScenarioTools.normaliseStructuredScenario(assessment.structuredScenario) || {};
     const entity = assessment.buName || 'the organisation';
     const geographies = assessment.geography || 'the selected geographies';
-    const asset = structured.assetService || assessment.guidedInput?.asset || '';
-    const attack = structured.attackType || assessment.guidedInput?.cause || '';
-    const effect = structured.effect || assessment.guidedInput?.impact || '';
+    const asset = StructuredScenarioTools.getStructuredScenarioField(structured, 'assetService') || assessment.guidedInput?.asset || '';
+    const eventPath = StructuredScenarioTools.getStructuredScenarioField(structured, 'eventPath') || assessment.guidedInput?.cause || '';
+    const effect = StructuredScenarioTools.getStructuredScenarioField(structured, 'effect') || assessment.guidedInput?.impact || '';
     const rawNarrative = cleanExecutiveNarrativeText(assessment.enhancedNarrative || assessment.narrative || assessment.scenarioText || '');
 
     const openingParts = [];
@@ -33,7 +55,7 @@ const ReportPresentation = (() => {
     if (!opening.endsWith('.')) opening += '.';
 
     const sentencePool = [];
-    if (attack) sentencePool.push(`The most likely trigger is ${String(attack).toLowerCase()}.`);
+    if (eventPath) sentencePool.push(`The most likely trigger is ${String(eventPath).toLowerCase()}.`);
     if (effect) sentencePool.push(`The main business consequence is ${String(effect).replace(/\.$/, '').toLowerCase()}.`);
     if (rawNarrative) {
       const cleanedSentences = rawNarrative

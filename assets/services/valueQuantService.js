@@ -196,8 +196,8 @@
     }
 
     const candidates = [
-      assessment?.structuredScenario?.attackType,
-      assessment?.structuredScenario?.threatCommunity,
+      getStructuredScenarioField(assessment?.structuredScenario, 'eventPath'),
+      getStructuredScenarioField(assessment?.structuredScenario, 'primaryDriver'),
       assessment?.scenarioTitle,
       assessment?.narrative,
       assessment?.enhancedNarrative,

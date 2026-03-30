@@ -131,13 +131,19 @@
 
   function normaliseAssessmentRecord(assessment) {
     const next = cloneAssessment(assessment);
+    next.structuredScenario = typeof normaliseStructuredScenario === 'function'
+      ? normaliseStructuredScenario(next.structuredScenario, { preserveUnknown: true })
+      : next.structuredScenario;
     // Saved assessments need stable minimum fields so partial drafts cannot silently corrupt the durable list.
     next.id = String(next.id || '').trim() || buildAssessmentId();
     // Prefer the actual draft start timestamp when it exists so measured cycle time is not reset on first save.
     next.createdAt = Number(next.createdAt || next.startedAt || Date.now());
     next.startedAt = Number(next.startedAt || next.createdAt || Date.now());
     if (!String(next.scenarioTitle || '').trim()) {
-      next.scenarioTitle = String(next.narrative || 'Untitled assessment').trim() || 'Untitled assessment';
+      const eventPath = typeof getStructuredScenarioField === 'function'
+        ? getStructuredScenarioField(next.structuredScenario, 'eventPath')
+        : '';
+      next.scenarioTitle = String(next.narrative || eventPath || 'Untitled assessment').trim() || 'Untitled assessment';
     }
     if (!String(next.buId || '').trim() && !String(next.buName || '').trim()) {
       next.buName = 'Business unit not set';

@@ -344,6 +344,10 @@
       : (AppState.draft.scenarioLens || null);
     AppState.draft.workflowGuidance = Array.isArray(result.workflowGuidance) ? result.workflowGuidance : AppState.draft.workflowGuidance;
     AppState.draft.benchmarkBasis = result.benchmarkBasis || AppState.draft.benchmarkBasis;
+    // Keep one canonical structured-scenario object on the draft so later steps stop reading mixed legacy keys.
+    AppState.draft.structuredScenario = normaliseStructuredScenario(result?.structuredScenario || AppState.draft.structuredScenario, {
+      preserveUnknown: true
+    });
     AppState.draft.confidenceLabel = result.confidenceLabel || AppState.draft.confidenceLabel || '';
     AppState.draft.evidenceQuality = result.evidenceQuality || AppState.draft.evidenceQuality || '';
     AppState.draft.evidenceSummary = result.evidenceSummary || AppState.draft.evidenceSummary || '';

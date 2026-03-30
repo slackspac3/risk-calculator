@@ -11,7 +11,7 @@ test('buildExecutiveScenarioSummary produces business-friendly wording', () => {
     geography: 'United Arab Emirates',
     structuredScenario: {
       assetService: 'customer-facing payments platform',
-      attackType: 'supplier compromise causing service outage',
+      eventPath: 'supplier compromise causing service outage',
       effect: 'service disruption and regulatory scrutiny'
     },
     narrative: 'The main asset, service, or team affected is the customer-facing payments platform. The likely trigger or threat driver is supplier compromise causing service outage.'

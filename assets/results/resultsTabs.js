@@ -111,17 +111,20 @@
               <div class="form-help" style="margin-top:6px">${escapeHtml(String(r.metricSemantics?.eventLoss || ''))} ${escapeHtml(String(r.metricSemantics?.annualLoss || ''))}</div>
             </div>
             ${renderRunMetadataPanel(runMetadata, r.metricSemantics)}
-            ${assessment.structuredScenario ? `
+            ${hasStructuredScenario(assessment.structuredScenario) ? `
             <div class="card anim-fade-in">
               <h3 style="font-size:var(--text-base);margin-bottom:var(--sp-4)">Scenario details</h3>
-              <div class="grid-2">
+              ${(() => {
+                const structured = normaliseStructuredScenario(assessment.structuredScenario, { preserveUnknown: true }) || {};
+                return `<div class="grid-2">
                 ${Object.entries({
-                  'Asset / Service': assessment.structuredScenario.assetService,
-                  'Primary driver': assessment.structuredScenario.threatCommunity,
-                  'Event path': assessment.structuredScenario.attackType,
-                  'Effect': assessment.structuredScenario.effect
+                  'Asset / Service': structured.assetService,
+                  'Primary driver': structured.primaryDriver,
+                  'Event path': structured.eventPath,
+                  'Effect': structured.effect
                 }).map(([k, v]) => `<div style="background:var(--bg-elevated);padding:var(--sp-3) var(--sp-4);border-radius:var(--radius-lg)"><div style="font-size:.68rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted)">${k}</div><div style="font-size:.85rem;color:var(--text-secondary);margin-top:4px">${v || '—'}</div></div>`).join('')}
-              </div>
+              </div>`;
+              })()}
             </div>` : ''}
           </div>
         </details>

@@ -17,8 +17,8 @@ const ScenarioTemplates = [
       narrative: 'A threat actor gains initial access through a phishing email targeting an employee with elevated system privileges. After establishing persistence and conducting internal reconnaissance over several days, they deploy ransomware across connected systems, encrypting critical operational databases and file shares. The attacker simultaneously exfiltrates sensitive data and threatens public release unless a ransom is paid (double-extortion). Systems are offline; manual operations are impossible at scale.',
       structuredScenario: {
         assetService: 'Core operational systems and databases',
-        threatCommunity: 'Organised ransomware-as-a-service groups (e.g. LockBit, BlackCat affiliates)',
-        attackType: 'Phishing → credential theft → lateral movement → ransomware deployment',
+        primaryDriver: 'Organised ransomware-as-a-service groups (e.g. LockBit, BlackCat affiliates)',
+        eventPath: 'Phishing → credential theft → lateral movement → ransomware deployment',
         effect: 'Encryption of operational systems; data exfiltration; service unavailability; extortion demand'
       },
       fairParams: {
@@ -52,8 +52,8 @@ const ScenarioTemplates = [
       narrative: 'An attacker compromises or impersonates a senior executive email account and initiates urgent payment requests to finance personnel. The attacker uses social engineering and spoofed domains to bypass verification steps. Fraudulent transfers are authorised before the deception is detected. In some variants, the attacker first compromises the email account of a supplier, inserting themselves into existing payment threads (vendor email compromise).',
       structuredScenario: {
         assetService: 'Corporate email, finance systems, payment authorisation workflows',
-        threatCommunity: 'BEC specialist threat actors (often West African or Eastern European organised groups)',
-        attackType: 'Email account takeover or domain spoofing → social engineering of finance staff → fraudulent payment authorisation',
+        primaryDriver: 'BEC specialist threat actors (often West African or Eastern European organised groups)',
+        eventPath: 'Email account takeover or domain spoofing → social engineering of finance staff → fraudulent payment authorisation',
         effect: 'Direct financial loss via fraudulent wire transfer; reputational damage; regulatory scrutiny'
       },
       fairParams: {
@@ -87,8 +87,8 @@ const ScenarioTemplates = [
       narrative: 'A critical technology vendor or managed service provider used by the organisation is compromised by a sophisticated threat actor. The attacker uses the vendor\'s trusted access or a trojanised software update to establish a persistent foothold within our environment. Because the access appears legitimate, detection is significantly delayed. The attacker conducts quiet reconnaissance for weeks before moving laterally to high-value targets including source code repositories, customer data, or financial systems.',
       structuredScenario: {
         assetService: 'Internal systems accessible via vendor/MSP trusted access; high-value data stores',
-        threatCommunity: 'Nation-state or sophisticated organised criminal groups with supply chain targeting capability',
-        attackType: 'Vendor compromise → trusted access abuse → lateral movement → data access or persistent implant',
+        primaryDriver: 'Nation-state or sophisticated organised criminal groups with supply chain targeting capability',
+        eventPath: 'Vendor compromise → trusted access abuse → lateral movement → data access or persistent implant',
         effect: 'Long dwell time; broad access to sensitive systems; potential data theft or sabotage capability'
       },
       fairParams: {
@@ -122,8 +122,8 @@ const ScenarioTemplates = [
       narrative: 'A cloud storage bucket, database, or API endpoint is inadvertently exposed due to a misconfiguration during deployment or a change in cloud provider defaults. Sensitive data including customer records, internal documents, or credentials is accessible without authentication. The exposure is discovered by an external researcher, a threat actor, or during an internal security audit. Depending on the data involved, regulatory notification obligations are triggered.',
       structuredScenario: {
         assetService: 'Cloud-hosted data stores (blob storage, S3-equivalent, managed databases, APIs)',
-        threatCommunity: 'Opportunistic attackers using automated cloud scanning tools; security researchers',
-        attackType: 'Misconfiguration → public or unauthorised access → automated discovery → data access/exfiltration',
+        primaryDriver: 'Opportunistic attackers using automated cloud scanning tools; security researchers',
+        eventPath: 'Misconfiguration → public or unauthorised access → automated discovery → data access/exfiltration',
         effect: 'Unauthorised data access; potential exfiltration; regulatory notification obligation; reputational impact'
       },
       fairParams: {
@@ -155,8 +155,8 @@ const ScenarioTemplates = [
       narrative: 'A privileged employee — or a departing staff member in their notice period — deliberately exfiltrates sensitive intellectual property, customer data, or trade secrets. The exfiltration occurs gradually over time using authorised access channels (email, cloud sync, USB), making it difficult to distinguish from normal activity until DLP tools or behavioural analytics flag anomalies. In contractor scenarios, access may persist beyond contract end due to incomplete offboarding.',
       structuredScenario: {
         assetService: 'Sensitive data repositories: IP, customer records, financial data, research assets',
-        threatCommunity: 'Malicious insider — employee, contractor, or recently departed staff with residual access',
-        attackType: 'Authorised access abuse → gradual or bulk data exfiltration via email/USB/cloud → delayed detection',
+        primaryDriver: 'Malicious insider — employee, contractor, or recently departed staff with residual access',
+        eventPath: 'Authorised access abuse → gradual or bulk data exfiltration via email/USB/cloud → delayed detection',
         effect: 'Loss of confidential IP or regulated data; regulatory notification; legal action; reputational harm'
       },
       fairParams: {
@@ -190,8 +190,8 @@ const ScenarioTemplates = [
       narrative: 'A privileged administrator account is compromised through phishing-resistant MFA bypass, token theft, or a poorly governed support path. The attacker uses that identity to access shared cloud consoles, productivity tooling, and administrative workflows. Containment requires emergency account lockdown, forced session reset, and urgent review of high-privilege changes. The direct security impact is serious, but the wider business issue is that multiple shared services may be disrupted while the identity tier is stabilised.',
       structuredScenario: {
         assetService: 'Privileged identity tier, shared cloud administration, and business-critical collaboration services',
-        threatCommunity: 'Identity-focused criminal actors or sophisticated adversaries targeting privileged access',
-        attackType: 'Credential theft or token abuse → privileged access misuse → emergency containment across shared platforms',
+        primaryDriver: 'Identity-focused criminal actors or sophisticated adversaries targeting privileged access',
+        eventPath: 'Credential theft or token abuse → privileged access misuse → emergency containment across shared platforms',
         effect: 'Administrative misuse, urgent containment, service disruption, and possible fraud or data access'
       },
       fairParams: {
@@ -225,8 +225,8 @@ const ScenarioTemplates = [
       narrative: 'A major technology outage affects a critical customer-facing service, but recovery takes materially longer than the organisation planned for because dependencies, failover steps, and recovery decision rights are not as mature as assumed. The technical trigger could be cyber, infrastructure, or supplier related; the main risk being assessed is the resilience shortfall itself. Customer commitments are missed, backlogs build, and leadership must decide how to trade recovery speed, cost, and interim service levels.',
       structuredScenario: {
         assetService: 'Critical digital service, recovery runbooks, and supporting infrastructure dependencies',
-        threatCommunity: 'Any severe disruption source that forces a real recovery event',
-        attackType: 'Material outage → weak recovery execution → extended disruption and backlog growth',
+        primaryDriver: 'Any severe disruption source that forces a real recovery event',
+        eventPath: 'Material outage → weak recovery execution → extended disruption and backlog growth',
         effect: 'Extended service outage, customer impact, contract pressure, and executive escalation'
       },
       fairParams: {

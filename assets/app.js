@@ -386,8 +386,8 @@ function inferStoredScenarioFunctionKey(source = {}) {
     source?.title,
     source?.narrative,
     source?.enhancedNarrative,
-    source?.structuredScenario?.attackType,
-    source?.structuredScenario?.threatCommunity,
+    getStructuredScenarioField(source?.structuredScenario, 'eventPath'),
+    getStructuredScenarioField(source?.structuredScenario, 'primaryDriver'),
     ...(Array.isArray(source?.selectedRisks) ? source.selectedRisks.map(item => item?.title || item?.category || '') : []),
     ...(Array.isArray(source?.selectedRiskTitles) ? source.selectedRiskTitles : [])
   ].filter(Boolean).join(' ').toLowerCase();
@@ -410,8 +410,8 @@ function extractScenarioPattern(assessment) {
     scenarioLens: assessment?.scenarioLens && typeof assessment.scenarioLens === 'object'
       ? { ...assessment.scenarioLens }
       : null,
-    title: String(assessment.scenarioTitle || assessment.structuredScenario?.attackType || '').trim(),
-    scenarioType: String(assessment.structuredScenario?.attackType || assessment.scenarioTitle || '').trim(),
+    title: String(assessment.scenarioTitle || getStructuredScenarioField(assessment.structuredScenario, 'eventPath') || '').trim(),
+    scenarioType: String(getStructuredScenarioField(assessment.structuredScenario, 'eventPath') || assessment.scenarioTitle || '').trim(),
     geography: String(assessment.geography || '').trim(),
     narrative: String(assessment.enhancedNarrative || assessment.narrative || '').trim(),
     guidedInput: assessment.guidedInput && typeof assessment.guidedInput === 'object'
@@ -1490,6 +1490,7 @@ function activateAuthenticatedState() {
 
 function ensureDraftShape() {
   const draftStartedAt = Number(AppState.draft.startedAt || AppState.draft.createdAt || Date.now());
+  const structuredScenario = normaliseStructuredScenario(AppState.draft.structuredScenario, { preserveUnknown: true });
   AppState.draft = {
     id: AppState.draft.id || 'a_' + Date.now(),
     startedAt: draftStartedAt,
@@ -1499,7 +1500,7 @@ function ensureDraftShape() {
     buName: AppState.draft.buName || null,
     contextNotes: AppState.draft.contextNotes || '',
     narrative: AppState.draft.narrative || '',
-    structuredScenario: AppState.draft.structuredScenario || null,
+    structuredScenario,
     scenarioTitle: AppState.draft.scenarioTitle || '',
     loadedDryRunId: AppState.draft.loadedDryRunId || '',
     llmAssisted: !!AppState.draft.llmAssisted,
@@ -5055,14 +5056,14 @@ function buildScenarioQualityCoach({
   inferredAssumptions = []
 } = {}) {
   const narrative = String(draft.enhancedNarrative || draft.narrative || '').trim();
-  const structured = draft.structuredScenario || {};
+  const structured = normaliseStructuredScenario(draft.structuredScenario, { preserveUnknown: true }) || {};
   const wordCount = narrative ? narrative.split(/\s+/).filter(Boolean).length : 0;
   const totalEvidenceCount = (Array.isArray(citations) ? citations.filter(Boolean).length : 0)
     + (Array.isArray(primaryGrounding) ? primaryGrounding.filter(Boolean).length : 0)
     + (Array.isArray(supportingReferences) ? supportingReferences.filter(Boolean).length : 0)
     + (Array.isArray(inputProvenance) ? inputProvenance.filter(Boolean).length : 0);
   const assetPresent = !!String(structured.assetService || '').trim() || /platform|service|system|application|environment|identity|data|supplier|vendor|team|workflow/i.test(narrative);
-  const causePresent = !!String(structured.attackType || '').trim() || /because|caused by|trigger|supplier|vendor|misconfig|phishing|ransomware|breach|comprom|failure|outage|attack/i.test(narrative);
+  const causePresent = !!String(structured.eventPath || '').trim() || /because|caused by|trigger|supplier|vendor|misconfig|phishing|ransomware|breach|comprom|failure|outage|attack/i.test(narrative);
   const impactPresent = /impact|disrupt|outage|loss|harm|exposure|breach|regulatory|customer|recovery|financial|penalt|scrutiny/i.test(narrative);
   const eventSignals = (narrative.match(/\b(and then|while also|at the same time|multiple|plus|as well as)\b/gi) || []).length;
   const tooBroadScope = selectedRisks.length > 3 || eventSignals > 1 || /\bmultiple scenarios|several events|across several\b/i.test(narrative);
@@ -5540,7 +5541,7 @@ function buildAssessmentConfidence(draft, results, modelInputs, scenarioMeta) {
   let score = 58;
   const citations = Array.isArray(draft.citations) ? draft.citations.length : 0;
   const selectedRisks = Array.isArray(draft.selectedRisks) ? draft.selectedRisks.length : 0;
-  const hasStructuredScenario = !!draft.structuredScenario;
+  const hasStructuredFields = hasStructuredScenario(draft.structuredScenario);
   const aiAssisted = !!draft.llmAssisted;
   const tefRange = calculateRelativeRange(modelInputs.tefMin, modelInputs.tefLikely, modelInputs.tefMax);
   const lossLikely = ['irLikely','biLikely','dbLikely','rlLikely','tpLikely','rcLikely'].reduce((sum, key) => sum + Number(modelInputs[key] || 0), 0);
@@ -5550,7 +5551,7 @@ function buildAssessmentConfidence(draft, results, modelInputs, scenarioMeta) {
   const reasons = [];
   const improvements = [];
 
-  if (hasStructuredScenario) { score += 8; reasons.push('The scenario has been structured into asset, threat, attack type, and effect.'); }
+  if (hasStructuredFields) { score += 8; reasons.push('The scenario has been structured into asset, primary driver, event path, and effect.'); }
   else improvements.push('Capture a more structured scenario definition so the estimate is anchored to one clear event path.');
 
   if (citations >= 2) { score += 8; reasons.push('Internal citations or source material are linked to the assessment.'); }
@@ -5596,10 +5597,10 @@ function buildAssessmentConfidence(draft, results, modelInputs, scenarioMeta) {
 function buildAssessmentAssumptions(draft, results, modelInputs, scenarioMeta) {
   const assumptions = [];
   const geography = draft.geography || 'the selected geography';
-  const asset = draft.structuredScenario?.assetService || 'the affected service';
-  const threatCommunity = draft.structuredScenario?.threatCommunity || 'the relevant threat actor set';
+  const asset = getStructuredScenarioField(draft.structuredScenario, 'assetService') || 'the affected service';
+  const primaryDriver = getStructuredScenarioField(draft.structuredScenario, 'primaryDriver') || 'the relevant primary driver';
   assumptions.push({ category: 'Scenario', text: `Assumes ${asset} remains the main point of impact across ${geography}.` });
-  assumptions.push({ category: 'Threat', text: `Assumes ${threatCommunity} remains a realistic source of this scenario during the assessment period.` });
+  assumptions.push({ category: 'Driver', text: `Assumes ${primaryDriver} remains a realistic source of this scenario during the assessment period.` });
   assumptions.push({ category: 'Frequency', text: `Assumes the event could occur between ${modelInputs.tefMin ?? '—'} and ${modelInputs.tefMax ?? '—'} times per year, with ${modelInputs.tefLikely ?? '—'} as the working case after any linked-scenario uplift.` });
   if (modelInputs.vulnDirect) assumptions.push({ category: 'Exposure', text: `Assumes direct event success remains within the stated exposure range rather than changing materially because of control drift or attacker capability changes.` });
   else assumptions.push({ category: 'Exposure', text: `Assumes current control strength and attacker capability are reasonably represented by the selected FAIR ranges.` });

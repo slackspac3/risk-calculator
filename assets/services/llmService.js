@@ -237,8 +237,8 @@ const LLMService = (() => {
       ransomware: {
         key: 'ransomware',
         scenarioType: 'Ransomware / Extortion Attack',
-        threatCommunity: 'Organised cybercriminal groups (ransomware-as-a-service)',
-        attackType: 'Ransomware deployment via initial access broker',
+        primaryDriver: 'Organised cybercriminal groups (ransomware-as-a-service)',
+        eventPath: 'Ransomware deployment via initial access broker',
         effect: 'Encryption of critical data and systems; service unavailability; potential data leak for double-extortion',
         tef: { min: 0.3, likely: 1.5, max: 5 },
         tc: { min: 0.55, likely: 0.72, max: 0.9 }
@@ -246,8 +246,8 @@ const LLMService = (() => {
       identity: {
         key: 'identity',
         scenarioType: 'Identity Platform Compromise',
-        threatCommunity: 'Credential theft and account-takeover specialists',
-        attackType: 'Credential theft, token hijack, or federated identity abuse',
+        primaryDriver: 'Credential theft and account-takeover specialists',
+        eventPath: 'Credential theft, token hijack, or federated identity abuse',
         effect: 'Compromise of core identity services leading to account takeover, privilege abuse, mailbox compromise, and disruption across federated business systems',
         tef: { min: 1, likely: 4, max: 14 },
         tc: { min: 0.45, likely: 0.68, max: 0.86 }
@@ -255,8 +255,8 @@ const LLMService = (() => {
       phishing: {
         key: 'phishing',
         scenarioType: 'Phishing / Business Email Compromise (BEC)',
-        threatCommunity: 'Opportunistic threat actors / BEC specialists',
-        attackType: 'Spear-phishing / adversary-in-the-middle phishing kit',
+        primaryDriver: 'Opportunistic threat actors / BEC specialists',
+        eventPath: 'Spear-phishing / adversary-in-the-middle phishing kit',
         effect: 'Compromise of user accounts, email trust channels, and payment or approval workflows',
         tef: { min: 3, likely: 10, max: 35 },
         tc: { min: 0.35, likely: 0.55, max: 0.78 }
@@ -264,8 +264,8 @@ const LLMService = (() => {
       insider: {
         key: 'insider',
         scenarioType: 'Insider Misuse / Privileged Abuse',
-        threatCommunity: 'Malicious or negligent insider',
-        attackType: 'Insider data theft / sabotage',
+        primaryDriver: 'Malicious or negligent insider',
+        eventPath: 'Insider data theft / sabotage',
         effect: 'Compromise of confidentiality, integrity, or service continuity by a trusted user or administrator',
         tef: { min: 0.3, likely: 1.2, max: 4 },
         tc: { min: 0.4, likely: 0.6, max: 0.82 }
@@ -273,8 +273,8 @@ const LLMService = (() => {
       cloud: {
         key: 'cloud',
         scenarioType: 'Cloud Misconfiguration / Exposure',
-        threatCommunity: 'External threat actors (mixed motivation)',
-        attackType: 'Exploitation of cloud misconfiguration',
+        primaryDriver: 'External threat actors (mixed motivation)',
+        eventPath: 'Exploitation of cloud misconfiguration',
         effect: 'Loss of confidentiality, integrity, or availability through exposed or weakly controlled cloud services',
         tef: { min: 1, likely: 4, max: 15 },
         tc: { min: 0.35, likely: 0.55, max: 0.78 }
@@ -282,8 +282,8 @@ const LLMService = (() => {
       'data-breach': {
         key: 'data-breach',
         scenarioType: 'Data Breach / Unauthorised Data Disclosure',
-        threatCommunity: 'External threat actors (mixed motivation)',
-        attackType: 'Data exfiltration after credential compromise',
+        primaryDriver: 'External threat actors (mixed motivation)',
+        eventPath: 'Data exfiltration after credential compromise',
         effect: 'Unauthorised access to and exfiltration of sensitive or regulated data',
         tef: { min: 0.5, likely: 2, max: 8 },
         tc: { min: 0.5, likely: 0.68, max: 0.88 }
@@ -291,8 +291,8 @@ const LLMService = (() => {
       'third-party': {
         key: 'third-party',
         scenarioType: 'Third-Party / Supply Chain Disruption',
-        threatCommunity: 'External counterparties or attacker-enabled supplier failures',
-        attackType: 'Third-party service, access, or dependency failure',
+        primaryDriver: 'External counterparties or attacker-enabled supplier failures',
+        eventPath: 'Third-party service, access, or dependency failure',
         effect: 'Operational disruption, inherited control weakness, or data exposure through critical supplier relationships',
         tef: { min: 0.4, likely: 1.8, max: 6 },
         tc: { min: 0.4, likely: 0.6, max: 0.8 }
@@ -300,8 +300,8 @@ const LLMService = (() => {
       strategic: {
         key: 'strategic',
         scenarioType: 'Strategic Risk Scenario',
-        threatCommunity: 'Market, execution, and strategic counterparties',
-        attackType: 'Strategy execution gap, market shift, or major programme failure',
+        primaryDriver: 'Market, execution, and strategic counterparties',
+        eventPath: 'Strategy execution gap, market shift, or major programme failure',
         effect: 'Material pressure on objectives, market position, investment value, or long-term operating model',
         tef: { min: 0.2, likely: 0.8, max: 3 },
         tc: { min: 0.25, likely: 0.45, max: 0.7 }
@@ -309,8 +309,8 @@ const LLMService = (() => {
       operational: {
         key: 'operational',
         scenarioType: 'Operational Risk Scenario',
-        threatCommunity: 'Internal process, people, and control failures',
-        attackType: 'Operational breakdown or control failure',
+        primaryDriver: 'Internal process, people, and control failures',
+        eventPath: 'Operational breakdown or control failure',
         effect: 'Service degradation, backlog growth, cost escalation, or execution failure in core operations',
         tef: { min: 0.5, likely: 2, max: 9 },
         tc: { min: 0.3, likely: 0.5, max: 0.74 }
@@ -318,8 +318,8 @@ const LLMService = (() => {
       regulatory: {
         key: 'regulatory',
         scenarioType: 'Regulatory Risk Scenario',
-        threatCommunity: 'Regulators, supervisors, and control-assurance stakeholders',
-        attackType: 'Regulatory breach, filing failure, or licence condition breach',
+        primaryDriver: 'Regulators, supervisors, and control-assurance stakeholders',
+        eventPath: 'Regulatory breach, filing failure, or licence condition breach',
         effect: 'Enforcement exposure, licence pressure, remediation cost, and executive scrutiny',
         tef: { min: 0.2, likely: 1, max: 4 },
         tc: { min: 0.35, likely: 0.55, max: 0.78 }
@@ -327,8 +327,8 @@ const LLMService = (() => {
       financial: {
         key: 'financial',
         scenarioType: 'Financial Risk Scenario',
-        threatCommunity: 'Fraud actors, counterparties, or internal control failures',
-        attackType: 'Fraud, payment manipulation, or financial control breakdown',
+        primaryDriver: 'Fraud actors, counterparties, or internal control failures',
+        eventPath: 'Fraud, payment manipulation, or financial control breakdown',
         effect: 'Direct financial loss, control failure, liquidity pressure, or reporting exposure',
         tef: { min: 0.6, likely: 2.4, max: 10 },
         tc: { min: 0.35, likely: 0.56, max: 0.8 }
@@ -336,8 +336,8 @@ const LLMService = (() => {
       esg: {
         key: 'esg',
         scenarioType: 'ESG / Sustainability Risk Scenario',
-        threatCommunity: 'Investors, regulators, employees, and external stakeholders',
-        attackType: 'Sustainability performance gap or disclosure failure',
+        primaryDriver: 'Investors, regulators, employees, and external stakeholders',
+        eventPath: 'Sustainability performance gap or disclosure failure',
         effect: 'Reputational pressure, disclosure challenge, investor scrutiny, or operational remediation need',
         tef: { min: 0.2, likely: 0.9, max: 4 },
         tc: { min: 0.25, likely: 0.44, max: 0.68 }
@@ -345,8 +345,8 @@ const LLMService = (() => {
       compliance: {
         key: 'compliance',
         scenarioType: 'Compliance Risk Scenario',
-        threatCommunity: 'Internal policy breaches and external assurance bodies',
-        attackType: 'Policy non-compliance or control design failure',
+        primaryDriver: 'Internal policy breaches and external assurance bodies',
+        eventPath: 'Policy non-compliance or control design failure',
         effect: 'Remediation cost, disciplinary exposure, and weakened assurance posture',
         tef: { min: 0.4, likely: 1.5, max: 6 },
         tc: { min: 0.3, likely: 0.48, max: 0.72 }
@@ -354,8 +354,8 @@ const LLMService = (() => {
       'supply-chain': {
         key: 'supply-chain',
         scenarioType: 'Supply Chain Risk Scenario',
-        threatCommunity: 'Critical suppliers, logistics nodes, and upstream dependencies',
-        attackType: 'Supply disruption or dependency failure',
+        primaryDriver: 'Critical suppliers, logistics nodes, and upstream dependencies',
+        eventPath: 'Supply disruption or dependency failure',
         effect: 'Delayed delivery, inventory pressure, operational disruption, and contractual strain',
         tef: { min: 0.3, likely: 1.4, max: 6 },
         tc: { min: 0.3, likely: 0.5, max: 0.74 }
@@ -363,8 +363,8 @@ const LLMService = (() => {
       procurement: {
         key: 'procurement',
         scenarioType: 'Procurement Risk Scenario',
-        threatCommunity: 'Sourcing, contracting, and supplier-governance failures',
-        attackType: 'Weak sourcing decision, tender breakdown, or contract-control failure',
+        primaryDriver: 'Sourcing, contracting, and supplier-governance failures',
+        eventPath: 'Weak sourcing decision, tender breakdown, or contract-control failure',
         effect: 'Commercial leakage, poor vendor fit, assurance gaps, or extended delivery risk',
         tef: { min: 0.3, likely: 1.1, max: 5 },
         tc: { min: 0.28, likely: 0.46, max: 0.7 }
@@ -372,8 +372,8 @@ const LLMService = (() => {
       'business-continuity': {
         key: 'business-continuity',
         scenarioType: 'Business Continuity Risk Scenario',
-        threatCommunity: 'Operational disruption and recovery-management failures',
-        attackType: 'Continuity plan failure or prolonged recovery breakdown',
+        primaryDriver: 'Operational disruption and recovery-management failures',
+        eventPath: 'Continuity plan failure or prolonged recovery breakdown',
         effect: 'Extended outage, missed recovery objectives, and executive escalation',
         tef: { min: 0.2, likely: 1.1, max: 5 },
         tc: { min: 0.25, likely: 0.45, max: 0.7 }
@@ -381,8 +381,8 @@ const LLMService = (() => {
       hse: {
         key: 'hse',
         scenarioType: 'Health, Safety, and Environment Risk Scenario',
-        threatCommunity: 'Workplace hazards, operational controls, and environmental exposures',
-        attackType: 'Safety or environmental control breakdown',
+        primaryDriver: 'Workplace hazards, operational controls, and environmental exposures',
+        eventPath: 'Safety or environmental control breakdown',
         effect: 'Injury, environmental harm, shutdown, remediation cost, and regulatory scrutiny',
         tef: { min: 0.15, likely: 0.8, max: 3 },
         tc: { min: 0.25, likely: 0.42, max: 0.66 }
@@ -390,8 +390,8 @@ const LLMService = (() => {
       general: {
         key: 'general',
         scenarioType: 'General Enterprise Risk Scenario',
-        threatCommunity: 'Mixed internal and external drivers',
-        attackType: 'Material risk event requiring scenario triage',
+        primaryDriver: 'Mixed internal and external drivers',
+        eventPath: 'Material risk event requiring scenario triage',
         effect: 'Material financial, operational, regulatory, or strategic consequence',
         tef: { min: 0.5, likely: 2, max: 8 },
         tc: { min: 0.45, likely: 0.62, max: 0.82 }
@@ -1394,8 +1394,8 @@ ${businessUnit.selectedDepartmentContext}` : ''
       scenarioLens,
       structuredScenario: {
         assetService: buContext?.criticalServices?.[0] || 'Core application platform',
-        threatCommunity: classification.threatCommunity,
-        attackType: classification.attackType,
+        primaryDriver: classification.primaryDriver,
+        eventPath: classification.eventPath,
         effect: classification.effect
       },
       workflowGuidance: [
@@ -1828,7 +1828,7 @@ Respond ONLY with valid JSON matching this exact schema:
 {
   "scenarioTitle": "string",
   "scenarioLens": { "key": "string", "label": "string", "functionKey": "string", "estimatePresetKey": "string" },
-  "structuredScenario": { "assetService": "string", "threatCommunity": "string", "attackType": "string", "effect": "string" },
+  "structuredScenario": { "assetService": "string", "primaryDriver": "string", "eventPath": "string", "effect": "string" },
   "workflowGuidance": ["string"],
   "benchmarkBasis": "string",
   "inputRationale": {
@@ -1853,7 +1853,7 @@ Respond ONLY with valid JSON matching this exact schema:
 }`;
         const evidenceMeta = _buildEvidenceMeta({ citations: retrievedDocs, businessUnit: buContext, geography: buContext?.geography, applicableRegulations: buContext?.regulatoryTags || [], userProfile: buContext?.userProfileSummary, organisationContext: buContext?.companyStructureContext });
         const userPrompt = `Risk narrative: ${narrative}
-Scenario taxonomy hint: ${classification.scenarioType} | ${classification.attackType} | ${classification.effect}
+Scenario taxonomy hint: ${classification.scenarioType} | ${classification.eventPath} | ${classification.effect}
 Primary lens hint: ${_normaliseScenarioHintKey(buContext?.scenarioLensHint) || classification.key}
 BU: ${buContext?.name || 'Unknown'}
 Data types: ${(buContext?.dataTypes || []).join(', ')}
@@ -1912,12 +1912,13 @@ Treat the primary lens hint as the leading domain for this scenario unless the n
                 ...fallback.structuredScenario,
                 ...(keepFallbackClassification ? {} : (parsed.structuredScenario || {}))
               };
-              return {
-                assetService: _cleanUserFacingText(mergedStructured.assetService || '', { maxSentences: 1, stripTrailingPeriod: true }),
-                threatCommunity: _cleanUserFacingText(mergedStructured.threatCommunity || '', { maxSentences: 1, stripTrailingPeriod: true }),
-                attackType: _cleanUserFacingText(mergedStructured.attackType || '', { maxSentences: 1, stripTrailingPeriod: true }),
-                effect: _cleanUserFacingText(mergedStructured.effect || '', { maxSentences: 2 })
-              };
+              return normaliseStructuredScenario({
+                ...mergedStructured,
+                assetService: _cleanUserFacingText(getStructuredScenarioField(mergedStructured, 'assetService') || '', { maxSentences: 1, stripTrailingPeriod: true }),
+                primaryDriver: _cleanUserFacingText(getStructuredScenarioField(mergedStructured, 'primaryDriver') || '', { maxSentences: 1, stripTrailingPeriod: true }),
+                eventPath: _cleanUserFacingText(getStructuredScenarioField(mergedStructured, 'eventPath') || '', { maxSentences: 1, stripTrailingPeriod: true }),
+                effect: _cleanUserFacingText(getStructuredScenarioField(mergedStructured, 'effect') || '', { maxSentences: 2 })
+              }, { preserveUnknown: true });
             })(),
             workflowGuidance: _normaliseGuidance(parsed.workflowGuidance?.length ? parsed.workflowGuidance : fallback.workflowGuidance),
             benchmarkBasis: _normaliseBenchmarkBasis(parsed.benchmarkBasis || fallback.benchmarkBasis || ''),

@@ -39,8 +39,8 @@ const DemoMode = (() => {
     scenarioTitle: 'Privileged Identity Compromise — Critical Scenario',
     structuredScenario: {
       assetService: 'Shared identity platform and federated business services',
-      threatCommunity: 'Targeted threat actors — credential theft and account takeover specialists',
-      attackType: 'Spear-phishing leading to credential theft, session hijack, and federated identity abuse',
+      primaryDriver: 'Targeted threat actors — credential theft and account takeover specialists',
+      eventPath: 'Spear-phishing leading to credential theft, session hijack, and federated identity abuse',
       effect: 'Administrative access to shared platforms enabling fraud, data exposure, service disruption, and regulatory consequence across connected services'
     },
     confidenceLabel: 'Moderate confidence',
@@ -206,7 +206,7 @@ const DemoMode = (() => {
 
       if (aiResult && typeof AppState !== 'undefined') {
         AppState.draft.scenarioTitle = aiResult.scenarioTitle || DEMO_SCENARIO.title;
-        AppState.draft.structuredScenario = aiResult.structuredScenario;
+        AppState.draft.structuredScenario = normaliseStructuredScenario(aiResult.structuredScenario, { preserveUnknown: true });
         AppState.draft.enhancedNarrative = AppState.draft.narrative;
         AppState.draft.llmAssisted = true;
         AppState.draft.confidenceLabel = aiResult.confidenceLabel || '';

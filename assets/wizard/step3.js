@@ -328,8 +328,8 @@ function recommendEstimatePreset(draft) {
     draft.scenarioTitle,
     draft.enhancedNarrative,
     draft.narrative,
-    draft.structuredScenario?.attackType,
-    draft.structuredScenario?.threatCommunity,
+    getStructuredScenarioField(draft.structuredScenario, 'eventPath'),
+    getStructuredScenarioField(draft.structuredScenario, 'primaryDriver'),
     ...(getSelectedRisks().map(r => r.title || ''))
   ].join(' ').toLowerCase();
   if (/(phish|bec|email compromise|business email|invoice fraud)/.test(text)) return 'phishing';
@@ -537,10 +537,10 @@ function renderEstimateHandoffCard(draft) {
   const narrative = String(draft.enhancedNarrative || draft.narrative || '').trim();
   const scenarioGeographies = getScenarioGeographies();
   const selectedRisks = getSelectedRisks();
-  const structured = draft.structuredScenario || {};
+  const structured = normaliseStructuredScenario(draft.structuredScenario, { preserveUnknown: true }) || {};
   const scopeItems = [
     structured.assetService ? `Asset / service: ${structured.assetService}` : '',
-    structured.attackType ? `Event path: ${structured.attackType}` : '',
+    structured.eventPath ? `Event path: ${structured.eventPath}` : '',
     scenarioGeographies.length ? `Geography: ${scenarioGeographies.join(', ')}` : '',
     selectedRisks.length ? `Selected risks: ${selectedRisks.slice(0, 3).map(risk => risk.title).join(', ')}` : ''
   ].filter(Boolean);
@@ -555,10 +555,10 @@ function renderEstimateHandoffCard(draft) {
 function renderEstimateScopeSummaryBand(draft) {
   const scenarioGeographies = getScenarioGeographies();
   const selectedRisks = getSelectedRisks();
-  const structured = draft.structuredScenario || {};
+  const structured = normaliseStructuredScenario(draft.structuredScenario, { preserveUnknown: true }) || {};
   const scopeItems = [
     structured.assetService ? `Asset / service: ${structured.assetService}` : '',
-    structured.attackType ? `Event path: ${structured.attackType}` : '',
+    structured.eventPath ? `Event path: ${structured.eventPath}` : '',
     scenarioGeographies.length ? `Geography: ${scenarioGeographies.join(', ')}` : '',
     selectedRisks.length ? `Selected risks: ${selectedRisks.slice(0, 3).map(risk => risk.title).join(', ')}` : ''
   ].filter(Boolean);
@@ -738,9 +738,9 @@ function _ensureDraftFairParamsSeeded(draft) {
     draft.scenarioTitle,
     draft.enhancedNarrative,
     draft.narrative,
-    draft.structuredScenario?.attackType,
-    draft.structuredScenario?.threatCommunity,
-    draft.structuredScenario?.effect,
+    getStructuredScenarioField(draft.structuredScenario, 'eventPath'),
+    getStructuredScenarioField(draft.structuredScenario, 'primaryDriver'),
+    getStructuredScenarioField(draft.structuredScenario, 'effect'),
     ...selectedRisks.map(risk => risk.title || '')
   ].filter(Boolean).join(' ');
   const benchmarkCandidates = BenchmarkService.retrieveRelevantBenchmarks({
