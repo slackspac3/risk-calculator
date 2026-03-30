@@ -288,16 +288,18 @@ function renderStep1AiAlignmentCard(alignment = {}) {
   const checks = Array.isArray(model.checks) ? model.checks.filter(Boolean).slice(0, 4) : [];
   if (!model.label && !checks.length) return '';
   const needsReview = checks.some(check => check?.status !== 'ok');
+  // These checks need their own structured layout; generic summary-band styles made
+  // the label/detail pairs collapse into a dense paragraph-like block.
   return `<div class="wizard-summary-band wizard-summary-band--support premium-guidance-strip premium-guidance-strip--${needsReview ? 'warning' : 'support'} mt-4 wizard-ai-alignment-card">
-    <div>
+    <div class="wizard-ai-alignment-card__intro">
       <div class="wizard-summary-band__label">AI coherence check</div>
       <strong>${escapeHtml(String(model.label || 'Working draft'))}</strong>
       <div class="wizard-summary-band__copy">${escapeHtml(String(model.summary || 'The platform checked whether the draft, lens, structure, and shortlist still agree.'))}</div>
     </div>
     <div class="wizard-summary-band__meta wizard-ai-alignment-card__meta">
       ${checks.map(check => `<div class="wizard-ai-alignment-card__check wizard-ai-alignment-card__check--${check.status === 'ok' ? 'ok' : 'review'}">
-        <span>${escapeHtml(String(check.label || 'Check'))}</span>
-        <strong>${escapeHtml(String(check.detail || ''))}</strong>
+        <span class="wizard-ai-alignment-card__check-label">${escapeHtml(String(check.label || 'Check'))}</span>
+        <p class="wizard-ai-alignment-card__check-detail">${escapeHtml(String(check.detail || ''))}</p>
       </div>`).join('')}
     </div>
   </div>`;
