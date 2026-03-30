@@ -139,10 +139,10 @@ const UI = (() => {
   }
 
   function adminTableCard({ title, description = '', table }) {
-    return `<div class="card card--elevated" style="padding:var(--sp-6)">
+    return `<div class="card card--elevated admin-table-card" style="padding:var(--sp-6)">
       <div class="context-panel-title">${title}</div>
       ${description ? `<div class="form-help" style="margin-top:6px">${description}</div>` : ''}
-      <div class="table-wrap mt-4" style="overflow-x:auto">${table}</div>
+      <div class="table-wrap table-wrap--admin mt-4" style="overflow-x:auto">${table}</div>
     </div>`;
   }
 

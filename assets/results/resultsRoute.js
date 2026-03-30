@@ -706,13 +706,24 @@ function renderAssessmentValueBand(valueModel) {
   const externalValueNote = valueModel.cost?.externalEquivalentValueUsd
     ? `External-equivalent value at the current Big 4-style UAE rate card: ${fmtCurrency(valueModel.cost.externalEquivalentValueUsd)}.`
     : 'External-equivalent value is not available yet.';
-  return `<section class="results-value-band card card--elevated anim-fade-in">
+  return `<section class="results-value-band results-guidance-band card card--elevated anim-fade-in">
     <div class="results-value-band__head">
       <div>
         <div class="results-section-heading">Value created by this assessment</div>
         <div class="form-help">Measured cycle time, directional effort avoided, and modelled downside reduction stay separate so the economics are easier to defend with leadership.</div>
       </div>
       <span class="badge badge--neutral">${escapeHtml(String(valueModel.domain?.label || 'General enterprise'))} · ${escapeHtml(String(valueModel.complexity?.label || 'Working complexity'))}</span>
+    </div>
+    <div class="premium-guidance-strip premium-guidance-strip--support results-guidance-strip">
+      <div class="premium-guidance-strip__main">
+        <div class="premium-guidance-strip__label">Leadership framing</div>
+        <strong>Use external-equivalent value and modelled downside reduction as separate signals.</strong>
+        <div class="premium-guidance-strip__copy">The comparable advisory benchmark shows directional effort and value avoided, while modelled reduction only appears once a better-outcome comparison exists.</div>
+      </div>
+      <div class="premium-guidance-strip__meta">
+        <span class="badge badge--neutral">${escapeHtml(String(valueModel.directional?.externalEquivalentDaysLabel || 'No specialist-day benchmark yet'))}</span>
+        <span class="badge badge--gold">${valueModel.modelled?.available ? 'Modelled reduction available' : 'Treatment comparison not yet built'}</span>
+      </div>
     </div>
     <div class="results-value-grid">
       <article class="results-value-card">
@@ -743,6 +754,49 @@ function renderAssessmentValueBand(valueModel) {
   </section>`;
 }
 
+function buildAssessmentAiQualitySignal(assessment = {}) {
+  const confidence = String(assessment?.confidenceLabel || assessment?.assessmentIntelligence?.confidence?.label || '').trim();
+  const evidenceQuality = String(assessment?.evidenceQuality || assessment?.assessmentIntelligence?.confidence?.evidenceQuality || '').trim();
+  const citationCount = Array.isArray(assessment?.citations) ? assessment.citations.filter(Boolean).length : 0;
+  const groundingCount = (Array.isArray(assessment?.primaryGrounding) ? assessment.primaryGrounding.filter(Boolean).length : 0)
+    + (Array.isArray(assessment?.supportingReferences) ? assessment.supportingReferences.filter(Boolean).length : 0);
+  const qualityState = String(assessment?.aiQualityState || '').trim().toLowerCase();
+  const totalSupport = citationCount + groundingCount;
+  if (qualityState === 'analyst-reshaped') {
+    return {
+      tone: 'warning',
+      label: 'Materially analyst-reshaped',
+      summary: 'The current scenario was materially reshaped after the initial AI draft, so leadership should treat the result as analyst-led with AI support in the background.'
+    };
+  }
+  if (qualityState === 'fallback' || /fallback|no live model/i.test(`${confidence} ${evidenceQuality}`)) {
+    return {
+      tone: 'warning',
+      label: 'Fallback-generated',
+      summary: 'The platform used fallback guidance instead of a clean live AI result. Review the evidence and challenge layers before relying on the output.'
+    };
+  }
+  if (assessment?.llmAssisted && !/thin|weak|incomplete|low/i.test(`${confidence} ${evidenceQuality}`) && totalSupport >= 2) {
+    return {
+      tone: 'success',
+      label: 'Strongly grounded',
+      summary: 'The scenario, benchmark framing, and evidence base are aligned strongly enough for leadership discussion, while still remaining a challengeable decision view.'
+    };
+  }
+  if (assessment?.llmAssisted) {
+    return {
+      tone: 'support',
+      label: 'Lightly grounded',
+      summary: 'AI has shaped the result, but the evidence base or confidence posture still suggests a working management view rather than a fully anchored read.'
+    };
+  }
+  return {
+    tone: 'quiet',
+    label: 'Analyst-built',
+    summary: 'This result is primarily analyst-shaped and should be read as a structured management view rather than a strongly AI-grounded output.'
+  };
+}
+
 function renderExecutiveBenchmarkContext(assessment, results, runMetadata) {
   const references = Array.isArray(assessment?.benchmarkReferences) ? assessment.benchmarkReferences.filter(Boolean) : [];
   const thresholdConfig = runMetadata?.thresholdConfigUsed || {};
@@ -760,9 +814,21 @@ function renderExecutiveBenchmarkContext(assessment, results, runMetadata) {
     : references.length
       ? 'Published benchmark references were used where they mapped cleanly, then scenario-calibration baselines were used only where direct comparators were thin.'
       : 'Governance thresholds and scenario-calibration baselines were used because no published benchmark references were saved for this result.';
-  return `<section class="card card--elevated anim-fade-in">
+  const qualitySignal = buildAssessmentAiQualitySignal(assessment);
+  return `<section class="card card--elevated anim-fade-in results-benchmark-band">
     <div class="results-section-heading">Benchmark context</div>
     <div class="form-help" style="margin-top:8px">Benchmarked against ${references.length || 'no saved'} reference${references.length === 1 ? '' : 's'} and ${triggerCount} governance trigger${triggerCount === 1 ? '' : 's'} so leadership can see what anchored the result.</div>
+    <div class="premium-guidance-strip premium-guidance-strip--${escapeHtml(String(qualitySignal.tone || 'support'))} results-guidance-strip" style="margin-top:var(--sp-4)">
+      <div class="premium-guidance-strip__main">
+        <div class="premium-guidance-strip__label">Trust signal</div>
+        <strong>${escapeHtml(String(qualitySignal.label || 'Working guidance'))}</strong>
+        <div class="premium-guidance-strip__copy">${escapeHtml(String(qualitySignal.summary || 'The platform is showing how strongly the current result is grounded before it is used in a leadership discussion.'))}</div>
+      </div>
+      <div class="premium-guidance-strip__meta">
+        <span class="badge badge--neutral">${references.length ? `${references.length} saved reference${references.length === 1 ? '' : 's'}` : 'Scenario baseline only'}</span>
+        <span class="badge badge--gold">${triggerCount} governance trigger${triggerCount === 1 ? '' : 's'}</span>
+      </div>
+    </div>
     <div class="results-value-grid" style="margin-top:var(--sp-4)">
       <article class="results-value-card">
         <span class="results-value-card__label">Reference coverage</span>
@@ -778,6 +844,11 @@ function renderExecutiveBenchmarkContext(assessment, results, runMetadata) {
         <span class="results-value-card__label">Benchmark approach</span>
         <strong>${references.length ? 'Published references plus governance thresholds' : 'Governance thresholds plus scenario baseline'}</strong>
         <span class="results-value-card__foot">${escapeHtml(basisSummary)}</span>
+      </article>
+      <article class="results-value-card">
+        <span class="results-value-card__label">AI quality signal</span>
+        <strong>${escapeHtml(String(qualitySignal.label || 'Working guidance'))}</strong>
+        <span class="results-value-card__foot">${escapeHtml(String(qualitySignal.summary || 'Use the confidence and evidence layer to decide how much reliance to place on the AI-supported output.'))}</span>
       </article>
     </div>
   </section>`;
@@ -2025,6 +2096,7 @@ function bindResultsInteractions({
   document.getElementById('btn-export-pdf')?.addEventListener('click', event => {
     withResultsActionBusy(event.currentTarget, 'Preparing PDF…', 800, () => {
       ExportService.exportPDF(assessment, AppState.currency, AppState.fxRate);
+      UI.toast('PDF report prepared for print or PDF save. Regenerate it after material scenario or treatment changes.', 'success');
     });
   });
   document.getElementById('btn-toggle-boardroom-mode')?.addEventListener('click', () => {
@@ -2039,7 +2111,7 @@ function bindResultsInteractions({
     withResultsActionBusy(event.currentTarget, 'Preparing…', 800, () => {
       try {
         ExportService.exportBoardNote(assessment, AppState.currency, AppState.fxRate);
-        UI.toast('Board note prepared for print or PDF save.', 'success');
+        UI.toast('Board note prepared for print or PDF save. Regenerate it after material changes to keep the snapshot current.', 'success');
       } catch (error) {
         console.error('Board note export failed:', error);
         UI.toast('The board note could not be prepared. Try again.', 'danger');
@@ -2050,7 +2122,7 @@ function bindResultsInteractions({
     withResultsActionBusy(event.currentTarget, 'Preparing…', 800, () => {
       try {
         ExportService.exportDecisionMemo(assessment, AppState.currency, AppState.fxRate, { includeAppendix: true });
-        UI.toast('Decision memo with appendix prepared for print or PDF save.', 'success');
+        UI.toast('Decision memo with appendix prepared for print or PDF save. Regenerate it after material changes to keep the snapshot current.', 'success');
       } catch (error) {
         console.error('Decision memo + appendix export failed:', error);
         UI.toast('The decision memo with appendix could not be prepared. Try again.', 'danger');
@@ -2353,6 +2425,7 @@ function renderResults(id, isShared) {
             </details>
           </div>
         </div>
+        <div class="form-help results-export-note anim-fade-in">Exports are point-in-time snapshots. Regenerate them after material scenario, evidence, or treatment changes.</div>
 
         <div class="results-tabbar mb-6" role="tablist" aria-label="Results views">
           <button class="results-tab ${activeTab === 'executive' ? 'active' : ''}" id="results-tab-btn-executive" role="tab" aria-selected="${activeTab === 'executive' ? 'true' : 'false'}" aria-controls="results-tab-executive" tabindex="${activeTab === 'executive' ? '0' : '-1'}" data-results-tab="executive">Executive Summary</button>

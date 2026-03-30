@@ -323,6 +323,7 @@
     AppState.draft.confidenceLabel = '';
     AppState.draft.evidenceQuality = '';
     AppState.draft.evidenceSummary = '';
+    AppState.draft.aiQualityState = '';
     AppState.draft.primaryGrounding = [];
     AppState.draft.supportingReferences = [];
     AppState.draft.inferredAssumptions = [];
@@ -409,6 +410,7 @@
     AppState.draft.structuredScenario = normaliseStructuredScenario(result?.structuredScenario || AppState.draft.structuredScenario, {
       preserveUnknown: true
     });
+    AppState.draft.aiQualityState = result.usedFallback ? 'fallback' : 'ai';
     AppState.draft.confidenceLabel = result.confidenceLabel || AppState.draft.confidenceLabel || '';
     AppState.draft.evidenceQuality = result.evidenceQuality || AppState.draft.evidenceQuality || '';
     AppState.draft.evidenceSummary = result.evidenceSummary || AppState.draft.evidenceSummary || '';
@@ -443,6 +445,7 @@
     AppState.draft.aiAlignment = result?.aiAlignment && typeof result.aiAlignment === 'object'
       ? { ...result.aiAlignment }
       : (AppState.draft.aiAlignment || null);
+    AppState.draft.aiQualityState = result.usedFallback ? 'fallback' : 'ai';
     AppState.draft.confidenceLabel = result.confidenceLabel || AppState.draft.confidenceLabel || '';
     AppState.draft.evidenceQuality = result.evidenceQuality || AppState.draft.evidenceQuality || '';
     AppState.draft.evidenceSummary = result.evidenceSummary || AppState.draft.evidenceSummary || '';

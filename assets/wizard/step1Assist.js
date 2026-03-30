@@ -64,6 +64,7 @@
       AppState.draft.guidedDraftPreview = finalDraft;
       AppState.draft.guidedDraftSource = guidedDraftSource;
       AppState.draft.guidedDraftStatus = _buildGuidedDraftStatusCopy(guidedDraftSource);
+      AppState.draft.aiQualityState = guidedDraftSource;
       AppState.draft.narrative = finalDraft;
       AppState.draft.sourceNarrative = localDraft;
       AppState.draft.enhancedNarrative = finalDraft;
@@ -81,6 +82,7 @@
       AppState.draft.guidedDraftPreview = localDraft;
       AppState.draft.guidedDraftSource = 'local';
       AppState.draft.guidedDraftStatus = _buildGuidedDraftStatusCopy('local');
+      AppState.draft.aiQualityState = 'local';
       AppState.draft.narrative = localDraft;
       AppState.draft.sourceNarrative = localDraft;
       AppState.draft.enhancedNarrative = localDraft;

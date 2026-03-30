@@ -279,7 +279,8 @@ function renderStep1AiAlignmentCard(alignment = {}) {
   const model = alignment && typeof alignment === 'object' ? alignment : {};
   const checks = Array.isArray(model.checks) ? model.checks.filter(Boolean).slice(0, 4) : [];
   if (!model.label && !checks.length) return '';
-  return `<div class="wizard-summary-band wizard-summary-band--support mt-4 wizard-ai-alignment-card">
+  const needsReview = checks.some(check => check?.status !== 'ok');
+  return `<div class="wizard-summary-band wizard-summary-band--support premium-guidance-strip premium-guidance-strip--${needsReview ? 'warning' : 'support'} mt-4 wizard-ai-alignment-card">
     <div>
       <div class="wizard-summary-band__label">AI coherence check</div>
       <strong>${escapeHtml(String(model.label || 'Working draft'))}</strong>
@@ -290,6 +291,125 @@ function renderStep1AiAlignmentCard(alignment = {}) {
         <span>${escapeHtml(String(check.label || 'Check'))}</span>
         <strong>${escapeHtml(String(check.detail || ''))}</strong>
       </div>`).join('')}
+    </div>
+  </div>`;
+}
+
+function getStep1ScenarioWordSet(value = '') {
+  return new Set(
+    normaliseScenarioSeedText(value)
+      .toLowerCase()
+      .split(/[^a-z0-9]+/i)
+      .map(token => token.trim())
+      .filter(token => token.length >= 4)
+  );
+}
+
+function getStep1ScenarioOverlap(a = '', b = '') {
+  const left = getStep1ScenarioWordSet(a);
+  const right = getStep1ScenarioWordSet(b);
+  if (!left.size || !right.size) return 1;
+  let common = 0;
+  left.forEach(token => {
+    if (right.has(token)) common += 1;
+  });
+  return common / Math.max(left.size, right.size, 1);
+}
+
+function isStep1AiDraftMateriallyReshaped(draft = {}) {
+  const baseline = normaliseScenarioSeedText(draft.aiNarrativeBaseline || draft.guidedDraftPreview || '');
+  const current = normaliseScenarioSeedText(draft.narrative || draft.enhancedNarrative || draft.guidedDraftPreview || '');
+  if (!baseline || !current || baseline === current) return false;
+  const overlap = getStep1ScenarioOverlap(baseline, current);
+  const baselineSize = getStep1ScenarioWordSet(baseline).size;
+  const currentSize = getStep1ScenarioWordSet(current).size;
+  const lengthDrift = Math.abs(baselineSize - currentSize) / Math.max(baselineSize, currentSize, 1);
+  return overlap < 0.68 || lengthDrift > 0.34;
+}
+
+function buildStep1AiQualityModel(draft = {}) {
+  const citations = Array.isArray(draft.citations) ? draft.citations.filter(Boolean) : [];
+  const primaryGrounding = Array.isArray(draft.primaryGrounding) ? draft.primaryGrounding.filter(Boolean) : [];
+  const supportingReferences = Array.isArray(draft.supportingReferences) ? draft.supportingReferences.filter(Boolean) : [];
+  const evidenceCount = new Set([
+    ...citations.map(item => item?.docId || item?.title || item?.sourceTitle || JSON.stringify(item)),
+    ...primaryGrounding.map(item => item?.docId || item?.title || item?.sourceTitle || item?.label || JSON.stringify(item)),
+    ...supportingReferences.map(item => item?.docId || item?.title || item?.sourceTitle || item?.label || JSON.stringify(item))
+  ].filter(Boolean)).size;
+  const source = String(draft.aiQualityState || draft.guidedDraftSource || (draft.llmAssisted ? 'ai' : 'local')).trim() || 'local';
+  const confidence = String(draft.confidenceLabel || '').trim() || 'Moderate confidence';
+  const evidenceQuality = String(draft.evidenceQuality || '').trim() || 'Evidence quality not yet stated';
+  const alignmentChecks = Array.isArray(draft.aiAlignment?.checks) ? draft.aiAlignment.checks.filter(Boolean) : [];
+  const needsReview = alignmentChecks.some(check => check?.status !== 'ok');
+  const analystReshaped = source === 'analyst-reshaped'
+    || (source !== 'local' && isStep1AiDraftMateriallyReshaped(draft));
+
+  let tone = 'support';
+  let title = 'Lightly grounded';
+  let copy = 'AI has shaped the draft, but it still needs judgement and challenge before you treat it as a finished scenario.';
+  if (analystReshaped) {
+    tone = 'warning';
+    title = 'Materially analyst-reshaped';
+    copy = 'The current wording has moved materially away from the earlier AI draft, so treat this as an analyst-led scenario with AI support in the background.';
+  } else if (source === 'fallback') {
+    tone = 'warning';
+    title = 'Fallback-generated';
+    copy = 'The platform kept a tighter fallback draft because the live AI rewrite did not stay close enough to the event and impact you described.';
+  } else if (source === 'local') {
+    tone = 'quiet';
+    title = 'Locally structured';
+    copy = 'This draft is currently shaped from your inputs and saved context. Run the AI build when you want a stronger structured rewrite and refreshed shortlist.';
+  } else if (!needsReview && (/high/i.test(confidence) || /strong/i.test(evidenceQuality)) && evidenceCount >= 2) {
+    tone = 'success';
+    title = 'Strongly grounded';
+    copy = 'The draft, lens, and shortlist are currently aligned with the saved evidence base and inherited context.';
+  } else if (needsReview) {
+    tone = 'warning';
+    title = 'Needs review';
+    copy = 'The platform found at least one mismatch between the draft, lens, structure, or shortlist, so this scenario still needs challenge before you continue.';
+  }
+
+  return {
+    tone,
+    title,
+    copy,
+    facts: [
+      { label: 'Draft source', value: source === 'ai' ? 'Live AI rewrite' : source === 'fallback' ? 'Fallback guidance' : source === 'analyst-reshaped' ? 'Analyst reshaped' : 'Local composition' },
+      { label: 'Evidence', value: `${evidenceCount} support item${evidenceCount === 1 ? '' : 's'}` },
+      { label: 'Confidence', value: confidence },
+      { label: 'Lens fit', value: draft.aiAlignment?.label || (needsReview ? 'Review suggested' : 'Working alignment') }
+    ]
+  };
+}
+
+function renderStep1AiQualityStrip(draft = {}) {
+  const model = buildStep1AiQualityModel(draft);
+  const facts = Array.isArray(model.facts) ? model.facts.slice(0, 4) : [];
+  return `<div class="premium-guidance-strip premium-guidance-strip--${escapeHtml(String(model.tone || 'support'))} wizard-ai-quality-strip">
+    <div class="premium-guidance-strip__main">
+      <div class="premium-guidance-strip__label">AI quality signal</div>
+      <strong>${escapeHtml(String(model.title || 'Working guidance'))}</strong>
+      <div class="premium-guidance-strip__copy">${escapeHtml(String(model.copy || 'The platform is showing how strongly the current scenario is grounded before you carry it into the next step.'))}</div>
+    </div>
+    <div class="premium-guidance-strip__meta">
+      ${facts.map(fact => `<div class="premium-guidance-strip__fact"><span>${escapeHtml(String(fact.label || 'Signal'))}</span><strong>${escapeHtml(String(fact.value || '—'))}</strong></div>`).join('')}
+    </div>
+  </div>`;
+}
+
+function renderStep1AiIntakeSummary(draft = {}) {
+  if (!String(draft.intakeSummary || '').trim()) return '';
+  const model = buildStep1AiQualityModel(draft);
+  return `<div class="premium-guidance-strip premium-guidance-strip--${escapeHtml(String(model.tone === 'quiet' ? 'support' : model.tone || 'support'))} wizard-intake-summary">
+    <div class="premium-guidance-strip__main">
+      <div class="premium-guidance-strip__label">AI intake summary</div>
+      <strong>${escapeHtml(String(draft.intakeSummary || 'Suggested summary'))}</strong>
+      ${draft.linkAnalysis ? `<div class="premium-guidance-strip__copy">${escapeHtml(String(draft.linkAnalysis))}</div>` : ''}
+    </div>
+    <div class="premium-guidance-strip__meta">
+      <span class="badge badge--neutral">${escapeHtml(String(model.title || 'Working guidance'))}</span>
+      ${draft.scenarioLens?.label ? `<span class="badge badge--gold">${escapeHtml(String(draft.scenarioLens.label))}</span>` : ''}
+      ${draft.evidenceQuality ? `<span class="badge badge--neutral">${escapeHtml(String(draft.evidenceQuality))}</span>` : ''}
     </div>
   </div>`;
 }
@@ -365,7 +485,7 @@ function renderStep1GuidedBuilderCard(draft, recommendation, functionLabel = 'yo
       <button class="btn btn--primary" id="btn-build-guided-narrative" type="button">Build scenario draft</button>
       <span class="form-help">Good enough is enough here. You can still tighten the wording and shortlist on the next screens.</span>
     </div>
-    ${draftPreview ? `<div class="card mt-4 wizard-draft-preview" style="padding:var(--sp-4);background:var(--bg-elevated)">
+    ${draftPreview ? `${renderStep1AiQualityStrip(draft)}<div class="card mt-4 wizard-draft-preview" style="padding:var(--sp-4);background:var(--bg-elevated)">
       <div class="context-panel-title">Draft preview</div>
       ${draftPreviewStatus ? `<div class="form-help" style="margin-top:4px">${draftPreviewSource === 'ai' ? 'AI-built draft' : draftPreviewSource === 'fallback' ? 'Context-kept draft' : 'Local draft'} · ${escapeHtml(draftPreviewStatus)}</div>` : ''}
       <p class="context-panel-copy" id="guided-preview">${escapeHtml(String(draftPreview))}</p>
@@ -422,7 +542,7 @@ function renderStep1SupportBand({ draft, hasScenarioDraft, hasImportedSource, fe
       ${renderStep1FeaturedExampleCard(featuredDryRun, recommendedDryRuns, learnedDryRuns, functionLabel)}
       ${renderStep1OtherWaysToStart(draft, hasScenarioDraft, hasImportedSource, availableDryRuns, functionLabel)}
       <div id="intake-output">
-        ${draft.intakeSummary ? `<div class="card card--glow"><div class="context-panel-title">AI Intake Summary</div><p class="context-panel-copy">${draft.intakeSummary}</p>${draft.linkAnalysis ? `<div class="context-panel-foot">${draft.linkAnalysis}</div>` : ''}</div>` : ''}
+        ${renderStep1AiIntakeSummary(draft)}
       </div>
     </div>
   </section>`;
@@ -1671,9 +1791,11 @@ function bindStep1PrimaryInputs({ buList, wizardGeographyInput }) {
 
   ['event', 'asset', 'cause', 'impact'].forEach(key => {
     document.getElementById(`guided-${key}`).addEventListener('input', function() {
+      const hadGuidedAiDraft = !!(AppState.draft.guidedDraftSource || AppState.draft.aiNarrativeBaseline);
       AppState.draft.guidedInput[key] = this.value;
       clearLoadedDryRunFlag();
       clearStep1StaleAssistState(composeStep1GuidedNarrative(AppState.draft.guidedInput, getEffectiveSettings(), AppState.draft));
+      if (hadGuidedAiDraft) AppState.draft.aiQualityState = 'analyst-reshaped';
       updateStep1GuidedPreview();
       markDraftDirty();
       scheduleDraftAutosave();
@@ -1681,20 +1803,24 @@ function bindStep1PrimaryInputs({ buList, wizardGeographyInput }) {
   });
 
   document.getElementById('guided-urgency').addEventListener('change', function() {
+    const hadGuidedAiDraft = !!(AppState.draft.guidedDraftSource || AppState.draft.aiNarrativeBaseline);
     AppState.draft.guidedInput.urgency = this.value;
     clearLoadedDryRunFlag();
     clearStep1StaleAssistState(composeStep1GuidedNarrative(AppState.draft.guidedInput, getEffectiveSettings(), AppState.draft));
+    if (hadGuidedAiDraft) AppState.draft.aiQualityState = 'analyst-reshaped';
     updateStep1GuidedPreview();
     markDraftDirty();
     scheduleDraftAutosave();
   });
 
   document.getElementById('intake-risk-statement').addEventListener('input', function() {
+    const hadAssistedDraft = !!(AppState.draft.guidedDraftSource || AppState.draft.aiNarrativeBaseline || AppState.draft.llmAssisted);
     clearStep1StaleAssistState(this.value);
     AppState.draft.narrative = this.value;
     AppState.draft.sourceNarrative = this.value;
     // Preserve the current function-aware lens while the user edits so later shortlist and AI steps do not reclassify the draft from scratch on every keystroke.
     AppState.draft.scenarioLens = getStep1PreferredScenarioLens(getEffectiveSettings(), AppState.draft);
+    if (hadAssistedDraft) AppState.draft.aiQualityState = 'analyst-reshaped';
     clearLoadedDryRunFlag();
     markDraftDirty();
     scheduleDraftAutosave();
@@ -2120,7 +2246,7 @@ function renderSelectedRiskCards(riskCandidates, selectedRisks, regulations) {
       : 'Choose the risks that share the same event, scope, or business impact.';
   const additionalRisksDisclosureKey = getDisclosureStateKey('/wizard/1', 'show additional possible risks');
   return `${linkedRecommendations.length ? `<div class="card mb-4" style="background:var(--bg-elevated)"><div class="context-panel-title">Suggested linked-risk groupings</div><div style="display:flex;flex-direction:column;gap:var(--sp-3);margin-top:var(--sp-3)">${linkedRecommendations.map(group => `<div><div style="font-size:.78rem;font-weight:600;color:var(--text-primary)">${escapeHtml(String(group.label || 'Linked risks'))}</div><div class="context-panel-copy" style="margin-top:4px">${escapeHtml(String((Array.isArray(group.risks) ? group.risks : []).join(', ')))}</div></div>`).join('')}</div><div class="context-panel-foot">${escapeHtml(String(AppState.draft.linkAnalysis || 'Treat these as linked where one control or event could trigger the others in the same scenario.'))}</div></div>` : ''}
-  ${selectedReviewCount ? `<div class="wizard-summary-band wizard-summary-band--quiet mb-4"><div><div class="wizard-summary-band__label">Scope review suggested</div><strong>${selectedReviewCount} selected risk${selectedReviewCount === 1 ? '' : 's'} may sit outside the current scenario lens</strong><div class="wizard-summary-band__copy">Keep them only if they clearly belong in the same event path, business impact, and management discussion.</div></div></div>` : ''}
+  ${selectedReviewCount ? `<div class="wizard-summary-band wizard-summary-band--quiet premium-guidance-strip premium-guidance-strip--warning mb-4"><div><div class="wizard-summary-band__label">Scope review suggested</div><strong>${selectedReviewCount} selected risk${selectedReviewCount === 1 ? '' : 's'} may sit outside the current scenario lens</strong><div class="wizard-summary-band__copy">Keep them only if they clearly belong in the same event path, business impact, and management discussion.</div></div></div>` : ''}
   <div class="flex items-center gap-3 mb-4" style="flex-wrap:wrap">
     <button class="btn btn--ghost btn--sm" id="btn-select-all-risks" type="button">Select All</button>
     <button class="btn btn--ghost btn--sm" id="btn-clear-all-risks" type="button">Clear All</button>
