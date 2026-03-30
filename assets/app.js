@@ -433,6 +433,123 @@ function inferStoredScenarioFunctionKey(source = {}) {
   return 'general';
 }
 
+function _smartPrefillClamp(value, min = 0, max = 1) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return min;
+  return Math.max(min, Math.min(max, num));
+}
+
+function _smartPrefillSigmoid(x, k = 6) {
+  return 1 / (1 + Math.exp(-k * Number(x || 0)));
+}
+
+function normaliseSmartParamScenarioType(source = {}) {
+  const direct = String(
+    source?.primaryRiskCategory
+    || source?.scenarioLens?.key
+    || source?.scenarioType
+    || source?.scenarioFamily
+    || ''
+  ).trim().toLowerCase();
+  if (direct) return direct;
+  const eventPath = String(getStructuredScenarioField(source?.structuredScenario, 'eventPath') || '').trim().toLowerCase();
+  if (/identity|credential|account|phishing|mailbox/.test(eventPath)) return 'identity';
+  if (/cloud|bucket|tenant|misconfig|saas/.test(eventPath)) return 'cloud';
+  if (/data|privacy|breach|exfil/.test(eventPath)) return 'data-breach';
+  if (/ransom|continuity|outage|recovery/.test(eventPath)) return 'business-continuity';
+  if (/procurement|supplier|vendor|third[- ]party|supply/.test(eventPath)) return 'third-party';
+  const functionKey = inferStoredScenarioFunctionKey(source);
+  return functionKey || 'general';
+}
+
+function deriveSmartPrefillVulnerabilityRange(fairParams = {}) {
+  const p = fairParams && typeof fairParams === 'object' ? fairParams : {};
+  if ([p.vulnMin, p.vulnLikely, p.vulnMax].some(value => Number.isFinite(Number(value)))) {
+    return {
+      min: _smartPrefillClamp(Number(p.vulnMin || 0), 0.01, 0.99),
+      likely: _smartPrefillClamp(Number(p.vulnLikely || 0), 0.01, 0.99),
+      max: _smartPrefillClamp(Number(p.vulnMax || 0), 0.01, 0.99)
+    };
+  }
+  const tcMin = Number(p.threatCapMin);
+  const tcLikely = Number(p.threatCapLikely);
+  const tcMax = Number(p.threatCapMax);
+  const csMin = Number(p.controlStrMin);
+  const csLikely = Number(p.controlStrLikely);
+  const csMax = Number(p.controlStrMax);
+  if (![tcMin, tcLikely, tcMax, csMin, csLikely, csMax].every(Number.isFinite)) return null;
+  return {
+    min: Number(_smartPrefillClamp(_smartPrefillSigmoid(tcMin - csMax), 0.01, 0.99).toFixed(2)),
+    likely: Number(_smartPrefillClamp(_smartPrefillSigmoid(tcLikely - csLikely), 0.01, 0.99).toFixed(2)),
+    max: Number(_smartPrefillClamp(_smartPrefillSigmoid(tcMax - csMin), 0.01, 0.99).toFixed(2))
+  };
+}
+
+function buildSmartParamScenarioSummary(source = {}) {
+  const parts = [
+    String(source?.scenarioTitle || source?.title || '').trim(),
+    String(source?.enhancedNarrative || source?.narrative || '').trim(),
+    String(getStructuredScenarioField(source?.structuredScenario, 'assetService') || '').trim(),
+    String(getStructuredScenarioField(source?.structuredScenario, 'primaryDriver') || '').trim(),
+    String(getStructuredScenarioField(source?.structuredScenario, 'eventPath') || '').trim(),
+    String(getStructuredScenarioField(source?.structuredScenario, 'effect') || '').trim(),
+    ...(Array.isArray(source?.selectedRisks) ? source.selectedRisks.map(item => item?.title || item?.category || '') : []),
+    ...(Array.isArray(source?.selectedRiskTitles) ? source.selectedRiskTitles : [])
+  ].map(item => String(item || '').trim()).filter(Boolean);
+  return parts.join(' ').replace(/\s+/g, ' ').trim().slice(0, 900);
+}
+
+function buildSmartParamHistoryRecord(source = {}) {
+  const fairParams = source?.results?.inputs && typeof source.results.inputs === 'object'
+    ? source.results.inputs
+    : (source?.fairParams && typeof source.fairParams === 'object' ? source.fairParams : null);
+  if (!fairParams) return null;
+  const tef = {
+    min: Number(fairParams.tefMin),
+    likely: Number(fairParams.tefLikely),
+    max: Number(fairParams.tefMax)
+  };
+  const controls = {
+    min: Number(fairParams.controlStrMin),
+    likely: Number(fairParams.controlStrLikely),
+    max: Number(fairParams.controlStrMax)
+  };
+  const vulnerability = deriveSmartPrefillVulnerabilityRange(fairParams);
+  const lossKeys = ['ir', 'bi', 'db', 'rl', 'tp', 'rc'];
+  const sumLoss = suffix => lossKeys.reduce((sum, prefix) => {
+    const value = Number(fairParams?.[`${prefix}${suffix}`]);
+    return Number.isFinite(value) ? sum + value : sum;
+  }, 0);
+  if (![tef.min, tef.likely, tef.max, controls.min, controls.likely, controls.max].every(Number.isFinite)) return null;
+  if (!vulnerability) return null;
+  const lmLow = sumLoss('Min');
+  const lmLikely = sumLoss('Likely');
+  const lmHigh = sumLoss('Max');
+  if (![lmLow, lmLikely, lmHigh].every(Number.isFinite)) return null;
+  return {
+    assessmentId: String(source?.id || '').trim(),
+    scenarioType: normaliseSmartParamScenarioType(source),
+    tef: {
+      min: Number(tef.min.toFixed(2)),
+      likely: Number(tef.likely.toFixed(2)),
+      max: Number(tef.max.toFixed(2))
+    },
+    vulnerability: {
+      min: Number(vulnerability.min.toFixed(2)),
+      likely: Number(vulnerability.likely.toFixed(2)),
+      max: Number(vulnerability.max.toFixed(2))
+    },
+    controls: {
+      min: Number(controls.min.toFixed(2)),
+      likely: Number(controls.likely.toFixed(2)),
+      max: Number(controls.max.toFixed(2))
+    },
+    lm_low: Math.max(0, Math.round(lmLow)),
+    lm_likely: Math.max(0, Math.round(lmLikely)),
+    lm_high: Math.max(0, Math.round(lmHigh))
+  };
+}
+
 function extractScenarioPattern(assessment) {
   if (!assessment || !assessment.results) return null;
   return {

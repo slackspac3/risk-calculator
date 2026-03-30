@@ -3971,6 +3971,93 @@ Lens: ${scenarioLens?.label || 'general'}`;
     }
   }
 
+  async function suggestSmartParamPrefill(input = {}) {
+    if (_isDirectCompassUrl(_compassApiUrl) && !_compassApiKey) return null;
+    const history = Array.isArray(input?.history)
+      ? input.history.filter(item => item && typeof item === 'object').slice(0, 8)
+      : [];
+    if (history.length < 3) return null;
+    const scenarioSummary = String(input?.scenarioSummary || '').trim().slice(0, 800);
+    if (!scenarioSummary) return null;
+    const systemPrompt = `You are a FAIR risk parameter assistant. Here are past estimates for similar scenarios: [inject array]. The current scenario is: [scenario summary]. Suggest pre-fill values for TEF, Vulnerability, and Loss Magnitude range with a one-sentence rationale for each.
+
+Return JSON only with this schema:
+{
+  "tef": { "min": number, "likely": number, "max": number, "rationale": "string" },
+  "vulnerability": { "min": number, "likely": number, "max": number, "rationale": "string" },
+  "controlStrength": { "min": number, "likely": number, "max": number, "rationale": "string" },
+  "lossMagnitude": { "low": number, "likely": number, "high": number, "rationale": "string" }
+}
+
+Keep the numbers realistic, internally ordered, and anchored to the user's own history first.`;
+    const userPrompt = [
+      `Scenario type: ${String(input?.scenarioType || 'general').trim()}`,
+      `Current scenario: ${scenarioSummary}`,
+      'Past estimates for similar scenarios:',
+      JSON.stringify(history, null, 2)
+    ].join('\n');
+    const ensureRange = (value = {}, fallback = {}) => {
+      const min = Number(value?.min ?? fallback?.min);
+      const likely = Number(value?.likely ?? fallback?.likely);
+      const max = Number(value?.max ?? fallback?.max);
+      if (![min, likely, max].every(Number.isFinite)) return null;
+      const ordered = [min, likely, max].sort((a, b) => a - b);
+      return {
+        min: Number(ordered[0].toFixed(2)),
+        likely: Number(ordered[1].toFixed(2)),
+        max: Number(ordered[2].toFixed(2))
+      };
+    };
+    const ensureLossRange = (value = {}) => {
+      const low = Number(value?.low);
+      const likely = Number(value?.likely);
+      const high = Number(value?.high);
+      if (![low, likely, high].every(Number.isFinite)) return null;
+      const ordered = [low, likely, high].sort((a, b) => a - b);
+      return {
+        low: Math.max(0, Math.round(ordered[0])),
+        likely: Math.max(0, Math.round(ordered[1])),
+        high: Math.max(0, Math.round(ordered[2]))
+      };
+    };
+    try {
+      const raw = await _callLLM(systemPrompt, userPrompt, {
+        taskName: 'suggestSmartParamPrefill',
+        maxCompletionTokens: 420,
+        timeoutMs: 12000,
+        priorMessages: Array.isArray(input?.priorMessages) ? input.priorMessages : []
+      });
+      if (!raw) return null;
+      const parsed = JSON.parse(String(raw).replace(/```json\n?|```/g, '').trim() || 'null');
+      if (!parsed || typeof parsed !== 'object') return null;
+      const tef = ensureRange(parsed.tef, history[0]?.tef);
+      const vulnerability = ensureRange(parsed.vulnerability, history[0]?.vulnerability);
+      const controlStrength = ensureRange(parsed.controlStrength, history[0]?.controls);
+      const lossMagnitude = ensureLossRange(parsed.lossMagnitude);
+      if (!tef || !vulnerability || !controlStrength || !lossMagnitude) return null;
+      return {
+        tef: {
+          ...tef,
+          rationale: _cleanUserFacingText(parsed?.tef?.rationale || '', { maxSentences: 1 })
+        },
+        vulnerability: {
+          ...vulnerability,
+          rationale: _cleanUserFacingText(parsed?.vulnerability?.rationale || '', { maxSentences: 1 })
+        },
+        controlStrength: {
+          ...controlStrength,
+          rationale: _cleanUserFacingText(parsed?.controlStrength?.rationale || '', { maxSentences: 1 })
+        },
+        lossMagnitude: {
+          ...lossMagnitude,
+          rationale: _cleanUserFacingText(parsed?.lossMagnitude?.rationale || '', { maxSentences: 1 })
+        }
+      };
+    } catch {
+      return null;
+    }
+  }
+
 
   function buildLocalEntityContextRefinement(input = {}) {
     const current = {
@@ -4065,6 +4152,7 @@ Lens: ${scenarioLens?.label || 'general'}`;
     challengeAssessment,
     mediateAssessmentDispute,
     coachRiskShortlist,
+    suggestSmartParamPrefill,
     testCompassConnection,
     setCompassAPIKey,
     setCompassConfig,

@@ -3,6 +3,7 @@
 // Shared assessment, draft, and learning-state helpers extracted from app.js.
 
 const _assessmentPersistenceWarnings = new Set();
+const SMART_PARAM_HISTORY_KEY = 'rip_param_history';
 
 function warnAssessmentPersistenceOnce(key, message, error = null) {
   if (typeof window === 'undefined') return;
@@ -260,9 +261,43 @@ function recordTemplateLoad(templateId) {
   saveLearningStore(store);
 }
 
+function getSmartParamHistory() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(SMART_PARAM_HISTORY_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed.filter(item => item && typeof item === 'object') : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveSmartParamHistory(history) {
+  try {
+    localStorage.setItem(SMART_PARAM_HISTORY_KEY, JSON.stringify(Array.isArray(history) ? history.slice(0, 80) : []));
+  } catch (error) {
+    warnAssessmentPersistenceOnce('smart-param-history-write', 'saveSmartParamHistory local write failed:', error);
+  }
+}
+
+function recordSmartParamHistoryFromAssessment(assessment) {
+  try {
+    const record = typeof buildSmartParamHistoryRecord === 'function'
+      ? buildSmartParamHistoryRecord(assessment)
+      : null;
+    if (!record?.scenarioType) return;
+    const existing = getSmartParamHistory();
+    const filtered = record.assessmentId
+      ? existing.filter(item => String(item?.assessmentId || '').trim() !== record.assessmentId)
+      : existing;
+    saveSmartParamHistory([{ ...record, recordedAt: Date.now() }, ...filtered]);
+  } catch (error) {
+    warnAssessmentPersistenceOnce('smart-param-history-record', 'recordSmartParamHistoryFromAssessment failed:', error);
+  }
+}
+
 function recordLearningFromAssessment(draft) {
   // Completed assessments should always feed the lightweight scenario-pattern store, even when no template was used.
   if (typeof persistScenarioPattern === 'function') persistScenarioPattern(draft);
+  recordSmartParamHistoryFromAssessment(draft);
   try {
     const username = AuthService.getCurrentUser()?.username || '';
     if (username && typeof LearningStore !== 'undefined' && typeof LearningStore.patternFromAssessment === 'function' && typeof LearningStore.saveScenarioPattern === 'function') {
@@ -429,6 +464,7 @@ function resetDraft() {
     aiSuggestedFairParams: null,
     orgCalibrationApplied: false,
     orgCalibrationInfo: null,
+    smartPrefillState: null,
     comparisonBaselineId: '',
     treatmentImprovementRequest: '',
     guidedInput: {
