@@ -2172,6 +2172,18 @@ function bindResultsInteractions({
       UI.toast('PDF report prepared for print or PDF save. Regenerate it after material scenario or treatment changes.', 'success');
     });
   });
+  document.getElementById('btn-download-pdf')?.addEventListener('click', event => {
+    withResultsActionBusy(event.currentTarget, 'Building PDF…', 800, () => {
+      try {
+        const doc = ExportService.generatePdfReport(assessment);
+        doc.save(`${assessment.id || 'assessment'}-report.pdf`);
+        UI.toast('PDF downloaded.', 'success');
+      } catch (error) {
+        console.error('PDF download failed:', error);
+        UI.toast('The PDF could not be generated. Try again.', 'danger');
+      }
+    });
+  });
   document.getElementById('btn-toggle-boardroom-mode')?.addEventListener('click', () => {
     AppState.resultsBoardroomMode = !AppState.resultsBoardroomMode;
     AppState.resultsTab = 'executive';
@@ -2482,6 +2494,7 @@ function renderResults(id, isShared) {
           </div>
           <div class="flex items-center gap-3 results-header-actions" style="flex-wrap:wrap">
             <button class="btn btn--primary btn--sm" id="btn-export-pdf">↓ PDF Report</button>
+            <button class="btn btn--secondary btn--sm" id="btn-download-pdf">Download PDF</button>
             <button class="btn btn--secondary btn--sm" id="btn-create-treatment-case">Compare a Better Outcome</button>
             <details class="results-actions-disclosure">
               <summary class="btn btn--ghost btn--sm">More actions</summary>

@@ -956,6 +956,258 @@ const ExportService = (() => {
     URL.revokeObjectURL(url);
   }
 
+  function _pdfWrapText(text, maxCharsPerLine = 90) {
+    const source = String(text || '').replace(/\s+/g, ' ').trim();
+    if (!source) return [];
+    const words = source.split(' ');
+    const lines = [];
+    let current = '';
+    words.forEach(word => {
+      const candidate = current ? `${current} ${word}` : word;
+      if (candidate.length > maxCharsPerLine && current) {
+        lines.push(current);
+        current = word;
+      } else {
+        current = candidate;
+      }
+    });
+    if (current) lines.push(current);
+    return lines;
+  }
+
+  function _pdfWriteLines(doc, lines, x, y, lineHeight = 6) {
+    let cursorY = y;
+    (Array.isArray(lines) ? lines : []).forEach(line => {
+      doc.text(String(line || ''), x, cursorY);
+      cursorY += lineHeight;
+    });
+    return cursorY;
+  }
+
+  function _pdfWriteParagraph(doc, text, x, y, maxCharsPerLine = 90, lineHeight = 6) {
+    return _pdfWriteLines(doc, _pdfWrapText(text, maxCharsPerLine), x, y, lineHeight);
+  }
+
+  function _pdfResolveAssessmentTitle(assessment) {
+    return String(
+      assessment?.title
+      || assessment?.scenarioTitle
+      || assessment?.draft?.title
+      || assessment?.draft?.scenario?.title
+      || 'Risk Assessment'
+    ).trim();
+  }
+
+  function _pdfResolveOrganisationName(assessment) {
+    return String(
+      assessment?.orgName
+      || assessment?.draft?.orgName
+      || 'Risk Intelligence Platform'
+    ).trim();
+  }
+
+  function _pdfResolveResults(assessment) {
+    return assessment?.results || {};
+  }
+
+  function _pdfResolveFairInputs(assessment) {
+    return assessment?.results?.inputs || assessment?.draft?.fairParams || assessment?.fairParams || {};
+  }
+
+  function _pdfResolveThreatLabel(inputs = {}) {
+    return inputs?.vulnDirect ? 'Vulnerability' : 'Threat Capability';
+  }
+
+  function generatePdfReport(assessment) {
+    if (!window.jspdf || !window.jspdf.jsPDF) {
+      throw new Error('jsPDF is not available in this session.');
+    }
+
+    const doc = new window.jspdf.jsPDF('p', 'mm', 'a4');
+    const pageWidth = 210;
+    const pageHeight = 297;
+    const marginLeft = 20;
+    const marginRight = 20;
+    const footerY = pageHeight - 8;
+    const totalPages = 4;
+    const currency = (typeof AppState !== 'undefined' && AppState?.currency) ? AppState.currency : 'USD';
+    const fxRate = (typeof AppState !== 'undefined' && Number(AppState?.fxRate || 0)) ? Number(AppState.fxRate) : 3.6725;
+    const results = _pdfResolveResults(assessment);
+    const fairInputs = _pdfResolveFairInputs(assessment);
+    const assumptionsRaw = Array.isArray(results?.runMetadata?.assumptions) ? results.runMetadata.assumptions.slice(0, 10) : [];
+    const runtimeGuardrails = Array.isArray(results?.runMetadata?.runtimeGuardrails) ? results.runMetadata.runtimeGuardrails : [];
+    const completedLabel = new Date(assessment?.completedAt || assessment?.createdAt || Date.now()).toLocaleDateString('en-GB');
+    const eventLossP90 = Number(results?.eventLoss?.p90 ?? results?.lm?.p90 ?? 0);
+    const aleMean = Number(results?.ale?.mean ?? results?.annualLoss?.mean ?? 0);
+    const aleP90 = Number(results?.ale?.p90 ?? results?.annualLoss?.p90 ?? 0);
+    const decisionText = String(
+      assessment?.assessmentIntelligence?.executiveAction
+      || results?.decisionSupportText
+      || 'Review this assessment with the risk committee.'
+    ).trim();
+    const confidenceLabel = String(
+      results?.runMetadata?.confidenceLabel
+      || assessment?.assessmentIntelligence?.confidenceLabel
+      || assessment?.assessmentIntelligence?.confidence?.label
+      || assessment?.confidenceLabel
+      || 'Not recorded'
+    ).trim();
+
+    function addFooter(pageNumber) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(115, 120, 130);
+      doc.text(`Page ${pageNumber} of ${totalPages} · ${String(assessment?.id || 'assessment').trim()} · CONFIDENTIAL`, marginLeft, footerY);
+    }
+
+    function addSectionHeader(title, y) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(18);
+      doc.setTextColor(26, 30, 38);
+      doc.text(title, marginLeft, y);
+      doc.line(marginLeft, y + 2, pageWidth - marginRight, y + 2);
+      return y + 10;
+    }
+
+    function writeLabelValue(label, value, y) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.setTextColor(70, 74, 82);
+      doc.text(label, marginLeft, y);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(28, 32, 40);
+      return _pdfWriteParagraph(doc, value, marginLeft + 52, y, 64, 6);
+    }
+
+    function normaliseAssumptionItem(item) {
+      if (!item) return '';
+      if (typeof item === 'string') return item;
+      const category = String(item.category || '').trim();
+      const text = String(item.text || item.summary || '').trim();
+      return category && text ? `${category}: ${text}` : (text || category);
+    }
+
+    function writeBulletSection(title, items, y, emptyText) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.setTextColor(28, 32, 40);
+      doc.text(title, marginLeft, y);
+      let cursorY = y + 7;
+      const rows = (Array.isArray(items) ? items : []).filter(Boolean);
+      if (!rows.length) {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10);
+        doc.setTextColor(75, 82, 94);
+        return _pdfWriteParagraph(doc, emptyText, marginLeft, cursorY, 92, 5);
+      }
+      rows.forEach(item => {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10);
+        doc.setTextColor(45, 52, 64);
+        cursorY = _pdfWriteLines(doc, _pdfWrapText(`• ${String(item)}`, 92), marginLeft, cursorY, 5);
+        cursorY += 1;
+      });
+      return cursorY;
+    }
+
+    // Page 1 — Cover
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(12);
+    doc.setTextColor(88, 94, 106);
+    doc.text(_pdfResolveOrganisationName(assessment), marginLeft, 34);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(28);
+    doc.setTextColor(24, 28, 36);
+    let y = _pdfWriteParagraph(doc, _pdfResolveAssessmentTitle(assessment), marginLeft, 50, 28, 11);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(12);
+    doc.setTextColor(88, 94, 106);
+    doc.text(`Date: ${completedLabel}`, marginLeft, y + 10);
+    doc.line(marginLeft, y + 16, pageWidth - marginRight, y + 16);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14);
+    doc.setTextColor(196, 38, 38);
+    doc.text('CONFIDENTIAL', 152, pageHeight - 13);
+    addFooter(1);
+
+    // Page 2 — Executive Summary
+    doc.addPage();
+    y = addSectionHeader('Executive Summary', 24);
+    y = writeLabelValue('P90 Event Loss', _formatCurrency(eventLossP90, currency, fxRate), y);
+    y += 4;
+    y = writeLabelValue('ALE Mean', _formatCurrency(aleMean, currency, fxRate), y);
+    y += 4;
+    y = writeLabelValue('ALE P90', _formatCurrency(aleP90, currency, fxRate), y);
+    y += 4;
+    y = writeLabelValue('Tolerance status', results?.toleranceBreached ? 'ABOVE TOLERANCE' : 'WITHIN TOLERANCE', y);
+    y += 8;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(28, 32, 40);
+    doc.text('Decision', marginLeft, y);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(11);
+    doc.setTextColor(45, 52, 64);
+    _pdfWriteParagraph(doc, decisionText, marginLeft, y + 8, 96, 6);
+    addFooter(2);
+
+    // Page 3 — FAIR Inputs table
+    doc.addPage();
+    y = addSectionHeader('FAIR Inputs', 24);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(60, 66, 78);
+    doc.text('Parameter', marginLeft, y);
+    doc.text('Value', 105, y);
+    doc.line(marginLeft, y + 2, pageWidth - marginRight, y + 2);
+    y += 10;
+    const fairRows = [
+      ['TEF (min / likely / max)', `${fairInputs?.tefMin ?? '—'} / ${fairInputs?.tefLikely ?? '—'} / ${fairInputs?.tefMax ?? '—'}`],
+      [`${_pdfResolveThreatLabel(fairInputs)} (min / likely / max)`, fairInputs?.vulnDirect
+        ? `${fairInputs?.vulnMin ?? '—'} / ${fairInputs?.vulnLikely ?? '—'} / ${fairInputs?.vulnMax ?? '—'}`
+        : `${fairInputs?.threatCapMin ?? '—'} / ${fairInputs?.threatCapLikely ?? '—'} / ${fairInputs?.threatCapMax ?? '—'}`],
+      ['Control Strength (min / likely / max)', `${fairInputs?.controlStrMin ?? '—'} / ${fairInputs?.controlStrLikely ?? '—'} / ${fairInputs?.controlStrMax ?? '—'}`],
+      ['Distribution Type', `${fairInputs?.distType || '—'}`],
+      ['Iterations', `${fairInputs?.iterations ?? '—'}`],
+      ['Seed', `${fairInputs?.seed ?? '—'}`]
+    ];
+    fairRows.forEach(([label, value]) => {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(45, 52, 64);
+      doc.text(label, marginLeft, y);
+      doc.setFont('helvetica', 'normal');
+      const wrappedValue = _pdfWrapText(value, 34);
+      doc.text(wrappedValue[0] || '—', 105, y);
+      if (wrappedValue[1]) doc.text(wrappedValue[1], 105, y + 5);
+      doc.line(marginLeft, y + 3, pageWidth - marginRight, y + 3);
+      y += wrappedValue.length > 1 ? 12 : 8;
+    });
+    addFooter(3);
+
+    // Page 4 — Evidence & Assumptions
+    doc.addPage();
+    y = addSectionHeader('Evidence & Assumptions', 24);
+    y = writeLabelValue('Confidence label', confidenceLabel, y);
+    y += 8;
+    y = writeBulletSection(
+      'Assumptions',
+      assumptionsRaw.map(normaliseAssumptionItem).filter(Boolean),
+      y,
+      'No recorded assumptions were saved with this run metadata.'
+    );
+    y += 6;
+    writeBulletSection(
+      'Runtime guardrails',
+      runtimeGuardrails.map(item => typeof item === 'string' ? item : JSON.stringify(item)),
+      y,
+      'No runtime guardrails were recorded for this run.'
+    );
+    addFooter(4);
+
+    return doc;
+  }
+
 
   // ─── PPTX Slide Spec (JSON) ───────────────────────────────
   // [EXPORT-INTEGRATION] Feed this into pptxgenjs to produce real PPTX
@@ -1702,5 +1954,5 @@ body {
 </html>`;
   }
 
-  return { exportJSON, exportDataAsJson, importJsonFile, exportPDF, exportPPTXSpec, exportDecisionMemo, exportBoardNote, buildDecisionMemoModel };
+  return { exportJSON, exportDataAsJson, importJsonFile, exportPDF, generatePdfReport, exportPPTXSpec, exportDecisionMemo, exportBoardNote, buildDecisionMemoModel };
 })();
