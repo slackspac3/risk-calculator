@@ -767,6 +767,86 @@ const LLMService = (() => {
     throw _normaliseLLMError(lastError);
   }
 
+  async function _streamLLM(systemPrompt, userPrompt, options = {}, onChunk = null) {
+    const directCompass = _isDirectCompassUrl(_compassApiUrl);
+    if (directCompass && !_compassApiKey) return null;
+
+    const maxCompletionTokens = Number(options.maxCompletionTokens || 1200);
+    const promptPayload = _buildPromptPayload(systemPrompt, userPrompt, options);
+    const headers = {
+      'Content-Type': 'application/json'
+    };
+    if (_compassApiKey) {
+      headers.Authorization = `Bearer ${_compassApiKey}`;
+    }
+    const sessionToken = _getSessionToken();
+    if (!directCompass && sessionToken) {
+      headers['x-session-token'] = sessionToken;
+    }
+
+    const response = await fetch(_compassApiUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        model: _compassModel,
+        stream: true,
+        max_completion_tokens: maxCompletionTokens,
+        temperature: Number(options.temperature ?? 0.3),
+        messages: [
+          { role: 'system', content: promptPayload.systemPrompt },
+          { role: 'user', content: promptPayload.userPrompt }
+        ]
+      })
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`LLM API error ${response.status}: ${errText}`);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) return '';
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let fullText = '';
+
+    const processLine = (line) => {
+      const value = String(line || '').trim();
+      if (!value.startsWith('data: ')) return false;
+      const payload = value.slice(6).trim();
+      if (!payload) return false;
+      if (payload === '[DONE]') return true;
+      try {
+        const parsed = JSON.parse(payload);
+        const text = parsed?.choices?.[0]?.delta?.content;
+        if (text == null) return false;
+        const chunk = String(text);
+        fullText += chunk;
+        if (typeof onChunk === 'function') onChunk(chunk);
+      } catch {}
+      return false;
+    };
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        buffer += decoder.decode();
+        const lines = buffer.split(/\r?\n/);
+        lines.forEach(processLine);
+        break;
+      }
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split(/\r?\n/);
+      buffer = lines.pop() || '';
+      for (const line of lines) {
+        if (processLine(line)) return fullText;
+      }
+    }
+
+    return fullText;
+  }
+
   // ─── Stub generator ──────────────────────────────────────
   function _normaliseSentenceKey(sentence = '') {
     return String(sentence || '')
@@ -2507,6 +2587,83 @@ Treat the primary lens hint as the leading domain for this scenario unless the n
     });
   }
 
+  async function streamNarrativeRefinement(input = {}, onChunk = null, options = {}) {
+    const narrative = String(input.narrative || input.riskStatement || '').trim();
+    const buContext = input.buContext || input.businessUnit || {};
+    const retrievedDocs = Array.isArray(input.retrievedDocs) ? input.retrievedDocs : [];
+    const benchmarkCandidates = Array.isArray(input.benchmarkCandidates) ? input.benchmarkCandidates : [];
+    if (!narrative) {
+      return generateScenarioAndInputs(narrative, buContext, retrievedDocs, benchmarkCandidates);
+    }
+
+    const classification = _classifyScenario(narrative, {
+      businessUnit: buContext,
+      scenarioLensHint: buContext?.scenarioLensHint
+    });
+    const systemPrompt = `You are a senior enterprise risk analyst specialising in FAIR methodology and international risk and regulatory environments.
+
+Rewrite the user's scenario into one sharper, clearer narrative only.
+- stay faithful to the original event
+- keep the original business context and impact
+- make the narrative easier to assess
+- keep it to 2-4 sentences
+- do not output JSON
+- do not add headings or bullets
+- do not change the scenario domain unless the narrative clearly requires it`;
+    const userPrompt = `Risk narrative: ${narrative}
+Scenario taxonomy hint: ${classification.scenarioType} | ${classification.eventPath} | ${classification.effect}
+Primary lens hint: ${_normaliseScenarioHintKey(buContext?.scenarioLensHint) || classification.key}
+BU: ${buContext?.name || 'Unknown'}
+Data types: ${(buContext?.dataTypes || []).join(', ')}
+Regulatory tags: ${(buContext?.regulatoryTags || []).join(', ')}
+Critical services: ${(buContext?.criticalServices || []).join(', ')}
+Geography: ${buContext?.geography || 'Unknown'}
+BU context summary: ${buContext?.contextSummary || buContext?.notes || '(none)'}
+BU-specific AI guidance: ${buContext?.aiGuidance || '(none)'}
+Benchmark strategy: ${buContext?.benchmarkStrategy || 'Prefer GCC and UAE references, then fall back to best global data with clear explanation.'}
+Company context profile: ${buContext?.companyContextProfile || '(none)'}
+User profile context:
+${buContext?.userProfileSummary || '(none)'}
+Organisation structure context:
+${buContext?.companyStructureContext || '(none)'}
+Live scoped context:
+${_buildContextPromptBlock(
+  buContext,
+  buContext,
+  (typeof getRelevantScenarioPatterns === 'function'
+    ? getRelevantScenarioPatterns(buContext?.id || '')
+    : [])
+)}
+Relevant citations:
+${_buildCitationPromptBlock(retrievedDocs)}
+
+Structured numeric benchmarks:
+${BenchmarkService.buildPromptBlock(benchmarkCandidates)}
+
+Return only the refined scenario narrative text.`;
+
+    let refinedNarrative = narrative;
+    try {
+      const streamed = await _streamLLM(systemPrompt, userPrompt, {
+        taskName: 'streamNarrativeRefinement',
+        maxCompletionTokens: Number(options.maxCompletionTokens || 500),
+        maxPromptChars: Number(options.maxPromptChars || 24000),
+        temperature: Number(options.temperature ?? 0.4)
+      }, onChunk);
+      const cleaned = _cleanUserFacingText(streamed || '', { maxSentences: 4 });
+      if (cleaned) refinedNarrative = cleaned;
+    } catch (error) {
+      throw _normaliseLLMError(error);
+    }
+
+    const result = await generateScenarioAndInputs(refinedNarrative, buContext, retrievedDocs, benchmarkCandidates);
+    return {
+      ...result,
+      draftNarrative: refinedNarrative,
+      enhancedStatement: refinedNarrative
+    };
+  }
+
   async function enhanceRiskContext(input) {
     const classification = _classifyScenario(input.riskStatement || input.registerText || '', {
       guidedInput: input.guidedInput,
@@ -3637,6 +3794,7 @@ ${evidenceMeta.promptBlock}`;
   return {
     buildGuidedScenarioDraft,
     generateScenarioAndInputs,
+    streamNarrativeRefinement,
     enhanceRiskContext,
     analyseRiskRegister,
     buildCompanyContext,

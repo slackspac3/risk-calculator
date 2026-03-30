@@ -101,6 +101,7 @@ module.exports = async function handler(req, res) {
     res.status(400).json({ error: 'Invalid request body' });
     return;
   }
+  const wantsStream = body.stream === true;
 
   const bodyStr = JSON.stringify(body || {});
   if (bodyStr.length > 500000) {
@@ -122,6 +123,28 @@ module.exports = async function handler(req, res) {
       },
       body: JSON.stringify(upstreamBody)
     }, 30000);
+
+    if (wantsStream) {
+      if (!upstream.ok) {
+        const text = await upstream.text();
+        console.error('Compass upstream request failed.', { status: upstream.status, bodyPreview: String(text || '').slice(0, 400) });
+        res.status(upstream.status).json({ error: 'Compass request failed' });
+        return;
+      }
+      res.status(upstream.status);
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Transfer-Encoding', 'chunked');
+      const reader = upstream.body.getReader();
+      const pump = async () => {
+        const { done, value } = await reader.read();
+        if (done) { res.end(); return; }
+        res.write(Buffer.from(value));
+        return pump();
+      };
+      await pump();
+      return;
+    }
 
     const text = await upstream.text();
     if (!upstream.ok) {

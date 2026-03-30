@@ -585,7 +585,7 @@ function renderWizard2AiChangeSummary(result, previousNarrative) {
 }
 
 async function runLLMAssist() {
-  const narrative = document.getElementById('narrative').value.trim();
+  let narrative = document.getElementById('narrative').value.trim();
   if (!narrative) { UI.toast('Please enter a narrative first.', 'warning'); return; }
   const assistSeed = getScenarioAssistSeedNarrative(narrative);
   const btn = document.getElementById('btn-llm-assist');
@@ -617,17 +617,35 @@ async function runLLMAssist() {
       businessUnit: aiContext.businessUnit || bu || null,
       topK: 3
     });
-    const result = await LLMService.generateScenarioAndInputs(scenarioText, {
-      ...(aiContext.businessUnit || bu || {}),
-      scenarioLensHint: AppState.draft.scenarioLens,
-      regulatoryTags: deriveApplicableRegulations(aiContext.businessUnit || bu, getSelectedRisks(), getScenarioGeographies()),
-      geography: formatScenarioGeographies(getScenarioGeographies()),
-      benchmarkStrategy: aiContext.adminSettings.benchmarkStrategy,
-      companyContextProfile: aiContext.adminSettings.companyContextProfile,
-      companyStructureContext: aiContext.adminSettings.companyStructureContext,
-      userProfileSummary: aiContext.adminSettings.userProfileSummary,
-      selectedDepartmentContext: aiContext.adminSettings.departmentContext
-    }, citations, benchmarkCandidates);
+    let streamStarted = false;
+    const result = await LLMService.streamNarrativeRefinement({
+      narrative: scenarioText,
+      buContext: {
+        ...(aiContext.businessUnit || bu || {}),
+        scenarioLensHint: AppState.draft.scenarioLens,
+        regulatoryTags: deriveApplicableRegulations(aiContext.businessUnit || bu, getSelectedRisks(), getScenarioGeographies()),
+        geography: formatScenarioGeographies(getScenarioGeographies()),
+        benchmarkStrategy: aiContext.adminSettings.benchmarkStrategy,
+        companyContextProfile: aiContext.adminSettings.companyContextProfile,
+        companyStructureContext: aiContext.adminSettings.companyStructureContext,
+        userProfileSummary: aiContext.adminSettings.userProfileSummary,
+        selectedDepartmentContext: aiContext.adminSettings.departmentContext
+      },
+      retrievedDocs: citations,
+      benchmarkCandidates
+    }, (text) => {
+      const el = document.getElementById('scenario-narrative') || document.getElementById('narrative');
+      if (el) {
+        if (!streamStarted) {
+          el.value = '';
+          streamStarted = true;
+        }
+        el.value = (el.value || '') + text;
+      }
+    });
+    narrative = document.getElementById('scenario-narrative')?.value.trim()
+      || document.getElementById('narrative')?.value.trim()
+      || narrative;
     AppState.draft.scenarioTitle = result.scenarioTitle;
     AppState.draft.scenarioLens = result?.scenarioLens && typeof result.scenarioLens === 'object'
       ? { ...result.scenarioLens }
