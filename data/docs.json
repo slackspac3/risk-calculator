@@ -69,6 +69,7 @@
     "tags": [
       "regulatory",
       "compliance",
+      "data-governance",
       "data",
       "classification",
       "privacy",
@@ -83,6 +84,7 @@
     "url": "#/admin/docs",
     "tags": [
       "compliance",
+      "data-governance",
       "gdpr",
       "privacy",
       "eu",
@@ -100,6 +102,7 @@
     "tags": [
       "cyber",
       "compliance",
+      "data-governance",
       "classification",
       "security",
       "data",
@@ -736,6 +739,7 @@
       "supply-chain",
       "esg",
       "compliance",
+      "people-workforce",
       "human-rights",
       "global",
       "all-bu"
@@ -752,6 +756,8 @@
       "supply-chain",
       "esg",
       "compliance",
+      "people-workforce",
+      "investment-jv",
       "human-rights",
       "global",
       "all-bu"
@@ -766,6 +772,8 @@
     "tags": [
       "strategic",
       "operational",
+      "investment-jv",
+      "transformation-delivery",
       "risk-management",
       "enterprise-risk",
       "controls",
@@ -795,6 +803,8 @@
     "tags": [
       "operational",
       "cyber",
+      "ot-resilience",
+      "physical-security",
       "hse",
       "business-continuity",
       "ot",
@@ -875,6 +885,7 @@
       "compliance",
       "procurement",
       "financial",
+      "fraud-integrity",
       "anti-bribery",
       "governance",
       "all-bu"
@@ -946,5 +957,155 @@
     ],
     "contentExcerpt": "SA8000 is relevant when supplier labour practices, worker welfare, recruitment standards, grievance handling, corrective action, or social audit quality could materially affect sourcing decisions, disclosures, financing, or customer trust. It helps labour-practice scenarios stay grounded in due-diligence and remediation expectations rather than generic ethics language.",
     "lastUpdated": "2025-06-15"
+  },
+  {
+    "id": "doc-iso42001-62",
+    "title": "ISO/IEC 42001 AI Management Systems Reference",
+    "url": "#/admin/docs",
+    "tags": [
+      "ai-model-risk",
+      "compliance",
+      "strategic",
+      "governance",
+      "regulatory",
+      "global",
+      "all-bu"
+    ],
+    "contentExcerpt": "ISO/IEC 42001 is relevant where AI systems need clear governance, accountability, documented controls, human oversight, incident response, and continual improvement. It helps AI-enabled assessments stay grounded in a recognised management-system model instead of treating model risk as only a technical issue.",
+    "lastUpdated": "2026-03-30"
+  },
+  {
+    "id": "doc-iso23894-63",
+    "title": "ISO/IEC 23894 AI Risk Management Guidance Reference",
+    "url": "#/admin/docs",
+    "tags": [
+      "ai-model-risk",
+      "strategic",
+      "operational",
+      "risk-management",
+      "global",
+      "all-bu"
+    ],
+    "contentExcerpt": "ISO/IEC 23894 is relevant when teams need disciplined identification, analysis, treatment, and monitoring of AI-specific risks such as bias, drift, misuse, unsafe outputs, and weak oversight. It gives the platform a recognised reference for AI risk reasoning beyond policy language alone.",
+    "lastUpdated": "2026-03-30"
+  },
+  {
+    "id": "doc-nist-airmf-64",
+    "title": "NIST AI Risk Management Framework Reference",
+    "url": "#/admin/docs",
+    "tags": [
+      "ai-model-risk",
+      "strategic",
+      "operational",
+      "governance",
+      "risk-management",
+      "global",
+      "all-bu"
+    ],
+    "contentExcerpt": "The NIST AI RMF is relevant where AI use cases need mapping, measurement, governance, and management of risks across lifecycle design, deployment, monitoring, and change. It strengthens retrieval for responsible-AI, model-governance, and trust scenarios where executive accountability matters as much as model performance.",
+    "lastUpdated": "2026-03-30"
+  },
+  {
+    "id": "doc-eu-ai-act-65",
+    "title": "EU AI Act Governance and Obligations Reference",
+    "url": "#/admin/docs",
+    "tags": [
+      "ai-model-risk",
+      "data-governance",
+      "regulatory",
+      "compliance",
+      "eu",
+      "global",
+      "all-bu"
+    ],
+    "contentExcerpt": "The EU AI Act is relevant where AI systems may trigger risk-tier obligations, transparency duties, prohibited-use concerns, recordkeeping, human oversight, and post-market monitoring expectations. It helps AI scenarios stay tied to real governance and compliance consequences rather than generic innovation language.",
+    "lastUpdated": "2026-03-30"
+  },
+  {
+    "id": "doc-sr11-7-66",
+    "title": "SR 11-7 Model Risk Management Reference",
+    "url": "#/admin/docs",
+    "tags": [
+      "ai-model-risk",
+      "financial",
+      "governance",
+      "risk-management",
+      "global",
+      "all-bu"
+    ],
+    "contentExcerpt": "SR 11-7 is relevant where model governance, validation, limitations, use controls, override discipline, and effective challenge determine whether management can trust model-driven decisions. It is especially useful when AI or analytics scenarios need stronger model-risk framing in financially material contexts.",
+    "lastUpdated": "2026-03-30"
+  },
+  {
+    "id": "doc-contract-governance-67",
+    "title": "Enterprise Contracting, IP, and Dispute Governance Standard",
+    "url": "#/admin/docs",
+    "tags": [
+      "legal-contract",
+      "compliance",
+      "strategic",
+      "governance",
+      "all-bu"
+    ],
+    "contentExcerpt": "This internal standard defines contracting authority, deviation approval, indemnity thresholds, IP-rights review, notice management, and dispute-escalation expectations for material agreements. It is relevant where delivery obligations, rights positions, or licensing assumptions could create legal or commercial downside.",
+    "lastUpdated": "2026-03-30"
+  },
+  {
+    "id": "doc-market-access-68",
+    "title": "Sanctions, Export Controls, and Market-Access Escalation Standard",
+    "url": "#/admin/docs",
+    "tags": [
+      "geopolitical",
+      "regulatory",
+      "compliance",
+      "strategic",
+      "global",
+      "all-bu"
+    ],
+    "contentExcerpt": "This internal escalation standard is relevant where sanctions shifts, export-control restrictions, sovereign decisions, or cross-border licensing constraints could force reprioritisation of suppliers, customers, or operating markets. It helps geopolitical scenarios stay tied to practical management triggers and escalation paths.",
+    "lastUpdated": "2026-03-30"
+  },
+  {
+    "id": "doc-physical-security-69",
+    "title": "Physical Security, Facilities, and Executive Protection Standard",
+    "url": "#/admin/docs",
+    "tags": [
+      "physical-security",
+      "operational",
+      "business-continuity",
+      "hse",
+      "facilities",
+      "all-bu"
+    ],
+    "contentExcerpt": "This internal standard is relevant where sensitive sites, executive movements, visitor controls, guard operations, or perimeter assurance determine whether a physical-control lapse becomes a wider business or safety event. It strengthens grounding for facilities and executive-protection scenarios that do not fit a pure cyber frame.",
+    "lastUpdated": "2026-03-30"
+  },
+  {
+    "id": "doc-investment-jv-70",
+    "title": "Investment Committee and Post-Merger Integration Governance Standard",
+    "url": "#/admin/docs",
+    "tags": [
+      "investment-jv",
+      "strategic",
+      "financial",
+      "governance",
+      "all-bu"
+    ],
+    "contentExcerpt": "This internal governance standard is relevant where transactions, minority positions, joint ventures, integration plans, synergy assumptions, or escalation rights determine whether an investment thesis remains defensible after close. It helps investment and JV scenarios stay tied to decision quality rather than generic strategic concern.",
+    "lastUpdated": "2026-03-30"
+  },
+  {
+    "id": "doc-transformation-delivery-71",
+    "title": "Programme Delivery and Benefits Realisation Governance Standard",
+    "url": "#/admin/docs",
+    "tags": [
+      "transformation-delivery",
+      "strategic",
+      "operational",
+      "governance",
+      "all-bu"
+    ],
+    "contentExcerpt": "This internal governance standard is relevant where major programmes depend on milestone discipline, dependency management, executive decision rights, scope control, and benefits tracking. It helps transformation scenarios stay grounded in delivery governance rather than generic change-language alone.",
+    "lastUpdated": "2026-03-30"
   }
 ]

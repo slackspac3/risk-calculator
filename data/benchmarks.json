@@ -1896,5 +1896,265 @@
         }
       }
     }
+  },
+  {
+    "id": "bm-ai-model-risk-global-2026",
+    "title": "AI governance and model-risk profile",
+    "scenarioType": "ai-model-risk",
+    "geographies": ["Global", "United Arab Emirates", "GCC", "EU"],
+    "industries": ["cross-sector", "technology", "financial services", "healthcare"],
+    "scope": "industry",
+    "sourceType": "official",
+    "sourceTitle": "NIST AI RMF and ISO/IEC 42001",
+    "sourceUrl": "",
+    "lastUpdated": "2026-03-30",
+    "summary": "Directional starting profile aligned to recognised AI governance references. Emphasis is on weak oversight, unsafe or low-trust outputs, remediation effort, and regulatory or stakeholder challenge rather than pure system outage cost.",
+    "suggestedInputs": {
+      "TEF": { "min": 0.2, "likely": 0.9, "max": 4 },
+      "controlStrength": { "min": 0.36, "likely": 0.54, "max": 0.76 },
+      "threatCapability": { "min": 0.28, "likely": 0.46, "max": 0.68 },
+      "lossComponents": {
+        "incidentResponse": { "min": 40000, "likely": 140000, "max": 420000 },
+        "businessInterruption": { "min": 50000, "likely": 220000, "max": 900000 },
+        "dataBreachRemediation": { "min": 10000, "likely": 50000, "max": 220000 },
+        "regulatoryLegal": { "min": 50000, "likely": 220000, "max": 980000 },
+        "thirdPartyLiability": { "min": 0, "likely": 30000, "max": 180000 },
+        "reputationContract": { "min": 120000, "likely": 420000, "max": 1600000 }
+      }
+    }
+  },
+  {
+    "id": "bm-data-governance-global-2026",
+    "title": "Data governance and privacy-control profile",
+    "scenarioType": "data-governance",
+    "geographies": ["Global", "United Arab Emirates", "GCC", "EU"],
+    "industries": ["cross-sector", "technology", "financial services", "healthcare"],
+    "scope": "industry",
+    "sourceType": "official",
+    "sourceTitle": "GDPR, UAE PDPL, and enterprise data governance guidance",
+    "sourceUrl": "",
+    "lastUpdated": "2026-03-30",
+    "summary": "Directional starting profile for data-governance, privacy, retention, and approved-use failures. Emphasis is on data remediation, regulatory challenge, and reporting-confidence loss once lineage or control breaks down.",
+    "suggestedInputs": {
+      "TEF": { "min": 0.3, "likely": 1.4, "max": 6 },
+      "controlStrength": { "min": 0.36, "likely": 0.54, "max": 0.76 },
+      "threatCapability": { "min": 0.3, "likely": 0.48, "max": 0.7 },
+      "lossComponents": {
+        "incidentResponse": { "min": 35000, "likely": 120000, "max": 360000 },
+        "businessInterruption": { "min": 50000, "likely": 180000, "max": 700000 },
+        "dataBreachRemediation": { "min": 60000, "likely": 220000, "max": 900000 },
+        "regulatoryLegal": { "min": 40000, "likely": 180000, "max": 900000 },
+        "thirdPartyLiability": { "min": 0, "likely": 30000, "max": 160000 },
+        "reputationContract": { "min": 80000, "likely": 260000, "max": 980000 }
+      }
+    }
+  },
+  {
+    "id": "bm-fraud-integrity-global-2026",
+    "title": "Fraud, integrity, and financial-crime control profile",
+    "scenarioType": "fraud-integrity",
+    "geographies": ["Global", "United Arab Emirates", "GCC"],
+    "industries": ["cross-sector", "financial services", "technology", "public sector"],
+    "scope": "industry",
+    "sourceType": "official",
+    "sourceTitle": "ISO 37001 and UAE AML/CFT control expectations",
+    "sourceUrl": "",
+    "lastUpdated": "2026-03-30",
+    "summary": "Directional starting profile for bribery, corruption, collusion, and financial-crime scenarios. Emphasis is on investigation effort, direct loss, legal exposure, and downstream assurance pressure.",
+    "suggestedInputs": {
+      "TEF": { "min": 0.4, "likely": 1.8, "max": 7 },
+      "controlStrength": { "min": 0.34, "likely": 0.52, "max": 0.74 },
+      "threatCapability": { "min": 0.38, "likely": 0.58, "max": 0.8 },
+      "lossComponents": {
+        "incidentResponse": { "min": 50000, "likely": 150000, "max": 460000 },
+        "businessInterruption": { "min": 40000, "likely": 160000, "max": 650000 },
+        "dataBreachRemediation": { "min": 0, "likely": 10000, "max": 70000 },
+        "regulatoryLegal": { "min": 50000, "likely": 220000, "max": 1100000 },
+        "thirdPartyLiability": { "min": 40000, "likely": 170000, "max": 780000 },
+        "reputationContract": { "min": 80000, "likely": 280000, "max": 1100000 }
+      }
+    }
+  },
+  {
+    "id": "bm-legal-contract-global-2026",
+    "title": "Legal, contract, and rights-dispute profile",
+    "scenarioType": "legal-contract",
+    "geographies": ["Global", "United Arab Emirates", "GCC"],
+    "industries": ["cross-sector", "technology", "financial services"],
+    "scope": "industry",
+    "sourceType": "calibration",
+    "sourceTitle": "Contracting, IP, and dispute-governance calibration baseline",
+    "sourceUrl": "",
+    "lastUpdated": "2026-03-30",
+    "summary": "Directional starting profile for contract breaches, indemnity disputes, licensing conflicts, and IP-rights challenges. Emphasis is on dispute cost, delayed delivery, and commercial pressure.",
+    "suggestedInputs": {
+      "TEF": { "min": 0.25, "likely": 1, "max": 4 },
+      "controlStrength": { "min": 0.36, "likely": 0.54, "max": 0.76 },
+      "threatCapability": { "min": 0.28, "likely": 0.46, "max": 0.68 },
+      "lossComponents": {
+        "incidentResponse": { "min": 25000, "likely": 90000, "max": 300000 },
+        "businessInterruption": { "min": 70000, "likely": 260000, "max": 1000000 },
+        "dataBreachRemediation": { "min": 0, "likely": 5000, "max": 25000 },
+        "regulatoryLegal": { "min": 120000, "likely": 460000, "max": 2000000 },
+        "thirdPartyLiability": { "min": 25000, "likely": 120000, "max": 620000 },
+        "reputationContract": { "min": 100000, "likely": 340000, "max": 1300000 }
+      }
+    }
+  },
+  {
+    "id": "bm-geopolitical-global-2026",
+    "title": "Geopolitical, sanctions, and market-access profile",
+    "scenarioType": "geopolitical",
+    "geographies": ["Global", "United Arab Emirates", "GCC", "EU", "United States"],
+    "industries": ["cross-sector", "technology", "manufacturing", "financial services"],
+    "scope": "industry",
+    "sourceType": "official",
+    "sourceTitle": "Export-control, sanctions, and market-access restriction guidance",
+    "sourceUrl": "",
+    "lastUpdated": "2026-03-30",
+    "summary": "Directional starting profile for sovereign restrictions, sanctions shifts, export-control changes, and market-access disruption. Emphasis is on delayed execution, supplier restriction, and strategic reprioritisation.",
+    "suggestedInputs": {
+      "TEF": { "min": 0.1, "likely": 0.6, "max": 2.5 },
+      "controlStrength": { "min": 0.34, "likely": 0.5, "max": 0.72 },
+      "threatCapability": { "min": 0.2, "likely": 0.36, "max": 0.58 },
+      "lossComponents": {
+        "incidentResponse": { "min": 25000, "likely": 90000, "max": 280000 },
+        "businessInterruption": { "min": 150000, "likely": 550000, "max": 2200000 },
+        "dataBreachRemediation": { "min": 0, "likely": 0, "max": 15000 },
+        "regulatoryLegal": { "min": 50000, "likely": 180000, "max": 900000 },
+        "thirdPartyLiability": { "min": 20000, "likely": 90000, "max": 420000 },
+        "reputationContract": { "min": 180000, "likely": 680000, "max": 2600000 }
+      }
+    }
+  },
+  {
+    "id": "bm-physical-security-global-2026",
+    "title": "Physical security and facilities-control profile",
+    "scenarioType": "physical-security",
+    "geographies": ["Global", "United Arab Emirates", "GCC"],
+    "industries": ["cross-sector", "technology", "manufacturing", "healthcare"],
+    "scope": "industry",
+    "sourceType": "calibration",
+    "sourceTitle": "Physical security and executive-protection calibration baseline",
+    "sourceUrl": "",
+    "lastUpdated": "2026-03-30",
+    "summary": "Directional starting profile for facility breach, site intrusion, access-control lapse, and executive-protection scenarios. Emphasis is on investigation, operational disruption, and assurance pressure.",
+    "suggestedInputs": {
+      "TEF": { "min": 0.25, "likely": 1.2, "max": 5 },
+      "controlStrength": { "min": 0.34, "likely": 0.5, "max": 0.72 },
+      "threatCapability": { "min": 0.3, "likely": 0.48, "max": 0.7 },
+      "lossComponents": {
+        "incidentResponse": { "min": 45000, "likely": 150000, "max": 460000 },
+        "businessInterruption": { "min": 120000, "likely": 420000, "max": 1700000 },
+        "dataBreachRemediation": { "min": 0, "likely": 0, "max": 15000 },
+        "regulatoryLegal": { "min": 20000, "likely": 90000, "max": 420000 },
+        "thirdPartyLiability": { "min": 10000, "likely": 50000, "max": 240000 },
+        "reputationContract": { "min": 90000, "likely": 280000, "max": 1100000 }
+      }
+    }
+  },
+  {
+    "id": "bm-ot-resilience-global-2026",
+    "title": "OT and site-systems resilience profile",
+    "scenarioType": "ot-resilience",
+    "geographies": ["Global", "United Arab Emirates", "GCC"],
+    "industries": ["manufacturing", "cross-sector", "technology"],
+    "scope": "industry",
+    "sourceType": "official",
+    "sourceTitle": "IEC 62443 and site-systems resilience guidance",
+    "sourceUrl": "",
+    "lastUpdated": "2026-03-30",
+    "summary": "Directional starting profile for industrial-control instability, degraded telemetry, and OT recovery breakdown. Emphasis is on operating disruption, recovery strain, and safety-linked shutdown pressure.",
+    "suggestedInputs": {
+      "TEF": { "min": 0.2, "likely": 1, "max": 4.5 },
+      "controlStrength": { "min": 0.34, "likely": 0.52, "max": 0.74 },
+      "threatCapability": { "min": 0.3, "likely": 0.5, "max": 0.74 },
+      "lossComponents": {
+        "incidentResponse": { "min": 60000, "likely": 180000, "max": 560000 },
+        "businessInterruption": { "min": 180000, "likely": 700000, "max": 2800000 },
+        "dataBreachRemediation": { "min": 0, "likely": 15000, "max": 90000 },
+        "regulatoryLegal": { "min": 30000, "likely": 120000, "max": 520000 },
+        "thirdPartyLiability": { "min": 10000, "likely": 60000, "max": 300000 },
+        "reputationContract": { "min": 90000, "likely": 300000, "max": 1200000 }
+      }
+    }
+  },
+  {
+    "id": "bm-people-workforce-global-2026",
+    "title": "People, workforce, and labour-pressure profile",
+    "scenarioType": "people-workforce",
+    "geographies": ["Global", "United Arab Emirates", "GCC"],
+    "industries": ["cross-sector", "manufacturing", "healthcare", "technology"],
+    "scope": "industry",
+    "sourceType": "official",
+    "sourceTitle": "UN Guiding Principles, OECD RBC, and worker-welfare guidance",
+    "sourceUrl": "",
+    "lastUpdated": "2026-03-30",
+    "summary": "Directional starting profile for workforce pressure, labour-practice escalation, and safe-delivery degradation. Emphasis is on staffing resilience, remediation, and wider confidence or legal consequences.",
+    "suggestedInputs": {
+      "TEF": { "min": 0.3, "likely": 1.2, "max": 5 },
+      "controlStrength": { "min": 0.36, "likely": 0.54, "max": 0.76 },
+      "threatCapability": { "min": 0.26, "likely": 0.42, "max": 0.64 },
+      "lossComponents": {
+        "incidentResponse": { "min": 30000, "likely": 100000, "max": 320000 },
+        "businessInterruption": { "min": 100000, "likely": 360000, "max": 1500000 },
+        "dataBreachRemediation": { "min": 0, "likely": 0, "max": 15000 },
+        "regulatoryLegal": { "min": 30000, "likely": 120000, "max": 600000 },
+        "thirdPartyLiability": { "min": 0, "likely": 30000, "max": 180000 },
+        "reputationContract": { "min": 90000, "likely": 320000, "max": 1300000 }
+      }
+    }
+  },
+  {
+    "id": "bm-investment-jv-global-2026",
+    "title": "Investment, M&A, and JV execution profile",
+    "scenarioType": "investment-jv",
+    "geographies": ["Global", "United Arab Emirates", "GCC"],
+    "industries": ["cross-sector", "technology", "financial services"],
+    "scope": "industry",
+    "sourceType": "calibration",
+    "sourceTitle": "Investment and integration-governance calibration baseline",
+    "sourceUrl": "",
+    "lastUpdated": "2026-03-30",
+    "summary": "Directional starting profile for investment-theory, integration, and JV-governance downside. Emphasis is on value erosion, delayed synergy, and executive reprioritisation rather than high annual frequency.",
+    "suggestedInputs": {
+      "TEF": { "min": 0.15, "likely": 0.6, "max": 2.5 },
+      "controlStrength": { "min": 0.36, "likely": 0.54, "max": 0.76 },
+      "threatCapability": { "min": 0.24, "likely": 0.42, "max": 0.64 },
+      "lossComponents": {
+        "incidentResponse": { "min": 40000, "likely": 120000, "max": 360000 },
+        "businessInterruption": { "min": 140000, "likely": 480000, "max": 1800000 },
+        "dataBreachRemediation": { "min": 0, "likely": 5000, "max": 30000 },
+        "regulatoryLegal": { "min": 25000, "likely": 110000, "max": 500000 },
+        "thirdPartyLiability": { "min": 0, "likely": 40000, "max": 220000 },
+        "reputationContract": { "min": 180000, "likely": 700000, "max": 2800000 }
+      }
+    }
+  },
+  {
+    "id": "bm-transformation-delivery-global-2026",
+    "title": "Transformation and programme-delivery profile",
+    "scenarioType": "transformation-delivery",
+    "geographies": ["Global", "United Arab Emirates", "GCC"],
+    "industries": ["cross-sector", "technology", "financial services", "healthcare"],
+    "scope": "industry",
+    "sourceType": "calibration",
+    "sourceTitle": "Programme-delivery and benefits-realisation calibration baseline",
+    "sourceUrl": "",
+    "lastUpdated": "2026-03-30",
+    "summary": "Directional starting profile for milestone slippage, delayed go-live, and failed benefit realisation. Emphasis is on delivery drag, rising cost, and value erosion once dependencies slip.",
+    "suggestedInputs": {
+      "TEF": { "min": 0.2, "likely": 0.9, "max": 4 },
+      "controlStrength": { "min": 0.34, "likely": 0.52, "max": 0.74 },
+      "threatCapability": { "min": 0.26, "likely": 0.44, "max": 0.66 },
+      "lossComponents": {
+        "incidentResponse": { "min": 30000, "likely": 100000, "max": 320000 },
+        "businessInterruption": { "min": 120000, "likely": 420000, "max": 1600000 },
+        "dataBreachRemediation": { "min": 0, "likely": 0, "max": 15000 },
+        "regulatoryLegal": { "min": 15000, "likely": 70000, "max": 320000 },
+        "thirdPartyLiability": { "min": 0, "likely": 30000, "max": 180000 },
+        "reputationContract": { "min": 140000, "likely": 520000, "max": 2100000 }
+      }
+    }
   }
 ]

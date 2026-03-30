@@ -402,11 +402,15 @@ function inferStoredScenarioFunctionKey(source = {}) {
   if (direct) return direct;
   const lensKey = String(source?.scenarioLens?.key || '').trim().toLowerCase();
   if (lensKey === 'financial') return 'finance';
+  if (lensKey === 'fraud-integrity') return 'finance';
   if (['procurement', 'supply-chain', 'third-party'].includes(lensKey)) return 'procurement';
+  if (lensKey === 'data-governance' || lensKey === 'legal-contract') return 'compliance';
   if (['compliance', 'regulatory'].includes(lensKey)) return 'compliance';
+  if (lensKey === 'people-workforce') return 'hse';
   if (lensKey === 'hse') return 'hse';
-  if (lensKey === 'strategic' || lensKey === 'esg') return 'strategic';
-  if (['operational', 'business-continuity'].includes(lensKey)) return 'operations';
+  if (['strategic', 'esg', 'geopolitical', 'investment-jv', 'transformation-delivery'].includes(lensKey)) return 'strategic';
+  if (['operational', 'business-continuity', 'physical-security', 'ot-resilience'].includes(lensKey)) return 'operations';
+  if (lensKey === 'ai-model-risk') return 'technology';
   if (['ransomware', 'identity', 'phishing', 'insider', 'cloud', 'data-breach', 'cyber'].includes(lensKey)) return 'technology';
   const haystack = [
     source?.scenarioTitle,
@@ -418,13 +422,13 @@ function inferStoredScenarioFunctionKey(source = {}) {
     ...(Array.isArray(source?.selectedRisks) ? source.selectedRisks.map(item => item?.title || item?.category || '') : []),
     ...(Array.isArray(source?.selectedRiskTitles) ? source.selectedRiskTitles : [])
   ].filter(Boolean).join(' ').toLowerCase();
-  if (/procurement|sourcing|vendor|supplier|purchase|third[- ]party|supply chain/.test(haystack)) return 'procurement';
-  if (/compliance|regulatory|legal|privacy|policy|governance|controls|audit/.test(haystack)) return 'compliance';
-  if (/finance|treasury|accounting|financial|cash|payment|payroll|credit|collections|ledger|fraud/.test(haystack)) return 'finance';
-  if (/hse|ehs|health|safety|environment|workplace safety|injury|spill/.test(haystack)) return 'hse';
-  if (/strategy|strategic|enterprise|portfolio|transformation|market|growth|investment|esg|sustainability/.test(haystack)) return 'strategic';
-  if (/technology|cyber|security|identity|cloud|infrastructure|it\b|digital|phishing|ransomware|breach/.test(haystack)) return 'technology';
-  if (/operations|resilience|continuity|service delivery|manufacturing|logistics|facilities|workforce|process failure|backlog/.test(haystack)) return 'operations';
+  if (/procurement|sourcing|vendor|supplier|purchase|third[- ]party|supply chain|supplier due diligence/.test(haystack)) return 'procurement';
+  if (/compliance|regulatory|legal|privacy|policy|governance|controls|audit|contract|litigation|intellectual property|data governance/.test(haystack)) return 'compliance';
+  if (/finance|treasury|accounting|financial|cash|payment|payroll|credit|collections|ledger|fraud|integrity|financial crime|aml/.test(haystack)) return 'finance';
+  if (/hse|ehs|health|safety|environment|workplace safety|injury|spill|worker welfare|labou?r/.test(haystack)) return 'hse';
+  if (/strategy|strategic|enterprise|portfolio|transformation|market|growth|investment|esg|sustainability|geopolitical|sanctions|market access|sovereign|merger|acquisition|joint venture|integration/.test(haystack)) return 'strategic';
+  if (/technology|cyber|security|identity|cloud|infrastructure|it\b|digital|phishing|ransomware|breach|ai\b|model risk|responsible ai|machine learning|llm|algorithm/.test(haystack)) return 'technology';
+  if (/operations|resilience|continuity|service delivery|manufacturing|logistics|facilities|workforce|process failure|backlog|physical security|executive protection|industrial control|ot\b|ics|scada|site systems/.test(haystack)) return 'operations';
   return 'general';
 }
 
@@ -1218,16 +1222,26 @@ const USER_FOCUS_OPTIONS = [
   'Strategic risk',
   'Operational risk',
   'Cyber risk',
+  'AI and model risk',
   'Technology resilience',
+  'Data governance and privacy',
   'Financial risk',
+  'Fraud and integrity',
   'Procurement and sourcing',
   'Supply chain resilience',
   'Business continuity',
   'Regulatory compliance',
   'Compliance assurance',
+  'Legal and contract risk',
+  'Geopolitical and market access',
   'Governance and controls',
   'ESG and sustainability',
   'Health, safety, and environment',
+  'Physical security and facilities',
+  'OT and site resilience',
+  'People and workforce risk',
+  'Investment and JV risk',
+  'Transformation delivery',
   'Operational continuity',
   'Third-party risk',
   'Audit readiness',
@@ -3610,7 +3624,7 @@ function normaliseScenarioLensHint(value) {
   const rawValues = value && typeof value === 'object'
     ? [value.key, value.label, value.functionKey, value.estimatePresetKey]
     : [value];
-  const aliasMap = {
+    const aliasMap = {
     ransomware: 'ransomware',
     identity: 'identity',
     phishing: 'phishing',
@@ -3620,8 +3634,62 @@ function normaliseScenarioLensHint(value) {
     'data-breach': 'data-breach',
     technology: 'cyber',
     'cyber risk': 'cyber',
-    cyber: 'cyber',
-    'third party': 'third-party',
+      cyber: 'cyber',
+      ai: 'ai-model-risk',
+      'ai risk': 'ai-model-risk',
+      'ai-risk': 'ai-model-risk',
+      'ai / model risk': 'ai-model-risk',
+      'ai-model-risk': 'ai-model-risk',
+      'model risk': 'ai-model-risk',
+      'responsible ai': 'ai-model-risk',
+      'data governance': 'data-governance',
+      'data-governance': 'data-governance',
+      privacy: 'data-governance',
+      'data privacy': 'data-governance',
+      'data governance / privacy': 'data-governance',
+      'fraud / integrity': 'fraud-integrity',
+      'fraud integrity': 'fraud-integrity',
+      'fraud-integrity': 'fraud-integrity',
+      fraud: 'fraud-integrity',
+      integrity: 'fraud-integrity',
+      'financial crime': 'fraud-integrity',
+      legal: 'legal-contract',
+      contract: 'legal-contract',
+      litigation: 'legal-contract',
+      ip: 'legal-contract',
+      'legal / contract': 'legal-contract',
+      'legal-contract': 'legal-contract',
+      geopolitical: 'geopolitical',
+      sanctions: 'geopolitical',
+      sovereign: 'geopolitical',
+      'market access': 'geopolitical',
+      'physical security': 'physical-security',
+      'physical-security': 'physical-security',
+      facilities: 'physical-security',
+      'executive protection': 'physical-security',
+      ot: 'ot-resilience',
+      'ot resilience': 'ot-resilience',
+      'ot-resilience': 'ot-resilience',
+      'industrial control': 'ot-resilience',
+      'site systems': 'ot-resilience',
+      people: 'people-workforce',
+      workforce: 'people-workforce',
+      labour: 'people-workforce',
+      labor: 'people-workforce',
+      'human rights': 'people-workforce',
+      'people / workforce': 'people-workforce',
+      'people-workforce': 'people-workforce',
+      investment: 'investment-jv',
+      'joint venture': 'investment-jv',
+      'joint-venture': 'investment-jv',
+      'investment / jv': 'investment-jv',
+      'investment-jv': 'investment-jv',
+      'transformation delivery': 'transformation-delivery',
+      'transformation-delivery': 'transformation-delivery',
+      programme: 'transformation-delivery',
+      program: 'transformation-delivery',
+      'project delivery': 'transformation-delivery',
+      'third party': 'third-party',
     'third-party': 'third-party',
     procurement: 'procurement',
     'supply chain': 'supply-chain',
@@ -3722,20 +3790,32 @@ function guessRisksFromText(text, { lensHint = null } = {}) {
   })();
   if (specialisedSeeds.length) return specialisedSeeds;
   const patterns = [
+    { key: 'ai-model-risk', title: 'AI model governance or responsible-AI failure', category: 'AI / Model Risk', regulations: ['ISO/IEC 42001', 'NIST AI RMF', 'EU AI Act'], terms: ['ai', 'model risk', 'responsible ai', 'model drift', 'hallucination', 'bias', 'algorithm', 'llm', 'training data', 'ai act'] },
+    { key: 'data-governance', title: 'Data-governance or privacy-control breakdown', category: 'Data Governance', regulations: ['ISO 27701', 'GDPR', 'UAE PDPL'], terms: ['data governance', 'data quality', 'data lineage', 'retention', 'purpose limitation', 'privacy', 'personal data', 'consent', 'residency', 'master data'] },
     { key: 'strategic', title: 'Strategic execution or market-position risk', category: 'Strategic', regulations: ['ISO 31000', 'COSO ERM'], terms: ['strategy', 'strategic', 'expansion', 'transformation', 'growth', 'market', 'competitive', 'portfolio', 'investment'] },
     { key: 'operational', title: 'Operational breakdown affecting core services', category: 'Operational', regulations: ['ISO 31000', 'ISO 22301'], terms: ['outage', 'availability', 'disruption', 'failure', 'breakdown', 'backlog', 'capacity', 'process failure'] },
     { key: 'cyber', title: 'Cyber compromise of critical platforms or data', category: 'Cyber', regulations: ['UAE PDPL', 'ISO 27001'], terms: ['ransom', 'malware', 'phish', 'identity', 'credential', 'sso', 'entra', 'azure ad', 'breach', 'exfil', 'cloud', 'misconfig', 'vulnerability', 'privileged'] },
     { key: 'third-party', title: 'Third-party dependency or supplier failure', category: 'Third-Party', regulations: ['ISO 27036', 'ISO 28000'], terms: ['vendor', 'supplier', 'third-party', 'third party', 'outsourc', 'dependency', 'subprocessor', 'partner'] },
     { key: 'regulatory', title: 'Regulatory or licensing exposure', category: 'Regulatory', regulations: ['BIS Export Controls', 'OFAC Sanctions'], terms: ['regulator', 'regulatory', 'licence', 'license', 'supervisory', 'filing', 'notification', 'sanction', 'export control'] },
     { key: 'financial', title: 'Financial loss, fraud, or capital exposure', category: 'Financial', regulations: ['UAE AML/CFT', 'PCI-DSS 4.0'], terms: ['fraud', 'payment', 'invoice', 'treasury', 'liquidity', 'cash', 'capital', 'financial reporting', 'misstatement'] },
+    { key: 'fraud-integrity', title: 'Fraud, integrity, or financial-crime exposure', category: 'Fraud / Integrity', regulations: ['ISO 37001', 'UAE AML/CFT'], terms: ['fraud', 'integrity', 'financial crime', 'money laundering', 'kickback', 'bribery', 'corruption', 'collusion', 'embezzlement'] },
     { key: 'esg', title: 'ESG or sustainability disclosure risk', category: 'ESG', regulations: ['IFRS S1', 'IFRS S2'], terms: ['esg', 'sustainability', 'climate', 'emission', 'carbon', 'greenwashing', 'social impact', 'governance failure'] },
     { key: 'compliance', title: 'Compliance control or policy breakdown', category: 'Compliance', regulations: ['ISO 37301', 'UAE PDPL'], terms: ['policy breach', 'control failure', 'non-compliance', 'compliance', 'obligation', 'conduct', 'ethics'] },
+    { key: 'legal-contract', title: 'Legal, contract, or IP exposure', category: 'Legal / Contract', regulations: ['ISO 37301'], terms: ['contract', 'indemnity', 'litigation', 'ip', 'intellectual property', 'licensing dispute', 'dispute', 'terms breach'] },
+    { key: 'geopolitical', title: 'Geopolitical, sanctions, or market-access exposure', category: 'Geopolitical', regulations: ['OFAC Sanctions', 'BIS Export Controls'], terms: ['geopolitical', 'market access', 'sanctions', 'export control', 'sovereign', 'cross-border restriction', 'entity list', 'tariff'] },
     { key: 'supply-chain', title: 'Supply chain resilience disruption', category: 'Supply Chain', regulations: ['ISO 28000', 'ISO 22301'], terms: ['supply chain', 'logistics', 'inventory', 'fulfilment', 'shipment', 'single source', 'upstream'] },
     { key: 'procurement', title: 'Procurement governance or sourcing risk', category: 'Procurement', regulations: ['ISO 20400', 'ISO 37301'], terms: ['procurement', 'sourcing', 'tender', 'bid', 'contract award', 'vendor selection', 'purchasing', 'critical spend', 'single-source spend'] },
     { key: 'business-continuity', title: 'Business continuity and recovery failure', category: 'Business Continuity', regulations: ['ISO 22301', 'NFPA 1600'], terms: ['continuity', 'recovery', 'dr', 'disaster recovery', 'rto', 'rpo', 'crisis management'] },
+    { key: 'physical-security', title: 'Physical security or facilities-protection breakdown', category: 'Physical Security', regulations: ['ISO 22301', 'UAE Fire and Life Safety Code'], terms: ['physical security', 'perimeter', 'site intrusion', 'badge control', 'facility breach', 'executive protection', 'visitor management'] },
+    { key: 'ot-resilience', title: 'OT or industrial-control resilience failure', category: 'OT Resilience', regulations: ['IEC 62443', 'ISO 22301'], terms: ['ot', 'industrial control', 'ics', 'scada', 'plant network', 'site systems', 'control room', 'operational technology'] },
+    { key: 'people-workforce', title: 'People, workforce, or labour-practice exposure', category: 'People / Workforce', regulations: ['UN Guiding Principles', 'SA8000', 'ILO-OSH 2001'], terms: ['workforce', 'labour', 'labor', 'attrition', 'staffing', 'fatigue', 'strike', 'worker welfare', 'human rights'] },
+    { key: 'investment-jv', title: 'Investment, JV, or integration-thesis exposure', category: 'Investment / JV', regulations: ['COSO ERM', 'ISO 31000'], terms: ['merger', 'acquisition', 'm&a', 'joint venture', 'jv', 'deal thesis', 'integration', 'valuation'] },
+    { key: 'transformation-delivery', title: 'Transformation-delivery or programme-execution failure', category: 'Transformation Delivery', regulations: ['ISO 31010', 'COSO ERM'], terms: ['transformation', 'programme', 'program', 'project delivery', 'go-live', 'milestone', 'dependency slip', 'benefit realisation'] },
     { key: 'hse', title: 'Health, safety, and environmental incident exposure', category: 'HSE', regulations: ['ISO 45001', 'ISO 14001'], terms: ['hse', 'health and safety', 'safety', 'injury', 'environmental', 'spill', 'incident', 'worker'] }
   ];
   const compatibilityBoosts = {
+    'ai-model-risk': new Set(['ai-model-risk', 'data-governance', 'compliance', 'cyber']),
+    'data-governance': new Set(['data-governance', 'compliance', 'regulatory', 'cyber']),
     procurement: new Set(['procurement', 'supply-chain', 'third-party']),
     'supply-chain': new Set(['supply-chain', 'procurement', 'third-party']),
     compliance: new Set(['compliance', 'regulatory']),
@@ -3744,6 +3824,14 @@ function guessRisksFromText(text, { lensHint = null } = {}) {
     'business-continuity': new Set(['business-continuity', 'operational']),
     strategic: new Set(['strategic']),
     financial: new Set(['financial']),
+    'fraud-integrity': new Set(['fraud-integrity', 'financial', 'compliance', 'regulatory']),
+    'legal-contract': new Set(['legal-contract', 'compliance', 'regulatory', 'procurement']),
+    geopolitical: new Set(['geopolitical', 'strategic', 'regulatory', 'supply-chain']),
+    'physical-security': new Set(['physical-security', 'operational', 'business-continuity', 'hse']),
+    'ot-resilience': new Set(['ot-resilience', 'operational', 'cyber', 'hse', 'business-continuity']),
+    'people-workforce': new Set(['people-workforce', 'hse', 'esg', 'operational', 'compliance']),
+    'investment-jv': new Set(['investment-jv', 'strategic', 'financial']),
+    'transformation-delivery': new Set(['transformation-delivery', 'strategic', 'operational']),
     esg: new Set(['esg']),
     hse: new Set(['hse']),
     cyber: new Set(['cyber']),
@@ -4065,6 +4153,24 @@ function composeGuidedNarrative(guidedInput = {}, { lensLabel = '', lensKey = ''
   };
   const inferScenarioContext = () => {
     const text = [event, asset, cause, impact, resolvedLensKey, resolvedLensLabel].filter(Boolean).join(' ').toLowerCase();
+    if (/ai\b|model risk|responsible ai|hallucination|bias|drift|algorithm|llm|training data/.test(text)) {
+      return {
+        positioning: 'This points to an AI-governance and model-risk issue rather than a generic technology problem.',
+        affected: 'the model-governance, monitoring, and human-override path around the AI-enabled workflow in scope',
+        driver: 'weak guardrails, limited monitoring of model behaviour, or poor control over how outputs are reviewed and used',
+        impact: 'unsafe decisions, regulatory scrutiny, customer or internal harm, and lower trust in AI-enabled operations',
+        followOn: 'Once the model starts producing unsafe or low-trust outputs, management usually has to stabilise usage, review governance, and explain how the model was allowed to operate that way.'
+      };
+    }
+    if (/data governance|data quality|data lineage|retention|purpose limitation|privacy|personal data|consent|residency|master data/.test(text)) {
+      return {
+        positioning: 'This points to a data-governance and privacy issue rather than only a classic cyber incident.',
+        affected: 'the data lineage, retention, ownership, and approved-use path around the affected dataset',
+        driver: 'weak ownership, poor retention enforcement, or unclear control over how sensitive data is reused and governed',
+        impact: 'supervisory challenge, remediation cost, and lower confidence in analytics or reporting built on the data',
+        followOn: 'Once data-governance weaknesses become visible, management often has to defend both privacy compliance and the reliability of downstream uses built on the same data.'
+      };
+    }
     if (/exploitative labor|exploitative labour|forced labor|forced labour|child labor|child labour|modern slavery|labor practice|labour practice|worker exploitation|worker abuse|human rights/.test(text)) {
       return {
         positioning: 'This points to a combined procurement, compliance, and ESG issue rather than a simple supplier-performance problem.',
@@ -4092,10 +4198,56 @@ function composeGuidedNarrative(guidedInput = {}, { lensLabel = '', lensKey = ''
         followOn: 'Once a critical category becomes concentrated, continuity, pricing power, and contract performance usually deteriorate together.'
       };
     }
+    if (/geopolitical|market access|sanctions|export control|entity list|sovereign|cross-border restriction|tariff/.test(text)) {
+      return {
+        positioning: 'This points to a geopolitical and market-access issue rather than only a narrow regulatory problem.',
+        affected: 'the cross-border operating path, supplier access, and market-entry assumptions behind the initiative in scope',
+        driver: 'sovereign restrictions, sanctions, export controls, or tightened approval conditions',
+        impact: 'delayed execution, supply disruption, stranded investment, and management reprioritisation',
+        followOn: 'Once geopolitical restrictions tighten, management often has to rethink suppliers, delivery timing, and whether the original business case is still realistic.'
+      };
+    }
+    if (/physical security|facility breach|badge control|perimeter|executive protection|visitor management|site intrusion/.test(text)) {
+      return {
+        positioning: 'This points to a physical-security and facilities-control issue rather than a purely digital incident.',
+        affected: 'the site-access, perimeter, visitor-management, and executive-protection path around the location in scope',
+        driver: 'weak access controls, poor site coordination, or inadequate challenge over physical entry and movement',
+        impact: 'site disruption, safety concern, investigation cost, and lower confidence in the operating environment',
+        followOn: 'Once physical controls are shown to be weak, management usually has to stabilise access, reassess site posture, and decide whether broader facilities controls need urgent remediation.'
+      };
+    }
+    if (/ot\b|industrial control|ics|scada|plant network|site systems|control room/.test(text)) {
+      return {
+        positioning: 'This points to an OT and site-resilience issue that sits between cyber, operations, and safety.',
+        affected: 'the industrial-control, telemetry, and site-recovery path around the affected operating environment',
+        driver: 'weak change governance, poor segregation between IT and OT, or limited fallback visibility over critical controls',
+        impact: 'unstable operations, safety concern, and slower recovery of the site or process in scope',
+        followOn: 'Once site-control confidence drops, management usually has to choose between degraded operation, manual fallback, or shutdown while recovery is brought back under control.'
+      };
+    }
+    if (/workforce|labou?r|staffing|fatigue|attrition|strike|worker welfare/.test(text)) {
+      return {
+        positioning: 'This points to a people and workforce resilience issue rather than only a generic HSE or HR concern.',
+        affected: 'the staffing model, contractor coverage, and shift-critical control path around the work in scope',
+        driver: 'fatigue, attrition, weak workforce planning, or delayed escalation of labour and welfare pressure',
+        impact: 'operational strain, wellbeing concern, and higher likelihood of error or unsafe work conditions',
+        followOn: 'Once workforce pressure is visible, management usually has to make rapid decisions about staffing, safe coverage, contractor oversight, and whether work should continue as planned.'
+      };
+    }
     return null;
   };
   const inferredContext = inferScenarioContext();
   const defaultsByLens = {
+    'ai-model-risk': {
+      affected: 'the AI-enabled workflow, model-governance path, or decision process in scope',
+      impact: 'unsafe outputs, conduct challenge, remediation work, and loss of trust in AI-enabled operations',
+      followOn: 'This kind of AI issue usually weakens confidence in the model, the human-review path, and the governance needed to keep AI use defensible.'
+    },
+    'data-governance': {
+      affected: 'the data lineage, retention, ownership, or approved-use path in scope',
+      impact: 'privacy challenge, remediation cost, and lower confidence in analytics or reporting built on the same data',
+      followOn: 'This kind of data-governance event often reveals weak ownership and poor control over how sensitive data is retained, reused, or challenged.'
+    },
     procurement: {
       affected: 'the sourcing decision, contract award path, or spend category in scope',
       impact: 'commercial overpayment, award challenge, supplier-governance strain, and regulatory scrutiny',
@@ -4119,6 +4271,21 @@ function composeGuidedNarrative(guidedInput = {}, { lensLabel = '', lensKey = ''
       affected: 'the financial process, transaction flow, or commercial exposure in scope',
       impact: 'direct monetary loss, control pressure, and delayed detection'
     },
+    'fraud-integrity': {
+      affected: 'the approval, payment, or conduct-control path in scope',
+      impact: 'direct loss, investigation pressure, and lower confidence in the integrity of the operating model',
+      followOn: 'This kind of integrity event usually exposes how easy it was to bypass controls, collude, or hide unusual activity inside trusted workflows.'
+    },
+    'legal-contract': {
+      affected: 'the contract, indemnity, licensing, or rights position in scope',
+      impact: 'legal cost, delivery delay, and pressure on commitments that depend on the disputed relationship',
+      followOn: 'These scenarios usually become more serious when governance over changes, obligations, or ownership is weak.'
+    },
+    geopolitical: {
+      affected: 'the cross-border operating plan, supplier access, or market-entry path in scope',
+      impact: 'delayed execution, supplier disruption, and value erosion as policy conditions tighten',
+      followOn: 'This kind of geopolitical event typically weakens timing, optionality, and management confidence in the original plan.'
+    },
     strategic: {
       affected: 'the strategic objective, programme, or operating model in scope',
       impact: 'value erosion, management distraction, and corrective execution cost'
@@ -4127,6 +4294,16 @@ function composeGuidedNarrative(guidedInput = {}, { lensLabel = '', lensKey = ''
       affected: 'the operating process or service in scope',
       impact: 'service degradation, backlog growth, and recovery effort'
     },
+    'physical-security': {
+      affected: 'the site-access, facilities, or executive-protection controls in scope',
+      impact: 'site disruption, investigation cost, and safety or leadership concern',
+      followOn: 'Physical-security events usually trigger wider review of access control, contractor oversight, and site operating confidence.'
+    },
+    'ot-resilience': {
+      affected: 'the industrial-control or site-systems environment in scope',
+      impact: 'operational instability, recovery strain, and possible safety escalation',
+      followOn: 'This kind of OT issue often sits between cyber, operations, and safety, so containment and recovery decisions become tightly coupled.'
+    },
     'business-continuity': {
       affected: 'the recovery-critical service or fallback operating model in scope',
       impact: 'extended disruption, missed recovery objectives, and continuity escalation'
@@ -4134,6 +4311,21 @@ function composeGuidedNarrative(guidedInput = {}, { lensLabel = '', lensKey = ''
     hse: {
       affected: 'the people, site, or environment in scope',
       impact: 'harm, shutdown pressure, remediation cost, and regulatory attention'
+    },
+    'people-workforce': {
+      affected: 'the workforce model, labour conditions, or staffing-critical activity in scope',
+      impact: 'wellbeing concern, error risk, and lower confidence in sustained safe delivery',
+      followOn: 'People and workforce issues often intensify quickly because staffing pressure, supervision, and welfare concerns amplify each other.'
+    },
+    'investment-jv': {
+      affected: 'the transaction thesis, integration path, or shared governance model in scope',
+      impact: 'value erosion, delayed synergy, and executive pressure to reset assumptions',
+      followOn: 'These scenarios usually expose whether the deal logic, integration plan, and control assumptions were strong enough to justify the investment.'
+    },
+    'transformation-delivery': {
+      affected: 'the programme roadmap, milestone control, or dependency path in scope',
+      impact: 'delay, rising cost, and lower confidence in delivery of the intended change',
+      followOn: 'Transformation issues become expensive when weak dependency control and unclear ownership are allowed to persist too long.'
     },
     cyber: {
       affected: 'the critical platform, dataset, or identity path in scope',

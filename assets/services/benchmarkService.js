@@ -35,6 +35,40 @@ const BenchmarkService = (() => {
         }
       }
     },
+    'ai-model-risk': {
+      title: 'AI and model-risk calibration baseline',
+      summary: 'Used when no structured published benchmark maps directly to an AI-governance or model-risk scenario. The starting values emphasise governance challenge, remediation, and stakeholder trust rather than pure infrastructure loss.',
+      suggestedInputs: {
+        TEF: { min: 0.2, likely: 0.9, max: 4 },
+        controlStrength: { min: 0.36, likely: 0.54, max: 0.76 },
+        threatCapability: { min: 0.28, likely: 0.46, max: 0.68 },
+        lossComponents: {
+          incidentResponse: { min: 40000, likely: 140000, max: 420000 },
+          businessInterruption: { min: 50000, likely: 220000, max: 900000 },
+          dataBreachRemediation: { min: 10000, likely: 50000, max: 220000 },
+          regulatoryLegal: { min: 50000, likely: 220000, max: 980000 },
+          thirdPartyLiability: { min: 0, likely: 30000, max: 180000 },
+          reputationContract: { min: 120000, likely: 420000, max: 1600000 }
+        }
+      }
+    },
+    'data-governance': {
+      title: 'Data governance and privacy calibration baseline',
+      summary: 'Used when no structured published benchmark maps directly to a data-governance scenario. The starting values emphasise lineage, retention, privacy remediation, and assurance-quality control gaps.',
+      suggestedInputs: {
+        TEF: { min: 0.3, likely: 1.4, max: 6 },
+        controlStrength: { min: 0.36, likely: 0.54, max: 0.76 },
+        threatCapability: { min: 0.3, likely: 0.48, max: 0.7 },
+        lossComponents: {
+          incidentResponse: { min: 35000, likely: 120000, max: 360000 },
+          businessInterruption: { min: 50000, likely: 180000, max: 700000 },
+          dataBreachRemediation: { min: 60000, likely: 220000, max: 900000 },
+          regulatoryLegal: { min: 40000, likely: 180000, max: 900000 },
+          thirdPartyLiability: { min: 0, likely: 30000, max: 160000 },
+          reputationContract: { min: 80000, likely: 260000, max: 980000 }
+        }
+      }
+    },
     regulatory: {
       title: 'Regulatory scenario calibration baseline',
       summary: 'Used when no structured published benchmark maps directly to a regulatory or licence-risk scenario. The starting values emphasise enforcement, remediation, and management response effort.',
@@ -69,6 +103,23 @@ const BenchmarkService = (() => {
         }
       }
     },
+    'fraud-integrity': {
+      title: 'Fraud and integrity calibration baseline',
+      summary: 'Used when no structured published benchmark maps directly to a fraud, integrity, or financial-crime scenario. The starting values emphasise direct loss, investigation, and downstream assurance or legal cost.',
+      suggestedInputs: {
+        TEF: { min: 0.4, likely: 1.8, max: 7 },
+        controlStrength: { min: 0.34, likely: 0.52, max: 0.74 },
+        threatCapability: { min: 0.38, likely: 0.58, max: 0.8 },
+        lossComponents: {
+          incidentResponse: { min: 50000, likely: 150000, max: 460000 },
+          businessInterruption: { min: 40000, likely: 160000, max: 650000 },
+          dataBreachRemediation: { min: 0, likely: 10000, max: 70000 },
+          regulatoryLegal: { min: 50000, likely: 220000, max: 1100000 },
+          thirdPartyLiability: { min: 40000, likely: 170000, max: 780000 },
+          reputationContract: { min: 80000, likely: 280000, max: 1100000 }
+        }
+      }
+    },
     esg: {
       title: 'ESG scenario calibration baseline',
       summary: 'Used when no structured published benchmark maps directly to an ESG or sustainability scenario. The starting values emphasise disclosure remediation, stakeholder scrutiny, and contract or funding pressure.',
@@ -100,6 +151,40 @@ const BenchmarkService = (() => {
           regulatoryLegal: { min: 50000, likely: 180000, max: 780000 },
           thirdPartyLiability: { min: 0, likely: 20000, max: 130000 },
           reputationContract: { min: 60000, likely: 220000, max: 820000 }
+        }
+      }
+    },
+    'legal-contract': {
+      title: 'Legal and contract calibration baseline',
+      summary: 'Used when no structured published benchmark maps directly to a legal or contract scenario. The starting values emphasise dispute cost, delay, and commercial pressure tied to rights, indemnities, or delivery obligations.',
+      suggestedInputs: {
+        TEF: { min: 0.25, likely: 1, max: 4 },
+        controlStrength: { min: 0.36, likely: 0.54, max: 0.76 },
+        threatCapability: { min: 0.28, likely: 0.46, max: 0.68 },
+        lossComponents: {
+          incidentResponse: { min: 25000, likely: 90000, max: 300000 },
+          businessInterruption: { min: 70000, likely: 260000, max: 1000000 },
+          dataBreachRemediation: { min: 0, likely: 5000, max: 25000 },
+          regulatoryLegal: { min: 120000, likely: 460000, max: 2000000 },
+          thirdPartyLiability: { min: 25000, likely: 120000, max: 620000 },
+          reputationContract: { min: 100000, likely: 340000, max: 1300000 }
+        }
+      }
+    },
+    geopolitical: {
+      title: 'Geopolitical and market-access calibration baseline',
+      summary: 'Used when no structured published benchmark maps directly to a geopolitical scenario. The starting values emphasise delayed access, supplier restriction, and strategic reprioritisation rather than rapid high-frequency loss.',
+      suggestedInputs: {
+        TEF: { min: 0.1, likely: 0.6, max: 2.5 },
+        controlStrength: { min: 0.34, likely: 0.5, max: 0.72 },
+        threatCapability: { min: 0.2, likely: 0.36, max: 0.58 },
+        lossComponents: {
+          incidentResponse: { min: 25000, likely: 90000, max: 280000 },
+          businessInterruption: { min: 150000, likely: 550000, max: 2200000 },
+          dataBreachRemediation: { min: 0, likely: 0, max: 15000 },
+          regulatoryLegal: { min: 50000, likely: 180000, max: 900000 },
+          thirdPartyLiability: { min: 20000, likely: 90000, max: 420000 },
+          reputationContract: { min: 180000, likely: 680000, max: 2600000 }
         }
       }
     },
@@ -154,6 +239,57 @@ const BenchmarkService = (() => {
         }
       }
     },
+    'physical-security': {
+      title: 'Physical security calibration baseline',
+      summary: 'Used when no structured published benchmark maps directly to a physical-security scenario. The starting values emphasise site disruption, investigation, and safety or leadership assurance pressure.',
+      suggestedInputs: {
+        TEF: { min: 0.25, likely: 1.2, max: 5 },
+        controlStrength: { min: 0.34, likely: 0.5, max: 0.72 },
+        threatCapability: { min: 0.3, likely: 0.48, max: 0.7 },
+        lossComponents: {
+          incidentResponse: { min: 45000, likely: 150000, max: 460000 },
+          businessInterruption: { min: 120000, likely: 420000, max: 1700000 },
+          dataBreachRemediation: { min: 0, likely: 0, max: 15000 },
+          regulatoryLegal: { min: 20000, likely: 90000, max: 420000 },
+          thirdPartyLiability: { min: 10000, likely: 50000, max: 240000 },
+          reputationContract: { min: 90000, likely: 280000, max: 1100000 }
+        }
+      }
+    },
+    'ot-resilience': {
+      title: 'OT and site-resilience calibration baseline',
+      summary: 'Used when no structured published benchmark maps directly to an OT or site-systems scenario. The starting values emphasise unstable operations, recovery strain, and safety-linked shutdown decisions.',
+      suggestedInputs: {
+        TEF: { min: 0.2, likely: 1, max: 4.5 },
+        controlStrength: { min: 0.34, likely: 0.52, max: 0.74 },
+        threatCapability: { min: 0.3, likely: 0.5, max: 0.74 },
+        lossComponents: {
+          incidentResponse: { min: 60000, likely: 180000, max: 560000 },
+          businessInterruption: { min: 180000, likely: 700000, max: 2800000 },
+          dataBreachRemediation: { min: 0, likely: 15000, max: 90000 },
+          regulatoryLegal: { min: 30000, likely: 120000, max: 520000 },
+          thirdPartyLiability: { min: 10000, likely: 60000, max: 300000 },
+          reputationContract: { min: 90000, likely: 300000, max: 1200000 }
+        }
+      }
+    },
+    'people-workforce': {
+      title: 'People and workforce calibration baseline',
+      summary: 'Used when no structured published benchmark maps directly to a people or workforce scenario. The starting values emphasise staffing strain, welfare, continuity pressure, and management intervention.',
+      suggestedInputs: {
+        TEF: { min: 0.3, likely: 1.2, max: 5 },
+        controlStrength: { min: 0.36, likely: 0.54, max: 0.76 },
+        threatCapability: { min: 0.26, likely: 0.42, max: 0.64 },
+        lossComponents: {
+          incidentResponse: { min: 30000, likely: 100000, max: 320000 },
+          businessInterruption: { min: 100000, likely: 360000, max: 1500000 },
+          dataBreachRemediation: { min: 0, likely: 0, max: 15000 },
+          regulatoryLegal: { min: 30000, likely: 120000, max: 600000 },
+          thirdPartyLiability: { min: 0, likely: 30000, max: 180000 },
+          reputationContract: { min: 90000, likely: 320000, max: 1300000 }
+        }
+      }
+    },
     hse: {
       title: 'HSE scenario calibration baseline',
       summary: 'Used when no structured published benchmark maps directly to a health, safety, or environmental scenario. The starting values emphasise shutdown, remediation, and regulatory scrutiny.',
@@ -168,6 +304,40 @@ const BenchmarkService = (() => {
           regulatoryLegal: { min: 80000, likely: 260000, max: 1200000 },
           thirdPartyLiability: { min: 15000, likely: 70000, max: 340000 },
           reputationContract: { min: 100000, likely: 320000, max: 1200000 }
+        }
+      }
+    },
+    'investment-jv': {
+      title: 'Investment and JV calibration baseline',
+      summary: 'Used when no structured published benchmark maps directly to an investment, M&A, or JV scenario. The starting values emphasise value erosion, integration drag, and executive reprioritisation.',
+      suggestedInputs: {
+        TEF: { min: 0.15, likely: 0.6, max: 2.5 },
+        controlStrength: { min: 0.36, likely: 0.54, max: 0.76 },
+        threatCapability: { min: 0.24, likely: 0.42, max: 0.64 },
+        lossComponents: {
+          incidentResponse: { min: 40000, likely: 120000, max: 360000 },
+          businessInterruption: { min: 140000, likely: 480000, max: 1800000 },
+          dataBreachRemediation: { min: 0, likely: 5000, max: 30000 },
+          regulatoryLegal: { min: 25000, likely: 110000, max: 500000 },
+          thirdPartyLiability: { min: 0, likely: 40000, max: 220000 },
+          reputationContract: { min: 180000, likely: 700000, max: 2800000 }
+        }
+      }
+    },
+    'transformation-delivery': {
+      title: 'Transformation-delivery calibration baseline',
+      summary: 'Used when no structured published benchmark maps directly to a transformation or programme-delivery scenario. The starting values emphasise slippage, rising cost, and delayed benefit realisation.',
+      suggestedInputs: {
+        TEF: { min: 0.2, likely: 0.9, max: 4 },
+        controlStrength: { min: 0.34, likely: 0.52, max: 0.74 },
+        threatCapability: { min: 0.26, likely: 0.44, max: 0.66 },
+        lossComponents: {
+          incidentResponse: { min: 30000, likely: 100000, max: 320000 },
+          businessInterruption: { min: 120000, likely: 420000, max: 1600000 },
+          dataBreachRemediation: { min: 0, likely: 0, max: 15000 },
+          regulatoryLegal: { min: 15000, likely: 70000, max: 320000 },
+          thirdPartyLiability: { min: 0, likely: 30000, max: 180000 },
+          reputationContract: { min: 140000, likely: 520000, max: 2100000 }
         }
       }
     },
@@ -200,17 +370,27 @@ const BenchmarkService = (() => {
 
   function _detectScenarioType(query = '') {
     const q = _normalise(query);
+    if (/responsible ai|model risk|ai governance|model drift|hallucination|algorithmic bias|training data|ai act/.test(q)) return 'ai-model-risk';
+    if (/data governance|data quality|data lineage|retention|purpose limitation|consent|data residency|master data/.test(q)) return 'data-governance';
     if (/gpu export|export control|export licence|export license|entity list|ear|bis|semiconductor equipment|china restrictions|sanctions breach/.test(q)) return 'export-control';
     if (/azure ad|entra|identity|credential|account takeover|sso|directory|mailbox compromise|session hijack/.test(q)) return 'identity';
     if (/ransom|encrypt|extortion/.test(q)) return 'ransomware';
     if (/cloud|storage bucket|misconfig|tenant|saas|public exposure/.test(q)) return 'cloud';
     if (/privacy|data breach|data exposure|pii|phi|privacy incident/.test(q)) return 'data-breach';
+    if (/fraud|financial crime|money laundering|kickback|bribery|corruption|embezzlement|integrity breakdown/.test(q)) return 'fraud-integrity';
+    if (/contract dispute|indemnity|licensing dispute|ip ownership|intellectual property|litigation|terms breach/.test(q)) return 'legal-contract';
+    if (/geopolitical|market access|sovereign|cross-border restriction|tariff/.test(q)) return 'geopolitical';
     // Treat labour-rights and supplier-diligence scenarios as procurement-first unless the text is clearly about logistics or continuity.
     if (/procurement|sourcing|tender|bid|bid rigging|contract award|vendor selection|purchasing|collusion|kickback|conflict of interest|supplier due diligence|modern slavery|forced labor|forced labour|exploitative labor|exploitative labour|human rights/.test(q)) return 'procurement';
     if (/supply chain|logistics|inventory|shipment|upstream|sub tier|sub-tier|single source|sole source|dependency/.test(q)) return 'supply-chain';
     if (/supplier|vendor|third party|third-party|outsourcing/.test(q)) return 'third-party';
     if (/business continuity|continuity|disaster recovery|recovery objective|recovery plan|rto|rpo|crisis management/.test(q)) return 'business-continuity';
+    if (/physical security|executive protection|facility breach|visitor management|badge control|perimeter breach|site intrusion/.test(q)) return 'physical-security';
+    if (/\bot\b|operational technology|ics|scada|industrial control|plant network|site systems|control room/.test(q)) return 'ot-resilience';
+    if (/workforce|labou?r|staffing pressure|fatigue|attrition|strike|worker welfare|contractor welfare/.test(q)) return 'people-workforce';
     if (/health and safety|occupational safety|injury|worker safety|contractor safety|hse|ehs|environmental|spill|hazard|site shutdown|near miss/.test(q)) return 'hse';
+    if (/merger|acquisition|m&a|joint venture|jv|integration thesis|post-merger integration|deal value|synergy/.test(q)) return 'investment-jv';
+    if (/transformation delivery|programme delivery|program delivery|project delivery|go-live|milestone slip|benefit realization|benefit realisation/.test(q)) return 'transformation-delivery';
     if (/strategy|strategic|market shift|competitive|transformation|portfolio|investment/.test(q)) return 'strategic';
     if (/operational|process failure|capacity|breakdown|service failure|backlog|workflow/.test(q)) return 'operational';
     if (/regulator|regulatory|licen|filing|supervisory|sanction|enforcement/.test(q)) return 'regulatory';

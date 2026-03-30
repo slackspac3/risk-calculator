@@ -70,11 +70,15 @@ const LearningStore = (() => {
     if (direct) return direct;
     const lensKey = String(source?.scenarioLens?.key || '').trim().toLowerCase();
     if (lensKey === 'financial') return 'finance';
+    if (lensKey === 'fraud-integrity') return 'finance';
     if (['procurement', 'supply-chain', 'third-party'].includes(lensKey)) return 'procurement';
+    if (lensKey === 'data-governance' || lensKey === 'legal-contract') return 'compliance';
     if (['compliance', 'regulatory'].includes(lensKey)) return 'compliance';
+    if (lensKey === 'people-workforce') return 'hse';
     if (lensKey === 'hse') return 'hse';
-    if (lensKey === 'strategic' || lensKey === 'esg') return 'strategic';
-    if (['operational', 'business-continuity'].includes(lensKey)) return 'operations';
+    if (['strategic', 'esg', 'geopolitical', 'investment-jv', 'transformation-delivery'].includes(lensKey)) return 'strategic';
+    if (['operational', 'business-continuity', 'physical-security', 'ot-resilience'].includes(lensKey)) return 'operations';
+    if (lensKey === 'ai-model-risk') return 'technology';
     if (['ransomware', 'identity', 'phishing', 'insider', 'cloud', 'data-breach', 'cyber'].includes(lensKey)) return 'technology';
     const haystack = [
       source?.title,
@@ -84,13 +88,13 @@ const LearningStore = (() => {
       getStructuredScenarioField(source?.structuredScenario, 'eventPath'),
       ...(Array.isArray(source?.selectedRiskTitles) ? source.selectedRiskTitles : [])
     ].filter(Boolean).join(' ').toLowerCase();
-    if (/procurement|sourcing|vendor|supplier|purchase|third[- ]party|supply chain/.test(haystack)) return 'procurement';
-    if (/compliance|regulatory|legal|privacy|policy|governance|controls|audit/.test(haystack)) return 'compliance';
-    if (/finance|treasury|accounting|financial|cash|payment|payroll|credit|collections|ledger|fraud/.test(haystack)) return 'finance';
-    if (/hse|ehs|health|safety|environment|workplace safety|injury|spill/.test(haystack)) return 'hse';
-    if (/strategy|strategic|enterprise|portfolio|transformation|market|growth|investment|esg|sustainability/.test(haystack)) return 'strategic';
-    if (/technology|cyber|security|identity|cloud|infrastructure|it\b|digital|phishing|ransomware|breach/.test(haystack)) return 'technology';
-    if (/operations|resilience|continuity|service delivery|manufacturing|logistics|facilities|workforce|process failure|backlog/.test(haystack)) return 'operations';
+    if (/procurement|sourcing|vendor|supplier|purchase|third[- ]party|supply chain|supplier due diligence/.test(haystack)) return 'procurement';
+    if (/compliance|regulatory|legal|privacy|policy|governance|controls|audit|contract|litigation|intellectual property|data governance/.test(haystack)) return 'compliance';
+    if (/finance|treasury|accounting|financial|cash|payment|payroll|credit|collections|ledger|fraud|integrity|financial crime|aml/.test(haystack)) return 'finance';
+    if (/hse|ehs|health|safety|environment|workplace safety|injury|spill|worker welfare|labou?r/.test(haystack)) return 'hse';
+    if (/strategy|strategic|enterprise|portfolio|transformation|market|growth|investment|esg|sustainability|geopolitical|sanctions|market access|sovereign|merger|acquisition|joint venture|integration/.test(haystack)) return 'strategic';
+    if (/technology|cyber|security|identity|cloud|infrastructure|it\b|digital|phishing|ransomware|breach|ai\b|model risk|responsible ai|machine learning|llm|algorithm/.test(haystack)) return 'technology';
+    if (/operations|resilience|continuity|service delivery|manufacturing|logistics|facilities|workforce|process failure|backlog|physical security|executive protection|industrial control|ot\b|ics|scada|site systems/.test(haystack)) return 'operations';
     return 'general';
   }
 
@@ -103,6 +107,24 @@ const LearningStore = (() => {
     ).trim().toLowerCase();
     const aliases = {
       technology: 'cyber',
+      'ai-model-risk': 'ai-model-risk',
+      'model risk': 'ai-model-risk',
+      'data governance': 'data-governance',
+      privacy: 'data-governance',
+      'fraud-integrity': 'fraud-integrity',
+      fraud: 'fraud-integrity',
+      integrity: 'fraud-integrity',
+      legal: 'legal-contract',
+      contract: 'legal-contract',
+      geopolitical: 'geopolitical',
+      sanctions: 'geopolitical',
+      'physical security': 'physical-security',
+      ot: 'ot-resilience',
+      workforce: 'people-workforce',
+      labour: 'people-workforce',
+      labor: 'people-workforce',
+      investment: 'investment-jv',
+      'transformation delivery': 'transformation-delivery',
       operations: 'operational',
       finance: 'financial',
       continuity: 'business-continuity',

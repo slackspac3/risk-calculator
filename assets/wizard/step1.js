@@ -74,6 +74,8 @@ function createStep1DryRunScenario(input = {}) {
   return {
     id: String(input.id || '').trim(),
     functionKey: String(input.functionKey || 'general').trim(),
+    lensKey: String(input.lensKey || '').trim(),
+    lensLabel: String(input.lensLabel || '').trim(),
     title: String(input.title || 'Worked example').trim(),
     summary: String(input.summary || '').trim(),
     bestFor: String(input.bestFor || '').trim(),
@@ -100,13 +102,13 @@ function inferStep1FunctionKey(settings = getEffectiveSettings(), draft = AppSta
     draft?.buName,
     draft?.contextNotes
   ].filter(Boolean).join(' ').toLowerCase();
-  if (/procurement|sourcing|vendor|supplier|purchase|third[- ]party|supply chain/.test(haystack)) return 'procurement';
-  if (/compliance|regulatory|legal|privacy|policy|governance|controls|audit/.test(haystack)) return 'compliance';
-  if (/finance|treasury|accounting|financial|cash|payment|payroll|credit|collections|ledger/.test(haystack)) return 'finance';
-  if (/hse|ehs|health|safety|environment|workplace safety|incident response/.test(haystack)) return 'hse';
-  if (/strategy|strategic|enterprise|portfolio|transformation|market|growth|investment/.test(haystack)) return 'strategic';
-  if (/technology|cyber|security|identity|cloud|infrastructure|it\b|digital/.test(haystack)) return 'technology';
-  if (/operations|resilience|continuity|service delivery|manufacturing|logistics|facilities|workforce/.test(haystack)) return 'operations';
+  if (/procurement|sourcing|vendor|supplier|purchase|third[- ]party|supply chain|supplier assurance|supplier due diligence/.test(haystack)) return 'procurement';
+  if (/compliance|regulatory|legal|privacy|data governance|policy|governance|controls|audit|contract|litigation|ip\b|intellectual property/.test(haystack)) return 'compliance';
+  if (/finance|treasury|accounting|financial|cash|payment|payroll|credit|collections|ledger|fraud|aml|financial crime|integrity/.test(haystack)) return 'finance';
+  if (/hse|ehs|health|safety|environment|workplace safety|incident response|worker welfare|labou?r/.test(haystack)) return 'hse';
+  if (/strategy|strategic|enterprise|portfolio|market|growth|investment|merger|acquisition|joint venture|jv|integration|geopolitical|sanctions|market access|sovereign|transformation delivery/.test(haystack)) return 'strategic';
+  if (/technology|cyber|security|identity|cloud|infrastructure|it\b|digital|ai\b|model risk|responsible ai|machine learning|llm|algorithm|ot\b|ics|scada|site systems/.test(haystack)) return 'technology';
+  if (/operations|resilience|continuity|service delivery|manufacturing|logistics|facilities|workforce|physical security|executive protection|industrial control|plant network/.test(haystack)) return 'operations';
   return 'general';
 }
 
@@ -189,8 +191,18 @@ function buildStep1LearnedDryRunExamples(functionKey, buId, limit = 3) {
 
 function getStep1ExampleExperienceModel(settings = getEffectiveSettings(), draft = AppState.draft || {}) {
   const functionKey = inferStep1FunctionKey(settings, draft);
-  const recommended = STEP1_DRY_RUN_SCENARIOS
-    .filter(example => example.functionKey === functionKey)
+  const preferredGeneralOrder = ['supplier-platform-outage', 'dc-recovery-failure'];
+  const orderExamples = (examples = []) => {
+    if (functionKey !== 'general') return examples;
+    // Keep the broad default starter path stable for anonymous or unspecialised users.
+    const preferred = preferredGeneralOrder
+      .map((id) => examples.find((example) => example.id === id))
+      .filter(Boolean);
+    const rest = examples.filter((example) => !preferredGeneralOrder.includes(example.id));
+    return [...preferred, ...rest];
+  };
+  const recommended = orderExamples(STEP1_DRY_RUN_SCENARIOS
+    .filter(example => example.functionKey === functionKey))
     .slice(0, 4);
   const fallback = functionKey === 'general'
     ? STEP1_DRY_RUN_SCENARIOS.filter(example => example.functionKey !== 'general').slice(0, 4)
@@ -1214,17 +1226,237 @@ const STEP1_DRY_RUN_SCENARIOS = [
       { title: 'Contractual service breach', category: 'Commercial', source: 'dry-run', description: 'Customer commitments are missed during a prolonged outage.' },
       { title: 'Executive escalation pressure', category: 'Governance', source: 'dry-run', description: 'Leadership needs to decide on interim service, communication, and investment actions.' }
     ]
+  }),
+  createStep1DryRunScenario({
+    id: 'ai-model-governance-failure',
+    functionKey: 'technology',
+    lensKey: 'ai-model-risk',
+    lensLabel: 'AI / model risk',
+    title: 'AI assistant gives unsafe regulated guidance at scale',
+    summary: 'Useful for responsible AI, model-governance, and human-override assurance reviews.',
+    bestFor: 'Responsible AI and model-risk walkthroughs',
+    nextStep: 'Load this when you want a scenario that links model behaviour, governance assurance, and downstream regulatory exposure.',
+    promptLabel: 'Responsible AI drift',
+    event: 'A generative AI assistant starts producing unsafe or non-compliant guidance across a regulated workflow.',
+    asset: 'The customer-facing AI assistant, approval controls, and model-governance workflow',
+    cause: 'Weak model guardrails, limited human oversight, and poor monitoring of drift or unsafe outputs',
+    impact: 'Regulatory scrutiny, customer harm, rework cost, and loss of trust in AI-enabled operations',
+    urgency: 'high',
+    geographies: ['United Arab Emirates', 'Europe'],
+    risks: [
+      { title: 'Responsible AI governance breakdown', category: 'AI / Model Risk', source: 'dry-run', description: 'The model can produce unsafe or non-compliant outputs without timely human intervention.' },
+      { title: 'Model monitoring and assurance shortfall', category: 'AI / Model Risk', source: 'dry-run', description: 'Weak drift detection and challenge routines leave management blind to deteriorating output quality.' },
+      { title: 'Regulatory or conduct exposure from AI-enabled decisions', category: 'Compliance', source: 'dry-run', description: 'The organisation may face challenge over how AI outputs were governed and reviewed.' }
+    ]
+  }),
+  createStep1DryRunScenario({
+    id: 'data-governance-retention-failure',
+    functionKey: 'compliance',
+    lensKey: 'data-governance',
+    lensLabel: 'Data governance / privacy',
+    title: 'Sensitive data is reused beyond approved purpose in a shared data lake',
+    summary: 'Useful for privacy, data-governance, retention, and data-lineage challenge sessions.',
+    bestFor: 'Data governance and privacy walkthroughs',
+    nextStep: 'Load this when you want a scenario about consent, retention, lineage, or cross-use of sensitive data rather than a classic breach event.',
+    promptLabel: 'Data governance lapse',
+    event: 'Sensitive customer and employee data is retained and reused in a shared analytics environment beyond the approved purpose.',
+    asset: 'The shared data lake, lineage controls, consent records, and access governance workflow',
+    cause: 'Weak retention enforcement, unclear data ownership, and poor lineage between source systems and analytics use',
+    impact: 'Privacy challenge, remediation cost, supervisory scrutiny, and lower confidence in downstream analytics',
+    urgency: 'high',
+    geographies: ['United Arab Emirates', 'Europe'],
+    risks: [
+      { title: 'Data-governance and lineage-control failure', category: 'Data Governance', source: 'dry-run', description: 'Management cannot show that sensitive data use remains within approved retention and purpose boundaries.' },
+      { title: 'Privacy and cross-border handling exposure', category: 'Regulatory', source: 'dry-run', description: 'Supervisors may challenge how the organisation governed personal data reuse and residency.' },
+      { title: 'Analytics and reporting decisions built on weak data controls', category: 'Operational', source: 'dry-run', description: 'Poor data lineage can undermine confidence in the outputs built on the affected dataset.' }
+    ]
+  }),
+  createStep1DryRunScenario({
+    id: 'fraud-integrity-payment-collusion',
+    functionKey: 'finance',
+    lensKey: 'fraud-integrity',
+    lensLabel: 'Fraud / integrity',
+    title: 'False invoices and approval collusion distort payments on a critical supplier account',
+    summary: 'Useful for fraud, integrity, financial-crime, and control-breakdown discussions.',
+    bestFor: 'Fraud and control-integrity walkthroughs',
+    nextStep: 'Load this when you want a finance-led scenario that focuses on collusion, override, and recovery pressure rather than generic financial volatility.',
+    promptLabel: 'Fraud and integrity',
+    event: 'False invoices are approved on a critical supplier account after collusion between an internal approver and an external counterparty.',
+    asset: 'The accounts-payable workflow, vendor master controls, and approval chain',
+    cause: 'Weak segregation of duties, poor exception monitoring, and collusive override of payment controls',
+    impact: 'Direct financial loss, investigation cost, recovery pressure, and possible financial-crime scrutiny',
+    urgency: 'high',
+    geographies: ['United Arab Emirates', 'Saudi Arabia'],
+    risks: [
+      { title: 'Fraud and integrity breakdown in payment approvals', category: 'Fraud / Integrity', source: 'dry-run', description: 'Controls designed to prevent collusive payment release are bypassed or weakly challenged.' },
+      { title: 'Financial-crime or anti-bribery investigation exposure', category: 'Compliance', source: 'dry-run', description: 'The pattern may trigger formal review of gifts, collusion, corruption, or money-flow controls.' },
+      { title: 'Recovery and liquidity pressure after delayed detection', category: 'Financial', source: 'dry-run', description: 'Late discovery makes recovery harder and increases downstream commercial disruption.' }
+    ]
+  }),
+  createStep1DryRunScenario({
+    id: 'legal-contract-ip-dispute',
+    functionKey: 'compliance',
+    lensKey: 'legal-contract',
+    lensLabel: 'Legal / contract',
+    title: 'A strategic technology partner challenges IP ownership and indemnity after a major build',
+    summary: 'Useful for contract, litigation, indemnity, and IP-rights challenge scenarios.',
+    bestFor: 'Legal, contract, and commercial-governance walkthroughs',
+    nextStep: 'Load this when you want a scenario about contractual rights, indemnity, and dispute posture rather than a pure compliance breach.',
+    promptLabel: 'Contract and IP dispute',
+    event: 'A strategic technology partner challenges IP ownership and indemnity commitments after a major joint build.',
+    asset: 'The partnership agreement, IP clauses, delivery milestones, and dependent product roadmap',
+    cause: 'Ambiguous contract drafting, weak governance over changes, and misaligned expectations over deliverables and rights',
+    impact: 'Legal cost, delayed delivery, contract strain, and pressure on product or market commitments',
+    urgency: 'high',
+    geographies: ['United Arab Emirates', 'United States'],
+    risks: [
+      { title: 'Contractual dispute over indemnity or delivery obligations', category: 'Legal / Contract', source: 'dry-run', description: 'The commercial relationship may escalate into formal dispute over ownership, scope, or remedy rights.' },
+      { title: 'Intellectual-property or licensing exposure', category: 'Legal / Contract', source: 'dry-run', description: 'Ownership, reuse, or licensing terms may not support the current product or operating assumptions.' },
+      { title: 'Programme delay from unresolved partner obligations', category: 'Strategic', source: 'dry-run', description: 'The dispute can slow product delivery and undermine the intended business case.' }
+    ]
+  }),
+  createStep1DryRunScenario({
+    id: 'geopolitical-market-access-shift',
+    functionKey: 'strategic',
+    lensKey: 'geopolitical',
+    lensLabel: 'Geopolitical / market access',
+    title: 'New export and market-access restrictions disrupt a priority expansion plan',
+    summary: 'Useful for geopolitical, sanctions, sovereign, and market-access decisions.',
+    bestFor: 'Geopolitical and cross-border strategy walkthroughs',
+    nextStep: 'Load this when you want a scenario about sovereign restrictions, export controls, or market-access pressure rather than generic competition risk.',
+    promptLabel: 'Market-access restriction',
+    event: 'New export and market-access restrictions disrupt a priority expansion plan and limit access to critical technology inputs.',
+    asset: 'The expansion programme, key supplier relationships, and target-market operating plan',
+    cause: 'Geopolitical restrictions, sovereign policy shifts, and tighter cross-border approvals',
+    impact: 'Delayed market entry, stranded investment, supplier disruption, and executive reprioritisation',
+    urgency: 'high',
+    geographies: ['United Arab Emirates', 'United States', 'Europe'],
+    risks: [
+      { title: 'Geopolitical or sanctions-driven market-access exposure', category: 'Geopolitical', source: 'dry-run', description: 'Policy shifts can block planned expansion, supplier access, or deployment rights in a priority market.' },
+      { title: 'Export-control dependency on restricted technology inputs', category: 'Regulatory', source: 'dry-run', description: 'Critical components, tooling, or capabilities may become harder to source or deploy lawfully.' },
+      { title: 'Strategic value erosion from delayed expansion timing', category: 'Strategic', source: 'dry-run', description: 'The business case weakens as approvals, supplier certainty, and market timing deteriorate.' }
+    ]
+  }),
+  createStep1DryRunScenario({
+    id: 'physical-security-site-breach',
+    functionKey: 'operations',
+    lensKey: 'physical-security',
+    lensLabel: 'Physical security',
+    title: 'A facilities access-control lapse exposes an executive visit and a critical site',
+    summary: 'Useful for facilities, physical security, and executive-protection response planning.',
+    bestFor: 'Physical security and facilities walkthroughs',
+    nextStep: 'Load this when you want a scenario about perimeter, site, and travel-security controls rather than digital compromise.',
+    promptLabel: 'Physical security lapse',
+    event: 'A facilities access-control lapse exposes an executive visit and a critical operating site to unauthorised physical access.',
+    asset: 'The site perimeter, visitor-management controls, and executive movement plan',
+    cause: 'Weak badge controls, contractor access gaps, and poor coordination between site and executive-protection teams',
+    impact: 'Safety risk, operational disruption, investigative cost, and leadership concern over site security posture',
+    urgency: 'high',
+    geographies: ['United Arab Emirates'],
+    risks: [
+      { title: 'Physical-security control breakdown at a critical site', category: 'Physical Security', source: 'dry-run', description: 'Weak perimeter or access controls allow unauthorised entry into a sensitive operating environment.' },
+      { title: 'Facilities disruption from incident response or site lockdown', category: 'Operational', source: 'dry-run', description: 'The event can interrupt operations while access, investigation, and remediation are stabilised.' },
+      { title: 'Executive-protection and leadership assurance exposure', category: 'Physical Security', source: 'dry-run', description: 'Leadership confidence can fall quickly when executive movement and site controls are not aligned.' }
+    ]
+  }),
+  createStep1DryRunScenario({
+    id: 'ot-site-systems-failure',
+    functionKey: 'operations',
+    lensKey: 'ot-resilience',
+    lensLabel: 'OT / site resilience',
+    title: 'A site-systems change breaks visibility across critical OT controls',
+    summary: 'Useful for industrial-control, facilities-technology, and site-resilience scenarios.',
+    bestFor: 'OT and industrial-resilience walkthroughs',
+    nextStep: 'Load this when you want a scenario that sits between cyber, operations, safety, and continuity at a physical site.',
+    promptLabel: 'OT resilience gap',
+    event: 'A network or control-system change breaks visibility across critical OT controls at a high-value site.',
+    asset: 'Industrial control systems, site telemetry, and recovery procedures',
+    cause: 'Weak change governance, poor segregation between IT and OT, and limited fallback monitoring',
+    impact: 'Operational instability, safety concern, recovery effort, and reduced confidence in site resilience',
+    urgency: 'high',
+    geographies: ['United Arab Emirates'],
+    risks: [
+      { title: 'OT resilience failure across critical site systems', category: 'OT Resilience', source: 'dry-run', description: 'The site may no longer have reliable visibility or control over critical industrial processes.' },
+      { title: 'Operational disruption during manual fallback or isolation', category: 'Operational', source: 'dry-run', description: 'Recovery may require degraded operation, manual checks, or production slowdown.' },
+      { title: 'Safety or shutdown escalation from unstable site controls', category: 'HSE', source: 'dry-run', description: 'If control confidence drops further, management may face stop-work or shutdown decisions.' }
+    ]
+  }),
+  createStep1DryRunScenario({
+    id: 'people-workforce-labour-pressure',
+    functionKey: 'hse',
+    lensKey: 'people-workforce',
+    lensLabel: 'People / workforce',
+    title: 'Unsafe staffing levels and contractor churn begin to threaten safe operations',
+    summary: 'Useful for workforce, labour-practice, fatigue, and safe-operations discussions.',
+    bestFor: 'People-risk and workforce-pressure walkthroughs',
+    nextStep: 'Load this when you want a scenario about staffing, fatigue, labour welfare, or key-person dependency rather than only site-safety controls.',
+    promptLabel: 'Workforce pressure',
+    event: 'Unsafe staffing levels and contractor churn begin to threaten safe operations at a critical site.',
+    asset: 'The operating roster, contractor workforce, and shift-critical control activities',
+    cause: 'Attrition, fatigue, weak contractor coverage, and delayed escalation of staffing pressure',
+    impact: 'Higher error risk, wellbeing concern, continuity strain, and leadership pressure to intervene',
+    urgency: 'high',
+    geographies: ['United Arab Emirates', 'Saudi Arabia'],
+    risks: [
+      { title: 'People and workforce resilience shortfall', category: 'People / Workforce', source: 'dry-run', description: 'The workforce model may no longer support safe, reliable, or sustainable delivery.' },
+      { title: 'Labour-welfare or human-rights assurance concern', category: 'ESG', source: 'dry-run', description: 'Staffing pressure can expose weak welfare, supervision, or contractor-management practices.' },
+      { title: 'Operational continuity risk from unsafe coverage levels', category: 'Operational', source: 'dry-run', description: 'The business may struggle to maintain service or site stability without intervention.' }
+    ]
+  }),
+  createStep1DryRunScenario({
+    id: 'investment-jv-integration-risk',
+    functionKey: 'strategic',
+    lensKey: 'investment-jv',
+    lensLabel: 'Investment / JV',
+    title: 'A planned acquisition reveals governance and integration gaps that threaten deal value',
+    summary: 'Useful for M&A, JV, and integration-thesis challenge scenarios.',
+    bestFor: 'Investment and integration walkthroughs',
+    nextStep: 'Load this when you want a scenario about deal value, governance quality, and integration readiness rather than generic market risk.',
+    promptLabel: 'M&A and JV risk',
+    event: 'A planned acquisition reveals governance and integration gaps that threaten the expected deal value.',
+    asset: 'The deal thesis, integration plan, and shared control environment',
+    cause: 'Weak diligence over controls, unclear operating-model assumptions, and delayed integration planning',
+    impact: 'Value erosion, delayed synergies, management distraction, and pressure on investor confidence',
+    urgency: 'medium',
+    geographies: ['United Arab Emirates', 'Europe'],
+    risks: [
+      { title: 'Investment or JV thesis erosion', category: 'Investment / JV', source: 'dry-run', description: 'The expected value of the transaction may weaken materially once integration assumptions are challenged.' },
+      { title: 'Governance and control mismatch after deal close', category: 'Strategic', source: 'dry-run', description: 'A weak post-close control model can create costly surprises in execution and assurance.' },
+      { title: 'Integration delay or synergy slippage', category: 'Transformation Delivery', source: 'dry-run', description: 'Management may need to reset the timetable, benefits, or operating model for the deal.' }
+    ]
+  }),
+  createStep1DryRunScenario({
+    id: 'transformation-delivery-slip',
+    functionKey: 'strategic',
+    lensKey: 'transformation-delivery',
+    lensLabel: 'Transformation delivery',
+    title: 'A major transformation programme slips after weak dependency control and unclear ownership',
+    summary: 'Useful for programme-delivery, milestone, and benefits-realisation discussions.',
+    bestFor: 'Transformation and programme walkthroughs',
+    nextStep: 'Load this when you want a scenario about delivery execution, dependencies, and governance rather than generic strategic downside.',
+    promptLabel: 'Programme slippage',
+    event: 'A major transformation programme slips after weak dependency control and unclear ownership across workstreams.',
+    asset: 'The transformation roadmap, milestone controls, and dependent operating changes',
+    cause: 'Unclear decision rights, weak programme controls, and late escalation of dependency slippage',
+    impact: 'Missed milestones, rising cost, delayed benefits, and loss of confidence in the change programme',
+    urgency: 'medium',
+    geographies: ['United Arab Emirates', 'Saudi Arabia'],
+    risks: [
+      { title: 'Transformation-delivery control failure', category: 'Transformation Delivery', source: 'dry-run', description: 'The programme may no longer have enough governance discipline to deliver the intended outcomes on time.' },
+      { title: 'Strategic value erosion from delayed execution', category: 'Strategic', source: 'dry-run', description: 'Benefits, market timing, or operating improvements weaken as the programme slips.' },
+      { title: 'Operational strain from unmanaged transition dependencies', category: 'Operational', source: 'dry-run', description: 'Workarounds and parallel operations create additional pressure while the programme is delayed.' }
+    ]
   })
 ];
 
 STEP1_DRY_RUN_SCENARIOS.sort((left, right) => {
-  const explicitOrder = ['supplier-platform-outage', 'dc-recovery-failure'];
-  const leftIndex = explicitOrder.indexOf(left.id);
-  const rightIndex = explicitOrder.indexOf(right.id);
-  if (leftIndex !== -1 || rightIndex !== -1) {
-    return (leftIndex === -1 ? Number.MAX_SAFE_INTEGER : leftIndex)
-      - (rightIndex === -1 ? Number.MAX_SAFE_INTEGER : rightIndex);
-  }
+  const preferredDefaultOrder = {
+    'supplier-platform-outage': 0,
+    'dc-recovery-failure': 1
+  };
+  const leftRank = Object.prototype.hasOwnProperty.call(preferredDefaultOrder, left?.id) ? preferredDefaultOrder[left.id] : Number.MAX_SAFE_INTEGER;
+  const rightRank = Object.prototype.hasOwnProperty.call(preferredDefaultOrder, right?.id) ? preferredDefaultOrder[right.id] : Number.MAX_SAFE_INTEGER;
+  if (leftRank !== rightRank) return leftRank - rightRank;
   return String(left.title || '').localeCompare(String(right.title || ''));
 });
 
@@ -1236,8 +1468,8 @@ function buildDryRunNarrative(example) {
     impact: example.impact,
     urgency: example.urgency
   }, {
-    lensKey: STEP1_FUNCTION_TO_SCENARIO_LENS[example.functionKey]?.key || '',
-    lensLabel: STEP1_FUNCTION_TO_SCENARIO_LENS[example.functionKey]?.label || ''
+    lensKey: example.lensKey || STEP1_FUNCTION_TO_SCENARIO_LENS[example.functionKey]?.key || '',
+    lensLabel: example.lensLabel || STEP1_FUNCTION_TO_SCENARIO_LENS[example.functionKey]?.label || ''
   });
 }
 
@@ -1320,9 +1552,15 @@ function applyDryRunScenario(example) {
   AppState.draft.selectedRiskIds = seededRisks.map(risk => risk.id);
   AppState.draft.selectedRisks = seededRisks.slice();
   AppState.draft.scenarioTitle = example.title;
-  AppState.draft.scenarioLens = {
-    ...(STEP1_FUNCTION_TO_SCENARIO_LENS[example.functionKey] || STEP1_FUNCTION_TO_SCENARIO_LENS.general)
-  };
+  AppState.draft.scenarioLens = example.lensKey
+    ? {
+        ...(STEP1_FUNCTION_TO_SCENARIO_LENS[example.functionKey] || STEP1_FUNCTION_TO_SCENARIO_LENS.general),
+        key: String(example.lensKey || '').trim(),
+        label: String(example.lensLabel || '').trim() || (STEP1_FUNCTION_TO_SCENARIO_LENS[example.functionKey] || STEP1_FUNCTION_TO_SCENARIO_LENS.general).label
+      }
+    : {
+        ...(STEP1_FUNCTION_TO_SCENARIO_LENS[example.functionKey] || STEP1_FUNCTION_TO_SCENARIO_LENS.general)
+      };
   AppState.draft.loadedDryRunId = example.id;
   AppState.draft.applicableRegulations = deriveApplicableRegulations(
     getBUList().find(b => b.id === AppState.draft.buId),

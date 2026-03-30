@@ -205,6 +205,47 @@ const LLMService = (() => {
       technology: 'cyber',
       'cyber risk': 'cyber',
       cyber: 'cyber',
+      ai: 'ai-model-risk',
+      'ai risk': 'ai-model-risk',
+      'ai-model-risk': 'ai-model-risk',
+      'model risk': 'ai-model-risk',
+      'responsible ai': 'ai-model-risk',
+      'data governance': 'data-governance',
+      'data-governance': 'data-governance',
+      privacy: 'data-governance',
+      'data governance / privacy': 'data-governance',
+      'fraud-integrity': 'fraud-integrity',
+      'fraud / integrity': 'fraud-integrity',
+      fraud: 'fraud-integrity',
+      integrity: 'fraud-integrity',
+      'financial crime': 'fraud-integrity',
+      legal: 'legal-contract',
+      contract: 'legal-contract',
+      litigation: 'legal-contract',
+      'legal-contract': 'legal-contract',
+      geopolitical: 'geopolitical',
+      sanctions: 'geopolitical',
+      'market access': 'geopolitical',
+      'physical security': 'physical-security',
+      'physical-security': 'physical-security',
+      facilities: 'physical-security',
+      'executive protection': 'physical-security',
+      ot: 'ot-resilience',
+      'ot resilience': 'ot-resilience',
+      'ot-resilience': 'ot-resilience',
+      'industrial control': 'ot-resilience',
+      'site systems': 'ot-resilience',
+      people: 'people-workforce',
+      workforce: 'people-workforce',
+      labour: 'people-workforce',
+      labor: 'people-workforce',
+      'human rights': 'people-workforce',
+      'people-workforce': 'people-workforce',
+      investment: 'investment-jv',
+      'joint venture': 'investment-jv',
+      'investment-jv': 'investment-jv',
+      'transformation delivery': 'transformation-delivery',
+      'transformation-delivery': 'transformation-delivery',
       'third party': 'third-party',
       'third-party': 'third-party',
       procurement: 'procurement',
@@ -288,6 +329,24 @@ const LLMService = (() => {
         tef: { min: 0.5, likely: 2, max: 8 },
         tc: { min: 0.5, likely: 0.68, max: 0.88 }
       },
+      'ai-model-risk': {
+        key: 'ai-model-risk',
+        scenarioType: 'AI / Model Risk Scenario',
+        primaryDriver: 'Weak AI governance, monitoring gaps, or unsafe model behaviour',
+        eventPath: 'Model drift, unsafe output, or poor human oversight in an AI-enabled workflow',
+        effect: 'Unsafe decisions, conduct challenge, remediation effort, and loss of trust in AI-enabled operations',
+        tef: { min: 0.2, likely: 0.9, max: 4 },
+        tc: { min: 0.28, likely: 0.46, max: 0.7 }
+      },
+      'data-governance': {
+        key: 'data-governance',
+        scenarioType: 'Data Governance / Privacy Scenario',
+        primaryDriver: 'Weak data ownership, lineage, retention, or privacy-control design',
+        eventPath: 'Improper data reuse, retention failure, or weak lineage over sensitive data',
+        effect: 'Privacy challenge, remediation effort, and lower confidence in analytics or reporting built on the affected data',
+        tef: { min: 0.3, likely: 1.4, max: 6 },
+        tc: { min: 0.32, likely: 0.5, max: 0.74 }
+      },
       'third-party': {
         key: 'third-party',
         scenarioType: 'Third-Party / Supply Chain Disruption',
@@ -333,6 +392,15 @@ const LLMService = (() => {
         tef: { min: 0.6, likely: 2.4, max: 10 },
         tc: { min: 0.35, likely: 0.56, max: 0.8 }
       },
+      'fraud-integrity': {
+        key: 'fraud-integrity',
+        scenarioType: 'Fraud / Integrity Risk Scenario',
+        primaryDriver: 'Collusion, corruption, financial-crime actors, or integrity-control failures',
+        eventPath: 'Manipulated approvals, hidden conflicts, or financial-crime control breakdown',
+        effect: 'Direct loss, investigation cost, legal or assurance pressure, and lower trust in the control environment',
+        tef: { min: 0.4, likely: 1.8, max: 7 },
+        tc: { min: 0.36, likely: 0.56, max: 0.8 }
+      },
       esg: {
         key: 'esg',
         scenarioType: 'ESG / Sustainability Risk Scenario',
@@ -350,6 +418,24 @@ const LLMService = (() => {
         effect: 'Remediation cost, disciplinary exposure, and weakened assurance posture',
         tef: { min: 0.4, likely: 1.5, max: 6 },
         tc: { min: 0.3, likely: 0.48, max: 0.72 }
+      },
+      'legal-contract': {
+        key: 'legal-contract',
+        scenarioType: 'Legal / Contract Risk Scenario',
+        primaryDriver: 'Weak contract design, disputed obligations, or challenged rights positions',
+        eventPath: 'Contract breach, indemnity dispute, litigation, or IP-rights challenge',
+        effect: 'Dispute cost, delivery delay, and commercial pressure on the relationship or programme in scope',
+        tef: { min: 0.25, likely: 1, max: 4 },
+        tc: { min: 0.28, likely: 0.46, max: 0.68 }
+      },
+      geopolitical: {
+        key: 'geopolitical',
+        scenarioType: 'Geopolitical / Market-Access Risk Scenario',
+        primaryDriver: 'Sovereign restrictions, sanctions regimes, and cross-border policy shifts',
+        eventPath: 'Export-control, market-access, or supplier-restriction shock',
+        effect: 'Delayed execution, supplier disruption, stranded investment, and management reprioritisation',
+        tef: { min: 0.1, likely: 0.6, max: 2.5 },
+        tc: { min: 0.2, likely: 0.36, max: 0.58 }
       },
       'supply-chain': {
         key: 'supply-chain',
@@ -378,6 +464,33 @@ const LLMService = (() => {
         tef: { min: 0.2, likely: 1.1, max: 5 },
         tc: { min: 0.25, likely: 0.45, max: 0.7 }
       },
+      'physical-security': {
+        key: 'physical-security',
+        scenarioType: 'Physical Security Risk Scenario',
+        primaryDriver: 'Weak site-access, facilities, or executive-protection controls',
+        eventPath: 'Perimeter breach, badge failure, or uncontrolled physical access at a sensitive site',
+        effect: 'Site disruption, investigation cost, and safety or leadership assurance pressure',
+        tef: { min: 0.25, likely: 1.2, max: 5 },
+        tc: { min: 0.3, likely: 0.48, max: 0.7 }
+      },
+      'ot-resilience': {
+        key: 'ot-resilience',
+        scenarioType: 'OT / Site Resilience Risk Scenario',
+        primaryDriver: 'Weak OT governance, site-system changes, or degraded industrial visibility',
+        eventPath: 'Industrial-control instability, telemetry loss, or OT recovery failure',
+        effect: 'Operational instability, recovery strain, and possible safety escalation at the affected site',
+        tef: { min: 0.2, likely: 1, max: 4.5 },
+        tc: { min: 0.3, likely: 0.5, max: 0.74 }
+      },
+      'people-workforce': {
+        key: 'people-workforce',
+        scenarioType: 'People / Workforce Risk Scenario',
+        primaryDriver: 'Staffing pressure, labour issues, welfare concerns, or weak workforce planning',
+        eventPath: 'Attrition, fatigue, staffing shortfall, or labour-practice escalation',
+        effect: 'Operational strain, wellbeing concern, and lower confidence in sustained safe delivery',
+        tef: { min: 0.3, likely: 1.2, max: 5 },
+        tc: { min: 0.26, likely: 0.42, max: 0.64 }
+      },
       hse: {
         key: 'hse',
         scenarioType: 'Health, Safety, and Environment Risk Scenario',
@@ -386,6 +499,24 @@ const LLMService = (() => {
         effect: 'Injury, environmental harm, shutdown, remediation cost, and regulatory scrutiny',
         tef: { min: 0.15, likely: 0.8, max: 3 },
         tc: { min: 0.25, likely: 0.42, max: 0.66 }
+      },
+      'investment-jv': {
+        key: 'investment-jv',
+        scenarioType: 'Investment / JV Risk Scenario',
+        primaryDriver: 'Weak diligence, integration assumptions, or governance over an investment thesis',
+        eventPath: 'M&A, JV, or integration-thesis failure',
+        effect: 'Value erosion, delayed synergy, and executive pressure to reset the transaction logic',
+        tef: { min: 0.15, likely: 0.6, max: 2.5 },
+        tc: { min: 0.24, likely: 0.42, max: 0.64 }
+      },
+      'transformation-delivery': {
+        key: 'transformation-delivery',
+        scenarioType: 'Transformation Delivery Risk Scenario',
+        primaryDriver: 'Weak programme governance, dependency control, or delivery ownership',
+        eventPath: 'Milestone slippage, go-live delay, or failed benefit realisation',
+        effect: 'Delay, rising cost, and lower confidence in delivery of the intended operating change',
+        tef: { min: 0.2, likely: 0.9, max: 4 },
+        tc: { min: 0.26, likely: 0.44, max: 0.66 }
       },
       general: {
         key: 'general',
@@ -479,20 +610,32 @@ const LLMService = (() => {
       ];
     }
     const catalog = [
+      { key: 'ai-model-risk', title: 'AI model governance or responsible-AI failure', category: 'AI / Model Risk', regulations: ['ISO/IEC 42001', 'NIST AI RMF', 'EU AI Act'], terms: ['ai', 'model risk', 'responsible ai', 'model drift', 'hallucination', 'bias', 'algorithm', 'llm', 'training data', 'ai act'] },
+      { key: 'data-governance', title: 'Data-governance or privacy-control breakdown', category: 'Data Governance', regulations: ['ISO 27701', 'GDPR', 'UAE PDPL'], terms: ['data governance', 'data quality', 'data lineage', 'retention', 'purpose limitation', 'privacy', 'personal data', 'consent', 'data residency', 'master data'] },
       { key: 'strategic', title: 'Strategic execution or market-position risk', category: 'Strategic', regulations: ['ISO 31000', 'COSO ERM'], terms: ['strategy', 'strategic', 'expansion', 'transformation', 'market', 'competitive', 'portfolio', 'investment'] },
       { key: 'operational', title: 'Operational breakdown affecting core services', category: 'Operational', regulations: ['ISO 31000', 'ISO 22301'], terms: ['outage', 'availability', 'disruption', 'failure', 'breakdown', 'backlog', 'capacity', 'process failure'] },
       { key: 'cyber', title: 'Cyber compromise of critical platforms or data', category: 'Cyber', regulations: ['UAE PDPL', 'UAE NESA IAS', 'ISO 27001'], terms: ['ransom', 'phish', 'malware', 'identity', 'credential', 'sso', 'entra', 'azure ad', 'breach', 'exfil', 'cloud', 'misconfig', 'vulnerability', 'privileged'] },
       { key: 'third-party', title: 'Third-party dependency or supplier failure', category: 'Third-Party', regulations: ['ISO 27036', 'ISO 28000'], terms: ['supplier', 'vendor', 'third party', 'third-party', 'outsourc', 'dependency', 'subprocessor', 'partner'] },
       { key: 'regulatory', title: 'Regulatory or licensing exposure', category: 'Regulatory', regulations: ['BIS Export Controls', 'OFAC Sanctions', 'UAE PDPL'], terms: ['regulator', 'regulatory', 'licence', 'license', 'filing', 'notification', 'sanction', 'export control'] },
       { key: 'financial', title: 'Financial loss, fraud, or capital exposure', category: 'Financial', regulations: ['UAE AML/CFT', 'PCI-DSS 4.0'], terms: ['fraud', 'payment', 'invoice', 'treasury', 'liquidity', 'cash', 'capital', 'misstatement'] },
+      { key: 'fraud-integrity', title: 'Fraud, integrity, or financial-crime exposure', category: 'Fraud / Integrity', regulations: ['ISO 37001', 'UAE AML/CFT'], terms: ['fraud', 'integrity', 'financial crime', 'money laundering', 'kickback', 'bribery', 'corruption', 'embezzlement'] },
       { key: 'esg', title: 'ESG or sustainability disclosure risk', category: 'ESG', regulations: ['IFRS S1', 'IFRS S2', 'GRI Universal Standards'], terms: ['esg', 'sustainability', 'climate', 'emission', 'carbon', 'greenwashing', 'social impact', 'governance failure'] },
       { key: 'compliance', title: 'Compliance control or policy breakdown', category: 'Compliance', regulations: ['ISO 37301', 'UAE PDPL'], terms: ['policy breach', 'control failure', 'non-compliance', 'compliance', 'obligation', 'conduct', 'ethics'] },
+      { key: 'legal-contract', title: 'Legal, contract, or IP exposure', category: 'Legal / Contract', regulations: ['ISO 37301'], terms: ['contract', 'indemnity', 'litigation', 'ip', 'intellectual property', 'licensing dispute', 'dispute', 'terms breach'] },
+      { key: 'geopolitical', title: 'Geopolitical, sanctions, or market-access exposure', category: 'Geopolitical', regulations: ['OFAC Sanctions', 'BIS Export Controls'], terms: ['geopolitical', 'market access', 'sanctions', 'export control', 'sovereign', 'entity list', 'tariff', 'cross-border restriction'] },
       { key: 'supply-chain', title: 'Supply chain resilience disruption', category: 'Supply Chain', regulations: ['ISO 28000', 'ISO 22301'], terms: ['supply chain', 'logistics', 'inventory', 'shipment', 'fulfilment', 'single source', 'upstream'] },
       { key: 'procurement', title: 'Procurement governance or sourcing risk', category: 'Procurement', regulations: ['ISO 20400', 'ISO 37301'], terms: ['procurement', 'sourcing', 'tender', 'bid', 'contract award', 'vendor selection', 'purchasing', 'critical spend', 'single-source spend'] },
       { key: 'business-continuity', title: 'Business continuity and recovery failure', category: 'Business Continuity', regulations: ['ISO 22301', 'NFPA 1600'], terms: ['continuity', 'recovery', 'dr', 'disaster recovery', 'rto', 'rpo', 'crisis management'] },
+      { key: 'physical-security', title: 'Physical security or facilities-protection breakdown', category: 'Physical Security', regulations: ['ISO 22301', 'UAE Fire and Life Safety Code'], terms: ['physical security', 'perimeter', 'site intrusion', 'badge control', 'facility breach', 'executive protection', 'visitor management'] },
+      { key: 'ot-resilience', title: 'OT or industrial-control resilience failure', category: 'OT Resilience', regulations: ['IEC 62443', 'ISO 22301'], terms: ['ot', 'operational technology', 'industrial control', 'ics', 'scada', 'plant network', 'site systems', 'control room'] },
+      { key: 'people-workforce', title: 'People, workforce, or labour-practice exposure', category: 'People / Workforce', regulations: ['UN Guiding Principles', 'SA8000', 'ILO-OSH 2001'], terms: ['workforce', 'labour', 'labor', 'attrition', 'staffing', 'fatigue', 'strike', 'worker welfare', 'human rights'] },
+      { key: 'investment-jv', title: 'Investment, JV, or integration-thesis exposure', category: 'Investment / JV', regulations: ['COSO ERM', 'ISO 31000'], terms: ['merger', 'acquisition', 'm&a', 'joint venture', 'jv', 'integration', 'valuation', 'synergy'] },
+      { key: 'transformation-delivery', title: 'Transformation-delivery or programme-execution failure', category: 'Transformation Delivery', regulations: ['ISO 31010', 'COSO ERM'], terms: ['transformation', 'programme delivery', 'program delivery', 'project delivery', 'go-live', 'milestone', 'dependency slip', 'benefit realisation'] },
       { key: 'hse', title: 'Health, safety, and environmental incident exposure', category: 'HSE', regulations: ['ISO 45001', 'ISO 14001'], terms: ['hse', 'health and safety', 'safety', 'injury', 'environmental', 'spill', 'worker'] }
     ];
     const compatibilityBoosts = {
+      'ai-model-risk': new Set(['ai-model-risk', 'data-governance', 'compliance', 'cyber']),
+      'data-governance': new Set(['data-governance', 'compliance', 'regulatory', 'cyber']),
       procurement: new Set(['procurement', 'supply-chain', 'third-party']),
       'supply-chain': new Set(['supply-chain', 'procurement', 'third-party']),
       compliance: new Set(['compliance', 'regulatory']),
@@ -501,6 +644,14 @@ const LLMService = (() => {
       'business-continuity': new Set(['business-continuity', 'operational']),
       strategic: new Set(['strategic']),
       financial: new Set(['financial']),
+      'fraud-integrity': new Set(['fraud-integrity', 'financial', 'compliance', 'regulatory']),
+      'legal-contract': new Set(['legal-contract', 'compliance', 'regulatory', 'procurement']),
+      geopolitical: new Set(['geopolitical', 'strategic', 'regulatory', 'supply-chain']),
+      'physical-security': new Set(['physical-security', 'operational', 'business-continuity', 'hse']),
+      'ot-resilience': new Set(['ot-resilience', 'operational', 'cyber', 'hse', 'business-continuity']),
+      'people-workforce': new Set(['people-workforce', 'hse', 'esg', 'operational', 'compliance']),
+      'investment-jv': new Set(['investment-jv', 'strategic', 'financial']),
+      'transformation-delivery': new Set(['transformation-delivery', 'strategic', 'operational']),
       esg: new Set(['esg']),
       hse: new Set(['hse']),
       cyber: new Set(['cyber']),
@@ -718,6 +869,12 @@ const LLMService = (() => {
 
   function _buildRiskContextLinkAnalysis({ classification, riskTitles = [] } = {}) {
     const key = String(classification?.key || 'general').trim();
+    if (key === 'ai-model-risk') {
+      return 'The main chain is weak AI governance, unsafe or low-trust model behaviour, and conduct or regulatory consequences from how the output is used. Keep only the risks that share that path.';
+    }
+    if (key === 'data-governance') {
+      return 'The main chain is weak data ownership or lineage, privacy or approved-use challenge, and remediation of downstream reporting or analytics confidence. Keep only the risks that fit that path.';
+    }
     if (key === 'procurement') {
       return 'The main chain is distorted sourcing governance, commercial overpayment, and possible regulatory or assurance challenge. Keep only the risks that belong in that chain.';
     }
@@ -729,6 +886,24 @@ const LLMService = (() => {
     }
     if (key === 'financial') {
       return 'The main chain is control weakness or manipulation, direct financial loss, and escalation through assurance, legal, or treasury response. Keep only the risks that fit that path.';
+    }
+    if (key === 'fraud-integrity') {
+      return 'The main chain is collusion, override, or financial-crime weakness, then investigation, recovery, and assurance pressure. Keep only the risks that clearly belong in that same chain.';
+    }
+    if (key === 'legal-contract') {
+      return 'The main chain is weak contractual or rights positioning, dispute or delay, and commercial or programme consequences. Keep only the risks that share that path.';
+    }
+    if (key === 'geopolitical') {
+      return 'The main chain is market-access or sovereign restriction, delayed execution or supplier access, and strategic or regulatory consequences. Keep only the risks that fit that same path.';
+    }
+    if (key === 'physical-security' || key === 'ot-resilience') {
+      return 'The main chain is site-control weakness, operating instability or interruption, and wider safety or continuity consequences. Keep only the risks that belong in that same path.';
+    }
+    if (key === 'people-workforce') {
+      return 'The main chain is workforce pressure, degraded safe delivery or welfare, and operational or reputational consequences. Keep only the risks that share that path.';
+    }
+    if (key === 'investment-jv' || key === 'transformation-delivery') {
+      return 'The main chain is weak execution or governance over a major initiative, delayed value or delivery, and escalating strategic pressure. Keep only the risks that fit that same path.';
     }
     if ((Array.isArray(riskTitles) ? riskTitles.length : 0) > 1) {
       return 'Several selected risks appear capable of cascading together. Keep only the risks that clearly belong in the same event path and business consequence chain.';
@@ -1044,28 +1219,48 @@ ${businessUnit.selectedDepartmentContext}` : ''
     const isDataBreach = n.includes('breach') || n.includes('data theft') || n.includes('exfil') || n.includes('data exposure');
     const isInsider = n.includes('insider') || n.includes('employee misuse') || n.includes('malicious insider') || n.includes('privilege abuse');
     const isCloud = !isIdentity && (n.includes('cloud') || n.includes('misconfigur') || n.includes('s3') || n.includes('bucket') || n.includes('storage exposure') || n.includes('public exposure') || n.includes('azure'));
+    const isAiModel = n.includes('responsible ai') || n.includes('model risk') || n.includes('model drift') || n.includes('hallucination') || n.includes('algorithmic bias') || n.includes('training data') || /\bai\b/.test(n);
+    const isDataGovernance = n.includes('data governance') || n.includes('data quality') || n.includes('data lineage') || n.includes('retention') || n.includes('purpose limitation') || n.includes('consent') || n.includes('data residency') || n.includes('master data') || (n.includes('privacy') && !n.includes('breach') && !n.includes('exfil'));
     const isStrategic = n.includes('strategy') || n.includes('strategic') || n.includes('market') || n.includes('competitive') || n.includes('transformation') || n.includes('portfolio') || n.includes('investment') || n.includes('operating model') || n.includes('programme');
     const isOperational = n.includes('operational') || n.includes('process failure') || n.includes('breakdown') || n.includes('capacity') || n.includes('service failure') || n.includes('backlog');
     const isRegulatory = n.includes('regulator') || n.includes('regulatory') || n.includes('licen') || n.includes('sanction') || n.includes('export control') || n.includes('filing');
     const isFinancial = n.includes('fraud') || n.includes('payment') || n.includes('invoice') || n.includes('treasury') || n.includes('liquidity') || n.includes('capital') || n.includes('financial');
+    const isFraudIntegrity = n.includes('financial crime') || n.includes('money laundering') || n.includes('bribery') || n.includes('corruption') || n.includes('kickback') || n.includes('embezzlement') || (n.includes('integrity') && !n.includes('data integrity'));
     const isEsg = n.includes('esg') || n.includes('sustainability') || n.includes('climate') || n.includes('emission') || n.includes('carbon') || n.includes('greenwashing');
     const isCompliance = n.includes('compliance') || n.includes('non-compliance') || n.includes('policy breach') || n.includes('conduct') || n.includes('ethics') || n.includes('assurance');
+    const isLegalContract = n.includes('contract') || n.includes('indemnity') || n.includes('litigation') || n.includes('licensing dispute') || n.includes('intellectual property') || /\bip\b/.test(n);
+    const isGeopolitical = n.includes('geopolitical') || n.includes('market access') || n.includes('sovereign') || n.includes('tariff') || n.includes('entity list') || n.includes('cross-border restriction');
     const isSupplyChain = n.includes('supply chain') || n.includes('logistics') || n.includes('shipment') || n.includes('inventory') || n.includes('single source') || n.includes('single-source') || n.includes('upstream') || n.includes('shortfall');
     const isProcurement = n.includes('procurement') || n.includes('sourcing') || n.includes('tender') || n.includes('bid') || n.includes('contract award') || n.includes('vendor selection') || n.includes('critical spend') || n.includes('spend category') || n.includes('commercial category');
     const isThirdParty = n.includes('supplier') || n.includes('vendor') || n.includes('third-party') || n.includes('third party') || n.includes('outsourc');
     const isContinuity = n.includes('business continuity') || n.includes('disaster recovery') || n.includes('continuity') || n.includes('recovery') || n.includes('rto') || n.includes('rpo') || n.includes('crisis management');
+    const isPhysicalSecurity = n.includes('physical security') || n.includes('badge control') || n.includes('visitor management') || n.includes('perimeter') || n.includes('executive protection') || n.includes('site intrusion') || n.includes('facility breach');
+    const isOtResilience = /\bot\b/.test(n) || n.includes('operational technology') || n.includes('industrial control') || n.includes('ics') || n.includes('scada') || n.includes('plant network') || n.includes('site systems') || n.includes('control room');
+    const isPeopleWorkforce = n.includes('workforce') || n.includes('attrition') || n.includes('fatigue') || n.includes('staffing') || n.includes('worker welfare') || n.includes('labour') || n.includes('labor') || n.includes('strike');
     const isHse = n.includes('hse') || n.includes('health and safety') || n.includes('safety') || n.includes('injury') || n.includes('environmental') || n.includes('spill') || n.includes('worker');
+    const isInvestmentJv = n.includes('merger') || n.includes('acquisition') || n.includes('m&a') || n.includes('joint venture') || /\bjv\b/.test(n) || n.includes('integration thesis') || n.includes('synergy');
+    const isTransformationDelivery = n.includes('transformation delivery') || n.includes('programme delivery') || n.includes('program delivery') || n.includes('project delivery') || n.includes('go-live') || n.includes('milestone') || n.includes('benefit realisation') || n.includes('benefit realization');
 
     const hintedEnterpriseMatch = {
+      'ai-model-risk': isAiModel || isDataGovernance,
+      'data-governance': isDataGovernance || isRegulatory,
       strategic: isStrategic || (!isRansomware && !isIdentity && !isPhishing && !isDataBreach && !isCloud && !isInsider && !isThirdParty && !isProcurement && !isSupplyChain && /\bprogramme|initiative|operating model|portfolio|market|transformation\b/.test(n)),
       operational: isOperational || isContinuity,
       regulatory: isRegulatory || isCompliance,
       financial: isFinancial,
+      'fraud-integrity': isFraudIntegrity || isFinancial,
       esg: isEsg,
       compliance: isCompliance || isRegulatory,
+      'legal-contract': isLegalContract || isRegulatory,
+      geopolitical: isGeopolitical || isRegulatory,
       'supply-chain': isSupplyChain || isThirdParty || isProcurement,
       procurement: isProcurement || isSupplyChain || isThirdParty,
       'business-continuity': isContinuity || isOperational,
+      'physical-security': isPhysicalSecurity || isOperational,
+      'ot-resilience': isOtResilience || isOperational,
+      'people-workforce': isPeopleWorkforce || isHse,
+      'investment-jv': isInvestmentJv || isStrategic,
+      'transformation-delivery': isTransformationDelivery || isStrategic,
       hse: isHse,
       'third-party': isThirdParty || isSupplyChain || isProcurement
     };
@@ -1080,6 +1275,16 @@ ${businessUnit.selectedDepartmentContext}` : ''
     if (isCloud) return _scenarioClassificationByKey('cloud');
     if (isPhishing) return _scenarioClassificationByKey('phishing');
     if (isInsider) return _scenarioClassificationByKey('insider');
+    if (isAiModel) return _scenarioClassificationByKey('ai-model-risk');
+    if (isDataGovernance) return _scenarioClassificationByKey('data-governance');
+    if (isFraudIntegrity) return _scenarioClassificationByKey('fraud-integrity');
+    if (isLegalContract) return _scenarioClassificationByKey('legal-contract');
+    if (isGeopolitical) return _scenarioClassificationByKey('geopolitical');
+    if (isPhysicalSecurity) return _scenarioClassificationByKey('physical-security');
+    if (isOtResilience) return _scenarioClassificationByKey('ot-resilience');
+    if (isPeopleWorkforce) return _scenarioClassificationByKey('people-workforce');
+    if (isInvestmentJv) return _scenarioClassificationByKey('investment-jv');
+    if (isTransformationDelivery) return _scenarioClassificationByKey('transformation-delivery');
     if (isStrategic) return _scenarioClassificationByKey('strategic');
     if (isOperational) return _scenarioClassificationByKey('operational');
     if (isRegulatory) return _scenarioClassificationByKey('regulatory');
@@ -1104,17 +1309,27 @@ ${businessUnit.selectedDepartmentContext}` : ''
       insider: { label: 'Cyber', functionKey: 'technology', estimatePresetKey: 'identity' },
       cloud: { label: 'Cyber', functionKey: 'technology', estimatePresetKey: 'cloud' },
       'data-breach': { label: 'Cyber', functionKey: 'technology', estimatePresetKey: 'dataBreach' },
+      'ai-model-risk': { label: 'AI / model risk', functionKey: 'technology', estimatePresetKey: 'aiModelRisk' },
+      'data-governance': { label: 'Data governance / privacy', functionKey: 'compliance', estimatePresetKey: 'dataGovernance' },
       'third-party': { label: 'Third-party', functionKey: 'procurement', estimatePresetKey: 'thirdParty' },
       strategic: { label: 'Strategic', functionKey: 'strategic', estimatePresetKey: 'strategic' },
       operational: { label: 'Operational', functionKey: 'operations', estimatePresetKey: 'operational' },
       regulatory: { label: 'Regulatory', functionKey: 'compliance', estimatePresetKey: 'regulatory' },
       financial: { label: 'Financial', functionKey: 'finance', estimatePresetKey: 'financial' },
+      'fraud-integrity': { label: 'Fraud / integrity', functionKey: 'finance', estimatePresetKey: 'fraudIntegrity' },
       esg: { label: 'ESG', functionKey: 'strategic', estimatePresetKey: 'esg' },
       compliance: { label: 'Compliance', functionKey: 'compliance', estimatePresetKey: 'compliance' },
+      'legal-contract': { label: 'Legal / contract', functionKey: 'compliance', estimatePresetKey: 'legalContract' },
+      geopolitical: { label: 'Geopolitical / market access', functionKey: 'strategic', estimatePresetKey: 'geopolitical' },
       'supply-chain': { label: 'Supply chain', functionKey: 'procurement', estimatePresetKey: 'supplyChain' },
       procurement: { label: 'Procurement', functionKey: 'procurement', estimatePresetKey: 'procurement' },
       'business-continuity': { label: 'Business continuity', functionKey: 'operations', estimatePresetKey: 'businessContinuity' },
+      'physical-security': { label: 'Physical security', functionKey: 'operations', estimatePresetKey: 'physicalSecurity' },
+      'ot-resilience': { label: 'OT / site resilience', functionKey: 'operations', estimatePresetKey: 'otResilience' },
+      'people-workforce': { label: 'People / workforce', functionKey: 'hse', estimatePresetKey: 'peopleWorkforce' },
       hse: { label: 'HSE', functionKey: 'hse', estimatePresetKey: 'hse' },
+      'investment-jv': { label: 'Investment / JV', functionKey: 'strategic', estimatePresetKey: 'investmentJv' },
+      'transformation-delivery': { label: 'Transformation delivery', functionKey: 'strategic', estimatePresetKey: 'transformationDelivery' },
       general: { label: 'General enterprise risk', functionKey: 'general', estimatePresetKey: 'general' }
     };
     const profile = map[key] || map.general;
@@ -1253,6 +1468,20 @@ ${businessUnit.selectedDepartmentContext}` : ''
         { title: 'Privileged Access Management for Cloud Consoles', why: 'Over-permissive console access is a catastrophic single point of failure.', impact: 'Limits blast radius of compromised cloud credentials and narrows the likely breach scope.' },
         { title: 'Real-Time Alerting on Public Exposure', why: 'Publicly exposed services are often discovered and abused quickly.', impact: 'Reduces exploitation windows materially and shortens the period of unmanaged exposure.' }
       ];
+    } else if (classification.key === 'ai-model-risk') {
+      recommendations = [
+        { title: 'Model Inventory And Accountability Refresh', why: 'AI downside often starts with unclear ownership over which models are live, who approves them, and what decisions they influence.', impact: 'Improves governance clarity and reduces unmanaged model exposure across the estate.' },
+        { title: 'Human Oversight And Safe-Use Guardrails', why: 'Responsible-AI failures become expensive when risky outputs can move directly into operations or external communication without challenge.', impact: 'Reduces conduct, regulatory, and trust loss from unsafe model behaviour.' },
+        { title: 'Model Monitoring For Drift And Harm Signals', why: 'Weak monitoring leaves teams blind to bias, hallucination, or degradation until the issue becomes externally visible.', impact: 'Improves early detection and narrows remediation scope before confidence collapses.' },
+        { title: 'AI Risk Review Against Formal Policy And Regulation', why: 'Management needs a repeatable challenge framework when AI use begins to create policy, privacy, or supervisory pressure.', impact: 'Improves defensibility of AI-enabled decisions and strengthens executive confidence.' }
+      ];
+    } else if (classification.key === 'data-governance') {
+      recommendations = [
+        { title: 'Critical Data Ownership And Lineage Review', why: 'Data-governance failures usually persist because ownership, approved use, and lineage are still too ambiguous.', impact: 'Improves confidence in source data and reduces downstream remediation rework.' },
+        { title: 'Retention And Purpose-Limitation Control Reset', why: 'Privacy and approved-use problems get more expensive when stale or uncontrolled data keeps moving through operational workflows.', impact: 'Narrows privacy exposure and reduces disclosure or remediation burden.' },
+        { title: 'Sensitive Data Access And Exception Monitoring', why: 'Weak access and ad hoc exceptions amplify governance failures once the issue is discovered.', impact: 'Improves visibility into who can use sensitive data and how fast drift is detected.' },
+        { title: 'Data Quality Escalation Thresholds', why: 'Leadership needs a clear trigger for when data confidence is too weak to support reporting, analytics, or regulated decisions.', impact: 'Improves intervention timing and reduces confidence erosion in critical outputs.' }
+      ];
     } else if (classification.key === 'phishing') {
       recommendations = [
         { title: 'Phishing-Resistant MFA', why: 'Phishing and session hijack campaigns increasingly bypass weak MFA patterns.', impact: 'Near-elimination of credential takeover from basic phishing paths and a clearer reduction in identity-driven fraud exposure.' },
@@ -1295,6 +1524,13 @@ ${businessUnit.selectedDepartmentContext}` : ''
         { title: 'Control Segregation Review', why: 'Financial incidents are amplified by weak segregation or emergency-access sprawl.', impact: 'Narrows the likelihood and blast radius of internal or external manipulation.' },
         { title: 'Fraud Response Playbook With Treasury And Legal', why: 'The early hours matter when funds, approvals, or commercial obligations are involved.', impact: 'Improves containment and reduces follow-on contractual or liquidity stress.' }
       ];
+    } else if (classification.key === 'fraud-integrity') {
+      recommendations = [
+        { title: 'Conflict, Collusion, And Override Challenge Review', why: 'Integrity scenarios often depend on hidden override paths, unmanaged conflicts, or collusion that looked ordinary in the workflow.', impact: 'Improves visibility over the true manipulation path and reduces repeat integrity loss.' },
+        { title: 'Investigation-Ready Evidence And Case Logging', why: 'Fraud and financial-crime scenarios become more expensive when management cannot quickly preserve and reconstruct the evidence trail.', impact: 'Improves recovery potential and strengthens assurance or legal response.' },
+        { title: 'Third-Party And Counterparty Integrity Due Diligence', why: 'External parties frequently carry the hidden conflict or bribery exposure in integrity-led scenarios.', impact: 'Reduces inherited fraud and corruption pressure across the control environment.' },
+        { title: 'Executive Escalation For Integrity Exceptions', why: 'When integrity indicators surface, delayed escalation is often the difference between a contained case and a wider conduct failure.', impact: 'Improves intervention timing and limits downstream legal or reputational damage.' }
+      ];
     } else if (classification.key === 'esg') {
       recommendations = [
         { title: 'Disclosure Control And Evidence Review', why: 'ESG downside often comes from weak support for claims rather than a single headline event.', impact: 'Improves reporting defensibility and reduces greenwashing or disclosure-challenge risk.' },
@@ -1308,6 +1544,20 @@ ${businessUnit.selectedDepartmentContext}` : ''
         { title: 'Targeted Assurance On The Weakest Control Family', why: 'A narrow assurance pass is often the fastest way to change the real risk posture.', impact: 'Improves confidence in the scenario and reduces unverified control assumptions.' },
         { title: 'Issue Closure Discipline', why: 'Compliance risk remains elevated when remediation is tracked but not truly embedded.', impact: 'Improves closure quality and reduces the chance of repeat findings.' },
         { title: 'Leadership Accountability For Exceptions', why: 'Unowned exceptions often become the hidden path to larger compliance failure.', impact: 'Improves escalation clarity and strengthens the operating control environment.' }
+      ];
+    } else if (classification.key === 'legal-contract') {
+      recommendations = [
+        { title: 'Critical Obligation And Rights Position Review', why: 'Legal and contract downside usually turns on one unclear obligation, indemnity position, or rights assumption that was treated as settled.', impact: 'Improves commercial leverage and reduces avoidable dispute escalation.' },
+        { title: 'Dispute Escalation And Evidence Pack', why: 'When contractual pressure rises, management needs a clean record of notices, obligations, and factual support rather than a reconstructed narrative.', impact: 'Improves response speed and strengthens the organisation’s position in negotiation or formal dispute.' },
+        { title: 'Delivery And Dependency Exposure Mapping', why: 'Contract issues become materially more expensive when linked delivery, supplier, or programme consequences are not surfaced early.', impact: 'Improves scenario realism and reduces hidden downstream execution drag.' },
+        { title: 'IP And Licensing Governance Checkpoint', why: 'Rights, licensing, and use restrictions are often buried in operational or partner workflows until they create a larger commercial problem.', impact: 'Reduces future dispute exposure and improves confidence in the operating model.' }
+      ];
+    } else if (classification.key === 'geopolitical') {
+      recommendations = [
+        { title: 'Market-Access Trigger And Escalation Matrix', why: 'Geopolitical scenarios rarely fail for lack of awareness; they fail because restriction signals are not translated into timely operating decisions.', impact: 'Improves response timing and reduces expensive late-stage reprioritisation.' },
+        { title: 'Critical Counterparty And Country Exposure Review', why: 'Cross-border restrictions become more damaging when management does not know which suppliers, customers, or programmes are concentrated in the affected corridor.', impact: 'Improves visibility over sovereignty, sanctions, and market-access exposure.' },
+        { title: 'Alternative Sourcing Or Routing Playbook', why: 'The practical downside in geopolitical cases often comes from not having a realistic substitute path when access conditions change.', impact: 'Reduces continuity and delivery drag when policy conditions tighten.' },
+        { title: 'Executive Narrative And Stakeholder Coordination Plan', why: 'Leadership, regulators, customers, and investors often need a different explanation cadence when the issue is geopolitical rather than operational.', impact: 'Improves consistency of management response and lowers strategic confidence erosion.' }
       ];
     } else if (classification.key === 'supply-chain') {
       recommendations = [
@@ -1336,6 +1586,41 @@ ${businessUnit.selectedDepartmentContext}` : ''
         { title: 'Stop-Work And Escalation Triggers', why: 'Clear intervention thresholds reduce hesitation when conditions deteriorate.', impact: 'Improves response speed and reduces harm escalation.' },
         { title: 'Incident Learning Loop', why: 'Near misses and weak signals often contain the evidence needed to prevent a more serious event.', impact: 'Improves operating discipline and lowers recurrence risk.' },
         { title: 'Emergency And Remediation Coordination Drill', why: 'The response path matters as much as prevention when a people or environmental event occurs.', impact: 'Improves recovery quality and reduces shutdown or regulatory pressure.' }
+      ];
+    } else if (classification.key === 'physical-security') {
+      recommendations = [
+        { title: 'Critical Site-Access And Badge-Control Review', why: 'Physical-security scenarios usually begin with one weak access path or visitor-control assumption that is being treated as good enough.', impact: 'Reduces unauthorised access risk and improves confidence in site-control design.' },
+        { title: 'High-Sensitivity Area Segmentation', why: 'Sensitive facilities and executive movements become harder to protect when physical zones and response thresholds are too broad or inconsistent.', impact: 'Narrows blast radius and improves stabilisation after a site-control lapse.' },
+        { title: 'Physical Incident Escalation Runbook', why: 'Security events become more damaging when the response path across facilities, leadership, and operations is improvised.', impact: 'Improves response speed and reduces operational confusion.' },
+        { title: 'Contractor And Guard Assurance Review', why: 'External personnel are often part of the failure chain in facility and executive-protection scenarios.', impact: 'Improves accountability and reduces inherited physical-control gaps.' }
+      ];
+    } else if (classification.key === 'ot-resilience') {
+      recommendations = [
+        { title: 'Site-System Recovery And Change Discipline Review', why: 'OT and site-resilience scenarios usually become severe when change control, fallback logic, or recovery sequencing is weaker than management assumes.', impact: 'Improves resilience of industrial and site operations under stress.' },
+        { title: 'Critical Telemetry And Safety Override Validation', why: 'Degraded visibility or unsafe manual fallback can turn a technical disruption into a production or safety issue.', impact: 'Reduces shutdown risk and strengthens confidence in safe degraded operation.' },
+        { title: 'OT Dependency Isolation And Interface Mapping', why: 'Many site-system failures are amplified by unclear dependencies between control systems, vendors, and corporate platforms.', impact: 'Improves root-cause visibility and reduces hidden propagation paths.' },
+        { title: 'Joint OT Recovery Drill With Operations', why: 'The recovery path matters as much as prevention when production or site services depend on fragile industrial controls.', impact: 'Improves coordination quality and shortens restoration time.' }
+      ];
+    } else if (classification.key === 'people-workforce') {
+      recommendations = [
+        { title: 'Workforce Pressure And Safe-Staffing Trigger Review', why: 'People-risk scenarios often escalate because fatigue, attrition, or contractor strain was visible but not treated as a management trigger.', impact: 'Improves intervention timing and reduces safe-delivery degradation.' },
+        { title: 'Labour And Welfare Escalation Protocol', why: 'Management needs a repeatable path when workforce issues begin to create legal, ethical, or continuity pressure.', impact: 'Improves governance quality and reduces inconsistent response.' },
+        { title: 'Critical Role Resilience And Coverage Planning', why: 'Workforce issues become operational crises when key roles have no practical resilience or succession cover.', impact: 'Reduces continuity exposure from concentrated people dependencies.' },
+        { title: 'Worker Voice And Remediation Loop', why: 'Weak grievance and remediation channels allow people issues to compound until external visibility forces a more expensive response.', impact: 'Improves detection of weak signals and lowers escalation risk.' }
+      ];
+    } else if (classification.key === 'investment-jv') {
+      recommendations = [
+        { title: 'Investment Thesis And Assumption Challenge', why: 'Investment and JV downside usually starts with one integration, synergy, or market assumption that was treated as more stable than it really is.', impact: 'Improves decision quality and reduces delayed value erosion.' },
+        { title: 'Post-Deal Governance And Escalation Review', why: 'Many investment losses deepen because ownership over integration, control uplift, and strategic intervention is too diffuse after the deal closes.', impact: 'Improves accountability and reduces prolonged drift after execution issues surface.' },
+        { title: 'Counterparty And Governance Rights Assessment', why: 'JV and minority-position scenarios often hinge on governance rights and practical influence once performance slips.', impact: 'Improves leverage and strengthens contingency planning.' },
+        { title: 'Synergy Tracking And Recovery Trigger Design', why: 'Management needs a disciplined way to recognise when expected value creation is no longer on track.', impact: 'Improves early correction and reduces expensive late-stage remediation.' }
+      ];
+    } else if (classification.key === 'transformation-delivery') {
+      recommendations = [
+        { title: 'Programme Dependency And Milestone Recovery Review', why: 'Transformation scenarios usually become expensive because the dependency chain was too optimistic and no clean recovery path existed once slip appeared.', impact: 'Improves delivery realism and narrows slippage exposure.' },
+        { title: 'Benefit Realisation Challenge Pack', why: 'Transformation downside is often hidden until management asks whether the delayed programme is still delivering the value case.', impact: 'Improves transparency over whether continued investment remains justified.' },
+        { title: 'Executive Decision Rights For Scope And Go-Live', why: 'When a major programme slips, unclear decision rights amplify cost, fatigue, and delivery confusion.', impact: 'Improves intervention speed and strengthens management control of the delivery path.' },
+        { title: 'Change Readiness And Operational Adoption Check', why: 'Even technically successful programmes fail economically when adoption and operational readiness lag behind the build plan.', impact: 'Improves landing quality and reduces delayed-benefit risk.' }
       ];
     } else {
       recommendations = [
@@ -1482,12 +1767,22 @@ ${businessUnit.selectedDepartmentContext}` : ''
     if (!expectedKey || expectedKey === 'general' || !actualKey) return true;
     if (expectedKey === actualKey) return true;
     const compatibility = {
+      'ai-model-risk': ['data-governance', 'compliance', 'cyber'],
+      'data-governance': ['ai-model-risk', 'compliance', 'regulatory', 'cyber'],
       procurement: ['supply-chain', 'third-party', 'compliance', 'esg'],
       'supply-chain': ['procurement', 'third-party', 'business-continuity', 'operational'],
       'third-party': ['procurement', 'supply-chain', 'business-continuity', 'operational'],
       compliance: ['regulatory', 'procurement', 'financial', 'esg'],
       regulatory: ['compliance', 'financial'],
       financial: ['compliance', 'regulatory'],
+      'fraud-integrity': ['financial', 'compliance', 'regulatory'],
+      'legal-contract': ['compliance', 'regulatory', 'procurement', 'strategic'],
+      geopolitical: ['strategic', 'regulatory', 'supply-chain'],
+      'physical-security': ['operational', 'business-continuity', 'hse'],
+      'ot-resilience': ['operational', 'business-continuity', 'cyber', 'hse'],
+      'people-workforce': ['hse', 'operational', 'esg', 'compliance'],
+      'investment-jv': ['strategic', 'financial', 'transformation-delivery'],
+      'transformation-delivery': ['strategic', 'operational', 'investment-jv'],
       esg: ['procurement', 'compliance', 'hse', 'strategic', 'supply-chain'],
       hse: ['operational', 'business-continuity', 'esg'],
       operational: ['business-continuity', 'supply-chain', 'hse'],
@@ -1561,17 +1856,27 @@ ${businessUnit.selectedDepartmentContext}` : ''
     const raw = _normaliseScenarioHintKey(risk?.category || '');
     if (raw) return raw;
     const text = `${risk?.title || ''} ${risk?.description || ''}`.toLowerCase();
+    if (/responsible ai|model risk|ai governance|hallucination|model drift|algorithmic bias|training data/.test(text)) return 'ai-model-risk';
+    if (/data governance|data lineage|retention|purpose limitation|consent|data residency|master data|privacy/.test(text)) return 'data-governance';
     if (/procurement|sourcing|contract|supplier due diligence|bid|tender|vendor selection/.test(text)) return 'procurement';
     if (/supply chain|inventory|logistics|single source|upstream/.test(text)) return 'supply-chain';
     if (/third party|third-party|vendor|supplier failure/.test(text)) return 'third-party';
     if (/compliance|policy|control design|assurance|ethics/.test(text)) return 'compliance';
     if (/regulatory|supervisory|licen[cs]e|sanction|export control/.test(text)) return 'regulatory';
     if (/financial|fraud|payment|liquidity|reporting/.test(text)) return 'financial';
+    if (/financial crime|kickback|bribery|corruption|integrity|embezzlement/.test(text)) return 'fraud-integrity';
+    if (/contract|indemnity|litigation|licensing dispute|intellectual property|\bip\b/.test(text)) return 'legal-contract';
+    if (/geopolitical|market access|sovereign|entity list|cross-border restriction|tariff/.test(text)) return 'geopolitical';
     if (/esg|sustainability|human rights|climate|disclosure/.test(text)) return 'esg';
     if (/business continuity|recovery|outage|downtime|crisis/.test(text)) return 'business-continuity';
+    if (/physical security|executive protection|badge control|visitor management|perimeter|facility breach/.test(text)) return 'physical-security';
+    if (/\bot\b|operational technology|industrial control|ics|scada|site systems|plant network/.test(text)) return 'ot-resilience';
+    if (/workforce|labou?r|fatigue|staffing|worker welfare|strike/.test(text)) return 'people-workforce';
     if (/operational|service disruption|backlog|process/.test(text)) return 'operational';
     if (/health|safety|environment|injury|spill|hazard/.test(text)) return 'hse';
     if (/cyber|identity|cloud|data exposure|malware|ransomware/.test(text)) return 'cyber';
+    if (/merger|acquisition|m&a|joint venture|\bjv\b|integration thesis|synergy/.test(text)) return 'investment-jv';
+    if (/transformation delivery|programme delivery|program delivery|project delivery|go-live|milestone|benefit realisation|benefit realization/.test(text)) return 'transformation-delivery';
     if (/strategy|strategic|market|programme|investment/.test(text)) return 'strategic';
     return '';
   }
@@ -1787,6 +2092,18 @@ ${businessUnit.selectedDepartmentContext}` : ''
         'The most likely progression is unauthorised discovery, data exposure or exfiltration, misuse of cloud services, persistence through compromised credentials or automation, and delayed detection caused by fragmented ownership.',
         'This should be assessed for confidentiality impact, operational recovery effort, regulatory response, and reputational consequences.'
       ].join(' ');
+    } else if (resolvedClassificationKey === 'ai-model-risk') {
+      scenarioExpansion = [
+        _buildScenarioLead({ geography, businessUnit, asset: asset || 'the AI-enabled workflow or model in scope', cause: cause || 'weak model governance, guardrails, or monitoring', impact: impact || 'unsafe or low-trust outputs and regulatory challenge', scenarioLabel: 'AI or model-risk scenario' }),
+        'The most likely progression is poor model behaviour, delayed challenge, or weak human oversight turning into unsafe decisions, remediation work, and pressure to explain how the model was governed.',
+        'This should be assessed for decision quality, governance strength, stakeholder trust, and whether data, conduct, or regulatory consequences could follow once the issue becomes visible.'
+      ].join(' ');
+    } else if (resolvedClassificationKey === 'data-governance') {
+      scenarioExpansion = [
+        _buildScenarioLead({ geography, businessUnit, asset: asset || 'the dataset, reporting flow, or analytics environment in scope', cause: cause || 'weak data ownership, retention, or lineage control', impact: impact || 'privacy challenge and lower confidence in downstream analytics', scenarioLabel: 'data-governance scenario' }),
+        'The most likely progression is poor lineage, approved-use drift, or retention weakness creating privacy pressure, remediation work, and management challenge over how the data was governed.',
+        'This should be assessed for privacy exposure, data-control remediation, and whether the issue undermines the reliability of reporting or AI built on the same data.'
+      ].join(' ');
     } else if (resolvedClassificationKey === 'strategic') {
       scenarioExpansion = [
         _buildScenarioLead({ geography, businessUnit, asset: asset || 'the strategic initiative or business objective', cause: cause || 'strategy execution weakness or market shift', impact: impact || 'material pressure on objectives and value creation', scenarioLabel: 'strategic risk scenario' }),
@@ -1811,6 +2128,12 @@ ${businessUnit.selectedDepartmentContext}` : ''
         'The most likely progression is payment manipulation, weak approvals, or financial-control failure leading to direct loss, delayed detection, escalation, and remediation work.',
         'This should be assessed for direct loss, control weakness, liquidity or capital impact, and any related regulatory or stakeholder consequences.'
       ].join(' ');
+    } else if (resolvedClassificationKey === 'fraud-integrity') {
+      scenarioExpansion = [
+        _buildScenarioLead({ geography, businessUnit, asset: asset || 'the approval, payment, or conduct-control path in scope', cause: cause || 'collusion, corruption, or financial-crime control weakness', impact: impact || 'direct loss and integrity challenge', scenarioLabel: 'fraud and integrity scenario' }),
+        'The most likely progression is hidden override, collusive behaviour, or financial-crime weakness leading to delayed detection, investigation, and pressure on the credibility of the control environment.',
+        'This should be assessed for direct loss, recovery effort, investigation cost, and whether broader assurance or regulatory scrutiny could follow.'
+      ].join(' ');
     } else if (resolvedClassificationKey === 'esg') {
       scenarioExpansion = [
         _buildScenarioLead({ geography, businessUnit, asset: asset || 'the sustainability commitment or disclosure area', cause: cause || 'weak ESG controls or disclosure assumptions', impact: impact || 'stakeholder, disclosure, and remediation pressure', scenarioLabel: 'ESG risk scenario' }),
@@ -1822,6 +2145,18 @@ ${businessUnit.selectedDepartmentContext}` : ''
         _buildScenarioLead({ geography, businessUnit, asset: asset || 'the control framework or obligation', cause: cause || 'policy non-compliance or weak assurance', impact: impact || 'remediation and assurance pressure', scenarioLabel: 'compliance risk scenario' }),
         'The most likely progression is policy or control weakness surfacing through assurance, incident response, or management review, creating remediation burden and weaker trust in the control environment.',
         'This should be assessed for remediation cost, assurance impact, disciplinary or legal consequences, and any linked regulatory exposure.'
+      ].join(' ');
+    } else if (resolvedClassificationKey === 'legal-contract') {
+      scenarioExpansion = [
+        _buildScenarioLead({ geography, businessUnit, asset: asset || 'the contract, partnership, or rights position in scope', cause: cause || 'ambiguous obligations, weak governance, or a disputed legal position', impact: impact || 'legal cost and delayed delivery', scenarioLabel: 'legal or contract scenario' }),
+        'The most likely progression is contractual or rights ambiguity turning into dispute, delayed decisions, commercial strain, and management pressure over how the relationship was structured.',
+        'This should be assessed for legal cost, delivery delay, contractual leverage, and whether the dispute starts to erode programme, partner, or market confidence.'
+      ].join(' ');
+    } else if (resolvedClassificationKey === 'geopolitical') {
+      scenarioExpansion = [
+        _buildScenarioLead({ geography, businessUnit, asset: asset || 'the market-access or cross-border operating path in scope', cause: cause || 'sovereign restrictions, export controls, or tighter market-access conditions', impact: impact || 'delayed execution and supplier disruption', scenarioLabel: 'geopolitical risk scenario' }),
+        'The most likely progression is a policy shift, sanctions condition, or market-access restriction reducing optionality, delaying execution, and forcing management to rethink supplier, market, or operating assumptions.',
+        'This should be assessed for strategic value erosion, supply implications, regulatory consequence, and whether the original business case remains credible under the new conditions.'
       ].join(' ');
     } else if (resolvedClassificationKey === 'supply-chain') {
       scenarioExpansion = [
@@ -1855,11 +2190,41 @@ ${businessUnit.selectedDepartmentContext}` : ''
         'The most likely progression is an incident outlasting recovery assumptions, exposing gaps in continuity planning, fallback operations, communications, and executive decision-making.',
         'This should be assessed for downtime, missed recovery objectives, workaround viability, and the cost of prolonged disruption.'
       ].join(' ');
+    } else if (resolvedClassificationKey === 'physical-security') {
+      scenarioExpansion = [
+        _buildScenarioLead({ geography, businessUnit, asset: asset || 'the sensitive site, facility, or executive movement in scope', cause: cause || 'weak physical access or perimeter control', impact: impact || 'site disruption and leadership concern', scenarioLabel: 'physical-security scenario' }),
+        'The most likely progression is an access-control lapse or physical intrusion creating investigation work, site disruption, and wider questions about how facilities and leadership movement were protected.',
+        'This should be assessed for site stability, safety implications, recovery effort, and whether the event exposes broader gaps in facilities or executive-protection governance.'
+      ].join(' ');
+    } else if (resolvedClassificationKey === 'ot-resilience') {
+      scenarioExpansion = [
+        _buildScenarioLead({ geography, businessUnit, asset: asset || 'the site systems or industrial controls in scope', cause: cause || 'weak OT governance, change failure, or degraded control visibility', impact: impact || 'operational instability and recovery strain', scenarioLabel: 'OT resilience scenario' }),
+        'The most likely progression is degraded visibility or control across critical site systems, forcing manual fallback, slower recovery, and decisions about whether operation can continue safely.',
+        'This should be assessed for operating instability, continuity implications, safety escalation, and the cost of restoring confidence in the site-control environment.'
+      ].join(' ');
+    } else if (resolvedClassificationKey === 'people-workforce') {
+      scenarioExpansion = [
+        _buildScenarioLead({ geography, businessUnit, asset: asset || 'the workforce model or staffing-critical activity in scope', cause: cause || 'fatigue, attrition, welfare concerns, or weak workforce planning', impact: impact || 'operational strain and wellbeing concern', scenarioLabel: 'people and workforce scenario' }),
+        'The most likely progression is staffing pressure or labour-practice weakness reducing safe delivery, raising error rates, and forcing management intervention over whether the current operating model remains acceptable.',
+        'This should be assessed for workforce sustainability, safe delivery, welfare, and whether the issue creates wider HSE, ESG, or continuity pressure.'
+      ].join(' ');
     } else if (resolvedClassificationKey === 'hse') {
       scenarioExpansion = [
         _buildScenarioLead({ geography, businessUnit, asset: asset || 'the affected people, site, or environment', cause: cause || 'safety or environmental control failure', impact: impact || 'injury, shutdown, and remediation exposure', scenarioLabel: 'HSE risk scenario' }),
         'The most likely progression is a control lapse or unsafe condition leading to harm, shutdown, remediation work, and increased regulatory scrutiny.',
         'This should be assessed for people impact, operational interruption, remediation cost, and escalation to regulators or leadership.'
+      ].join(' ');
+    } else if (resolvedClassificationKey === 'investment-jv') {
+      scenarioExpansion = [
+        _buildScenarioLead({ geography, businessUnit, asset: asset || 'the deal thesis, JV, or integration path in scope', cause: cause || 'weak diligence or unrealistic integration assumptions', impact: impact || 'value erosion and delayed synergy', scenarioLabel: 'investment or JV scenario' }),
+        'The most likely progression is a weak transaction or partnership assumption surfacing through integration friction, delayed value capture, and executive pressure to reset the thesis or operating model.',
+        'This should be assessed for value erosion, management distraction, governance mismatch, and whether the investment case still holds under the revised conditions.'
+      ].join(' ');
+    } else if (resolvedClassificationKey === 'transformation-delivery') {
+      scenarioExpansion = [
+        _buildScenarioLead({ geography, businessUnit, asset: asset || 'the programme roadmap or delivery-critical dependency in scope', cause: cause || 'weak programme governance, ownership, or milestone control', impact: impact || 'delay, rising cost, and missed benefits', scenarioLabel: 'transformation delivery scenario' }),
+        'The most likely progression is slippage in dependencies or decision-making turning into delayed milestones, weakened confidence, and a harder path to the intended operating change.',
+        'This should be assessed for delivery pressure, benefit delay, management bandwidth, and whether the transformation is now creating operational strain while it slips.'
       ].join(' ');
     } else if (statement) {
       scenarioExpansion = [
@@ -2102,7 +2467,7 @@ Treat the primary lens hint as the leading domain for this scenario unless the n
     }
     if (_compassApiKey || !_isDirectCompassUrl(_compassApiUrl)) {
       try {
-        const systemPrompt = `You are a senior enterprise risk analyst with deep expertise in FAIR methodology and international regulatory environments including strategic, operational, cyber, third-party, regulatory, financial, ESG, compliance, supply chain, procurement, business continuity, and HSE scenarios.
+        const systemPrompt = `You are a senior enterprise risk analyst with deep expertise in FAIR methodology and international regulatory environments including strategic, operational, cyber, AI/model risk, data governance/privacy, third-party, regulatory, financial, fraud/integrity, ESG, compliance, legal/contract, geopolitical, supply chain, procurement, business continuity, physical security, OT resilience, people/workforce, investment/JV, transformation delivery, and HSE scenarios.
 
 Before producing your JSON output, reason through the following three questions in this order:
 1. What is the most credible threat path given the scenario, business context, and the specific geography and regulations provided? Name the most likely actor, method, and first-order effect.
@@ -2139,7 +2504,7 @@ Return JSON only with this schema:
 - reflect the stated urgency where provided
 - if the scenario involves identity, directory, SSO, or Azure AD/Entra compromise, include plausible knock-on effects such as mailbox compromise, privileged misuse, tenant changes, service disruption, fraud, and data exposure where relevant
 - produce concise but concrete candidate risks that a user can choose from
-- classify the scenario using credible enterprise risk taxonomy across strategic, operational, cyber, third-party, regulatory, financial, ESG, compliance, supply chain, procurement, business continuity, and HSE lenses; do not force a scenario into cyber if the primary driver is strategic, operational, or governance-related
+- classify the scenario using credible enterprise risk taxonomy across strategic, operational, cyber, AI/model risk, data governance/privacy, third-party, regulatory, financial, fraud/integrity, ESG, compliance, legal/contract, geopolitical, supply chain, procurement, business continuity, physical security, OT resilience, people/workforce, investment/JV, transformation delivery, and HSE lenses; do not force a scenario into cyber if the primary driver is strategic, operational, governance, people, or market-related
 
 Business unit: ${input.businessUnit?.name || 'Unknown'}
 Geography: ${input.geography || 'Unknown'}

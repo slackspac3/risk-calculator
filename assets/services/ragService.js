@@ -18,14 +18,24 @@ const RAGService = (() => {
     'strategic',
     'operational',
     'cyber',
+    'ai-model-risk',
+    'data-governance',
     'third-party',
     'regulatory',
     'financial',
+    'fraud-integrity',
     'esg',
     'compliance',
+    'legal-contract',
+    'geopolitical',
     'supply-chain',
     'procurement',
     'business-continuity',
+    'physical-security',
+    'ot-resilience',
+    'people-workforce',
+    'investment-jv',
+    'transformation-delivery',
     'hse'
   ];
 
@@ -86,10 +96,64 @@ const RAGService = (() => {
       docIds: ['doc-coso-ic-33', 'doc-bcbs239-41']
     },
     {
+      key: 'ai-governance',
+      patterns: ['responsible ai', 'model risk', 'ai governance', 'model drift', 'hallucination', 'algorithmic bias', 'ai act', 'training data'],
+      docTags: ['ai-model-risk', 'governance', 'compliance', 'data-governance'],
+      docIds: ['doc-iso42001-62', 'doc-iso23894-63', 'doc-nist-airmf-64', 'doc-eu-ai-act-65', 'doc-sr11-7-66']
+    },
+    {
+      key: 'data-governance',
+      patterns: ['data governance', 'data lineage', 'data quality', 'retention', 'purpose limitation', 'consent', 'data residency', 'master data'],
+      docTags: ['data-governance', 'privacy', 'compliance', 'controls'],
+      docIds: ['doc-iso27701-19', 'doc-gdpr-06', 'doc-data-05', 'doc-cls-07']
+    },
+    {
+      key: 'fraud-integrity',
+      patterns: ['financial crime', 'money laundering', 'kickback', 'bribery', 'corruption', 'integrity breakdown', 'embezzlement'],
+      docTags: ['fraud-integrity', 'financial', 'compliance', 'anti-bribery'],
+      docIds: ['doc-iso37001-57', 'doc-uae-amlcft-12', 'doc-coso-ic-33']
+    },
+    {
+      key: 'legal-contract',
+      patterns: ['contract dispute', 'indemnity', 'licensing dispute', 'intellectual property', 'ip ownership', 'litigation', 'terms breach'],
+      docTags: ['legal-contract', 'compliance', 'procurement', 'governance'],
+      docIds: ['doc-iso37301-26', 'doc-uncitral-proc-46', 'doc-worldbank-proc-47']
+    },
+    {
+      key: 'geopolitical-market-access',
+      patterns: ['geopolitical', 'market access', 'entity list', 'export control', 'sovereign risk', 'cross-border restriction', 'tariff'],
+      docTags: ['geopolitical', 'regulatory', 'strategic', 'supply-chain'],
+      docIds: ['doc-bis-export-09', 'doc-ofac-11']
+    },
+    {
       key: 'ot-resilience',
       patterns: ['operational technology', 'industrial control', 'ics', 'scada', 'plant network', 'site systems', 'ot security'],
       docTags: ['operational', 'cyber', 'hse', 'facilities', 'business-continuity'],
       docIds: ['doc-iec62443-52', 'doc-uae-fire-life-45']
+    },
+    {
+      key: 'physical-security',
+      patterns: ['physical security', 'executive protection', 'badge control', 'visitor management', 'perimeter breach', 'facility intrusion'],
+      docTags: ['physical-security', 'facilities', 'business-continuity', 'hse'],
+      docIds: ['doc-uae-fire-life-45', 'doc-iso22301-20', 'doc-nfpa1600-32']
+    },
+    {
+      key: 'people-workforce',
+      patterns: ['workforce resilience', 'worker welfare', 'staffing pressure', 'labour rights', 'human rights', 'contractor welfare', 'fatigue'],
+      docTags: ['people-workforce', 'human-rights', 'esg', 'hse', 'operational'],
+      docIds: ['doc-ungp-49', 'doc-oecd-rbc-48', 'doc-ilo-osh-54', 'doc-sa8000-61']
+    },
+    {
+      key: 'investment-integration',
+      patterns: ['m&a', 'merger integration', 'joint venture', 'deal thesis', 'synergy delivery', 'post-merger integration'],
+      docTags: ['investment-jv', 'strategic', 'financial', 'governance'],
+      docIds: ['doc-coso-erm-25', 'doc-iso31000-24', 'doc-iso31010-50']
+    },
+    {
+      key: 'transformation-delivery',
+      patterns: ['transformation delivery', 'programme delivery', 'project delivery', 'go-live delay', 'milestone slippage', 'benefit realization', 'benefit realisation'],
+      docTags: ['transformation-delivery', 'strategic', 'operational', 'governance'],
+      docIds: ['doc-coso-erm-25', 'doc-iso31010-50']
     },
     {
       key: 'risk-method',
@@ -105,6 +169,36 @@ const RAGService = (() => {
       patterns: ['privacy', 'personal data', 'pii', 'phi', 'data protection', 'gdpr', 'pdpl', 'data subject', 'biometric', 'health data'],
       docTags: ['privacy', 'data-protection', 'pims'],
       docIds: ['doc-iso27018-18', 'doc-iso27701-19', 'doc-data-05', 'doc-gdpr-06', 'doc-cls-07']
+    },
+    {
+      key: 'ai-model-risk',
+      patterns: ['responsible ai', 'model risk', 'ai governance', 'algorithmic bias', 'model drift', 'hallucination', 'training data', 'ai act'],
+      docTags: ['ai-model-risk', 'governance', 'compliance', 'data-governance'],
+      docIds: ['doc-iso42001-62', 'doc-iso23894-63', 'doc-nist-airmf-64', 'doc-eu-ai-act-65', 'doc-sr11-7-66']
+    },
+    {
+      key: 'data-governance',
+      patterns: ['data governance', 'data lineage', 'data quality', 'retention', 'purpose limitation', 'consent', 'data residency'],
+      docTags: ['data-governance', 'privacy', 'controls', 'compliance'],
+      docIds: ['doc-iso27701-19', 'doc-gdpr-06', 'doc-data-05', 'doc-cls-07']
+    },
+    {
+      key: 'fraud-integrity',
+      patterns: ['fraud', 'financial crime', 'kickback', 'bribery', 'corruption', 'integrity', 'embezzlement', 'money laundering'],
+      docTags: ['fraud-integrity', 'financial', 'anti-bribery', 'compliance'],
+      docIds: ['doc-iso37001-57', 'doc-uae-amlcft-12', 'doc-coso-ic-33']
+    },
+    {
+      key: 'legal-contract',
+      patterns: ['legal', 'contract', 'indemnity', 'licensing dispute', 'ip ownership', 'intellectual property', 'litigation'],
+      docTags: ['legal-contract', 'compliance', 'governance'],
+      docIds: ['doc-iso37301-26', 'doc-uncitral-proc-46', 'doc-worldbank-proc-47']
+    },
+    {
+      key: 'geopolitical',
+      patterns: ['geopolitical', 'market access', 'export control', 'sanctions', 'sovereign', 'cross-border restriction', 'entity list'],
+      docTags: ['geopolitical', 'regulatory', 'strategic', 'supply-chain'],
+      docIds: ['doc-bis-export-09', 'doc-ofac-11']
     },
     {
       key: 'business-continuity',
@@ -141,6 +235,30 @@ const RAGService = (() => {
       patterns: ['hse', 'health and safety', 'worker safety', 'contractor safety', 'injury', 'spill', 'hazard', 'environmental'],
       docTags: ['hse', 'environment', 'health-safety', 'operations'],
       docIds: ['doc-iso45001-30', 'doc-iso14001-31', 'doc-abu-dhabi-ehsms-44', 'doc-uae-fire-life-45', 'doc-ilo-osh-54']
+    },
+    {
+      key: 'physical-security',
+      patterns: ['physical security', 'facilities', 'executive protection', 'visitor management', 'badge control', 'perimeter breach'],
+      docTags: ['physical-security', 'facilities', 'business-continuity', 'operations'],
+      docIds: ['doc-uae-fire-life-45', 'doc-iso22301-20', 'doc-nfpa1600-32']
+    },
+    {
+      key: 'people-workforce',
+      patterns: ['people risk', 'workforce', 'labour', 'labor', 'worker welfare', 'fatigue', 'staffing pressure', 'human rights'],
+      docTags: ['people-workforce', 'human-rights', 'esg', 'hse', 'operations'],
+      docIds: ['doc-ungp-49', 'doc-oecd-rbc-48', 'doc-ilo-osh-54', 'doc-sa8000-61']
+    },
+    {
+      key: 'investment-jv',
+      patterns: ['m&a', 'merger', 'acquisition', 'joint venture', 'jv', 'integration thesis', 'post-merger integration'],
+      docTags: ['investment-jv', 'strategic', 'financial', 'governance'],
+      docIds: ['doc-coso-erm-25', 'doc-iso31000-24', 'doc-iso31010-50']
+    },
+    {
+      key: 'transformation-delivery',
+      patterns: ['transformation delivery', 'programme delivery', 'program delivery', 'project delivery', 'go-live', 'milestone slip', 'benefit realization', 'benefit realisation'],
+      docTags: ['transformation-delivery', 'strategic', 'operational', 'governance'],
+      docIds: ['doc-coso-erm-25', 'doc-iso31010-50']
     },
     {
       key: 'risk-management',
@@ -251,18 +369,28 @@ const RAGService = (() => {
   function _getMatchingLensTags(query = '') {
     const q = _normaliseText(query);
     const aliases = new Map([
+      ['ai-model-risk', ['ai-model-risk', 'ai risk', 'responsible ai', 'model risk', 'algorithmic bias', 'hallucination', 'model drift']],
+      ['data-governance', ['data-governance', 'data governance', 'privacy', 'data quality', 'lineage', 'retention', 'consent']],
       ['third-party', ['third-party', 'third party', 'vendor', 'supplier', 'outsourcing']],
       ['supply-chain', ['supply-chain', 'supply chain', 'logistics', 'inventory', 'sub-tier', 'single source', 'upstream']],
       ['business-continuity', ['business-continuity', 'business continuity', 'continuity', 'recovery', 'disaster recovery', 'crisis management', 'rto', 'rpo']],
+      ['fraud-integrity', ['fraud-integrity', 'fraud', 'integrity', 'financial crime', 'kickback', 'bribery', 'corruption']],
       ['esg', ['esg', 'sustainability', 'climate', 'emissions', 'greenwashing', 'human rights']],
       ['hse', ['hse', 'health and safety', 'worker safety', 'injury', 'environmental', 'spill', 'hazard']],
       ['cyber', ['cyber', 'identity', 'phishing', 'ransomware', 'cloud', 'breach', 'ics', 'ot security']],
       ['operational', ['operational', 'process failure', 'breakdown', 'service failure', 'backlog', 'quality failure']],
       ['strategic', ['strategic', 'strategy', 'market', 'transformation', 'portfolio', 'investment']],
+      ['legal-contract', ['legal-contract', 'legal', 'contract', 'litigation', 'indemnity', 'licensing dispute', 'ip ownership']],
+      ['geopolitical', ['geopolitical', 'sanctions', 'market access', 'export control', 'sovereign', 'entity list']],
       ['regulatory', ['regulatory', 'regulator', 'licence', 'license', 'sanction', 'export control', 'filing']],
       ['financial', ['financial', 'fraud', 'payment', 'treasury', 'capital', 'misstatement']],
       ['compliance', ['compliance', 'non-compliance', 'policy breach', 'anti bribery', 'corruption', 'ethics', 'conduct']],
-      ['procurement', ['procurement', 'sourcing', 'tender', 'bid', 'contract award', 'supplier due diligence', 'collusion']]
+      ['procurement', ['procurement', 'sourcing', 'tender', 'bid', 'contract award', 'supplier due diligence', 'collusion']],
+      ['physical-security', ['physical-security', 'physical security', 'facilities', 'executive protection', 'perimeter', 'visitor management']],
+      ['ot-resilience', ['ot-resilience', 'ot', 'ics', 'scada', 'industrial control', 'site systems', 'plant network']],
+      ['people-workforce', ['people-workforce', 'people risk', 'workforce', 'labour', 'labor', 'staffing pressure', 'human rights']],
+      ['investment-jv', ['investment-jv', 'investment', 'm&a', 'merger', 'acquisition', 'joint venture', 'jv', 'integration thesis']],
+      ['transformation-delivery', ['transformation-delivery', 'transformation delivery', 'programme delivery', 'program delivery', 'project delivery', 'go live', 'milestone slip']]
     ]);
     return LENS_TAGS.filter(tag => (aliases.get(tag) || [tag]).some(pattern => q.includes(_normaliseText(pattern))));
   }

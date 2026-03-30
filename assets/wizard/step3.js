@@ -123,6 +123,36 @@ function getEstimatePresetLibrary() {
         rcMin: 50000, rcLikely: 170000, rcMax: 620000
       }
     },
+    aiModelRisk: {
+      label: 'AI / model risk example',
+      summary: 'Lower-to-moderate frequency with governance remediation, stakeholder trust, and regulatory or conduct pressure weighted above direct outage cost.',
+      values: {
+        tefMin: 0.2, tefLikely: 0.9, tefMax: 4,
+        threatCapMin: 0.28, threatCapLikely: 0.46, threatCapMax: 0.68,
+        controlStrMin: 0.36, controlStrLikely: 0.54, controlStrMax: 0.76,
+        irMin: 40000, irLikely: 140000, irMax: 420000,
+        biMin: 50000, biLikely: 220000, biMax: 900000,
+        dbMin: 10000, dbLikely: 50000, dbMax: 220000,
+        rlMin: 50000, rlLikely: 220000, rlMax: 980000,
+        tpMin: 0, tpLikely: 30000, tpMax: 180000,
+        rcMin: 120000, rcLikely: 420000, rcMax: 1600000
+      }
+    },
+    dataGovernance: {
+      label: 'Data governance / privacy example',
+      summary: 'Moderate frequency with data remediation, privacy challenge, and downstream reporting-confidence loss.',
+      values: {
+        tefMin: 0.3, tefLikely: 1.4, tefMax: 6,
+        threatCapMin: 0.3, threatCapLikely: 0.48, threatCapMax: 0.7,
+        controlStrMin: 0.36, controlStrLikely: 0.54, controlStrMax: 0.76,
+        irMin: 35000, irLikely: 120000, irMax: 360000,
+        biMin: 50000, biLikely: 180000, biMax: 700000,
+        dbMin: 60000, dbLikely: 220000, dbMax: 900000,
+        rlMin: 40000, rlLikely: 180000, rlMax: 900000,
+        tpMin: 0, tpLikely: 30000, tpMax: 160000,
+        rcMin: 80000, rcLikely: 260000, rcMax: 980000
+      }
+    },
     ransomware: {
       label: 'Ransomware / outage example',
       summary: 'Lower frequency than phishing, but heavier business disruption and recovery effort.',
@@ -213,6 +243,21 @@ function getEstimatePresetLibrary() {
         rcMin: 70000, rcLikely: 250000, rcMax: 980000
       }
     },
+    fraudIntegrity: {
+      label: 'Fraud / integrity example',
+      summary: 'Moderate frequency with direct loss, investigation, and assurance or legal pressure after hidden override or collusion.',
+      values: {
+        tefMin: 0.4, tefLikely: 1.8, tefMax: 7,
+        threatCapMin: 0.38, threatCapLikely: 0.58, threatCapMax: 0.8,
+        controlStrMin: 0.34, controlStrLikely: 0.52, controlStrMax: 0.74,
+        irMin: 50000, irLikely: 150000, irMax: 460000,
+        biMin: 40000, biLikely: 160000, biMax: 650000,
+        dbMin: 0, dbLikely: 10000, dbMax: 70000,
+        rlMin: 50000, rlLikely: 220000, rlMax: 1100000,
+        tpMin: 40000, tpLikely: 170000, tpMax: 780000,
+        rcMin: 80000, rcLikely: 280000, rcMax: 1100000
+      }
+    },
     esg: {
       label: 'ESG / sustainability example',
       summary: 'Lower frequency with disclosure, remediation, and stakeholder-confidence loss weighted above direct disruption.',
@@ -241,6 +286,36 @@ function getEstimatePresetLibrary() {
         rlMin: 60000, rlLikely: 220000, rlMax: 920000,
         tpMin: 0, tpLikely: 20000, tpMax: 120000,
         rcMin: 70000, rcLikely: 220000, rcMax: 820000
+      }
+    },
+    legalContract: {
+      label: 'Legal / contract example',
+      summary: 'Lower frequency with dispute cost, delayed delivery, and contractual pressure weighted above direct disruption.',
+      values: {
+        tefMin: 0.25, tefLikely: 1, tefMax: 4,
+        threatCapMin: 0.28, threatCapLikely: 0.46, threatCapMax: 0.68,
+        controlStrMin: 0.36, controlStrLikely: 0.54, controlStrMax: 0.76,
+        irMin: 25000, irLikely: 90000, irMax: 300000,
+        biMin: 70000, biLikely: 260000, biMax: 1000000,
+        dbMin: 0, dbLikely: 5000, dbMax: 25000,
+        rlMin: 120000, rlLikely: 460000, rlMax: 2000000,
+        tpMin: 25000, tpLikely: 120000, tpMax: 620000,
+        rcMin: 100000, rcLikely: 340000, rcMax: 1300000
+      }
+    },
+    geopolitical: {
+      label: 'Geopolitical / market access example',
+      summary: 'Lower frequency with strategic value erosion, supplier restriction, and policy-driven execution delay.',
+      values: {
+        tefMin: 0.1, tefLikely: 0.6, tefMax: 2.5,
+        threatCapMin: 0.2, threatCapLikely: 0.36, threatCapMax: 0.58,
+        controlStrMin: 0.34, controlStrLikely: 0.5, controlStrMax: 0.72,
+        irMin: 25000, irLikely: 90000, irMax: 280000,
+        biMin: 150000, biLikely: 550000, biMax: 2200000,
+        dbMin: 0, dbLikely: 0, dbMax: 15000,
+        rlMin: 50000, rlLikely: 180000, rlMax: 900000,
+        tpMin: 20000, tpLikely: 90000, tpMax: 420000,
+        rcMin: 180000, rcLikely: 680000, rcMax: 2600000
       }
     },
     thirdParty: {
@@ -303,6 +378,51 @@ function getEstimatePresetLibrary() {
         rcMin: 90000, rcLikely: 300000, rcMax: 1200000
       }
     },
+    physicalSecurity: {
+      label: 'Physical security example',
+      summary: 'Moderate frequency with investigation, site-disruption, and leadership assurance pressure.',
+      values: {
+        tefMin: 0.25, tefLikely: 1.2, tefMax: 5,
+        threatCapMin: 0.3, threatCapLikely: 0.48, threatCapMax: 0.7,
+        controlStrMin: 0.34, controlStrLikely: 0.5, controlStrMax: 0.72,
+        irMin: 45000, irLikely: 150000, irMax: 460000,
+        biMin: 120000, biLikely: 420000, biMax: 1700000,
+        dbMin: 0, dbLikely: 0, dbMax: 15000,
+        rlMin: 20000, rlLikely: 90000, rlMax: 420000,
+        tpMin: 10000, tpLikely: 50000, tpMax: 240000,
+        rcMin: 90000, rcLikely: 280000, rcMax: 1100000
+      }
+    },
+    otResilience: {
+      label: 'OT / site resilience example',
+      summary: 'Lower frequency with unstable operations, recovery strain, and safety-linked shutdown pressure.',
+      values: {
+        tefMin: 0.2, tefLikely: 1, tefMax: 4.5,
+        threatCapMin: 0.3, threatCapLikely: 0.5, threatCapMax: 0.74,
+        controlStrMin: 0.34, controlStrLikely: 0.52, controlStrMax: 0.74,
+        irMin: 60000, irLikely: 180000, irMax: 560000,
+        biMin: 180000, biLikely: 700000, biMax: 2800000,
+        dbMin: 0, dbLikely: 15000, dbMax: 90000,
+        rlMin: 30000, rlLikely: 120000, rlMax: 520000,
+        tpMin: 10000, tpLikely: 60000, tpMax: 300000,
+        rcMin: 90000, rcLikely: 300000, rcMax: 1200000
+      }
+    },
+    peopleWorkforce: {
+      label: 'People / workforce example',
+      summary: 'Moderate frequency with staffing strain, welfare pressure, and safe-delivery concerns.',
+      values: {
+        tefMin: 0.3, tefLikely: 1.2, tefMax: 5,
+        threatCapMin: 0.26, threatCapLikely: 0.42, threatCapMax: 0.64,
+        controlStrMin: 0.36, controlStrLikely: 0.54, controlStrMax: 0.76,
+        irMin: 30000, irLikely: 100000, irMax: 320000,
+        biMin: 100000, biLikely: 360000, biMax: 1500000,
+        dbMin: 0, dbLikely: 0, dbMax: 15000,
+        rlMin: 30000, rlLikely: 120000, rlMax: 600000,
+        tpMin: 0, tpLikely: 30000, tpMax: 180000,
+        rcMin: 90000, rcLikely: 320000, rcMax: 1300000
+      }
+    },
     hse: {
       label: 'HSE incident example',
       summary: 'Lower frequency with elevated shutdown, remediation, and regulatory or legal exposure.',
@@ -316,6 +436,36 @@ function getEstimatePresetLibrary() {
         rlMin: 100000, rlLikely: 320000, rlMax: 1400000,
         tpMin: 10000, tpLikely: 70000, tpMax: 320000,
         rcMin: 100000, rcLikely: 320000, rcMax: 1200000
+      }
+    },
+    investmentJv: {
+      label: 'Investment / JV example',
+      summary: 'Lower frequency with value erosion, delayed synergy, and management reprioritisation.',
+      values: {
+        tefMin: 0.15, tefLikely: 0.6, tefMax: 2.5,
+        threatCapMin: 0.24, threatCapLikely: 0.42, threatCapMax: 0.64,
+        controlStrMin: 0.36, controlStrLikely: 0.54, controlStrMax: 0.76,
+        irMin: 40000, irLikely: 120000, irMax: 360000,
+        biMin: 140000, biLikely: 480000, biMax: 1800000,
+        dbMin: 0, dbLikely: 5000, dbMax: 30000,
+        rlMin: 25000, rlLikely: 110000, rlMax: 500000,
+        tpMin: 0, tpLikely: 40000, tpMax: 220000,
+        rcMin: 180000, rcLikely: 700000, rcMax: 2800000
+      }
+    },
+    transformationDelivery: {
+      label: 'Transformation delivery example',
+      summary: 'Lower frequency with milestone slippage, rising cost, and delayed benefit realisation.',
+      values: {
+        tefMin: 0.2, tefLikely: 0.9, tefMax: 4,
+        threatCapMin: 0.26, threatCapLikely: 0.44, threatCapMax: 0.66,
+        controlStrMin: 0.34, controlStrLikely: 0.52, controlStrMax: 0.74,
+        irMin: 30000, irLikely: 100000, irMax: 320000,
+        biMin: 120000, biLikely: 420000, biMax: 1600000,
+        dbMin: 0, dbLikely: 0, dbMax: 15000,
+        rlMin: 15000, rlLikely: 70000, rlMax: 320000,
+        tpMin: 0, tpLikely: 30000, tpMax: 180000,
+        rcMin: 140000, rcLikely: 520000, rcMax: 2100000
       }
     }
   };
@@ -335,17 +485,28 @@ function recommendEstimatePreset(draft) {
   if (/(phish|bec|email compromise|business email|invoice fraud)/.test(text)) return 'phishing';
   if (/(identity|entra|sso|directory|mailbox compromise|session hijack|account takeover)/.test(text)) return 'identity';
   if (/(cloud|bucket|tenant|misconfig|public exposure|saas)/.test(text)) return 'cloud';
+  if (/(responsible ai|model risk|ai governance|hallucination|model drift|algorithmic bias|training data|ai act)/.test(text)) return 'aiModelRisk';
+  if (/(data governance|data lineage|retention|purpose limitation|consent|data residency|master data|privacy)/.test(text)) return 'dataGovernance';
   if (/(ransom|encrypt|extortion|outage|business interruption|recovery)/.test(text)) return 'ransomware';
   if (/(privacy|breach|exfiltrat|data leak|personal data|pii|phi)/.test(text)) return 'dataBreach';
+  // Prefer narrower enterprise presets before the older broad categories so the estimate guidance stays domain-specific.
+  if (/(financial crime|kickback|bribery|corruption|integrity|embezzlement)/.test(text)) return 'fraudIntegrity';
+  if (/(contract|indemnity|litigation|licensing dispute|intellectual property|\bip\b)/.test(text)) return 'legalContract';
+  if (/(geopolitical|market access|sovereign|entity list|cross-border restriction|tariff|export control)/.test(text)) return 'geopolitical';
+  if (/(merger|acquisition|m&a|joint venture|\bjv\b|integration thesis|synergy)/.test(text)) return 'investmentJv';
+  if (/(transformation delivery|programme delivery|program delivery|project delivery|go-live|milestone|benefit realisation|benefit realization)/.test(text)) return 'transformationDelivery';
   if (/(strategy|strategic|market shift|competitive|transformation|portfolio|investment)/.test(text)) return 'strategic';
   if (/(operational|process failure|control failure|breakdown|backlog|service failure)/.test(text)) return 'operational';
   if (/(regulator|regulatory|licen|filing|supervisory|sanction)/.test(text)) return 'regulatory';
   if (/(fraud|payment|invoice|treasury|liquidity|capital|financial)/.test(text)) return 'financial';
   if (/(compliance|policy breach|conduct|ethics|assurance)/.test(text)) return 'compliance';
-  if (/(third[- ]party|supplier|vendor|outsourc)/.test(text)) return 'thirdParty';
   if (/(procurement|sourcing|tender|bid|contract award|vendor selection|purchasing)/.test(text)) return 'procurement';
   if (/(supply chain|logistics|shipment|inventory|single source|upstream)/.test(text)) return 'supplyChain';
+  if (/(third[- ]party|supplier|vendor|outsourc)/.test(text)) return 'thirdParty';
   if (/(business continuity|continuity|disaster recovery|rto|rpo|crisis management)/.test(text)) return 'businessContinuity';
+  if (/(physical security|badge control|visitor management|perimeter|facility breach|executive protection)/.test(text)) return 'physicalSecurity';
+  if (/\bot\b|operational technology|industrial control|ics|scada|site systems|plant network/.test(text)) return 'otResilience';
+  if (/(workforce|labou?r|fatigue|staffing|worker welfare|strike)/.test(text)) return 'peopleWorkforce';
   if (/(hse|health and safety|safety|injury|environmental|spill|worker)/.test(text)) return 'hse';
   return '';
 }
@@ -378,6 +539,16 @@ function buildStep3FocusHint(draft) {
       secondary: 'Business interruption',
       why: 'Cloud exposure scenarios usually turn on how much sensitive data or service continuity is actually in scope once the weak control is triggered.'
     },
+    aiModelRisk: {
+      primary: 'Regulatory and legal cost',
+      secondary: 'Reputation / contract loss',
+      why: 'AI and model-risk scenarios usually turn on governance challenge, remediation, and trust in the AI-enabled workflow once poor behaviour becomes visible.'
+    },
+    dataGovernance: {
+      primary: 'Data remediation',
+      secondary: 'Regulatory and legal cost',
+      why: 'Data-governance scenarios are usually shaped by how much remediation is needed and how hard privacy or approved-use obligations are challenged.'
+    },
     strategic: {
       primary: 'Reputation / contract loss',
       secondary: 'Business interruption',
@@ -398,6 +569,11 @@ function buildStep3FocusHint(draft) {
       secondary: 'Incident response',
       why: 'Financial-control scenarios usually turn on direct loss and how quickly the organisation can detect, recover, and limit downstream commercial exposure.'
     },
+    fraudIntegrity: {
+      primary: 'Third-party liability',
+      secondary: 'Regulatory and legal cost',
+      why: 'Fraud and integrity scenarios often hinge on direct loss, investigation scope, and how hard assurance or legal response lands once collusion or override is visible.'
+    },
     esg: {
       primary: 'Reputation / contract loss',
       secondary: 'Regulatory and legal cost',
@@ -407,6 +583,16 @@ function buildStep3FocusHint(draft) {
       primary: 'Regulatory and legal cost',
       secondary: 'Reputation / contract loss',
       why: 'Compliance scenarios are mostly about remediation, assurance pressure, and the secondary trust impact if the issue becomes visible to leadership or regulators.'
+    },
+    legalContract: {
+      primary: 'Regulatory and legal cost',
+      secondary: 'Reputation / contract loss',
+      why: 'Legal and contract scenarios are typically driven by dispute cost, leverage over obligations, and how badly delivery or partner confidence is affected.'
+    },
+    geopolitical: {
+      primary: 'Reputation / contract loss',
+      secondary: 'Business interruption',
+      why: 'Geopolitical scenarios usually play out through delayed execution, supplier restriction, and the value erosion created when the original market or operating path becomes harder to sustain.'
     },
     thirdParty: {
       primary: 'Business interruption',
@@ -428,10 +614,35 @@ function buildStep3FocusHint(draft) {
       secondary: 'Incident response',
       why: 'Continuity scenarios are mostly about outage duration and the recovery effort needed to restore a credible operating state.'
     },
+    physicalSecurity: {
+      primary: 'Business interruption',
+      secondary: 'Incident response',
+      why: 'Physical-security scenarios are typically shaped by site disruption, investigation effort, and how quickly the facility can be stabilised after the lapse is discovered.'
+    },
+    otResilience: {
+      primary: 'Business interruption',
+      secondary: 'Regulatory and legal cost',
+      why: 'OT-resilience scenarios usually turn on whether the site can keep operating safely while visibility or control is degraded and recovery is still underway.'
+    },
+    peopleWorkforce: {
+      primary: 'Business interruption',
+      secondary: 'Reputation / contract loss',
+      why: 'People and workforce scenarios are often driven by how staffing or welfare pressure degrades safe delivery before leadership steps in.'
+    },
     hse: {
       primary: 'Regulatory and legal cost',
       secondary: 'Business interruption',
       why: 'HSE scenarios are typically driven by shutdown, remediation, and regulatory consequence once a safety or environmental control fails.'
+    },
+    investmentJv: {
+      primary: 'Reputation / contract loss',
+      secondary: 'Business interruption',
+      why: 'Investment and JV scenarios typically turn on value erosion, delayed synergy, and the cost of correcting the transaction or integration plan once weak assumptions are exposed.'
+    },
+    transformationDelivery: {
+      primary: 'Reputation / contract loss',
+      secondary: 'Business interruption',
+      why: 'Transformation-delivery scenarios are usually shaped by milestone slippage, benefit delay, and the operating strain created while the programme slips.'
     }
   };
   if (!presetKey || !hints[presetKey]) return null;
