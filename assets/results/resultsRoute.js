@@ -1254,6 +1254,28 @@ function renderTechnicalChallengePanel(assessment, technicalInputs, assessmentIn
   });
 }
 
+function renderPreRunAssumptionExplainer(draft, liveInputAssignments = []) {
+  const entries = buildParameterChallengeEntries({
+    technicalInputs: draft?.fairParams || {},
+    inputAssignments: liveInputAssignments,
+    confidence: {
+      label: draft?.confidenceLabel || '',
+      summary: draft?.evidenceSummary || '',
+      reasons: [draft?.evidenceQuality || ''].filter(Boolean),
+      improvements: Array.isArray(draft?.missingInformation) ? draft.missingInformation : []
+    },
+    missingInformation: draft?.missingInformation || [],
+    citations: draft?.citations || [],
+    primaryGrounding: draft?.primaryGrounding || [],
+    supportingReferences: draft?.supportingReferences || [],
+    assumptions: draft?.inferredAssumptions || []
+  });
+  return renderParameterChallengePanel(entries, {
+    title: 'Explain a key assumption before you run',
+    subtitle: 'Open this only when you want the plain-English meaning, support, and movement logic behind one important input before you commit to the run.'
+  });
+}
+
 function renderResultsExplanationPanel(assessmentIntelligence, comparison, runMetadata) {
   const topDrivers = Array.isArray(assessmentIntelligence?.drivers?.sensitivity) ? assessmentIntelligence.drivers.sensitivity.slice(0, 3) : [];
   const assumptions = Array.isArray(assessmentIntelligence?.assumptions) ? assessmentIntelligence.assumptions.slice(0, 3) : [];
@@ -1748,6 +1770,7 @@ function renderWizard4() {
           ${UI.disclosureSection({ title: 'Challenge these 3 assumptions first', badgeLabel: 'Recommended', badgeTone: 'warning', open: false, className: 'wizard-disclosure card anim-fade-in', body: renderPreRunChallengeBlock(draft) })}
           ${UI.disclosureSection({ title: 'How the result is built', badgeLabel: 'Optional guide', badgeTone: 'neutral', open: false, className: 'wizard-disclosure card anim-fade-in', body: renderSimulationEquationFlow() })}
           ${UI.disclosureSection({ title: 'Current source of each key input', badgeLabel: 'Optional detail', badgeTone: 'neutral', open: false, className: 'wizard-disclosure card anim-fade-in', body: renderInputSourceAuditBlock(liveInputAssignments) })}
+          ${UI.disclosureSection({ title: 'Explain a key assumption before you run', badgeLabel: 'Optional detail', badgeTone: 'neutral', open: false, className: 'wizard-disclosure card anim-fade-in', body: renderPreRunAssumptionExplainer(draft, liveInputAssignments) })}
           ${UI.disclosureSection({
             title: 'Key parameters before you run',
             badgeLabel: 'Open for review',
@@ -2052,8 +2075,12 @@ function drawResultsTechnicalCharts(r) {
   requestAnimationFrame(() => {
     const hc = document.getElementById('chart-hist');
     const lc = document.getElementById('chart-lec');
-    if (hc) UI.drawHistogram(hc, r.histogram, r.threshold, AppState.currency, AppState.fxRate);
-    if (lc) UI.drawLEC(lc, r.lec, r.threshold, AppState.currency, AppState.fxRate);
+    if (hc && Array.isArray(r?.histogram) && r.histogram.length) {
+      UI.drawHistogram(hc, r.histogram, r.threshold, AppState.currency, AppState.fxRate);
+    }
+    if (lc && Array.isArray(r?.lec) && r.lec.length) {
+      UI.drawLEC(lc, r.lec, r.threshold, AppState.currency, AppState.fxRate);
+    }
     attachCitationHandlers();
   });
 }
@@ -2173,13 +2200,221 @@ function renderAssessmentChallengeResult(result = {}) {
   </div>`;
 }
 
+function openAssessmentForRevision(assessment, {
+  targetStep = '/wizard/3',
+  applyDraftChanges = null
+} = {}) {
+  if (!assessment) return;
+  let nextDraft = null;
+  try {
+    nextDraft = JSON.parse(JSON.stringify(assessment));
+  } catch {
+    nextDraft = { ...assessment };
+  }
+  delete nextDraft.results;
+  delete nextDraft.completedAt;
+  delete nextDraft._shared;
+  delete nextDraft.assessmentChallenge;
+  delete nextDraft.lifecycleMeta;
+  delete nextDraft.lifecycleUpdatedAt;
+  nextDraft.lifecycleStatus = deriveAssessmentLifecycleStatus({ ...nextDraft, results: null, completedAt: null });
+  nextDraft.startedAt = nextDraft.startedAt || Date.now();
+  nextDraft.createdAt = nextDraft.createdAt || Date.now();
+  if (typeof applyDraftChanges === 'function') {
+    nextDraft = applyDraftChanges(nextDraft) || nextDraft;
+  }
+  dispatchDraftAction('SET_DRAFT', {
+    draft: { ...ensureDraftShape(), ...nextDraft, results: null, completedAt: null }
+  });
+  if (typeof markDraftDirty === 'function') markDraftDirty();
+  if (typeof saveDraft === 'function') saveDraft();
+  Router.navigate(targetStep);
+}
+
+function buildResultsMetricExplainerModel(metricKey, assessment, r, assessmentIntelligence = {}, runMetadata = {}) {
+  const assumptions = Array.isArray(assessmentIntelligence?.assumptions)
+    ? assessmentIntelligence.assumptions.map(item => String(item?.text || item || '').trim()).filter(Boolean).slice(0, 3)
+    : [];
+  const evidence = [
+    String(assessment?.evidenceSummary || '').trim(),
+    ...normaliseCitations(assessment?.citations || []).map(item => String(item?.title || item?.relevanceReason || '').trim()),
+    ...((Array.isArray(assessment?.primaryGrounding) ? assessment.primaryGrounding : []).map(item => String(item || '').trim()))
+  ].filter(Boolean).slice(0, 3);
+  const driverCopy = Array.isArray(assessmentIntelligence?.drivers?.sensitivity)
+    ? assessmentIntelligence.drivers.sensitivity.slice(0, 2).map(item => `${item?.label || 'Driver'}: ${item?.why || ''}`).filter(Boolean)
+    : [];
+  const models = {
+    eventLossP90: {
+      title: 'Conditional loss from one successful event',
+      valueLabel: fmtCurrency(r?.eventLoss?.p90 || 0),
+      meaning: 'This is the severe-but-plausible single-event view. It helps leadership judge whether one successful event is large enough to breach tolerance even before annual frequency is applied.',
+      assumptions,
+      moveUp: 'This rises when the event is harder to contain, business disruption is longer, or legal and contract tail costs are larger than the current case assumes.',
+      moveDown: 'This falls when controls contain the event faster, disruption is shorter, or the severe-case cost tail is narrower than assumed.',
+      evidence,
+      dependency: driverCopy.length
+        ? `This result currently depends most on ${driverCopy.join(' · ')}`
+        : 'This result mostly depends on the loss-component ranges and how severe the single-event tail becomes.'
+    },
+    aleMean: {
+      title: 'Expected annualized loss',
+      valueLabel: fmtCurrency(r?.annualLoss?.mean || r?.ale?.mean || 0),
+      meaning: 'This is the average-year planning view. It combines the current event-frequency range with the single-event loss distribution to estimate the expected annual exposure.',
+      assumptions,
+      moveUp: 'This rises when the event is more frequent, more likely to succeed, or the expected-case loss rows are heavier than the current planning case.',
+      moveDown: 'This falls when frequency is lower, controls work better, or the expected-case impact range is lighter than assumed.',
+      evidence,
+      dependency: 'This result is especially sensitive to event frequency and the expected-case control and disruption assumptions.'
+    },
+    aleP90: {
+      title: 'High-stress annualized loss',
+      valueLabel: fmtCurrency(r?.annualLoss?.p90 || r?.ale?.p90 || 0),
+      meaning: 'This is the severe annual planning view. It shows what a bad year can look like once the event tail and annual frequency are combined.',
+      assumptions,
+      moveUp: 'This rises when severe-case loss tails are fatter, the event can happen several times in a bad year, or the annual review trigger is approached with weak resilience.',
+      moveDown: 'This falls when the severe tail is better bounded, event frequency is lower, or resilience and recovery reduce the worst-year impact.',
+      evidence,
+      dependency: String(runMetadata?.runtimeGuardrails?.[0] || 'This view depends on both the severe single-event tail and how often that tail can show up across a year.')
+    }
+  };
+  return models[metricKey] || null;
+}
+
+function renderResultsMetricExplainerPanel(model) {
+  if (!model) return '';
+  return `<div class="assumption-explainer-panel">
+    <div class="assumption-explainer-panel__head">
+      <div>
+        <div class="assumption-explainer-panel__label">Assumption explainer</div>
+        <strong>${escapeHtml(String(model.title || 'Metric detail'))}</strong>
+      </div>
+      ${model.valueLabel ? `<span class="badge badge--neutral">${escapeHtml(String(model.valueLabel))}</span>` : ''}
+    </div>
+    <p class="assumption-explainer-panel__copy">${escapeHtml(String(model.meaning || ''))}</p>
+    <div class="assumption-explainer-panel__grid">
+      <div>
+        <div class="assumption-explainer-panel__section">Assumptions supporting it</div>
+        <p>${(Array.isArray(model.assumptions) && model.assumptions.length ? model.assumptions : ['No explicit assumption summary is attached yet.']).map(item => `• ${escapeHtml(String(item))}`).join('<br>')}</p>
+      </div>
+      <div>
+        <div class="assumption-explainer-panel__section">What would move it up</div>
+        <p>${escapeHtml(String(model.moveUp || ''))}</p>
+      </div>
+      <div>
+        <div class="assumption-explainer-panel__section">What would move it down</div>
+        <p>${escapeHtml(String(model.moveDown || ''))}</p>
+      </div>
+      <div>
+        <div class="assumption-explainer-panel__section">Evidence supporting it</div>
+        <p>${(Array.isArray(model.evidence) && model.evidence.length ? model.evidence : ['No named evidence is attached yet.']).map(item => `• ${escapeHtml(String(item))}`).join('<br>')}</p>
+      </div>
+    </div>
+    <div class="assumption-explainer-panel__foot">${escapeHtml(String(model.dependency || ''))}</div>
+  </div>`;
+}
+
+function renderReviewMediationResult(result = {}) {
+  const proposedValue = String(result?.recommendedValueLabel || '').trim();
+  return `<div class="meeting-room-result">
+    <div class="meeting-room-result__head">
+      <div>
+        <div class="meeting-room-result__label">AI mediation summary</div>
+        <strong>${escapeHtml(String(result?.proposedMiddleGround || 'Proposed middle ground'))}</strong>
+      </div>
+      ${proposedValue ? `<span class="badge badge--warning">${escapeHtml(proposedValue)}</span>` : '<span class="badge badge--neutral">No single number change</span>'}
+    </div>
+    <p class="meeting-room-result__copy">${escapeHtml(String(result?.reconciliationSummary || ''))}</p>
+    <div class="meeting-room-result__grid">
+      <div>
+        <div class="meeting-room-result__section">Why this is reasonable</div>
+        <p>${escapeHtml(String(result?.whyReasonable || ''))}</p>
+      </div>
+      <div>
+        <div class="meeting-room-result__section">Best evidence to verify next</div>
+        <p>${escapeHtml(String(result?.evidenceToVerify || ''))}</p>
+      </div>
+    </div>
+    <div class="meeting-room-result__actions">
+      <button type="button" class="btn btn--primary btn--sm" id="btn-accept-mediation">Accept proposal</button>
+      <button type="button" class="btn btn--secondary btn--sm" id="btn-revise-mediation">Revise manually</button>
+      <button type="button" class="btn btn--ghost btn--sm" id="btn-continue-mediation">Continue discussion</button>
+    </div>
+  </div>`;
+}
+
+function renderDecisionDNACardContent(pattern = {}) {
+  if (!pattern?.summary) return '';
+  const toneClass = pattern.tone === 'warning'
+    ? 'decision-dna-card--warning'
+    : pattern.tone === 'success'
+      ? 'decision-dna-card--success'
+      : 'decision-dna-card--neutral';
+  return `<div class="decision-dna-card ${toneClass}">
+    <div class="decision-dna-card__label">Decision DNA</div>
+    <div class="decision-dna-card__summary">${escapeHtml(pattern.summary)}</div>
+    <div class="decision-dna-card__copy">${escapeHtml(pattern.rangeHint || '')}</div>
+    ${Array.isArray(pattern.challengedAssumptions) && pattern.challengedAssumptions.length ? `<div class="decision-dna-card__foot">Recently challenged assumption: <strong>${escapeHtml(pattern.challengedAssumptions[0])}</strong></div>` : ''}
+  </div>`;
+}
+
+function renderDecisionDNASection(assessment) {
+  const pattern = typeof OrgIntelligenceService !== 'undefined' && typeof OrgIntelligenceService.buildDecisionPattern === 'function'
+    ? OrgIntelligenceService.buildDecisionPattern(assessment)
+    : null;
+  return `<div id="decision-dna-host">${pattern ? renderDecisionDNACardContent(pattern) : ''}</div>`;
+}
+
+function renderReviewMeetingRoom(assessment) {
+  const reviewStatus = String(assessment?.reviewSubmission?.reviewStatus || '').trim().toLowerCase();
+  const savedMediation = assessment?.reviewMediation || null;
+  if (reviewStatus !== 'changes_requested' && !savedMediation) return '';
+  const reviewerView = String(assessment?.reviewSubmission?.reviewNote || 'Reviewer feedback was not captured in the queue item.').trim();
+  const analystView = String(savedMediation?.analystView || '').trim();
+  const focusOptions = [
+    'Overall assessment',
+    'Event frequency',
+    'Control strength',
+    'Threat capability',
+    'Business disruption',
+    'Regulatory and legal impact',
+    'Evidence quality'
+  ];
+  const selectedFocus = String(savedMediation?.disputedFocus || 'Overall assessment').trim();
+  return `<details class="wizard-disclosure card anim-fade-in" id="meeting-room-section" style="margin-top:var(--sp-5)" ${savedMediation?.result ? 'open' : ''}>
+    <summary>
+      AI Meeting Room
+      <span class="badge badge--neutral">Focused mediation</span>
+    </summary>
+    <div id="meeting-room-body" style="padding:var(--sp-4)">
+      <div class="meeting-room-context">
+        <div class="meeting-room-context__block">
+          <div class="meeting-room-context__label">Reviewer view</div>
+          <p>${escapeHtml(reviewerView)}</p>
+        </div>
+        <div class="meeting-room-context__block">
+          <label class="form-label" for="meeting-room-focus">Focus the disagreement</label>
+          <select class="form-select" id="meeting-room-focus">
+            ${focusOptions.map(option => `<option value="${escapeHtml(option)}" ${option === selectedFocus ? 'selected' : ''}>${escapeHtml(option)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="meeting-room-context__block">
+          <label class="form-label" for="meeting-room-analyst-view">Analyst view</label>
+          <textarea id="meeting-room-analyst-view" class="form-textarea" rows="4" placeholder="State the analyst view as clearly as possible: what you disagree with, what evidence you trust, and where you think the reviewer is too conservative or too optimistic.">${escapeHtml(analystView)}</textarea>
+          <div class="form-help" style="margin-top:8px">Keep this tight. The goal is not a debate thread; it is a defensible compromise or a clearer next evidence ask.</div>
+        </div>
+        <div class="meeting-room-context__actions">
+          <button class="btn btn--secondary" id="btn-run-mediation" type="button">Run AI Mediation</button>
+          <span class="form-help" id="meeting-room-status">AI will use the reviewer note, current model context, and saved evidence to suggest a middle ground.</span>
+        </div>
+      </div>
+      <div id="meeting-room-result-host">${savedMediation?.result ? renderReviewMediationResult(savedMediation.result) : ''}</div>
+    </div>
+  </details>`;
+}
+
 function bindReviewBannerActions(assessment) {
   document.getElementById('btn-revise-assessment')?.addEventListener('click', () => {
-    if (typeof openDraftFromAssessment === 'function') {
-      openDraftFromAssessment(assessment);
-    } else {
-      Router.navigate('/wizard/1');
-    }
+    openAssessmentForRevision(assessment, { targetStep: '/wizard/3' });
   });
 }
 
@@ -2208,12 +2443,19 @@ async function refreshReviewStatus(assessment, r) {
         reviewedBy: matched.reviewedBy || '',
         reviewedAt: Number(matched.reviewedAt || 0),
         escalatedTo: matched.escalatedTo || ''
+      },
+      reviewDecision: {
+        decision: remoteStatus,
+        timeToDecide: matched.submittedAt && matched.reviewedAt
+          ? Math.max(0, Number(matched.reviewedAt) - Number(matched.submittedAt))
+          : 0,
+        challengedAssumption: matched.reviewNote || '',
+        reviewedBy: matched.reviewedBy || '',
+        reviewedAt: Number(matched.reviewedAt || 0)
       }
     }));
-    const banner = document.getElementById('review-submit-banner');
-    if (!banner || !next) return;
-    banner.outerHTML = renderResultsReviewSubmitBanner(next, r);
-    bindReviewBannerActions(next);
+    if (!next) return;
+    renderResults(assessment.id, assessment._shared);
   } catch {}
 }
 
@@ -2305,6 +2547,32 @@ function bindResultsInteractions({
   else attachCitationHandlers();
   bindReviewBannerActions(assessment);
   refreshReviewStatus(assessment, r);
+  OrgIntelligenceService?.refresh?.().then?.(() => {
+    const host = document.getElementById('decision-dna-host');
+    if (!host) return;
+    const latest = getAssessmentById(assessment.id) || assessment;
+    const pattern = OrgIntelligenceService?.buildDecisionPattern?.(latest);
+    host.innerHTML = pattern ? renderDecisionDNACardContent(pattern) : '';
+  }).catch?.(() => {});
+  document.querySelectorAll('[data-results-explain]').forEach(button => {
+    button.addEventListener('click', () => {
+      const metricKey = String(button.dataset.resultsExplain || '').trim();
+      const host = document.getElementById('results-assumption-explainer-host');
+      if (!host || !metricKey) return;
+      if (host.dataset.metricKey === metricKey && host.style.display !== 'none') {
+        host.style.display = 'none';
+        host.innerHTML = '';
+        host.dataset.metricKey = '';
+        return;
+      }
+      const model = buildResultsMetricExplainerModel(metricKey, assessment, r, assessmentIntelligence, assessment.results?.runMetadata || {});
+      if (!model) return;
+      host.dataset.metricKey = metricKey;
+      host.innerHTML = renderResultsMetricExplainerPanel(model);
+      host.style.display = 'block';
+      host.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    });
+  });
 
   document.getElementById('btn-submit-review')?.addEventListener('click', async function() {
     const btn = this;
@@ -2348,6 +2616,98 @@ function bindResultsInteractions({
       btn.disabled = false;
       btn.textContent = 'Submit for Review';
     }
+  });
+
+  document.getElementById('btn-run-mediation')?.addEventListener('click', async function() {
+    const btn = this;
+    const analystViewEl = document.getElementById('meeting-room-analyst-view');
+    const focusEl = document.getElementById('meeting-room-focus');
+    const statusEl = document.getElementById('meeting-room-status');
+    const resultHost = document.getElementById('meeting-room-result-host');
+    const analystView = String(analystViewEl?.value || '').trim();
+    if (!analystView) {
+      UI.toast('Add the analyst view before running mediation.', 'warning');
+      analystViewEl?.focus();
+      return;
+    }
+    btn.disabled = true;
+    btn.textContent = 'Mediating…';
+    if (statusEl) statusEl.textContent = 'Reviewing both positions against the current model and evidence…';
+    try {
+      const result = await LLMService.mediateAssessmentDispute({
+        narrative: assessment.enhancedNarrative || assessment.narrative || '',
+        fairParams: assessment.results?.inputs || assessment.draft?.fairParams || {},
+        results: assessment.results,
+        assessmentIntelligence,
+        reviewerView: assessment.reviewSubmission?.reviewNote || '',
+        analystView,
+        disputedFocus: focusEl?.value || 'Overall assessment',
+        scenarioLens: assessment.scenarioLens || assessment.draft?.scenarioLens,
+        citations: assessment.citations || []
+      });
+      if (!result) throw new Error('No mediation result');
+      updateAssessmentRecord(assessment.id, current => ({
+        ...current,
+        reviewMediation: {
+          analystView,
+          reviewerView: current.reviewSubmission?.reviewNote || assessment.reviewSubmission?.reviewNote || '',
+          disputedFocus: focusEl?.value || 'Overall assessment',
+          result,
+          createdAt: Date.now()
+        }
+      }));
+      if (resultHost) resultHost.innerHTML = renderReviewMediationResult(result);
+      if (statusEl) statusEl.textContent = 'Mediation complete. Review the proposed middle ground below.';
+      renderResults(id, isShared || assessment._shared);
+    } catch (error) {
+      console.error('AI mediation failed:', error);
+      if (resultHost) resultHost.innerHTML = '<div class="form-help">AI mediation is unavailable right now. Keep the discussion manual or try again in a moment.</div>';
+      if (statusEl) statusEl.textContent = 'AI mediation is unavailable right now.';
+      btn.disabled = false;
+      btn.textContent = 'Run AI Mediation';
+    }
+  });
+
+  document.getElementById('btn-accept-mediation')?.addEventListener('click', () => {
+    const latest = getAssessmentById(assessment.id) || assessment;
+    const mediation = latest?.reviewMediation?.result || assessment?.reviewMediation?.result || null;
+    openAssessmentForRevision(latest, {
+      targetStep: '/wizard/3',
+      applyDraftChanges: draftRecord => {
+        if (mediation?.recommendedField && Number.isFinite(Number(mediation.recommendedValue))) {
+          const fairParams = draftRecord.fairParams || (draftRecord.fairParams = {});
+          fairParams[mediation.recommendedField] = Number(mediation.recommendedValue);
+        }
+        draftRecord.reviewMediation = latest.reviewMediation || assessment.reviewMediation || null;
+        draftRecord.reviewSubmission = latest.reviewSubmission || assessment.reviewSubmission || null;
+        return draftRecord;
+      }
+    });
+    UI.toast('AI compromise loaded into the draft. Review it and rerun before you resubmit.', 'success');
+  });
+
+  document.getElementById('btn-revise-mediation')?.addEventListener('click', () => {
+    const latest = getAssessmentById(assessment.id) || assessment;
+    openAssessmentForRevision(latest, {
+      targetStep: '/wizard/3',
+      applyDraftChanges: draftRecord => {
+        draftRecord.reviewMediation = latest.reviewMediation || assessment.reviewMediation || null;
+        draftRecord.reviewSubmission = latest.reviewSubmission || assessment.reviewSubmission || null;
+        return draftRecord;
+      }
+    });
+    UI.toast('The assessment was reopened for revision with the mediation context attached.', 'success');
+  });
+
+  document.getElementById('btn-continue-mediation')?.addEventListener('click', () => {
+    const statusEl = document.getElementById('meeting-room-status');
+    const analystViewEl = document.getElementById('meeting-room-analyst-view');
+    const latest = getAssessmentById(assessment.id) || assessment;
+    const prompt = latest?.reviewMediation?.result?.continueDiscussionPrompt
+      || assessment?.reviewMediation?.result?.continueDiscussionPrompt
+      || 'Update the analyst view with the specific evidence or assumption you still disagree on, then rerun mediation.';
+    if (statusEl) statusEl.textContent = prompt;
+    analystViewEl?.focus();
   });
 
   document.getElementById('btn-run-challenge')?.addEventListener('click', async function() {
@@ -2502,8 +2862,22 @@ function bindResultsInteractions({
     UI.toast('Assessment duplicated into a new draft.', 'success');
     Router.navigate('/wizard/1');
   });
-  document.getElementById('btn-new-assess')?.addEventListener('click', () => { resetDraft(); Router.navigate('/wizard/1'); });
-  document.getElementById('btn-new-assess-top')?.addEventListener('click', () => { resetDraft(); Router.navigate('/wizard/1'); });
+  document.getElementById('btn-new-assess')?.addEventListener('click', () => {
+    if (typeof window.launchGuidedAssessmentStart === 'function') {
+      window.launchGuidedAssessmentStart();
+      return;
+    }
+    resetDraft();
+    Router.navigate('/wizard/1');
+  });
+  document.getElementById('btn-new-assess-top')?.addEventListener('click', () => {
+    if (typeof window.launchGuidedAssessmentStart === 'function') {
+      window.launchGuidedAssessmentStart();
+      return;
+    }
+    resetDraft();
+    Router.navigate('/wizard/1');
+  });
 }
 
 function renderResults(id, isShared) {
@@ -2609,18 +2983,21 @@ function renderResults(id, isShared) {
       <div class="results-impact-value ${r.toleranceBreached ? 'danger' : ''}">${fmtCurrency(r.eventLoss.p90)}</div>
       <div class="results-impact-copy">Severe single-event view</div>
       <div class="results-impact-foot">${r.toleranceBreached ? 'Above the current event tolerance.' : r.nearTolerance ? 'Above the warning threshold, but below tolerance.' : 'Below the current warning trigger.'}</div>
+      <button type="button" class="results-metric-explain" data-results-explain="eventLossP90">Explain this number</button>
     </div>
     <div class="results-impact-card">
       <div class="results-impact-label">Expected annualized loss</div>
       <div class="results-impact-value">${fmtCurrency(r.annualLoss.mean)}</div>
       <div class="results-impact-copy">Expected annual exposure</div>
       <div class="results-impact-foot">Use this as the average-year planning view.</div>
+      <button type="button" class="results-metric-explain" data-results-explain="aleMean">Explain this number</button>
     </div>
     <div class="results-impact-card">
       <div class="results-impact-label">High-stress annualized loss</div>
       <div class="results-impact-value warning">${fmtCurrency(r.annualLoss.p90)}</div>
       <div class="results-impact-copy">Severe annual planning view</div>
       <div class="results-impact-foot">${r.annualReviewTriggered ? 'At or above the annual review trigger.' : 'Still below the annual review trigger.'}</div>
+      <button type="button" class="results-metric-explain" data-results-explain="aleP90">Explain this number</button>
     </div>
   </div>`;
 
@@ -2628,6 +3005,8 @@ function renderResults(id, isShared) {
     <section class="results-executive-view ${boardroomMode ? 'results-executive-view--boardroom' : ''} ${activeTab === 'executive' ? '' : 'hidden'}" id="results-tab-executive" role="tabpanel" aria-labelledby="results-tab-btn-executive" tabindex="-1" data-results-panel="executive" data-page-focus>
       ${executiveHero}
       ${reviewSubmitBanner}
+      ${renderDecisionDNASection(assessment)}
+      ${renderReviewMeetingRoom(assessment)}
       <div class="results-executive-band">
         ${boardroomMode ? renderBoardroomModeIntro(comparison) : ''}
         ${renderHeroMetric(
@@ -2638,6 +3017,7 @@ function renderResults(id, isShared) {
         ${renderDecisionRail(statusTitle, statusDetail, executiveDecision, executiveAction, assessmentIntelligence.confidence, rolePresentation, hasAssessmentLocalFallback(assessment))}
         ${boardroomMode ? renderExecutiveBrief(statusTitle, executiveDecision, executiveAction, executiveAnnualView) : ''}
         ${executiveMetrics}
+        <div id="results-assumption-explainer-host" style="display:none"></div>
         ${renderAssessmentChallengeDisclosure()}
         ${renderAssessmentValueBand(assessmentValue)}
         ${renderExecutiveBenchmarkContext(assessment, r, runMetadata)}

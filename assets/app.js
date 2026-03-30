@@ -479,6 +479,9 @@ function persistScenarioPattern(assessment) {
     const pattern = extractScenarioPattern(assessment);
     if (!pattern || !pattern.buId) return;
     const username = AuthService.getCurrentUser()?.username || '';
+    if (username && typeof LearningStore !== 'undefined' && typeof LearningStore.saveScenarioPattern === 'function') {
+      LearningStore.saveScenarioPattern(username, pattern);
+    }
     const key = buildUserStorageKey(LEARNING_STORAGE_PREFIX, username);
     let store = {
       templates: {},
@@ -512,6 +515,20 @@ function persistScenarioPattern(assessment) {
 }
 
 function getRelevantScenarioPatterns(buId, limit = 3) {
+  try {
+    if (typeof OrgIntelligenceService !== 'undefined' && typeof OrgIntelligenceService.getMergedScenarioPatterns === 'function') {
+      const settings = typeof getEffectiveSettings === 'function' ? getEffectiveSettings() : {};
+      const functionKey = typeof inferStep1FunctionKey === 'function'
+        ? inferStep1FunctionKey(settings, AppState.draft || {})
+        : '';
+      const merged = OrgIntelligenceService.getMergedScenarioPatterns({
+        buId,
+        functionKey,
+        scenarioLens: AppState.draft?.scenarioLens || null
+      }, limit);
+      if (merged.length) return merged.slice(0, limit);
+    }
+  } catch {}
   try {
     const username = AuthService.getCurrentUser()?.username || '';
     const key = buildUserStorageKey(LEARNING_STORAGE_PREFIX, username);
@@ -1904,6 +1921,39 @@ function loadScenarioTemplateById(templateId) {
   if (!template) return false;
   loadTemplate(template);
   return true;
+}
+
+function launchGuidedAssessmentStart() {
+  resetDraft();
+  const settings = getEffectiveSettings();
+  const buList = getBUList();
+  if (typeof ensureStep1ContextPrefills === 'function') {
+    ensureStep1ContextPrefills(AppState.draft, settings, buList);
+  }
+  let ghostSuggestion = null;
+  try {
+    if (typeof OrgIntelligenceService !== 'undefined' && typeof OrgIntelligenceService.applyGhostDraftToDraft === 'function') {
+      ghostSuggestion = OrgIntelligenceService.applyGhostDraftToDraft(AppState.draft, {
+        buId: AppState.draft?.buId || '',
+        scenarioLens: AppState.draft?.scenarioLens || null,
+        functionKey: typeof inferStep1FunctionKey === 'function'
+          ? inferStep1FunctionKey(settings, AppState.draft || {})
+          : '',
+        applicableRegulations: Array.isArray(AppState.draft?.applicableRegulations)
+          ? AppState.draft.applicableRegulations
+          : []
+      });
+    }
+  } catch (error) {
+    console.warn('Ghost drafter prefill failed:', error?.message || error);
+  }
+  saveDraft();
+  openDraftWorkspaceRoute();
+  OrgIntelligenceService?.refresh?.().catch?.(() => {});
+  if (ghostSuggestion?.patternCount) {
+    UI.toast(`Prepared a starting point from ${ghostSuggestion.patternCount} similar assessment${ghostSuggestion.patternCount === 1 ? '' : 's'}.`, 'info', 4500);
+  }
+  return ghostSuggestion;
 }
 
 function launchPilotSampleAssessment() {
@@ -4544,7 +4594,7 @@ function renderLanding() {
     </style>`);
 
   // Wiring
-  document.getElementById('btn-start-new').addEventListener('click', () => { resetDraft(); Router.navigate('/wizard/1'); });
+  document.getElementById('btn-start-new').addEventListener('click', () => { launchGuidedAssessmentStart(); });
 
   document.getElementById('btn-how-it-works').addEventListener('click', () => {
     const panel = document.getElementById('how-it-works-panel');
@@ -5346,6 +5396,184 @@ function buildAssessmentWatchlistSummary(items = []) {
     .filter(Boolean)
     .sort((a, b) => a.order - b.order)
     .slice(0, 3);
+}
+
+function buildLivingRiskRegisterRows({
+  assessments = [],
+  now = Date.now()
+} = {}) {
+  const source = Array.isArray(assessments) ? assessments.filter(Boolean) : [];
+  const watchlist = buildAssessmentWatchlist({
+    assessments: source,
+    maxItems: Math.max(source.length || 0, 12),
+    now
+  });
+  const watchlistById = new Map(watchlist.map(item => [String(item.id || ''), item]));
+  const dayMs = 86400000;
+  const formatDateLabel = (value) => {
+    const ts = Number(value || 0);
+    if (!ts) return 'Not reviewed yet';
+    return new Date(ts).toLocaleDateString('en-AE', { year: 'numeric', month: 'short', day: 'numeric' });
+  };
+  const describeDueDate = (dueAt) => {
+    const ts = Number(dueAt || 0);
+    if (!ts) return 'Due date not set';
+    const diffDays = Math.floor((ts - now) / dayMs);
+    if (diffDays <= 0) {
+      const overdue = Math.abs(diffDays);
+      return overdue <= 0 ? 'Due now' : `Overdue by ${overdue} day${overdue === 1 ? '' : 's'}`;
+    }
+    if (diffDays === 1) return 'Due tomorrow';
+    if (diffDays <= 14) return `Due in ${diffDays} days`;
+    return `Due ${formatDateLabel(ts)}`;
+  };
+  const getTrendModel = (assessment, watchItem) => {
+    const reviewStatus = String(assessment?.reviewSubmission?.reviewStatus || '').trim().toLowerCase();
+    if (reviewStatus === 'changes_requested') return { label: 'Needs revision', tone: 'warning' };
+    if (reviewStatus === 'escalated') return { label: 'Escalated', tone: 'neutral' };
+    if (reviewStatus === 'pending') return { label: 'In review', tone: 'neutral' };
+    const baselineResults = assessment?.comparisonBaseline?.results || null;
+    const currentResults = assessment?.results || null;
+    const currentP90 = Number(currentResults?.eventLoss?.p90 || currentResults?.lm?.p90 || 0);
+    const baselineP90 = Number(baselineResults?.eventLoss?.p90 || baselineResults?.lm?.p90 || 0);
+    if (baselineResults && currentP90 > 0 && baselineP90 > 0) {
+      const deltaRatio = (currentP90 - baselineP90) / Math.max(baselineP90, 1);
+      if (deltaRatio <= -0.1) return { label: 'Improving', tone: 'success' };
+      if (deltaRatio >= 0.1) return { label: 'Deteriorating', tone: 'danger' };
+      return { label: 'Stable vs baseline', tone: 'neutral' };
+    }
+    if (watchItem?.reasonFamily === 'evidence') return { label: 'Evidence refresh due', tone: 'warning' };
+    if (watchItem?.reasonFamily === 'baseline') return { label: 'Baseline refresh due', tone: 'neutral' };
+    if (watchItem?.reasonFamily === 'timing') return { label: 'Scheduled review', tone: 'neutral' };
+    return { label: 'Stable', tone: 'success' };
+  };
+  const tonePriority = { danger: 5, warning: 4, gold: 3, neutral: 2, success: 1 };
+  const statusPriority = { changes_requested: 6, escalated: 5, pending: 4, approved: 1, '': 0 };
+
+  return source
+    .filter(assessment => assessment?.results)
+    .filter(assessment => {
+      const lifecycleStatus = typeof deriveAssessmentLifecycleStatus === 'function'
+        ? deriveAssessmentLifecycleStatus(assessment)
+        : String(assessment?.lifecycleStatus || '').trim().toLowerCase();
+      return lifecycleStatus !== 'archived';
+    })
+    .map(assessment => {
+      const results = assessment.results || {};
+      const lifecycle = typeof getAssessmentLifecyclePresentation === 'function'
+        ? getAssessmentLifecyclePresentation(assessment)
+        : {
+            status: String(assessment.lifecycleStatus || '').trim().toLowerCase(),
+            label: String(assessment.lifecycleStatus || 'Saved').trim() || 'Saved'
+          };
+      const watchItem = watchlistById.get(String(assessment.id || '')) || null;
+      const reviewStatus = String(assessment.reviewSubmission?.reviewStatus || '').trim().toLowerCase();
+      const postureTone = results.toleranceBreached
+        ? 'danger'
+        : results.nearTolerance
+          ? 'warning'
+          : results.annualReviewTriggered
+            ? 'gold'
+            : 'success';
+      const postureLabel = results.toleranceBreached
+        ? 'Above tolerance'
+        : results.nearTolerance
+          ? 'Near tolerance'
+          : results.annualReviewTriggered
+            ? 'Annual review'
+            : 'Within tolerance';
+      const lastReviewAt = Number(
+        assessment.reviewSubmission?.reviewedAt
+        || assessment.completedAt
+        || assessment.lifecycleUpdatedAt
+        || assessment.createdAt
+        || 0
+      );
+      const dueIntervalDays = reviewStatus === 'changes_requested' || reviewStatus === 'escalated' || reviewStatus === 'pending'
+        ? 0
+        : results.toleranceBreached
+          ? 0
+          : results.nearTolerance
+            ? 30
+            : results.annualReviewTriggered
+              ? 60
+              : lifecycle.status === ASSESSMENT_LIFECYCLE_STATUS.BASELINE_LOCKED
+                ? 120
+                : lifecycle.status === ASSESSMENT_LIFECYCLE_STATUS.TREATMENT_VARIANT
+                  ? 45
+                  : watchItem?.reasonFamily === 'evidence'
+                    ? 60
+                    : watchItem?.reasonFamily === 'baseline'
+                      ? 120
+                      : 365;
+      const nextReviewDueAt = dueIntervalDays === 0
+        ? now
+        : ((lastReviewAt || now) + (dueIntervalDays * dayMs));
+      const trend = getTrendModel(assessment, watchItem);
+      const owner = String(
+        assessment.submittedBy
+        || assessment.createdBy
+        || assessment.username
+        || assessment.owner
+        || ''
+      ).trim().toLowerCase();
+      return {
+        id: String(assessment.id || '').trim(),
+        title: String(assessment.scenarioTitle || assessment.title || 'Untitled assessment').trim(),
+        owner: owner || 'unassigned',
+        buName: String(assessment.buName || assessment.businessUnit || 'Business unit not set').trim(),
+        lifecycleLabel: lifecycle.label,
+        lifecycleStatus: lifecycle.status,
+        postureLabel,
+        postureTone,
+        trendLabel: trend.label,
+        trendTone: trend.tone,
+        reviewStatus,
+        lastReviewAt,
+        lastReviewLabel: formatDateLabel(lastReviewAt),
+        nextReviewDueAt,
+        nextReviewLabel: describeDueDate(nextReviewDueAt),
+        p90Loss: Number(results.eventLoss?.p90 || results.lm?.p90 || 0),
+        aleMean: Number(results.ale?.mean || results.annualLoss?.mean || 0),
+        toleranceBreached: Boolean(results.toleranceBreached),
+        nearTolerance: Boolean(results.nearTolerance),
+        annualReviewTriggered: Boolean(results.annualReviewTriggered),
+        nextAction: String(
+          watchItem?.nextAction
+          || (reviewStatus === 'changes_requested'
+            ? 'Revise the assessment and respond to the reviewer note.'
+            : reviewStatus === 'escalated'
+              ? 'Track the escalated review and prepare supporting evidence.'
+              : reviewStatus === 'pending'
+                ? 'Wait for management sign-off or respond to reviewer feedback.'
+                : results.toleranceBreached
+                  ? 'Reopen the result and confirm the immediate management response.'
+                  : 'Open the result and confirm whether the current assumptions still hold.')
+        ).trim(),
+        statusNote: String(watchItem?.detail || '').trim()
+      };
+    })
+    .sort((left, right) => {
+      const toneDelta = (tonePriority[right.postureTone] || 0) - (tonePriority[left.postureTone] || 0);
+      if (toneDelta) return toneDelta;
+      const reviewDelta = (statusPriority[right.reviewStatus] || 0) - (statusPriority[left.reviewStatus] || 0);
+      if (reviewDelta) return reviewDelta;
+      return Number(left.nextReviewDueAt || 0) - Number(right.nextReviewDueAt || 0);
+    });
+}
+
+function buildLivingRiskRegisterSummary(rows = []) {
+  const list = Array.isArray(rows) ? rows.filter(Boolean) : [];
+  const countWhere = predicate => list.reduce((count, item) => count + (predicate(item) ? 1 : 0), 0);
+  return {
+    total: list.length,
+    aboveTolerance: countWhere(item => item.postureTone === 'danger'),
+    nearTolerance: countWhere(item => item.postureTone === 'warning'),
+    annualReview: countWhere(item => item.postureTone === 'gold'),
+    dueNow: countWhere(item => /due now|overdue/i.test(String(item.nextReviewLabel || ''))),
+    inReview: countWhere(item => item.reviewStatus === 'pending'),
+    needsRevision: countWhere(item => item.reviewStatus === 'changes_requested')
+  };
 }
 
 function buildScenarioQualityCoach({

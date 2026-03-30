@@ -3867,6 +3867,77 @@ ${evidenceMeta.promptBlock}`;
     return aiUnavailable ? { ...decoratedFallback, aiUnavailable: true } : decoratedFallback;
   }
 
+  async function mediateAssessmentDispute(input = {}) {
+    if (_isDirectCompassUrl(_compassApiUrl) && !_compassApiKey) return null;
+    const reviewerView = String(input?.reviewerView || '').trim();
+    const analystView = String(input?.analystView || '').trim();
+    if (!reviewerView || !analystView) return null;
+    const fairParams = input?.fairParams || {};
+    const assumptions = Array.isArray(input?.assessmentIntelligence?.assumptions)
+      ? input.assessmentIntelligence.assumptions
+      : [];
+    const drivers = Array.isArray(input?.assessmentIntelligence?.drivers?.sensitivity)
+      ? input.assessmentIntelligence.drivers.sensitivity
+      : [];
+    const citations = Array.isArray(input?.citations) ? input.citations.slice(0, 4) : [];
+    const systemPrompt = `You are an AI mediation assistant for enterprise risk reviews.
+Resolve focused disagreements between the analyst and the reviewer. Be constructive, specific, and concise.
+Return JSON only with this schema:
+{
+  "reconciliationSummary": "string (2-3 sentences summarising the disagreement and proposed middle ground)",
+  "proposedMiddleGround": "string (1-2 sentences with the compromise position)",
+  "whyReasonable": "string (1-2 sentences explaining why the compromise is defensible)",
+  "recommendedField": "string (fair parameter field name like controlStrLikely, tefLikely, biLikely, rlLikely, or empty string if no single field should change)",
+  "recommendedValue": "number or null",
+  "recommendedValueLabel": "string (plain-English phrasing for the proposed value or position)",
+  "evidenceToVerify": "string (the single best evidence item to verify next)",
+  "continueDiscussionPrompt": "string (one precise follow-up question if the disagreement is still unresolved)"
+}`;
+    const userPrompt = [
+      `Scenario: ${String(input?.narrative || '').slice(0, 700)}`,
+      `Scenario lens: ${String(input?.scenarioLens?.label || input?.scenarioLens?.key || 'general')}`,
+      `Disputed focus: ${String(input?.disputedFocus || 'Overall assessment').slice(0, 120)}`,
+      `Reviewer view: ${reviewerView}`,
+      `Analyst view: ${analystView}`,
+      `Current P90 event loss: ${Number(input?.results?.eventLoss?.p90 || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })}`,
+      `Current ALE mean: ${Number(input?.results?.ale?.mean || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })}`,
+      `Current control strength likely: ${fairParams?.controlStrLikely ?? 'not set'}`,
+      `Current TEF likely: ${fairParams?.tefLikely ?? 'not set'}`,
+      `Key assumptions: ${assumptions.slice(0, 3).map(item => item?.text || item).filter(Boolean).join('; ') || 'Not stated'}`,
+      `Top drivers: ${drivers.slice(0, 3).map(item => `${item?.label || 'Driver'} - ${item?.why || ''}`).filter(Boolean).join('; ') || 'Not stated'}`,
+      `Relevant evidence: ${citations.map(item => item?.title || item?.sourceTitle || '').filter(Boolean).join('; ') || 'No named evidence provided'}`
+    ].join('\n');
+    try {
+      const raw = await _callLLM(systemPrompt, userPrompt, {
+        maxCompletionTokens: 420,
+        timeoutMs: 20000
+      });
+      if (!raw) return null;
+      const parsed = JSON.parse(String(raw).replace(/```json\n?|```/g, '').trim() || 'null');
+      if (!parsed || typeof parsed !== 'object') return null;
+      const allowedFieldPattern = /^(tef|threatCap|controlStr|vuln|ir|bi|db|rl|tp|rc)(Min|Likely|Max)$/;
+      const recommendedField = allowedFieldPattern.test(String(parsed.recommendedField || '').trim())
+        ? String(parsed.recommendedField || '').trim()
+        : '';
+      const rawValue = parsed.recommendedValue;
+      const recommendedValue = rawValue == null || rawValue === ''
+        ? null
+        : Number(rawValue);
+      return {
+        reconciliationSummary: _cleanUserFacingText(parsed.reconciliationSummary || '', { maxSentences: 3 }),
+        proposedMiddleGround: _cleanUserFacingText(parsed.proposedMiddleGround || '', { maxSentences: 2 }),
+        whyReasonable: _cleanUserFacingText(parsed.whyReasonable || '', { maxSentences: 2 }),
+        recommendedField,
+        recommendedValue: Number.isFinite(recommendedValue) ? recommendedValue : null,
+        recommendedValueLabel: _cleanUserFacingText(parsed.recommendedValueLabel || '', { maxSentences: 1 }),
+        evidenceToVerify: _cleanUserFacingText(parsed.evidenceToVerify || '', { maxSentences: 1 }),
+        continueDiscussionPrompt: _cleanUserFacingText(parsed.continueDiscussionPrompt || '', { maxSentences: 1 })
+      };
+    } catch {
+      return null;
+    }
+  }
+
   async function coachRiskShortlist({ selectedRisks, narrative, scenarioLens } = {}) {
     if (_isDirectCompassUrl(_compassApiUrl) && !_compassApiKey) return null;
     const names = (Array.isArray(selectedRisks) ? selectedRisks : [])
@@ -3992,6 +4063,7 @@ Lens: ${scenarioLens?.label || 'general'}`;
     buildUserPreferenceAssist,
     suggestTreatmentImprovement,
     challengeAssessment,
+    mediateAssessmentDispute,
     coachRiskShortlist,
     testCompassConnection,
     setCompassAPIKey,

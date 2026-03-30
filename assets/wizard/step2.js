@@ -780,6 +780,9 @@ async function runLLMAssist() {
     if (s) {
       const aiPayload = _buildAiFairInputPayload(result, benchmarkCandidates, AppState.draft.citations);
       AppState.draft.fairParams = aiPayload.fairParams;
+      AppState.draft.aiSuggestedFairParams = JSON.parse(JSON.stringify(aiPayload.fairParams));
+      AppState.draft.orgCalibrationApplied = false;
+      AppState.draft.orgCalibrationInfo = null;
       AppState.draft.inputAssignments = aiPayload.inputAssignments;
       AppState.draft.fairParamOrigins = {
         ...(AppState.draft.fairParamOrigins || {}),

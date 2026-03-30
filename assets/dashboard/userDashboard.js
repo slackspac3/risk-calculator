@@ -19,6 +19,7 @@ function renderUserDashboard() {
     Router.navigate(getDefaultRouteForCurrentUser());
     return;
   }
+  OrgIntelligenceService?.refresh?.().catch?.(() => {});
 
   const settings = getUserSettings();
   if (!settings.onboardedAt) {
@@ -166,6 +167,22 @@ function renderUserDashboard() {
   const watchlistSummary = buildAssessmentWatchlistSummary(watchlistItems);
   const visibleWatchlistItems = watchlistItems.slice(0, 3);
   const hiddenWatchlistItems = watchlistItems.slice(3);
+  const livingRegisterRows = typeof buildLivingRiskRegisterRows === 'function'
+    ? buildLivingRiskRegisterRows({ assessments, now: Date.now() })
+    : [];
+  const livingRegisterSummary = typeof buildLivingRiskRegisterSummary === 'function'
+    ? buildLivingRiskRegisterSummary(livingRegisterRows)
+    : {
+        total: livingRegisterRows.length,
+        aboveTolerance: 0,
+        nearTolerance: 0,
+        annualReview: 0,
+        dueNow: 0,
+        inReview: 0,
+        needsRevision: 0
+      };
+  const visibleRegisterRows = livingRegisterRows.slice(0, 6);
+  const hiddenRegisterRows = livingRegisterRows.slice(6);
   const watchlistTitle = isOversightUser ? 'Reassessment lane' : 'Needs revisit';
   const watchlistDescription = isOversightUser
     ? 'Secondary revisit queue for saved results that deserve another look after the active attention lane is clear. The lane stays compact, but now groups the strongest revisit patterns.'
@@ -252,6 +269,10 @@ function renderUserDashboard() {
     });
   };
   const launchGuidedAssessmentStart = () => {
+    if (typeof window.launchGuidedAssessmentStart === 'function') {
+      window.launchGuidedAssessmentStart();
+      return;
+    }
     resetDraft();
     openDraftWorkspaceRoute();
   };
@@ -658,6 +679,71 @@ function renderUserDashboard() {
       ${secondaryId ? `<button type="button" class="btn btn--ghost btn--sm" id="${secondaryId}">${secondaryLabel}</button>` : ''}
     </div>
   </div>`;
+  const renderLivingRegisterRow = row => `
+    <article class="living-register-row">
+      <div class="living-register-row__head">
+        <div>
+          <div class="living-register-row__title">${escapeDashboardText(row.title)}</div>
+          <div class="living-register-row__meta">${escapeDashboardText(row.buName)} · Owner: ${escapeDashboardText(row.owner)} · Last review: ${escapeDashboardText(row.lastReviewLabel)}</div>
+        </div>
+        <div class="living-register-row__values">
+          <div class="living-register-row__value">
+            <span>P90 event loss</span>
+            <strong>${fmtCurrency(row.p90Loss || 0)}</strong>
+          </div>
+          <div class="living-register-row__value">
+            <span>ALE mean</span>
+            <strong>${fmtCurrency(row.aleMean || 0)}</strong>
+          </div>
+        </div>
+      </div>
+      <div class="living-register-row__chips">
+        <span class="badge badge--${row.postureTone}">${escapeDashboardText(row.postureLabel)}</span>
+        <span class="badge badge--${row.trendTone === 'danger' ? 'danger' : row.trendTone === 'warning' ? 'warning' : row.trendTone === 'success' ? 'success' : 'neutral'}">${escapeDashboardText(row.trendLabel)}</span>
+        <span class="badge badge--neutral">${escapeDashboardText(row.lifecycleLabel)}</span>
+        <span class="badge ${/due now|overdue/i.test(String(row.nextReviewLabel || '')) ? 'badge--warning' : 'badge--neutral'}">${escapeDashboardText(row.nextReviewLabel)}</span>
+      </div>
+      <div class="living-register-row__foot">
+        <div class="living-register-row__note">${escapeDashboardText(row.statusNote || row.nextAction)}</div>
+        <div class="living-register-row__actions">
+          <button type="button" class="btn btn--ghost btn--sm dashboard-open-action" data-assessment-id="${escapeDashboardText(row.id || '')}">Open Result</button>
+        </div>
+      </div>
+    </article>
+  `;
+  const livingRegisterBody = livingRegisterRows.length
+    ? `
+      <div class="living-register-summary" aria-label="Living risk register summary">
+        <span class="living-register-summary__item">${livingRegisterSummary.total} row${livingRegisterSummary.total === 1 ? '' : 's'}</span>
+        <span class="living-register-summary__item">${livingRegisterSummary.aboveTolerance} above tolerance</span>
+        <span class="living-register-summary__item">${livingRegisterSummary.nearTolerance} near tolerance</span>
+        <span class="living-register-summary__item">${livingRegisterSummary.dueNow} due now</span>
+        <span class="living-register-summary__item">${livingRegisterSummary.inReview} in review</span>
+      </div>
+      <div class="living-register-actions">
+        <button type="button" class="btn btn--secondary btn--sm" id="btn-export-living-register">Export Register</button>
+        <button type="button" class="btn btn--ghost btn--sm" id="btn-export-living-register-csv">Download CSV</button>
+      </div>
+      <div class="living-register-list">
+        ${visibleRegisterRows.map(renderLivingRegisterRow).join('')}
+      </div>
+      ${hiddenRegisterRows.length ? `<details class="dashboard-disclosure living-register-disclosure">
+        <summary>Show the rest of the register <span class="badge badge--neutral">${hiddenRegisterRows.length}</span></summary>
+        <div class="dashboard-disclosure-body">
+          <div class="living-register-list">
+            ${hiddenRegisterRows.map(renderLivingRegisterRow).join('')}
+          </div>
+        </div>
+      </details>` : ''}
+    `
+    : renderDashboardEmptyState({
+        title: 'No living register rows yet.',
+        body: 'Completed assessments automatically appear here so you can scan posture, next review due, and owner without opening every result.',
+        primaryId: 'btn-empty-register-new',
+        primaryLabel: 'Start Guided Assessment',
+        secondaryId: 'btn-empty-register-sample',
+        secondaryLabel: 'Try Sample Assessment'
+      });
   const portfolioRecentBody = compactRecentAssessments.length
     ? `
       <section class="dashboard-portfolio-band" style="margin-bottom:var(--sp-5)">
@@ -808,6 +894,16 @@ function renderUserDashboard() {
             badge: compactRecentAssessments.length,
             className: 'dashboard-section-card--recent',
             body: portfolioRecentBody
+          })}
+        </section>
+
+        <section class="dashboard-primary-band dashboard-primary-band--register">
+          ${UI.dashboardSectionCard({
+            title: 'Living risk register',
+            description: 'A continuously updated operating register built from saved results. Scan posture, owner, last review date, and next review due before you open the full assessment.',
+            badge: livingRegisterRows.length,
+            className: 'dashboard-section-card--secondary dashboard-section-card--support',
+            body: livingRegisterBody
           })}
         </section>
 
@@ -993,6 +1089,10 @@ function renderUserDashboard() {
     launchTemplateStart();
   });
   document.getElementById('btn-empty-recent-sample')?.addEventListener('click', () => launchSampleStart());
+  document.getElementById('btn-empty-register-new')?.addEventListener('click', () => {
+    launchGuidedAssessmentStart();
+  });
+  document.getElementById('btn-empty-register-sample')?.addEventListener('click', () => launchSampleStart());
   document.getElementById('btn-empty-archived-template')?.addEventListener('click', () => {
     launchTemplateStart();
   });
@@ -1038,6 +1138,24 @@ function renderUserDashboard() {
   });
   document.getElementById('btn-dashboard-import-assessments-support')?.addEventListener('click', () => {
     importAssessmentsCollection();
+  });
+  document.getElementById('btn-export-living-register')?.addEventListener('click', () => {
+    try {
+      ExportService.exportLivingRiskRegister(getAssessments(), AppState.currency, AppState.fxRate);
+      UI.toast('Living register prepared for print or PDF save. Regenerate it after material changes.', 'success');
+    } catch (error) {
+      console.error('Living register export failed:', error);
+      UI.toast('The living register could not be exported right now.', 'danger');
+    }
+  });
+  document.getElementById('btn-export-living-register-csv')?.addEventListener('click', () => {
+    try {
+      ExportService.exportLivingRiskRegisterCsv(getAssessments(), AppState.currency, AppState.fxRate);
+      UI.toast('Living register CSV downloaded.', 'success');
+    } catch (error) {
+      console.error('Living register CSV export failed:', error);
+      UI.toast('The register CSV could not be exported right now.', 'danger');
+    }
   });
   const portfolioHeatmap = document.getElementById('portfolio-heatmap');
   const portfolioListView = document.getElementById('portfolio-list-view');

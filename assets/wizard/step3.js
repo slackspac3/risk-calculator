@@ -71,10 +71,219 @@ function fairFieldNameToInputId(fieldName) {
   return `${match[1]}-${match[2].toLowerCase()}`;
 }
 
+function getStep3FieldPrefix(fieldName) {
+  const match = String(fieldName || '').match(/^(.*?)(Min|Likely|Max)$/);
+  return match ? match[1] : '';
+}
+
+function collectStep3EvidenceSnippets(draft, keywords = []) {
+  const pattern = new RegExp((Array.isArray(keywords) ? keywords : []).filter(Boolean).join('|') || '.', 'i');
+  const snippets = [];
+  const addSnippet = value => {
+    const text = typeof value === 'string'
+      ? value
+      : (value?.relevanceReason || value?.title || value?.sourceTitle || value?.excerpt || '');
+    const trimmed = String(text || '').trim();
+    if (!trimmed || snippets.includes(trimmed)) return;
+    snippets.push(trimmed);
+  };
+  (Array.isArray(draft?.primaryGrounding) ? draft.primaryGrounding : []).forEach(item => {
+    if (pattern.test(String(item || ''))) addSnippet(item);
+  });
+  (Array.isArray(draft?.supportingReferences) ? draft.supportingReferences : []).forEach(item => {
+    if (pattern.test(String(item?.title || item?.relevanceReason || item?.excerpt || item || ''))) addSnippet(item);
+  });
+  (Array.isArray(draft?.citations) ? draft.citations : []).forEach(item => {
+    if (pattern.test(String(item?.title || item?.relevanceReason || item?.excerpt || ''))) addSnippet(item);
+  });
+  return snippets.slice(0, 3);
+}
+
+function getStep3DependencyHint(prefix, fairParams = {}) {
+  if (prefix === 'tef') {
+    return {
+      label: 'High leverage',
+      copy: 'Frequency changes every simulated year, so even small changes here move both the annual view and the tolerance view quickly.'
+    };
+  }
+  if (prefix === 'threatCap' || prefix === 'controlStr' || prefix === 'vuln') {
+    return {
+      label: 'High leverage',
+      copy: 'This changes how often attempts become successful loss events, so it usually has an outsized effect on the final result.'
+    };
+  }
+  const likelyTotal = ['irLikely', 'biLikely', 'dbLikely', 'rlLikely', 'tpLikely', 'rcLikely']
+    .reduce((sum, key) => sum + Number(fairParams?.[key] || 0), 0);
+  const share = likelyTotal > 0 ? Number(fairParams?.[`${prefix}Likely`] || 0) / likelyTotal : 0;
+  if (share >= 0.3) {
+    return {
+      label: 'High leverage',
+      copy: 'This is one of the bigger cost rows in the current estimate, so moving it will materially change the severe-case result.'
+    };
+  }
+  if (share >= 0.15) {
+    return {
+      label: 'Moderate leverage',
+      copy: 'This matters, but it is not currently the dominant cost driver in the estimate.'
+    };
+  }
+  return {
+    label: 'Targeted leverage',
+    copy: 'This only moves the result materially if this loss component becomes larger or more certain than the current working case.'
+  };
+}
+
+function buildStep3AssumptionExplainerModel(fieldName, draft) {
+  const prefix = getStep3FieldPrefix(fieldName);
+  if (!prefix) return null;
+  const fairParams = draft?.fairParams || {};
+  const fieldRationale = getStep3FieldRationaleMap(draft);
+  const inputAssignments = Array.isArray(draft?.inputAssignments) ? draft.inputAssignments : [];
+  const findAssignment = id => inputAssignments.find(item => item?.id === id) || null;
+  const reasonFor = id => String(findAssignment(id)?.reason || '').trim();
+  const lossSummary = String(draft?.inputRationale?.lossComponents || '').trim();
+  const baseMeaning = {
+    tef: 'This is the annual event frequency range: how often the scenario could realistically happen in a quieter year, a typical year, and a severe but still plausible year.',
+    threatCap: 'This is the attacker or threat-source capability range. It describes how capable the event source is, not how strong your controls are.',
+    controlStr: 'This is the current control-strength range. It estimates how often your current preventive and detective controls would stop or contain the event.',
+    vuln: 'This is the direct event-success range. It estimates how likely the event is to succeed if attempted.',
+    ir: 'This is the response and recovery cost range for one event, before annual frequency is applied.',
+    bi: 'This is the business-disruption cost range for one event, before annual frequency is applied.',
+    db: 'This is the data-remediation cost range for one event, including notification, cleanup, and customer-support obligations where relevant.',
+    rl: 'This is the regulatory and legal cost range for one event, including fines, counsel, and formal response costs where relevant.',
+    tp: 'This is the third-party impact cost range for one event, such as claims, service credits, or partner compensation.',
+    rc: 'This is the reputation and contract cost range for one event, such as churn, commercial loss, or contract penalties.'
+  };
+  const supportKeywords = {
+    tef: ['frequency', 'incident', 'history', 'event'],
+    threatCap: ['threat', 'capability', 'identity', 'attack', 'exposure'],
+    controlStr: ['control', 'detection', 'response', 'mfa', 'resilience'],
+    vuln: ['exposure', 'vulnerability', 'control', 'threat'],
+    ir: ['incident', 'response', 'recovery', 'containment'],
+    bi: ['business', 'disruption', 'outage', 'recovery', 'downtime'],
+    db: ['data', 'remediation', 'privacy', 'notification'],
+    rl: ['regulat', 'legal', 'compliance', 'contract'],
+    tp: ['third-party', 'supplier', 'partner', 'liability'],
+    rc: ['reputation', 'contract', 'customer', 'commercial']
+  };
+  const evidenceSupport = collectStep3EvidenceSnippets(draft, supportKeywords[prefix] || []).slice(0, 2);
+  const support = [
+    String(fieldRationale[fieldName] || '').trim(),
+    prefix === 'tef' ? reasonFor('event-frequency') : '',
+    prefix === 'threatCap' ? reasonFor('threat-capability') : '',
+    prefix === 'controlStr' ? reasonFor('control-strength') : '',
+    prefix === 'ir' ? reasonFor('incident-response') : '',
+    prefix === 'bi' ? reasonFor('business-interruption') : '',
+    prefix === 'rl' ? reasonFor('regulatory-legal') : '',
+    prefix === 'tp' ? reasonFor('third-party-liability') : '',
+    prefix === 'rc' ? reasonFor('reputation-contract') : '',
+    prefix === 'db' ? lossSummary : '',
+    ...evidenceSupport
+  ].filter(Boolean).slice(0, 3);
+  const movementHints = {
+    tef: {
+      up: 'Raise this if incident history, threat activity, or business conditions show the event path is more common than the current planning case.',
+      down: 'Lower this only if direct operating evidence shows the triggering conditions are rarer or better contained than the current case.'
+    },
+    threatCap: {
+      up: 'Raise this if the threat source is more capable, persistent, or better resourced than the current working case assumes.',
+      down: 'Lower this only if the event source is weaker, more opportunistic, or less capable than the current planning case assumes.'
+    },
+    controlStr: {
+      up: 'Raise this if your controls are better evidenced, broader in coverage, or more consistently effective than the current assumption.',
+      down: 'Lower this if controls exist only on paper, coverage is partial, or detection and containment are slower than assumed.'
+    },
+    vuln: {
+      up: 'Raise this if the event would still succeed even with the current controls in place.',
+      down: 'Lower this if controls and resilience measures make successful compromise materially less likely.'
+    },
+    ir: {
+      up: 'Raise this if containment, investigation, or recovery would need more external support or last longer than the current case assumes.',
+      down: 'Lower this if the team can contain and recover faster with less specialist effort than assumed.'
+    },
+    bi: {
+      up: 'Raise this if the event would disrupt operations for longer or hit more critical services than the current case assumes.',
+      down: 'Lower this if resilience and recovery measures keep disruption shorter or narrower than the current case.'
+    },
+    db: {
+      up: 'Raise this if data exposure would trigger broader remediation, notification, or customer-support work than currently assumed.',
+      down: 'Lower this if the data in scope is narrower or the clean-up obligations are lighter than assumed.'
+    },
+    rl: {
+      up: 'Raise this if obligations, penalties, or legal challenge would be broader than the current working case.',
+      down: 'Lower this if the legal or regulatory consequences are narrower, capped, or less likely than assumed.'
+    },
+    tp: {
+      up: 'Raise this if partners, customers, or suppliers are more likely to seek compensation or impose credits than currently assumed.',
+      down: 'Lower this if contracts or commercial structure bound the external downside more tightly than assumed.'
+    },
+    rc: {
+      up: 'Raise this if commercial trust, contract renewal, or stakeholder confidence would degrade more sharply than currently assumed.',
+      down: 'Lower this if the event is less visible externally or contract downside is better contained than assumed.'
+    }
+  };
+  return {
+    title: {
+      tef: 'Event frequency',
+      threatCap: 'Threat capability',
+      controlStr: 'Control strength',
+      vuln: 'Direct exposure',
+      ir: 'Response and recovery cost',
+      bi: 'Business disruption cost',
+      db: 'Data remediation cost',
+      rl: 'Regulatory and legal cost',
+      tp: 'Third-party impact cost',
+      rc: 'Reputation and contract cost'
+    }[prefix] || 'Parameter detail',
+    meaning: baseMeaning[prefix] || 'This is one of the current model assumptions.',
+    support: support.length ? support : ['No direct supporting rationale is attached to this input yet.'],
+    moveUp: movementHints[prefix]?.up || 'Raise this only if direct evidence points clearly upward.',
+    moveDown: movementHints[prefix]?.down || 'Lower this only if direct evidence points clearly downward.',
+    dependency: getStep3DependencyHint(prefix, fairParams)
+  };
+}
+
+function renderStep3AssumptionExplainerPanel(model) {
+  if (!model) return '';
+  return `<div class="fair-assumption-panel">
+    <div class="fair-assumption-panel__head">
+      <div>
+        <div class="fair-assumption-panel__label">Assumption explainer</div>
+        <strong>${escapeHtml(model.title)}</strong>
+      </div>
+      <span class="badge badge--neutral">${escapeHtml(model.dependency.label)}</span>
+    </div>
+    <p class="fair-assumption-panel__copy">${escapeHtml(model.meaning)}</p>
+    <div class="fair-assumption-panel__grid">
+      <div>
+        <div class="fair-assumption-panel__section">What supports it</div>
+        <p>${model.support.map(item => `• ${escapeHtml(item)}`).join('<br>')}</p>
+      </div>
+      <div>
+        <div class="fair-assumption-panel__section">What would move it up</div>
+        <p>${escapeHtml(model.moveUp)}</p>
+      </div>
+      <div>
+        <div class="fair-assumption-panel__section">What would move it down</div>
+        <p>${escapeHtml(model.moveDown)}</p>
+      </div>
+      <div>
+        <div class="fair-assumption-panel__section">How much the result depends on it</div>
+        <p>${escapeHtml(model.dependency.copy)}</p>
+      </div>
+    </div>
+  </div>`;
+}
+
 function bindFairRationaleChips() {
   ensureFairRationaleStyles();
   const fairParams = AppState.draft.fairParams || (AppState.draft.fairParams = {});
   const fieldRationale = getStep3FieldRationaleMap(AppState.draft);
+  const calibratedFields = new Set(
+    Array.isArray(AppState.draft?.orgCalibrationInfo?.appliedFields)
+      ? AppState.draft.orgCalibrationInfo.appliedFields.map(item => String(item?.fieldName || '').trim())
+      : []
+  );
   fairParams.fieldRationale = fieldRationale;
   Object.entries(fieldRationale).forEach(([fieldName, rationaleText]) => {
     const input = document.getElementById(fairFieldNameToInputId(fieldName));
@@ -84,8 +293,23 @@ function bindFairRationaleChips() {
     const rationaleId = `rationale-${fieldName}`;
     const existing = document.getElementById(rationaleId);
     if (existing) existing.remove();
-    formGroup.insertAdjacentHTML('beforeend', `<div class="fair-rationale" id="${rationaleId}"><span class="fair-rationale__icon">ℹ</span><span class="fair-rationale__text">${escapeHtml(rationaleText)}</span></div>`);
+    formGroup.insertAdjacentHTML('beforeend', `<div class="fair-rationale" id="${rationaleId}"><span class="fair-rationale__icon">ℹ</span><span class="fair-rationale__text">${escapeHtml(rationaleText)}${calibratedFields.has(fieldName) ? ' <span class="badge badge--neutral" style="margin-left:6px">Org-calibrated</span>' : ''}</span><button type="button" class="fair-rationale__action" data-rationale-field="${escapeHtml(fieldName)}" aria-expanded="false">Explain</button></div>`);
     const rationale = document.getElementById(rationaleId);
+    const explainButton = rationale?.querySelector('.fair-rationale__action');
+    explainButton?.addEventListener('click', () => {
+      const existingPanel = formGroup.querySelector('.fair-assumption-panel');
+      document.querySelectorAll('.fair-assumption-panel').forEach(panel => panel.remove());
+      document.querySelectorAll('.fair-rationale__action[aria-expanded="true"]').forEach(button => {
+        button.setAttribute('aria-expanded', 'false');
+        button.textContent = 'Explain';
+      });
+      if (existingPanel) return;
+      const model = buildStep3AssumptionExplainerModel(fieldName, AppState.draft);
+      if (!model) return;
+      formGroup.insertAdjacentHTML('beforeend', renderStep3AssumptionExplainerPanel(model));
+      explainButton.setAttribute('aria-expanded', 'true');
+      explainButton.textContent = 'Hide detail';
+    });
     input.addEventListener('input', () => {
       if (!rationale) return;
       rationale.classList.add('fair-rationale--overridden');
@@ -93,6 +317,22 @@ function bindFairRationaleChips() {
       if (icon) icon.textContent = '✏';
     });
   });
+}
+
+function renderOrgCalibrationBand(draft) {
+  const info = draft?.orgCalibrationInfo;
+  if (!info || !Array.isArray(info.appliedFields) || !info.appliedFields.length) return '';
+  return `<div class="wizard-summary-band wizard-summary-band--quiet anim-fade-in">
+    <div>
+      <div class="wizard-summary-band__label">Organisation calibration</div>
+      <strong>${info.appliedFields.length} starting field${info.appliedFields.length === 1 ? '' : 's'} adjusted from organisation history</strong>
+      <div class="wizard-summary-band__copy">The platform used prior completed assessments in this scenario family to nudge the starting point before you review it. You can still override any field manually.</div>
+    </div>
+    <div class="wizard-summary-band__meta">
+      ${info.appliedFields.slice(0, 3).map(item => `<span class="badge badge--neutral">${escapeHtml(OrgIntelligenceService?.getFieldLabel?.(item.fieldName) || item.fieldName)}</span>`).join('')}
+      ${info.appliedFields.length > 3 ? `<span class="badge badge--neutral">+${info.appliedFields.length - 3} more</span>` : ''}
+    </div>
+  </div>`;
 }
 
 function describeExposureBand(value) {
@@ -1079,6 +1319,9 @@ function _ensureDraftFairParamsSeeded(draft) {
   assignRange('rl', loss.regulatoryLegal, defaults.regulatoryLegal, { min: 0, likely: 80000, max: 800000 });
   assignRange('tp', loss.thirdPartyLiability, defaults.thirdPartyLiability, { min: 0, likely: 50000, max: 400000 });
   assignRange('rc', loss.reputationContract, defaults.reputationContract, { min: 50000, likely: 200000, max: 1200000 });
+  if (typeof OrgIntelligenceService !== 'undefined' && typeof OrgIntelligenceService.applyCalibrationToDraft === 'function') {
+    OrgIntelligenceService.applyCalibrationToDraft(draft);
+  }
 
   if ((!draft.benchmarkReferences || !draft.benchmarkReferences.length) && benchmarkCandidates.length) {
     draft.benchmarkReferences = BenchmarkService.buildReferenceList(benchmarkCandidates);
@@ -1370,6 +1613,7 @@ function renderWizard3() {
           </section>
           ${renderEstimateFocusStrip(draft, isAdv, validation, baselineAssessment)}
           ${draft.learningNote ? `<div class="wizard-summary-band wizard-summary-band--quiet anim-fade-in"><div><div class="wizard-summary-band__label">Template learning</div><strong>Starting point guidance</strong><div class="wizard-summary-band__copy">${escapeHtml(draft.learningNote)}</div></div></div>` : ''}
+          ${renderOrgCalibrationBand(draft)}
           ${renderEstimateScopeSummaryBand(draft)}
           ${renderQuantReadinessScoreCard(draft, validation)}
           ${baselineAssessment ? `<div class="card card--elevated anim-fade-in"><div class="wizard-premium-head"><div><div class="context-panel-title">Current assessment baseline</div><p class="context-panel-copy">You are working from <strong>${baselineAssessment.scenarioTitle || 'the original assessment'}</strong>. Adjust the assumptions below to reflect stronger prevention, faster response, or lower disruption impact, then rerun to compare the new result against the current baseline.</p></div><span class="badge badge--gold">Treatment lane</span></div><div class="form-help" style="margin-top:10px">Baseline completed on ${new Date(baselineAssessment.completedAt || baselineAssessment.createdAt || Date.now()).toLocaleDateString('en-AE', { year: 'numeric', month: 'long', day: 'numeric' })}.</div><div class="citation-chips" style="margin-top:12px"><button type="button" class="chip treatment-prompt-chip" data-treatment-prompt="control-strength">Try stronger controls</button><button type="button" class="chip treatment-prompt-chip" data-treatment-prompt="detection-response">Try faster detection</button><button type="button" class="chip treatment-prompt-chip" data-treatment-prompt="resilience">Try lower disruption impact</button></div><div class="form-group" style="margin-top:16px"><label class="form-label" for="treatment-improvement-request">Describe the better outcome you want to test</label><textarea class="form-textarea" id="treatment-improvement-request" rows="3" placeholder="e.g. stronger privileged-access controls, faster containment, better resilience, lower business disruption">${draft.treatmentImprovementRequest || ''}</textarea><span class="form-help">Describe the improvement in plain language and let AI adjust the copied baseline values before you simulate the new case.</span></div><div class="flex items-center gap-3" style="margin-top:12px;flex-wrap:wrap"><button class="btn btn--secondary" id="btn-treatment-ai-assist" type="button">AI Assist This Better Outcome</button><span class="form-help" id="treatment-improvement-status">These are quick starting points. You can still adjust every number manually before rerunning the analysis.</span></div></div>` : ''}

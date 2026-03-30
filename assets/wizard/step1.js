@@ -774,6 +774,49 @@ function renderStep1ReadinessBanner(draft, selectedRisks) {
   });
 }
 
+function renderGhostDraftBanner(draft) {
+  const meta = draft?.ghostDraftMeta;
+  if (!meta || !Number(meta.patternCount || 0)) return '';
+  const sourceLabel = meta.sourceType === 'organisation' ? 'your team has' : 'you have';
+  const sourceTitles = Array.isArray(meta.sourcePatternTitles) ? meta.sourcePatternTitles.filter(Boolean).slice(0, 3) : [];
+  return `<section class="wizard-summary-band anim-fade-in">
+    <div>
+      <div class="wizard-summary-band__label">Ghost drafter</div>
+      <strong>Pre-loaded from ${Number(meta.patternCount || 0)} similar assessment${Number(meta.patternCount || 0) === 1 ? '' : 's'} ${sourceLabel} already built</strong>
+      <div class="wizard-summary-band__copy">The platform prepared a starting narrative, lens, shortlist, and regulation set before you opened a blank page. Keep what fits and change what does not.</div>
+    </div>
+    <div class="wizard-summary-band__meta">
+      ${sourceTitles.map(title => `<span class="badge badge--neutral">${escapeHtml(title)}</span>`).join('')}
+      <button class="btn btn--ghost btn--sm" id="btn-clear-ghost-draft" type="button">Start blank instead</button>
+    </div>
+  </section>`;
+}
+
+function clearGhostDraftSuggestion() {
+  const draft = AppState.draft || {};
+  draft.scenarioTitle = '';
+  draft.narrative = '';
+  draft.enhancedNarrative = '';
+  draft.sourceNarrative = '';
+  draft.structuredScenario = null;
+  draft.scenarioLens = null;
+  draft.riskCandidates = [];
+  draft.selectedRiskIds = [];
+  draft.selectedRisks = [];
+  draft.ghostDraftMeta = null;
+  draft.guidedDraftSource = '';
+  draft.guidedDraftStatus = '';
+  draft.guidedInput = {
+    event: '',
+    asset: '',
+    cause: '',
+    impact: '',
+    urgency: 'medium'
+  };
+  const bu = getBUList().find(item => item.id === draft.buId);
+  draft.applicableRegulations = deriveApplicableRegulations(bu, [], getScenarioGeographies());
+}
+
 const STEP1_DRY_RUN_SCENARIOS = [
   createStep1DryRunScenario({
     id: 'finance-liquidity-shock',
@@ -2022,6 +2065,7 @@ function renderWizard1() {
         </div>
         <div class="wizard-body">
           ${renderAssessmentReadinessStrip(readinessModel)}
+          ${renderGhostDraftBanner(draft)}
           ${renderContextInfluencePreview(contextPreviewModel)}
           ${renderStep1GuidedBuilderCard(draft, recommendation, exampleModel.functionLabel, exampleModel.recommendedExamples.map(example => ({
             label: example.promptLabel,
@@ -2065,6 +2109,10 @@ function renderWizard1() {
   bindStep1ScenarioActions({ buList, settings, exampleModel });
   bindStep1NavigationActions({ buList, settings, wizardGeographyInput });
   bindRiskCardActions({ buList });
+  document.getElementById('btn-clear-ghost-draft')?.addEventListener('click', () => {
+    clearGhostDraftSuggestion();
+    persistAndRenderStep1();
+  });
   document.getElementById('btn-risk-empty-add')
     ?.addEventListener('click', () => {
       const input = document.getElementById('risk-empty-manual-input');

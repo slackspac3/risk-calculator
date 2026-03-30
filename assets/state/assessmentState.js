@@ -263,6 +263,14 @@ function recordTemplateLoad(templateId) {
 function recordLearningFromAssessment(draft) {
   // Completed assessments should always feed the lightweight scenario-pattern store, even when no template was used.
   if (typeof persistScenarioPattern === 'function') persistScenarioPattern(draft);
+  try {
+    const username = AuthService.getCurrentUser()?.username || '';
+    if (username && typeof LearningStore !== 'undefined' && typeof LearningStore.patternFromAssessment === 'function' && typeof LearningStore.saveScenarioPattern === 'function') {
+      const pattern = LearningStore.patternFromAssessment(draft);
+      if (pattern) LearningStore.saveScenarioPattern(username, pattern);
+    }
+  } catch {}
+  OrgIntelligenceService?.recordCompletedAssessment?.(draft);
   if (!draft?.templateId || !draft?.fairParams) return;
   const store = getLearningStore();
   const profile = store.templates[draft.templateId] || { loads: 0, completed: 0, avgParams: {}, lastUsed: null };
@@ -417,6 +425,10 @@ function resetDraft() {
     inferredAssumptions: [],
     missingInformation: [],
     learningNote: '',
+    ghostDraftMeta: null,
+    aiSuggestedFairParams: null,
+    orgCalibrationApplied: false,
+    orgCalibrationInfo: null,
     comparisonBaselineId: '',
     treatmentImprovementRequest: '',
     guidedInput: {

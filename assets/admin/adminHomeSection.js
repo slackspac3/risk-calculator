@@ -158,11 +158,24 @@
               </div>`
             })}
           </div>
+          <div style="margin-top:var(--sp-6)">
+            ${UI.dashboardSectionCard({
+              title: 'Assumption drift alerts',
+              description: 'Cross-team calibration variance that may need a challenge or calibration session.',
+              body: `<div id="admin-drift-alert-list">
+                <div class="form-help">Loading calibration alerts…</div>
+              </div>`
+            })}
+          </div>
         </div>`);
     },
 
     bind({ preferredAdminRoute, managedAccounts }) {
       document.getElementById('btn-admin-home-start-assessment')?.addEventListener('click', () => {
+        if (typeof window.launchGuidedAssessmentStart === 'function') {
+          window.launchGuidedAssessmentStart();
+          return;
+        }
         resetDraft();
         openDraftWorkspaceRoute();
       });
@@ -190,6 +203,36 @@
           Router.navigate(route);
         });
       });
+
+      async function loadDriftAlerts() {
+        const listEl = document.getElementById('admin-drift-alert-list');
+        if (!listEl) return;
+        try {
+          await OrgIntelligenceService?.refresh?.();
+          const alerts = OrgIntelligenceService?.buildDriftAlerts?.(3) || [];
+          if (!alerts.length) {
+            listEl.innerHTML = '<div class="form-help">No material cross-team calibration drift is visible yet.</div>';
+            return;
+          }
+          listEl.innerHTML = alerts.map(alert => `
+            <div class="review-queue-item">
+              <div class="review-queue-item__meta">
+                <strong>${escapeAdminHomeText(alert.scenarioLabel || 'Scenario family')}</strong>
+                <span class="badge badge--warning">Drift alert</span>
+              </div>
+              <div class="review-queue-item__detail">
+                ${escapeAdminHomeText(OrgIntelligenceService?.getFieldLabel?.(alert.fieldName) || alert.fieldName)} varies materially across teams.
+              </div>
+              <div class="review-queue-item__status visible">
+                ${escapeAdminHomeText(alert.highBuName)} averages ${escapeAdminHomeText(String(alert.highValue.toFixed(2)))} while ${escapeAdminHomeText(alert.lowBuName)} averages ${escapeAdminHomeText(String(alert.lowValue.toFixed(2)))}.
+                This is a ${escapeAdminHomeText(alert.ratio.toFixed(1))}x spread across at least ${escapeAdminHomeText(String(alert.sampleCount))} completed assessments.
+              </div>
+            </div>
+          `).join('');
+        } catch {
+          listEl.innerHTML = '<div class="form-help">Could not load calibration alerts right now.</div>';
+        }
+      }
 
       async function loadReviewQueue() {
         const listEl = document.getElementById('admin-review-queue-list');
@@ -247,6 +290,52 @@
             });
           });
 
+          async function syncLocalReviewDecision(queueItem) {
+            if (!queueItem) return;
+            const localAssessment = typeof getAssessmentById === 'function'
+              ? getAssessmentById(queueItem.assessmentId)
+              : null;
+            if (localAssessment && typeof updateAssessmentRecord === 'function') {
+              updateAssessmentRecord(localAssessment.id, current => ({
+                ...current,
+                reviewSubmission: {
+                  ...(current.reviewSubmission || {}),
+                  reviewStatus: queueItem.reviewStatus || '',
+                  reviewNote: queueItem.reviewNote || '',
+                  reviewedBy: queueItem.reviewedBy || currentUsername,
+                  reviewedAt: queueItem.reviewedAt || Date.now(),
+                  escalatedTo: queueItem.escalatedTo || ''
+                },
+                reviewDecision: {
+                  decision: queueItem.reviewStatus || '',
+                  timeToDecide: queueItem.submittedAt && queueItem.reviewedAt
+                    ? Math.max(0, Number(queueItem.reviewedAt) - Number(queueItem.submittedAt))
+                    : 0,
+                  challengedAssumption: queueItem.reviewNote || '',
+                  reviewedBy: queueItem.reviewedBy || currentUsername,
+                  reviewedAt: queueItem.reviewedAt || Date.now()
+                }
+              }));
+            }
+            await OrgIntelligenceService?.recordReviewDecision?.({
+              id: `${queueItem.id}_${queueItem.reviewedAt || Date.now()}`,
+              assessmentId: queueItem.assessmentId,
+              buId: queueItem.buId || localAssessment?.buId || '',
+              buName: queueItem.buName || localAssessment?.buName || '',
+              scenarioLensKey: localAssessment?.scenarioLens?.key || '',
+              scenarioLensLabel: localAssessment?.scenarioLens?.label || localAssessment?.scenarioTitle || queueItem.scenarioTitle || '',
+              scenarioTitle: localAssessment?.scenarioTitle || queueItem.scenarioTitle || '',
+              decision: queueItem.reviewStatus || '',
+              reviewNote: queueItem.reviewNote || '',
+              challengedAssumption: queueItem.reviewStatus === 'changes_requested' ? (queueItem.reviewNote || '') : '',
+              reviewedBy: queueItem.reviewedBy || currentUsername,
+              reviewedAt: queueItem.reviewedAt || Date.now(),
+              submittedAt: queueItem.submittedAt || 0,
+              p90Loss: queueItem.p90Loss || localAssessment?.results?.eventLoss?.p90 || 0,
+              aleMean: queueItem.aleMean || localAssessment?.results?.ale?.mean || 0
+            });
+          }
+
           async function patchQueueItem(id, patch) {
             const nextSessionToken = typeof AuthService !== 'undefined' && typeof AuthService.getApiSessionToken === 'function'
               ? AuthService.getApiSessionToken()
@@ -267,9 +356,11 @@
             btn.addEventListener('click', async () => {
               btn.disabled = true;
               try {
-                await patchQueueItem(btn.dataset.queueId, { reviewStatus: 'approved' });
+                const { item } = await patchQueueItem(btn.dataset.queueId, { reviewStatus: 'approved' });
+                await syncLocalReviewDecision(item);
                 UI.toast('Assessment approved.', 'success');
                 loadReviewQueue();
+                loadDriftAlerts();
               } catch {
                 UI.toast('Could not approve. Try again in a moment.', 'danger');
                 btn.disabled = false;
@@ -306,13 +397,15 @@
                 const confirmBtn = document.getElementById('btn-confirm-changes');
                 if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.textContent = 'Sending…'; }
                 try {
-                  await patchQueueItem(btn.dataset.queueId, {
+                  const { item } = await patchQueueItem(btn.dataset.queueId, {
                     reviewStatus: 'changes_requested',
                     reviewNote: reason
                   });
+                  await syncLocalReviewDecision(item);
                   modal.close();
                   UI.toast('Changes requested.', 'success');
                   loadReviewQueue();
+                  loadDriftAlerts();
                 } catch {
                   UI.toast('Could not send request. Try again.', 'danger');
                   if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = 'Send Request'; }
@@ -372,13 +465,15 @@
                 const confirmBtn = document.getElementById('btn-confirm-escalate');
                 if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.textContent = 'Escalating…'; }
                 try {
-                  await patchQueueItem(btn.dataset.queueId, {
+                  const { item } = await patchQueueItem(btn.dataset.queueId, {
                     reviewStatus: 'escalated',
                     escalatedTo: target
                   });
+                  await syncLocalReviewDecision(item);
                   modal.close();
                   UI.toast('Assessment escalated.', 'success');
                   loadReviewQueue();
+                  loadDriftAlerts();
                 } catch {
                   UI.toast('Could not escalate. Try again.', 'danger');
                   if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = 'Escalate'; }
@@ -392,6 +487,7 @@
       }
 
       loadReviewQueue();
+      loadDriftAlerts();
     }
   };
 

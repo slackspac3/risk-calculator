@@ -473,6 +473,16 @@ const ExportService = (() => {
     URL.revokeObjectURL(url);
   }
 
+  function _downloadTextFile(text, filename, type = 'text/plain;charset=utf-8') {
+    const blob = new Blob([String(text || '')], { type });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
   function importJsonFile({ onData, onError } = {}) {
     const input = document.createElement('input');
     input.type = 'file';
@@ -1206,6 +1216,171 @@ const ExportService = (() => {
     addFooter(4);
 
     return doc;
+  }
+
+  function _buildLivingRiskRegisterModel(assessments = [], currency = 'USD', fxRate = 3.6725) {
+    const rows = typeof buildLivingRiskRegisterRows === 'function'
+      ? buildLivingRiskRegisterRows({ assessments, now: Date.now() })
+      : [];
+    const summary = typeof buildLivingRiskRegisterSummary === 'function'
+      ? buildLivingRiskRegisterSummary(rows)
+      : { total: rows.length, aboveTolerance: 0, nearTolerance: 0, annualReview: 0, dueNow: 0, inReview: 0, needsRevision: 0 };
+    return {
+      createdLabel: new Date().toLocaleDateString('en-AE', { year: 'numeric', month: 'long', day: 'numeric' }),
+      rows: rows.map(row => ({
+        ...row,
+        p90LossLabel: _formatCurrency(row.p90Loss || 0, currency, fxRate),
+        aleMeanLabel: _formatCurrency(row.aleMean || 0, currency, fxRate)
+      })),
+      summary
+    };
+  }
+
+  function _buildLivingRiskRegisterHtml(model) {
+    const safe = value => String(value || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+    const summaryCards = [
+      ['Rows', model.summary.total || 0],
+      ['Above tolerance', model.summary.aboveTolerance || 0],
+      ['Near tolerance', model.summary.nearTolerance || 0],
+      ['Due now', model.summary.dueNow || 0],
+      ['In review', model.summary.inReview || 0],
+      ['Changes requested', model.summary.needsRevision || 0]
+    ];
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Living Risk Register</title>
+<style>
+  body { margin: 0; background: #f4f7fb; color: #172033; font-family: 'DM Sans', 'Segoe UI', Arial, sans-serif; }
+  .page { max-width: 1100px; margin: 0 auto; padding: 32px; }
+  .sheet { background: #fff; border: 1px solid #d8e0ea; border-radius: 22px; padding: 32px; box-shadow: 0 18px 48px rgba(15, 23, 42, 0.08); }
+  .eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: .12em; color: #697487; }
+  h1 { margin: 8px 0 0; font-size: 34px; line-height: 1.05; font-family: 'Syne', 'Avenir Next', sans-serif; color: #10203b; }
+  .subhead { margin-top: 10px; color: #556074; font-size: 14px; line-height: 1.7; max-width: 70ch; }
+  .meta { margin-top: 12px; color: #697487; font-size: 12px; }
+  .summary-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-top: 24px; }
+  .summary-card { border: 1px solid #d8e0ea; border-radius: 16px; padding: 14px; background: #fbfcfe; }
+  .summary-card span { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: #697487; }
+  .summary-card strong { display: block; margin-top: 8px; font-size: 24px; color: #10203b; font-family: 'Syne', 'Avenir Next', sans-serif; }
+  .section-title { margin-top: 28px; font-size: 18px; color: #10203b; font-family: 'Syne', 'Avenir Next', sans-serif; }
+  .section-copy { margin-top: 8px; color: #556074; font-size: 13px; line-height: 1.7; }
+  .register-list { display: flex; flex-direction: column; gap: 12px; margin-top: 18px; }
+  .register-row { border: 1px solid #d8e0ea; border-radius: 18px; padding: 16px 18px; background: #fff; }
+  .register-head, .register-foot { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+  .register-title { font-size: 17px; font-weight: 700; color: #10203b; }
+  .register-meta { margin-top: 6px; color: #697487; font-size: 12px; }
+  .register-value-grid { display: grid; grid-template-columns: repeat(2, minmax(120px, 1fr)); gap: 10px; min-width: 260px; }
+  .register-value { border-radius: 14px; background: #f8fbff; padding: 10px 12px; }
+  .register-value span { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: #697487; }
+  .register-value strong { display: block; margin-top: 6px; color: #10203b; }
+  .chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .chip { display: inline-flex; align-items: center; border-radius: 999px; padding: 6px 10px; font-size: 11px; border: 1px solid transparent; }
+  .chip.danger { background: #fee2e2; border-color: #fecaca; color: #b91c1c; }
+  .chip.warning { background: #fef3c7; border-color: #fcd34d; color: #b45309; }
+  .chip.gold { background: rgba(180,138,70,0.12); border-color: rgba(180,138,70,0.24); color: #8a6a33; }
+  .chip.success { background: #d1fae5; border-color: #86efac; color: #047857; }
+  .chip.neutral { background: #f3f5f9; border-color: #d8e0ea; color: #53607a; }
+  .register-foot { margin-top: 14px; padding-top: 12px; border-top: 1px solid #e6ebf2; }
+  .register-note { font-size: 12px; color: #556074; line-height: 1.7; }
+  .footer { margin-top: 28px; padding-top: 14px; border-top: 1px solid #e6ebf2; font-size: 11px; color: #697487; }
+  @media print {
+    body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .page { padding: 0; max-width: none; }
+    .sheet { border: 0; border-radius: 0; box-shadow: none; padding: 20px; }
+  }
+</style>
+</head>
+<body>
+  <div class="page">
+    <div class="sheet">
+      <div class="eyebrow">Living risk register</div>
+      <h1>Current portfolio register</h1>
+      <div class="subhead">A continuously updated operating register built from saved completed assessments. Use it to scan posture, ownership, last review date, next review due, and the current trend or review state before you open a full result.</div>
+      <div class="meta">Generated ${safe(model.createdLabel)} · Point-in-time snapshot. Regenerate after material scenario, evidence, or review changes.</div>
+      <div class="summary-grid">
+        ${summaryCards.map(item => `<div class="summary-card"><span>${safe(item[0])}</span><strong>${safe(item[1])}</strong></div>`).join('')}
+      </div>
+      <div class="section-title">Register rows</div>
+      <div class="section-copy">Each row stays decision-oriented: current posture, current owner, the latest review point, the next due date, and the trend or review state that most affects what should happen next.</div>
+      <div class="register-list">
+        ${model.rows.length ? model.rows.map(row => `
+          <article class="register-row">
+            <div class="register-head">
+              <div>
+                <div class="register-title">${safe(row.title)}</div>
+                <div class="register-meta">${safe(row.buName)} · Owner: ${safe(row.owner)} · Last review: ${safe(row.lastReviewLabel)}</div>
+              </div>
+              <div class="register-value-grid">
+                <div class="register-value"><span>P90 event loss</span><strong>${safe(row.p90LossLabel)}</strong></div>
+                <div class="register-value"><span>ALE mean</span><strong>${safe(row.aleMeanLabel)}</strong></div>
+              </div>
+            </div>
+            <div class="chip-row">
+              <span class="chip ${safe(row.postureTone)}">${safe(row.postureLabel)}</span>
+              <span class="chip ${safe(row.trendTone === 'danger' ? 'danger' : row.trendTone === 'warning' ? 'warning' : row.trendTone === 'success' ? 'success' : 'neutral')}">${safe(row.trendLabel)}</span>
+              <span class="chip neutral">${safe(row.lifecycleLabel)}</span>
+              <span class="chip ${safe(/due now|overdue/i.test(row.nextReviewLabel) ? 'warning' : 'neutral')}">${safe(row.nextReviewLabel)}</span>
+            </div>
+            <div class="register-foot">
+              <div class="register-note">${safe(row.statusNote || row.nextAction)}</div>
+              <div class="register-note"><strong>Next:</strong> ${safe(row.nextAction)}</div>
+            </div>
+          </article>
+        `).join('') : '<div class="register-note">No completed assessments are currently available to populate the register.</div>'}
+      </div>
+      <div class="footer">Risk Intelligence Platform · Living register export · For operational review and management follow-up.</div>
+    </div>
+  </div>
+</body>
+</html>`;
+  }
+
+  function exportLivingRiskRegister(assessments, currency = 'USD', fxRate = 3.6725) {
+    const model = _buildLivingRiskRegisterModel(assessments, currency, fxRate);
+    _openPrintableHtml(_buildLivingRiskRegisterHtml(model), 'living-risk-register');
+  }
+
+  function exportLivingRiskRegisterCsv(assessments, currency = 'USD', fxRate = 3.6725) {
+    const model = _buildLivingRiskRegisterModel(assessments, currency, fxRate);
+    const escapeCsv = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+    const header = [
+      'Assessment ID',
+      'Scenario Title',
+      'Business Unit',
+      'Owner',
+      'Posture',
+      'Trend',
+      'Lifecycle',
+      'Last Review',
+      'Next Review Due',
+      'P90 Event Loss',
+      'ALE Mean',
+      'Next Action'
+    ];
+    const lines = [
+      header.map(escapeCsv).join(','),
+      ...model.rows.map(row => [
+        row.id,
+        row.title,
+        row.buName,
+        row.owner,
+        row.postureLabel,
+        row.trendLabel,
+        row.lifecycleLabel,
+        row.lastReviewLabel,
+        row.nextReviewLabel,
+        row.p90LossLabel,
+        row.aleMeanLabel,
+        row.nextAction
+      ].map(escapeCsv).join(','))
+    ];
+    _downloadTextFile(lines.join('\n'), `living-risk-register-${Date.now()}.csv`, 'text/csv;charset=utf-8');
   }
 
 
@@ -1954,5 +2129,17 @@ body {
 </html>`;
   }
 
-  return { exportJSON, exportDataAsJson, importJsonFile, exportPDF, generatePdfReport, exportPPTXSpec, exportDecisionMemo, exportBoardNote, buildDecisionMemoModel };
+  return {
+    exportJSON,
+    exportDataAsJson,
+    importJsonFile,
+    exportPDF,
+    generatePdfReport,
+    exportPPTXSpec,
+    exportDecisionMemo,
+    exportBoardNote,
+    exportLivingRiskRegister,
+    exportLivingRiskRegisterCsv,
+    buildDecisionMemoModel
+  };
 })();
