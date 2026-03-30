@@ -1,3 +1,7 @@
+const dns = require('dns').promises;
+const net = require('net');
+const { resolveAdminActor } = require('./_apiAuth');
+
 function stripHtml(html) {
   return String(html || '')
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
@@ -40,8 +44,8 @@ function checkRateLimit(key, maxPerMinute = 20) {
     : Math.ceil((entry.reset - now) / 1000);
 }
 
-function getRateLimitKey(req) {
-  return String(req.headers.origin || req.socket?.remoteAddress || 'unknown');
+function getRateLimitKey(req, actor) {
+  return `${String(actor?.username || 'admin').trim().toLowerCase()}::${String(req.socket?.remoteAddress || 'unknown')}`;
 }
 
 function isPlainObject(value) {
@@ -59,23 +63,113 @@ function parseRequestBody(req) {
   return req.body ?? {};
 }
 
-function isAdminRequest(req) {
+function isAdminSecretValid(req) {
   const adminSecret = String(process.env.ADMIN_API_SECRET || '').trim();
   return !!adminSecret && req.headers['x-admin-secret'] === adminSecret;
 }
 
-async function fetchText(url, timeoutMs = 7000) {
+function isBlockedHostname(hostname = '') {
+  const value = String(hostname || '').trim().toLowerCase();
+  return !value
+    || value === 'localhost'
+    || value.endsWith('.localhost')
+    || value.endsWith('.local')
+    || value.endsWith('.internal')
+    || value.endsWith('.home')
+    || value.endsWith('.corp');
+}
+
+function isPrivateIpv4(address = '') {
+  const parts = String(address || '').split('.').map(part => Number(part));
+  if (parts.length !== 4 || parts.some(part => !Number.isInteger(part) || part < 0 || part > 255)) return true;
+  const [first, second] = parts;
+  if (first === 0 || first === 10 || first === 127) return true;
+  if (first === 169 && second === 254) return true;
+  if (first === 172 && second >= 16 && second <= 31) return true;
+  if (first === 192 && second === 168) return true;
+  if (first === 100 && second >= 64 && second <= 127) return true;
+  if (first === 198 && (second === 18 || second === 19)) return true;
+  if (first >= 224) return true;
+  return false;
+}
+
+function isPrivateIpv6(address = '') {
+  const value = String(address || '').trim().toLowerCase();
+  return !value
+    || value === '::'
+    || value === '::1'
+    || value.startsWith('fc')
+    || value.startsWith('fd')
+    || value.startsWith('fe80:')
+    || value.startsWith('::ffff:127.')
+    || value.startsWith('::ffff:10.')
+    || value.startsWith('::ffff:192.168.')
+    || /^::ffff:172\.(1[6-9]|2\d|3[0-1])\./.test(value);
+}
+
+function isPrivateAddress(address = '') {
+  const ipVersion = net.isIP(address);
+  if (ipVersion === 4) return isPrivateIpv4(address);
+  if (ipVersion === 6) return isPrivateIpv6(address);
+  return true;
+}
+
+async function assertPublicHttpUrl(rawUrl) {
+  const candidate = new URL(rawUrl);
+  if (!['http:', 'https:'].includes(candidate.protocol)) {
+    throw new Error('Only http and https websites are allowed.');
+  }
+  if (candidate.username || candidate.password) {
+    throw new Error('Website URLs cannot include embedded credentials.');
+  }
+  if (candidate.port && !['80', '443'].includes(candidate.port)) {
+    throw new Error('Only standard web ports are allowed.');
+  }
+  const hostname = String(candidate.hostname || '').trim().toLowerCase();
+  if (isBlockedHostname(hostname)) {
+    throw new Error('Private or local network hosts are not allowed.');
+  }
+  if (net.isIP(hostname)) {
+    if (isPrivateAddress(hostname)) {
+      throw new Error('Private or local network hosts are not allowed.');
+    }
+    return candidate;
+  }
+  const resolved = await dns.lookup(hostname, { all: true, verbatim: true });
+  if (!Array.isArray(resolved) || !resolved.length) {
+    throw new Error('Website host could not be resolved.');
+  }
+  if (resolved.some(record => isPrivateAddress(record.address))) {
+    // Validate DNS results before fetching so public-looking hostnames cannot resolve into private ranges.
+    throw new Error('Private or local network hosts are not allowed.');
+  }
+  return candidate;
+}
+
+async function fetchText(url, timeoutMs = 7000, redirectCount = 0) {
+  const safeUrl = await assertPublicHttpUrl(url);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(url, {
+    const res = await fetch(safeUrl, {
       headers: {
         'User-Agent': 'Risk-Intelligence-Platform/1.0'
       },
+      redirect: 'manual',
       signal: controller.signal
     });
+    if (res.status >= 300 && res.status < 400) {
+      if (redirectCount >= 4) {
+        throw new Error('Website redirected too many times.');
+      }
+      const location = String(res.headers.get('location') || '').trim();
+      if (!location) {
+        throw new Error('Website redirect could not be followed.');
+      }
+      return fetchText(new URL(location, safeUrl).toString(), timeoutMs, redirectCount + 1);
+    }
     if (!res.ok) {
-      throw new Error(`Failed to fetch ${url}: HTTP ${res.status}`);
+      throw new Error(`Failed to fetch ${safeUrl}: HTTP ${res.status}`);
     }
     return res.text();
   } finally {
@@ -492,7 +586,7 @@ module.exports = async function handler(req, res) {
 
   res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
   res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'content-type,x-admin-secret');
+  res.setHeader('Access-Control-Allow-Headers', 'content-type,x-admin-secret,x-session-token');
   res.setHeader('Vary', 'Origin');
 
   if (req.method === 'OPTIONS') {
@@ -522,7 +616,13 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  const retryAfterSeconds = checkRateLimit(getRateLimitKey(req));
+  const actor = resolveAdminActor(req, res, {
+    isAdminSecretValid,
+    allowRoles: ['admin']
+  });
+  if (!actor) return;
+
+  const retryAfterSeconds = checkRateLimit(getRateLimitKey(req, actor));
   if (retryAfterSeconds) {
     res.setHeader('Retry-After', String(retryAfterSeconds));
     res.status(429).json({ error: 'Rate limit exceeded' });
@@ -548,9 +648,10 @@ module.exports = async function handler(req, res) {
 
   let canonicalUrl;
   try {
-    canonicalUrl = new URL(websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`).toString();
-  } catch {
-    res.status(400).json({ error: 'Invalid website URL.' });
+    const validatedUrl = await assertPublicHttpUrl(websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`);
+    canonicalUrl = validatedUrl.toString();
+  } catch (error) {
+    res.status(400).json({ error: error instanceof Error ? error.message : 'Invalid website URL.' });
     return;
   }
 

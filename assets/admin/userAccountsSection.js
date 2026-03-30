@@ -111,14 +111,14 @@ const AdminUserAccountsSection = (() => {
       </details>
       <details class="dashboard-disclosure card mt-4">
         <summary>Admin account tools <span class="badge badge--neutral">Advanced</span></summary>
-        <div class="dashboard-disclosure-copy">Browser-local admin credentials and account sync checks used for protected account actions.</div>
+        <div class="dashboard-disclosure-copy">Normal signed-in admin actions use your current session. The secret below is a current-tab fallback for protected account actions only.</div>
         <div class="dashboard-disclosure-body">
           <div class="card" style="padding:var(--sp-4);background:var(--bg-canvas)">
             <div class="grid-2 mt-1">
               <div class="form-group">
                 <label class="form-label" for="admin-api-secret">Admin action secret</label>
-                <input class="form-input" id="admin-api-secret" type="password" placeholder="Paste the admin action secret for this browser" value="${AuthService.getAdminApiSecret() || ''}">
-                <span class="form-help">Saved only in this browser. Used for protected account-management actions in this admin session.</span>
+                <input class="form-input" id="admin-api-secret" type="password" placeholder="Paste the admin action secret for this tab if needed" value="${AuthService.getAdminApiSecret() || ''}">
+                <span class="form-help">Saved only for this tab. Signed-in admin requests use the session token first and fall back to the secret only when needed.</span>
               </div>
             </div>
             <div class="flex items-center gap-3 mt-3" style="flex-wrap:wrap">
@@ -357,14 +357,14 @@ ${changeSummary.changed.join(' ')}`);
       const secret = document.getElementById('admin-api-secret')?.value || '';
       AuthService.setAdminApiSecret(secret);
       if (!secret) {
-        UI.toast('Admin API secret cleared.', 'success');
+        UI.toast('Admin action secret cleared for this tab.', 'success');
         return;
       }
       try {
         await syncSharedAdminSettings(getAdminSettings());
-        UI.toast('Admin API secret saved and current admin settings synced.', 'success');
+        UI.toast('Admin action secret saved for this tab and current admin settings synced.', 'success');
       } catch (error) {
-        UI.toast('Admin API secret was saved for this browser, but the latest platform settings could not be refreshed right now.', 'warning');
+        UI.toast('Admin action secret was saved for this tab, but the latest platform settings could not be refreshed right now.', 'warning');
       }
     });
 
@@ -372,7 +372,7 @@ ${changeSummary.changed.join(' ')}`);
       AuthService.setAdminApiSecret('');
       const input = document.getElementById('admin-api-secret');
       if (input) input.value = '';
-      UI.toast('Admin API secret cleared.', 'success');
+      UI.toast('Admin action secret cleared for this tab.', 'success');
     });
 
     document.getElementById('btn-test-users-store')?.addEventListener('click', async () => {

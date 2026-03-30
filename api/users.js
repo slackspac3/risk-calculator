@@ -4,13 +4,14 @@ const { sendApiError, resolveAdminActor, requireSession } = require('./_apiAuth'
 const { validatePasswordPolicy, generateStrongPassword } = require('./_passwordPolicy');
 
 const DEFAULT_ACCOUNTS = [];
+const PASSWORD_HASH_VERSION = 'scrypt-v1';
 
 function getBootstrapAccounts() {
   try {
     const raw = String(process.env.BOOTSTRAP_ACCOUNTS_JSON || '').trim();
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.map(normaliseAccount).filter(account => account.username && account.password) : [];
+    return Array.isArray(parsed) ? parsed.map(normaliseAccount).filter(account => account.username && hasStoredCredential(account)) : [];
   } catch {
     return [];
   }
@@ -57,10 +58,75 @@ function normaliseAccount(account = {}) {
   return {
     username: String(account.username || '').trim().toLowerCase(),
     password: String(account.password || ''),
+    passwordHash: String(account.passwordHash || '').trim(),
+    passwordSalt: String(account.passwordSalt || '').trim(),
+    passwordVersion: String(account.passwordVersion || '').trim(),
     displayName: String(account.displayName || '').trim() || 'User',
     role: account.role === 'admin' ? 'admin' : (account.role === 'bu_admin' ? 'bu_admin' : (account.role === 'function_admin' ? 'function_admin' : 'user')),
     businessUnitEntityId: String(account.businessUnitEntityId || '').trim(),
     departmentEntityId: String(account.departmentEntityId || '').trim()
+  };
+}
+
+function hasStoredCredential(account = {}) {
+  return !!(String(account.passwordHash || '').trim() && String(account.passwordSalt || '').trim())
+    || !!String(account.password || '');
+}
+
+function hashPassword(password = '', salt = crypto.randomBytes(16).toString('base64url')) {
+  const passwordHash = crypto.scryptSync(String(password || ''), salt, 64).toString('base64url');
+  return {
+    passwordHash,
+    passwordSalt: salt,
+    passwordVersion: PASSWORD_HASH_VERSION
+  };
+}
+
+function withStoredPassword(account = {}, password = '') {
+  const normalised = normaliseAccount(account);
+  const secret = String(password || normalised.password || '');
+  if (!secret) return normalised;
+  // Persist only a derived credential so the shared user store does not retain plaintext passwords.
+  return {
+    ...normalised,
+    ...hashPassword(secret),
+    password: ''
+  };
+}
+
+function prepareAccountForStorage(account = {}) {
+  const normalised = normaliseAccount(account);
+  if (normalised.passwordHash && normalised.passwordSalt) {
+    return {
+      ...normalised,
+      password: ''
+    };
+  }
+  if (normalised.password) return withStoredPassword(normalised, normalised.password);
+  return normalised;
+}
+
+function verifyAccountPassword(account = {}, password = '') {
+  const normalised = normaliseAccount(account);
+  const suppliedPassword = String(password || '');
+  if (normalised.passwordHash && normalised.passwordSalt) {
+    try {
+      const suppliedHash = crypto.scryptSync(suppliedPassword, normalised.passwordSalt, 64);
+      const storedHash = Buffer.from(normalised.passwordHash, 'base64url');
+      if (storedHash.length !== suppliedHash.length) return { matched: false, needsUpgrade: false };
+      return {
+        matched: crypto.timingSafeEqual(storedHash, suppliedHash),
+        needsUpgrade: false
+      };
+    } catch {
+      return { matched: false, needsUpgrade: false };
+    }
+  }
+  const matched = !!normalised.password && normalised.password === suppliedPassword;
+  return {
+    matched,
+    // Legacy plaintext credentials are upgraded after a successful login.
+    needsUpgrade: matched
   };
 }
 
@@ -187,8 +253,9 @@ async function writeAccounts(accounts) {
   if (!hasWritableKv()) {
     throw new Error('Shared user store is not writable. Configure the shared store environment variables in Vercel.');
   }
-  await runKvCommand(['SET', USERS_KEY, JSON.stringify(accounts.map(normaliseAccount))]);
-  return accounts.map(normaliseAccount);
+  const storedAccounts = accounts.map(prepareAccountForStorage);
+  await runKvCommand(['SET', USERS_KEY, JSON.stringify(storedAccounts)]);
+  return storedAccounts.map(normaliseAccount);
 }
 
 
@@ -272,7 +339,11 @@ module.exports = async function handler(req, res) {
           return;
         }
         const accounts = await readAccounts();
-        const matched = accounts.find(account => account.username === username && account.password === password);
+        const matchIndex = accounts.findIndex(account => {
+          if (account.username !== username) return false;
+          return verifyAccountPassword(account, password).matched;
+        });
+        const matched = matchIndex > -1 ? accounts[matchIndex] : null;
         if (!matched) {
           recordFailedLogin(throttleKey);
           const state = getLoginRateLimitState(throttleKey);
@@ -289,6 +360,16 @@ module.exports = async function handler(req, res) {
           return;
         }
         clearFailedLogin(throttleKey);
+        const verification = verifyAccountPassword(matched, password);
+        if (verification.needsUpgrade && hasWritableKv()) {
+          const upgradedAccounts = accounts.slice();
+          upgradedAccounts[matchIndex] = withStoredPassword(matched, password);
+          try {
+            await writeAccounts(upgradedAccounts);
+          } catch (upgradeError) {
+            console.warn('User login credential upgrade failed:', upgradeError.message);
+          }
+        }
         await appendAuditEvent({ category: 'auth', eventType: 'login_success', actorUsername: matched.username, actorRole: matched.role, status: 'success', source: 'server' });
         res.status(200).json({
           user: sanitiseAccount(matched),
@@ -324,13 +405,14 @@ module.exports = async function handler(req, res) {
         sendApiError(res, 400, 'PASSWORD_POLICY_FAILED', 'Password does not meet the current policy.');
         return;
       }
+      const issuedPassword = account.password;
       accounts.push(account);
-      await writeAccounts(accounts);
+      const storedAccounts = await writeAccounts(accounts);
       await appendAuditEvent({ category: 'user_admin', eventType: 'user_created', actorUsername: actor.username, actorRole: actor.role, target: account.username, status: 'success', source: 'server', details: { role: account.role, businessUnitEntityId: account.businessUnitEntityId, departmentEntityId: account.departmentEntityId } });
       res.status(201).json({
         account: sanitiseAccount(account),
-        password: account.password,
-        accounts: accounts.map(sanitiseAccount)
+        password: issuedPassword,
+        accounts: storedAccounts.map(sanitiseAccount)
       });
       return;
     }
@@ -383,12 +465,12 @@ module.exports = async function handler(req, res) {
           ...accounts[index],
           password: nextPassword
         });
-        await writeAccounts(accounts);
+        const storedAccounts = await writeAccounts(accounts);
         await appendAuditEvent({ category: 'user_admin', eventType: 'password_reset', actorUsername: actor.username, actorRole: actor.role, target: accounts[index].username, status: 'success', source: 'server' });
         res.status(200).json({
           account: sanitiseAccount(accounts[index]),
           password: nextPassword,
-          accounts: accounts.map(sanitiseAccount)
+          accounts: storedAccounts.map(sanitiseAccount)
         });
         return;
       }

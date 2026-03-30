@@ -1,6 +1,14 @@
 (function(global) {
   'use strict';
 
+  const warnedSharedStateIssues = new Set();
+
+  function warnSharedStateIssueOnce(key, message, error = null) {
+    if (warnedSharedStateIssues.has(key)) return;
+    warnedSharedStateIssues.add(key);
+    console.warn(message, error?.message || error || '');
+  }
+
   const client = {
     async loadSharedAdminSettings() {
       try {
@@ -9,7 +17,9 @@
           let localSaved = null;
           try {
             localSaved = JSON.parse(localStorage.getItem(GLOBAL_ADMIN_STORAGE_KEY) || 'null');
-          } catch {}
+          } catch (error) {
+            warnSharedStateIssueOnce('local-admin-settings-read', 'loadSharedAdminSettings local backup read failed:', error);
+          }
           const sharedSettings = {
             ...DEFAULT_ADMIN_SETTINGS,
             ...data.settings,
@@ -93,7 +103,9 @@
       });
       const text = await res.text();
       let parsed = null;
-      try { parsed = text ? JSON.parse(text) : null; } catch {}
+      try { parsed = text ? JSON.parse(text) : null; } catch (error) {
+        warnSharedStateIssueOnce('shared-user-state-parse', 'requestUserState response parse failed:', error);
+      }
       if (!res.ok) {
         AuthService.handleApiAuthFailure(res.status, parsed);
         throw AuthService.buildApiError(res, parsed, text || `User state request failed with HTTP ${res.status}`);

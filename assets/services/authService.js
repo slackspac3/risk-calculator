@@ -15,6 +15,8 @@ const AuthService = (() => {
   const DEFAULT_USERS_API_URL = resolveApiUrl('/api/users');
   const DEFAULT_ACCOUNTS = [];
   let accountsCache = DEFAULT_ACCOUNTS.slice();
+  let adminSecretMemory = '';
+  const warnedAuthIssues = new Set();
 
 function resolveApiUrl(path) {
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
@@ -22,24 +24,62 @@ function resolveApiUrl(path) {
   return `https://risk-calculator-eight.vercel.app${path}`;
 }
 
+  function warnAuthIssueOnce(key, message, error = null) {
+    if (warnedAuthIssues.has(key)) return;
+    warnedAuthIssues.add(key);
+    console.warn(message, error?.message || error || '');
+  }
+
   function getUsersApiUrl() {
     return DEFAULT_USERS_API_URL;
   }
 
   function getAdminApiSecret() {
     try {
-      return localStorage.getItem(ADMIN_SECRET_KEY) || '';
-    } catch {
-      return '';
+      const sessionSecret = sessionStorage.getItem(ADMIN_SECRET_KEY) || '';
+      if (sessionSecret) {
+        adminSecretMemory = sessionSecret;
+        return sessionSecret;
+      }
+    } catch (error) {
+      warnAuthIssueOnce('admin-secret-read-session', 'AuthService admin-secret session read failed:', error);
     }
+    try {
+      const legacySecret = localStorage.getItem(ADMIN_SECRET_KEY) || '';
+      if (legacySecret) {
+        adminSecretMemory = legacySecret;
+        try {
+          sessionStorage.setItem(ADMIN_SECRET_KEY, legacySecret);
+        } catch (sessionError) {
+          warnAuthIssueOnce('admin-secret-migrate-session', 'AuthService admin-secret migration to session storage failed:', sessionError);
+        }
+        try {
+          localStorage.removeItem(ADMIN_SECRET_KEY);
+        } catch (cleanupError) {
+          warnAuthIssueOnce('admin-secret-cleanup-local', 'AuthService admin-secret local cleanup failed:', cleanupError);
+        }
+        return legacySecret;
+      }
+    } catch (error) {
+      warnAuthIssueOnce('admin-secret-read-local', 'AuthService admin-secret local read failed:', error);
+    }
+    return adminSecretMemory;
   }
 
   function setAdminApiSecret(secret) {
     const value = String(secret || '').trim();
+    adminSecretMemory = value;
     try {
-      if (value) localStorage.setItem(ADMIN_SECRET_KEY, value);
-      else localStorage.removeItem(ADMIN_SECRET_KEY);
-    } catch {}
+      if (value) sessionStorage.setItem(ADMIN_SECRET_KEY, value);
+      else sessionStorage.removeItem(ADMIN_SECRET_KEY);
+    } catch (error) {
+      warnAuthIssueOnce('admin-secret-write-session', 'AuthService admin-secret session write failed:', error);
+    }
+    try {
+      localStorage.removeItem(ADMIN_SECRET_KEY);
+    } catch (error) {
+      warnAuthIssueOnce('admin-secret-remove-local', 'AuthService admin-secret local removal failed:', error);
+    }
     return value;
   }
 
@@ -70,7 +110,9 @@ function resolveApiUrl(path) {
     accountsCache = Array.isArray(accounts) && accounts.length ? accounts.map(normaliseAccount) : [];
     try {
       localStorage.setItem(ACCOUNTS_CACHE_KEY, JSON.stringify(accountsCache));
-    } catch {}
+    } catch (error) {
+      warnAuthIssueOnce('accounts-cache-write', 'AuthService account cache write failed:', error);
+    }
   }
 
   function readCachedAccounts() {
@@ -79,7 +121,9 @@ function resolveApiUrl(path) {
       if (Array.isArray(stored) && stored.length) {
         accountsCache = stored.map(normaliseAccount);
       }
-    } catch {}
+    } catch (error) {
+      warnAuthIssueOnce('accounts-cache-read', 'AuthService account cache read failed:', error);
+    }
     return accountsCache;
   }
 
@@ -87,11 +131,12 @@ function resolveApiUrl(path) {
     const headers = {
       'Content-Type': 'application/json'
     };
-    if (includeAdminSecret && getAdminApiSecret()) {
+    const sessionToken = getApiSessionToken();
+    if (includeAdminSecret && !sessionToken && getAdminApiSecret()) {
       headers['x-admin-secret'] = getAdminApiSecret();
     }
-    if (getApiSessionToken()) {
-      headers['x-session-token'] = getApiSessionToken();
+    if (sessionToken) {
+      headers['x-session-token'] = sessionToken;
     }
     const res = await fetch(getUsersApiUrl(), {
       method,
@@ -102,7 +147,9 @@ function resolveApiUrl(path) {
     let parsed = null;
     try {
       parsed = text ? JSON.parse(text) : null;
-    } catch {}
+    } catch (error) {
+      warnAuthIssueOnce('users-response-parse', 'AuthService users response parse failed:', error);
+    }
     if (!res.ok) {
       handleApiAuthFailure(res.status, parsed);
       throw buildApiError(res, parsed, text || `User store request failed with HTTP ${res.status}`);
@@ -127,7 +174,9 @@ function resolveApiUrl(path) {
     logout();
     try {
       sessionStorage.setItem(SESSION_NOTICE_KEY, String(message || '').trim());
-    } catch {}
+    } catch (error) {
+      warnAuthIssueOnce('session-notice-write', 'AuthService session notice write failed:', error);
+    }
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('rq:session-expired', { detail: { message } }));
       if (!String(window.location.hash || '').includes('/login')) {
@@ -150,7 +199,8 @@ function resolveApiUrl(path) {
       const value = sessionStorage.getItem(SESSION_NOTICE_KEY) || '';
       if (value) sessionStorage.removeItem(SESSION_NOTICE_KEY);
       return value;
-    } catch {
+    } catch (error) {
+      warnAuthIssueOnce('session-notice-read', 'AuthService session notice read failed:', error);
       return '';
     }
   }
@@ -226,7 +276,9 @@ function resolveApiUrl(path) {
         apiSessionToken: account.apiSessionToken || '',
         context: {}
       }));
-    } catch {}
+    } catch (error) {
+      warnAuthIssueOnce('session-write', 'AuthService session write failed:', error);
+    }
   }
 
   function readSession() {
@@ -239,6 +291,7 @@ function resolveApiUrl(path) {
       }
       return session;
     } catch {
+      warnAuthIssueOnce('session-read', 'AuthService session read failed.');
       return null;
     }
   }
@@ -277,9 +330,14 @@ function resolveApiUrl(path) {
   function logout() {
     try {
       sessionStorage.removeItem(SESSION_KEY);
+      sessionStorage.removeItem(ADMIN_SECRET_KEY);
       localStorage.removeItem(ACCOUNTS_CACHE_KEY);
-    } catch {}
+      localStorage.removeItem(ADMIN_SECRET_KEY);
+    } catch (error) {
+      warnAuthIssueOnce('session-clear', 'AuthService session cleanup failed:', error);
+    }
     accountsCache = [];
+    adminSecretMemory = '';
 
   }
 
@@ -310,7 +368,9 @@ function resolveApiUrl(path) {
     session.ts = Date.now();
     try {
       sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
-    } catch {}
+    } catch (error) {
+      warnAuthIssueOnce('session-context-write', 'AuthService session context write failed:', error);
+    }
     return getCurrentUser();
   }
 
@@ -358,7 +418,9 @@ function resolveApiUrl(path) {
       session.user = sanitiseAccount(updated);
       try {
         sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
-      } catch {}
+      } catch (error) {
+        warnAuthIssueOnce('session-user-refresh-write', 'AuthService session refresh write failed:', error);
+      }
     }
     return updated ? sanitiseAccount(updated) : null;
   }

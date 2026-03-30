@@ -2,6 +2,15 @@
 
 // Shared assessment, draft, and learning-state helpers extracted from app.js.
 
+const _assessmentPersistenceWarnings = new Set();
+
+function warnAssessmentPersistenceOnce(key, message, error = null) {
+  if (typeof window === 'undefined') return;
+  if (_assessmentPersistenceWarnings.has(key)) return;
+  _assessmentPersistenceWarnings.add(key);
+  console.warn(message, error?.message || error || '');
+}
+
 function cloneDraftStateSnapshot(value, fallback = null) {
   try {
     return JSON.parse(JSON.stringify(value));
@@ -26,7 +35,8 @@ function getAssessments() {
     const saved = JSON.parse(localStorage.getItem(buildUserStorageKey(ASSESSMENTS_STORAGE_PREFIX)) || '[]');
     cache.assessments = Array.isArray(saved) ? saved.map(item => normaliseAssessmentRecord(item)) : [];
     cache.savedAssessments = buildSavedAssessmentsSection(cache.assessments);
-  } catch {
+  } catch (error) {
+    warnAssessmentPersistenceOnce('assessments-read', 'getAssessments local read failed:', error);
     cache.assessments = [];
     cache.savedAssessments = buildSavedAssessmentsSection([]);
   }
@@ -40,7 +50,9 @@ function persistSavedAssessmentsCollection(list) {
   try {
     // Storage can be unavailable in hardened/private contexts; keep the in-memory cache authoritative.
     localStorage.setItem(buildUserStorageKey(ASSESSMENTS_STORAGE_PREFIX), JSON.stringify(normalizedList));
-  } catch {}
+  } catch (error) {
+    warnAssessmentPersistenceOnce('assessments-write', 'persistSavedAssessmentsCollection local write failed:', error);
+  }
   queueSharedUserStateSync({ savedAssessments: cache.savedAssessments });
   return normalizedList;
 }
@@ -181,7 +193,8 @@ function getLearningStore() {
   if (cache.learningStore && typeof cache.learningStore === 'object') return cache.learningStore;
   try {
     cache.learningStore = JSON.parse(localStorage.getItem(buildUserStorageKey(LEARNING_STORAGE_PREFIX)) || '{"templates":{},"scenarioPatterns":[],"analystSignals":{"keptRisks":[],"removedRisks":[],"narrativeEdits":[],"rerunDeltas":[]}}');
-  } catch {
+  } catch (error) {
+    warnAssessmentPersistenceOnce('learning-store-read', 'getLearningStore local read failed:', error);
     cache.learningStore = {
       templates: {},
       scenarioPatterns: [],
@@ -221,7 +234,9 @@ function saveLearningStore(store) {
       };
   try {
     localStorage.setItem(buildUserStorageKey(LEARNING_STORAGE_PREFIX), JSON.stringify(cache.learningStore));
-  } catch {}
+  } catch (error) {
+    warnAssessmentPersistenceOnce('learning-store-write', 'saveLearningStore local write failed:', error);
+  }
   queueSharedUserStateSync({ learningStore: cache.learningStore });
 }
 
@@ -280,7 +295,13 @@ function applyLearnedTemplateDraft(tmpl) {
 }
 
 function saveDraft() {
-  try { sessionStorage.setItem(buildUserStorageKey(DRAFT_STORAGE_PREFIX), JSON.stringify(AppState.draft)); } catch {}
+  try {
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.setItem(buildUserStorageKey(DRAFT_STORAGE_PREFIX), JSON.stringify(AppState.draft));
+    }
+  } catch (error) {
+    warnAssessmentPersistenceOnce('draft-write', 'saveDraft session write failed:', error);
+  }
   if (typeof persistDraftRecoverySnapshot === 'function') persistDraftRecoverySnapshot(AppState.draft);
   const cache = ensureUserStateCache();
   // Keep the cache snapshot detached from the live draft so later nested edits do not mutate the “saved” copy in memory.
@@ -316,7 +337,9 @@ function loadDraft() {
     return;
   }
   try {
-    const d = JSON.parse(sessionStorage.getItem(buildUserStorageKey(DRAFT_STORAGE_PREFIX)) || 'null');
+    const d = typeof sessionStorage !== 'undefined'
+      ? JSON.parse(sessionStorage.getItem(buildUserStorageKey(DRAFT_STORAGE_PREFIX)) || 'null')
+      : null;
     if (d && typeof d === 'object' && Object.keys(d).length) {
       dispatchDraftAction('SET_DRAFT', {
         draft: {
@@ -326,7 +349,9 @@ function loadDraft() {
       });
       return;
     }
-  } catch {}
+  } catch (error) {
+    warnAssessmentPersistenceOnce('draft-session-read', 'loadDraft session read failed:', error);
+  }
   try {
     const recovered = typeof readDraftRecoverySnapshot === 'function' ? readDraftRecoverySnapshot() : null;
     if (recovered?.draft) {
@@ -341,7 +366,9 @@ function loadDraft() {
         UI.toast('Recovered your latest draft from this browser.', 'info', 4500);
       }
     }
-  } catch {}
+  } catch (error) {
+    warnAssessmentPersistenceOnce('draft-recovery-read', 'loadDraft recovery read failed:', error);
+  }
 }
 function resetDraft() {
   const resetAt = Date.now();

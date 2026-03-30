@@ -277,11 +277,12 @@ async function requestSharedSettings(method = 'GET', payload, { includeAdminSecr
   const headers = {
     'Content-Type': 'application/json'
   };
-  if (includeAdminSecret && AuthService.getAdminApiSecret()) {
+  const sessionToken = AuthService.getApiSessionToken();
+  if (includeAdminSecret && !sessionToken && AuthService.getAdminApiSecret()) {
     headers['x-admin-secret'] = AuthService.getAdminApiSecret();
   }
-  if (AuthService.getApiSessionToken()) {
-    headers['x-session-token'] = AuthService.getApiSessionToken();
+  if (sessionToken) {
+    headers['x-session-token'] = sessionToken;
   }
   const res = await fetch(getSettingsApiUrl(), {
     method,
@@ -815,8 +816,9 @@ function getAuditApiUrl() {
 
 async function requestAuditLog(method = 'GET', payload, { includeAdminSecret = false } = {}) {
   const headers = { 'Content-Type': 'application/json' };
-  if (includeAdminSecret && AuthService.getAdminApiSecret()) headers['x-admin-secret'] = AuthService.getAdminApiSecret();
-  if (AuthService.getApiSessionToken()) headers['x-session-token'] = AuthService.getApiSessionToken();
+  const sessionToken = AuthService.getApiSessionToken();
+  if (includeAdminSecret && !sessionToken && AuthService.getAdminApiSecret()) headers['x-admin-secret'] = AuthService.getAdminApiSecret();
+  if (sessionToken) headers['x-session-token'] = sessionToken;
   const res = await fetch(getAuditApiUrl(), { method, headers, body: payload ? JSON.stringify(payload) : undefined });
   const text = await res.text();
   let parsed = null;

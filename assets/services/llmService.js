@@ -130,6 +130,16 @@ const LLMService = (() => {
     return error instanceof Error ? error : new Error(msg);
   }
 
+  function _getSessionToken() {
+    try {
+      return typeof AuthService !== 'undefined' && AuthService && typeof AuthService.getApiSessionToken === 'function'
+        ? String(AuthService.getApiSessionToken() || '')
+        : '';
+    } catch {
+      return '';
+    }
+  }
+
   function _decorateAiResult(result = {}, evidenceMeta = null, { contentFields = [], fallbackUsed = false, uploadedDocumentName = '' } = {}) {
     const next = { ...(result || {}) };
     const content = {};
@@ -690,6 +700,10 @@ const LLMService = (() => {
         };
         if (_compassApiKey) {
           headers.Authorization = `Bearer ${_compassApiKey}`;
+        }
+        const sessionToken = _getSessionToken();
+        if (!directCompass && sessionToken) {
+          headers['x-session-token'] = sessionToken;
         }
         const fetchPromise = (async () => {
           const res = await fetch(_compassApiUrl, {
@@ -2767,11 +2781,16 @@ ${_truncateText(evidenceMeta.promptBlock || '', 240)}`;
       return fallback;
     }
     try {
+      const headers = {
+        'Content-Type': 'application/json'
+      };
+      const sessionToken = _getSessionToken();
+      if (sessionToken) {
+        headers['x-session-token'] = sessionToken;
+      }
       const res = await fetch(endpoint, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers,
         body: JSON.stringify({ websiteUrl: _sanitizeAiText(websiteUrl, { maxChars: 240 }) })
       });
       if (!res.ok) {

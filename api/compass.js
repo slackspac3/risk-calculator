@@ -1,3 +1,5 @@
+const { requireSession } = require('./_apiAuth');
+
 const _rateLimitMap = new Map();
 
 function checkRateLimit(key, maxPerMinute = 20) {
@@ -15,8 +17,8 @@ function checkRateLimit(key, maxPerMinute = 20) {
     : Math.ceil((entry.reset - now) / 1000);
 }
 
-function getRateLimitKey(req) {
-  return String(req.headers.origin || req.socket?.remoteAddress || 'unknown');
+function getRateLimitKey(req, session) {
+  return `${String(session?.username || 'anonymous').trim().toLowerCase()}::${String(req.socket?.remoteAddress || 'unknown')}`;
 }
 
 function isPlainObject(value) {
@@ -54,7 +56,7 @@ module.exports = async function handler(req, res) {
 
   res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
   res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'content-type');
+  res.setHeader('Access-Control-Allow-Headers', 'content-type,x-session-token');
   res.setHeader('Vary', 'Origin');
 
   if (req.method === 'OPTIONS') {
@@ -84,7 +86,10 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  const retryAfterSeconds = checkRateLimit(getRateLimitKey(req));
+  const session = requireSession(req, res);
+  if (!session) return;
+
+  const retryAfterSeconds = checkRateLimit(getRateLimitKey(req, session));
   if (retryAfterSeconds) {
     res.setHeader('Retry-After', String(retryAfterSeconds));
     res.status(429).json({ error: 'Rate limit exceeded' });
