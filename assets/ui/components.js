@@ -79,6 +79,44 @@ const UI = (() => {
     });
   }
 
+  function openAiTraceModal(trace = null, { confidenceBasis = '' } = {}) {
+    const safe = (value = '') => typeof escapeHtml === 'function' ? escapeHtml(String(value || '')) : String(value || '');
+    const entry = trace && typeof trace === 'object' ? trace : {};
+    const sources = Array.isArray(entry.sources) ? entry.sources.filter(Boolean) : [];
+    const promptSummary = String(entry.promptSummary || '').trim();
+    const promptPreview = safe(promptSummary.slice(0, 200) || 'No prompt trace was captured for this response.');
+    const responseRaw = String(entry.response || '').trim();
+    let responseText = responseRaw || 'No response trace was captured for this response.';
+    try {
+      responseText = JSON.stringify(JSON.parse(responseRaw), null, 2);
+    } catch {}
+    const response = safe(responseText);
+    const basis = safe(String(confidenceBasis || '').trim() || 'Evidence quality was not explicitly recorded for this trace.');
+    modal({
+      title: String(entry.label || 'Why this?').trim() || 'Why this?',
+      body: `
+        <div style="display:flex;flex-direction:column;gap:var(--sp-5)">
+          <section>
+            ${sectionEyebrow('What I was asked')}
+            <p style="margin-top:8px;line-height:1.7;color:var(--text-secondary)">${promptPreview}</p>
+          </section>
+          <section>
+            ${sectionEyebrow('What I considered')}
+            ${sources.length ? `<ul style="margin:8px 0 0 18px;padding:0;display:flex;flex-direction:column;gap:8px;color:var(--text-secondary)">${sources.map((source) => `<li><strong style="color:var(--text-primary)">${safe(source.title || 'Source')}</strong>${source.sourceType ? ` <span class="badge badge--neutral" style="margin-left:6px">${safe(source.sourceType)}</span>` : ''}${source.relevanceReason ? `<div class="form-help" style="margin-top:4px">${safe(source.relevanceReason)}</div>` : ''}</li>`).join('')}</ul>` : `<div class="form-help" style="margin-top:8px">No retrieved sources were attached to this trace.</div>`}
+          </section>
+          <section>
+            ${sectionEyebrow('What I concluded')}
+            <div style="margin-top:8px;line-height:1.7;color:var(--text-secondary);white-space:pre-wrap">${response}</div>
+          </section>
+          <section>
+            ${sectionEyebrow('Confidence basis')}
+            <p style="margin-top:8px;line-height:1.7;color:var(--text-secondary)">${basis}</p>
+          </section>
+        </div>
+      `
+    });
+  }
+
   // ─── Stepper ──────────────────────────────────────────────
   function renderStepper(currentStep) {
     const steps = [
@@ -591,5 +629,5 @@ const UI = (() => {
     return `${_getCurrencyPrefix(currency)}${displayValue.toLocaleString(currency === 'AED' ? 'en-AE' : 'en-US')}`;
   }
 
-  return { toast, modal, citationModal, renderStepper, skeletonBlock, skeletonCard, wizardAssistSkeleton, adminSectionHeader, adminTableCard, dashboardOverviewCard, dashboardSectionCard, dashboardAssessmentRow, resultsVisualCard, resultsBriefCard, resultsSectionBlock, resultsSummaryCard, resultsDetailDisclosure, wizardInputSection, sectionStatusBadge, disclosureSection, contextInfoPanel, contextInfoGrid, aiAssistCard, aiRefinementCard, tagInput, confirm, drawHistogram, drawLEC, sectionEyebrow };
+  return { toast, modal, citationModal, openAiTraceModal, renderStepper, skeletonBlock, skeletonCard, wizardAssistSkeleton, adminSectionHeader, adminTableCard, dashboardOverviewCard, dashboardSectionCard, dashboardAssessmentRow, resultsVisualCard, resultsBriefCard, resultsSectionBlock, resultsSummaryCard, resultsDetailDisclosure, wizardInputSection, sectionStatusBadge, disclosureSection, contextInfoPanel, contextInfoGrid, aiAssistCard, aiRefinementCard, tagInput, confirm, drawHistogram, drawLEC, sectionEyebrow };
 })();

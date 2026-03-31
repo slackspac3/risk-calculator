@@ -54,6 +54,95 @@ const LLMService = (() => {
     };
   }
 
+  const AI_TRACE_STORAGE_KEY = 'rip_ai_trace';
+  const AI_TRACE_LIMIT = 20;
+
+  function _safeTraceText(value = '', maxChars = 16000) {
+    return String(value || '').trim().slice(0, Math.max(0, Number(maxChars || 0) || 0));
+  }
+
+  function _normaliseTraceSources(sources = []) {
+    return (Array.isArray(sources) ? sources : [])
+      .filter(Boolean)
+      .map((item) => ({
+        title: _safeTraceText(item?.title || item?.label || item?.sourceTitle || 'Untitled source', 160),
+        url: _safeTraceText(item?.url || '', 400),
+        sourceType: _safeTraceText(item?.sourceType || '', 80),
+        relevanceReason: _safeTraceText(item?.relevanceReason || '', 240)
+      }))
+      .filter((item) => item.title);
+  }
+
+  function _readAiTrace() {
+    try {
+      const parsed = JSON.parse(sessionStorage.getItem(AI_TRACE_STORAGE_KEY) || '[]');
+      return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function _writeAiTrace(entries = []) {
+    try {
+      sessionStorage.setItem(AI_TRACE_STORAGE_KEY, JSON.stringify(entries));
+    } catch {}
+  }
+
+  function _storeAiTraceEntry({ label = '', promptSummary = '', response = '', sources = [] } = {}) {
+    const safeLabel = String(label || '').trim();
+    if (!safeLabel) return null;
+    const entry = {
+      id: `trace_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      label: safeLabel,
+      timestamp: Date.now(),
+      promptSummary: _safeTraceText(promptSummary, 12000),
+      response: _safeTraceText(response, 20000),
+      sources: _normaliseTraceSources(sources)
+    };
+    const next = _readAiTrace();
+    next.push(entry);
+    if (next.length > AI_TRACE_LIMIT) {
+      next.splice(0, next.length - AI_TRACE_LIMIT);
+    }
+    _writeAiTrace(next);
+    return entry;
+  }
+
+  function _getTraceSources(options = {}) {
+    const explicitSources = _normaliseTraceSources(options.traceSources || []);
+    if (explicitSources.length) return explicitSources;
+    try {
+      const windowSources = typeof window !== 'undefined' ? window._lastRagSources : [];
+      return _normaliseTraceSources(windowSources || []);
+    } catch {
+      return [];
+    }
+  }
+
+  function _buildTracePromptSummary(promptPayload = {}) {
+    const priorMessages = Array.isArray(promptPayload.priorMessages) ? promptPayload.priorMessages : [];
+    const priorSummary = priorMessages.length
+      ? `Prior messages: ${priorMessages.map((item) => `${item.role}: ${item.content}`).join(' | ')}`
+      : '';
+    return _safeTraceText([
+      `System: ${promptPayload.systemPrompt || ''}`,
+      priorSummary,
+      `User: ${promptPayload.userPrompt || ''}`
+    ].filter(Boolean).join('\n\n'), 12000);
+  }
+
+  function getLatestTrace(label = '') {
+    const safeLabel = String(label || '').trim();
+    const entries = _readAiTrace();
+    if (!safeLabel) return entries[entries.length - 1] || null;
+    for (let index = entries.length - 1; index >= 0; index -= 1) {
+      if (String(entries[index]?.label || '').trim() === safeLabel) {
+        return entries[index];
+      }
+    }
+    return null;
+  }
+
   function _buildSourceBasis({ evidenceMeta = {}, citations = [], uploadedDocumentName = '', fallbackUsed = false } = {}) {
     const guardrails = _guardrails();
     if (guardrails?.buildSourceBasis) {
@@ -849,6 +938,14 @@ Repair the response into the required JSON schema. Preserve scenario-specific me
           if (!extracted) {
             throw new Error(`AI response shape was not usable. ${String(responseInfo?.diagnostic || '').trim()}`.trim());
           }
+          if (options.traceLabel) {
+            _storeAiTraceEntry({
+              label: options.traceLabel,
+              promptSummary: _buildTracePromptSummary(promptPayload),
+              response: extracted,
+              sources: _getTraceSources(options)
+            });
+          }
           return extracted;
         })();
         const timeoutPromise = new Promise((_, reject) => {
@@ -960,6 +1057,15 @@ Repair the response into the required JSON schema. Preserve scenario-specific me
       for (const line of lines) {
         if (processLine(line)) return fullText;
       }
+    }
+
+    if (options.traceLabel) {
+      _storeAiTraceEntry({
+        label: options.traceLabel,
+        promptSummary: _buildTracePromptSummary(promptPayload),
+        response: fullText,
+        sources: _getTraceSources(options)
+      });
     }
 
     return fullText;
@@ -2238,7 +2344,8 @@ ${businessUnit.selectedDepartmentContext}` : ''
     const result = await enhanceRiskContext({
       ...input,
       riskStatement: seedNarrative,
-      scenarioLensHint: _normaliseScenarioHintKey(input.scenarioLensHint) || classification.key
+      scenarioLensHint: _normaliseScenarioHintKey(input.scenarioLensHint) || classification.key,
+      traceLabel: input.traceLabel || 'Step 1 guided draft'
     });
     const selectedDraft = _selectGuidedDraftNarrative({
       aiNarrative: _buildEnhancedNarrative({
@@ -2544,7 +2651,7 @@ ${businessUnit.selectedDepartmentContext}` : ''
    * Main method: generate scenario and FAIR inputs
    * [LLM-INTEGRATION] Replace stub body with real API call + JSON parsing
    */
-  async function generateScenarioAndInputs(narrative, buContext, retrievedDocs, benchmarkCandidates = []) {
+  async function generateScenarioAndInputs(narrative, buContext, retrievedDocs, benchmarkCandidates = [], options = {}) {
     const aiUnavailable = _isDirectCompassUrl(_compassApiUrl) && !_compassApiKey;
     const classification = _classifyScenario(narrative, {
       businessUnit: buContext,
@@ -2643,7 +2750,11 @@ Treat the primary lens hint as the leading domain for this scenario unless the n
         const raw = await _callLLM(systemPrompt, userPrompt, {
           taskName: 'generateScenarioAndInputs',
           maxPromptChars: 24000,
-          priorMessages: Array.isArray(buContext?.priorMessages) ? buContext.priorMessages : []
+          priorMessages: Array.isArray(options?.priorMessages)
+            ? options.priorMessages
+            : (Array.isArray(buContext?.priorMessages) ? buContext.priorMessages : []),
+          traceLabel: options.traceLabel || 'Step 2 scenario analysis',
+          traceSources: retrievedDocs
         });
         if (raw) {
           const parsed = await _parseOrRepairStructuredJson(raw, outputSchema, {
@@ -2831,7 +2942,9 @@ Return only the refined scenario narrative text.`;
         maxCompletionTokens: Number(options.maxCompletionTokens || 500),
         maxPromptChars: Number(options.maxPromptChars || 24000),
         temperature: Number(options.temperature ?? 0.4),
-        priorMessages: Array.isArray(options.priorMessages) ? options.priorMessages : []
+        priorMessages: Array.isArray(options.priorMessages) ? options.priorMessages : [],
+        traceLabel: options.traceLabel || 'Step 2 narrative refinement',
+        traceSources: retrievedDocs
       }, onChunk);
       const cleaned = _cleanUserFacingText(streamed || '', { maxSentences: 4 });
       if (cleaned) refinedNarrative = cleaned;
@@ -2845,7 +2958,11 @@ Return only the refined scenario narrative text.`;
         ? { ...buContext, priorMessages: options.priorMessages }
         : buContext,
       retrievedDocs,
-      benchmarkCandidates
+      benchmarkCandidates,
+      {
+        priorMessages: Array.isArray(options.priorMessages) ? options.priorMessages : [],
+        traceLabel: options.traceResultLabel || 'Step 2 scenario analysis'
+      }
     );
     return {
       ...result,
@@ -2951,7 +3068,9 @@ Treat the primary lens hint as the leading domain for this scenario unless the n
           taskName: 'enhanceRiskContext',
           temperature: 0.6,
           maxPromptChars: 24000,
-          priorMessages: Array.isArray(input?.priorMessages) ? input.priorMessages : []
+          priorMessages: Array.isArray(input?.priorMessages) ? input.priorMessages : [],
+          traceLabel: input.traceLabel || 'Step 1 scenario assist',
+          traceSources: input.citations || []
         });
         if (raw) {
           const parsed = await _parseOrRepairStructuredJson(raw, outputSchema, {
@@ -3120,7 +3239,9 @@ ${_truncateText(evidenceMeta.promptBlock || '', 240)}`;
           maxCompletionTokens: 2800,
           maxPromptChars: 9000,
           timeoutMs: 45000,
-          priorMessages: Array.isArray(input?.priorMessages) ? input.priorMessages : []
+          priorMessages: Array.isArray(input?.priorMessages) ? input.priorMessages : [],
+          traceLabel: input.traceLabel || 'Step 1 register analysis',
+          traceSources: input.citations || []
         });
         if (raw) {
           const parsed = await _parseOrRepairStructuredJson(raw, outputSchema, {
@@ -4330,6 +4451,7 @@ Keep the numbers realistic, internally ordered, and anchored to the user's own h
     mediateAssessmentDispute,
     coachRiskShortlist,
     suggestSmartParamPrefill,
+    getLatestTrace,
     testCompassConnection,
     setCompassAPIKey,
     setCompassConfig,

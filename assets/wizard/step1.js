@@ -2408,6 +2408,7 @@ function renderWizard1() {
   bindStep1ScenarioActions({ buList, settings, exampleModel });
   bindStep1NavigationActions({ buList, settings, wizardGeographyInput });
   bindRiskCardActions({ buList });
+  window.Step1Assist?.mountAiTraceLinks?.();
   document.getElementById('btn-clear-ghost-draft')?.addEventListener('click', () => {
     clearGhostDraftSuggestion();
     persistAndRenderStep1();

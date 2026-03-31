@@ -713,7 +713,7 @@ const RAGService = (() => {
 
     const results = scored.filter(d => d._score > 0).slice(0, Math.max(topK, 6));
 
-    return results.slice(0, topK).map((d, index) => ({
+    const selected = results.slice(0, topK).map((d, index) => ({
       docId: d.id,
       title: d.title,
       url: d.url,
@@ -727,6 +727,17 @@ const RAGService = (() => {
       sourceType: _classifyDocSource(d),
       relevanceReason: d._relevanceReason
     }));
+    try {
+      if (typeof window !== 'undefined') {
+        window._lastRagSources = selected.map((item) => ({
+          title: item.title,
+          url: item.url,
+          sourceType: item.sourceType,
+          relevanceReason: item.relevanceReason
+        }));
+      }
+    } catch {}
+    return selected;
   }
 
   function getDocsForBU(buId) {

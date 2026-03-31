@@ -2,6 +2,12 @@
   'use strict';
 
   const draftScenarioState = global.DraftScenarioState;
+  const STEP1_TRACE_LABELS = {
+    guidedDraft: 'Step 1 guided draft',
+    intakeAssist: 'Step 1 intake assist',
+    narrativeRefinement: 'Step 1 narrative refinement',
+    registerAnalysis: 'Step 1 register analysis'
+  };
 
   function _buildGuidedDraftStatusCopy(source = '') {
     if (source === 'ai') return 'Built with AI using the current function context, geography, regulations, and retrieved references.';
@@ -111,6 +117,67 @@
     });
   }
 
+  function _buildStep1TraceConfidenceBasis() {
+    if (typeof buildEvidenceTrustSummary !== 'function') {
+      return 'This is still a working draft. Review the current evidence and assumptions before you rely on it.';
+    }
+    const trust = buildEvidenceTrustSummary({
+      confidenceLabel: AppState?.draft?.confidenceLabel,
+      evidenceQuality: AppState?.draft?.evidenceQuality,
+      evidenceSummary: AppState?.draft?.evidenceSummary,
+      missingInformation: AppState?.draft?.missingInformation,
+      inputProvenance: AppState?.draft?.inputProvenance,
+      citations: AppState?.draft?.citations,
+      primaryGrounding: AppState?.draft?.primaryGrounding,
+      supportingReferences: AppState?.draft?.supportingReferences,
+      inferredAssumptions: AppState?.draft?.inferredAssumptions,
+      inputAssignments: AppState?.draft?.inputAssignments
+    });
+    const evidenceCount = Number(trust.totalEvidenceCount || 0);
+    return `${trust.confidenceLabel}${trust.evidenceQuality ? ` · ${trust.evidenceQuality}` : ''}. ${evidenceCount ? `This suggestion was grounded in ${evidenceCount} cited or tracked basis item${evidenceCount === 1 ? '' : 's'}.` : 'This suggestion is still relying mainly on working judgement and current context.'}`;
+  }
+
+  function _getLatestStep1Trace(labels = []) {
+    if (!LLMService || typeof LLMService.getLatestTrace !== 'function') return null;
+    return (Array.isArray(labels) ? labels : [])
+      .map((label) => LLMService.getLatestTrace(label))
+      .filter(Boolean)
+      .sort((left, right) => Number(right.timestamp || 0) - Number(left.timestamp || 0))[0] || null;
+  }
+
+  function _buildWhyThisLinkHtml(id) {
+    return `<div class="form-help js-ai-trace-link" style="margin-top:8px"><button type="button" class="link-btn" id="${id}" style="appearance:none;background:none;border:0;padding:0;color:inherit;text-decoration:underline;cursor:pointer;font:inherit">Why this?</button></div>`;
+  }
+
+  function mountAiTraceLinks() {
+    document.querySelectorAll('.js-ai-trace-link').forEach((node) => node.remove());
+    if (!UI || typeof UI.openAiTraceModal !== 'function') return;
+
+    const guidedTrace = String(AppState?.draft?.guidedDraftSource || '').trim().toLowerCase() === 'ai'
+      ? _getLatestStep1Trace([STEP1_TRACE_LABELS.guidedDraft])
+      : null;
+    const guidedPreview = document.getElementById('guided-preview');
+    if (guidedPreview && guidedTrace) {
+      guidedPreview.insertAdjacentHTML('afterend', _buildWhyThisLinkHtml('btn-why-this-guided-draft'));
+      document.getElementById('btn-why-this-guided-draft')?.addEventListener('click', () => {
+        UI.openAiTraceModal(guidedTrace, { confidenceBasis: _buildStep1TraceConfidenceBasis() });
+      });
+    }
+
+    const intakeTrace = _getLatestStep1Trace([
+      STEP1_TRACE_LABELS.registerAnalysis,
+      STEP1_TRACE_LABELS.narrativeRefinement,
+      STEP1_TRACE_LABELS.intakeAssist
+    ]);
+    const intakeOutput = document.getElementById('intake-output');
+    if (intakeOutput?.querySelector('.wizard-intake-summary') && intakeTrace) {
+      intakeOutput.insertAdjacentHTML('beforeend', _buildWhyThisLinkHtml('btn-why-this-intake'));
+      document.getElementById('btn-why-this-intake')?.addEventListener('click', () => {
+        UI.openAiTraceModal(intakeTrace, { confidenceBasis: _buildStep1TraceConfidenceBasis() });
+      });
+    }
+  }
+
   async function buildGuidedScenarioDraft() {
     _clearStep1AiUnavailableBanners();
     const settings = getEffectiveSettings();
@@ -148,7 +215,8 @@
         applicableRegulations: deriveApplicableRegulations(aiContext.businessUnit || bu, getSelectedRisks(), getScenarioGeographies()),
         citations,
         adminSettings: aiContext.adminSettings,
-        priorMessages: _getStep1PriorMessages()
+        priorMessages: _getStep1PriorMessages(),
+        traceLabel: STEP1_TRACE_LABELS.guidedDraft
       });
       const result = _ensureRiskConfidence(rawResult);
       const finalDraft = String(result.draftNarrative || result.enhancedStatement || localDraft).trim() || localDraft;
@@ -178,6 +246,7 @@
       document.getElementById('intake-risk-statement').value = finalDraft;
       saveDraft();
       renderWizard1();
+      mountAiTraceLinks();
       if (result.aiUnavailable) {
         _renderStep1AiUnavailableBanner('guided-preview', buildGuidedScenarioDraft);
       }
@@ -248,7 +317,8 @@
         guidedInput: { ...AppState.draft.guidedInput },
         citations,
         adminSettings: aiContext.adminSettings,
-        priorMessages: _getStep1PriorMessages()
+        priorMessages: _getStep1PriorMessages(),
+        traceLabel: STEP1_TRACE_LABELS.intakeAssist
       });
       const result = _ensureRiskConfidence(rawResult);
       draftScenarioState.applyScenarioAssistResultToDraft(result, {
@@ -262,6 +332,7 @@
       _appendStep1LlmContext(assistSeed || narrative, result.enhancedStatement || result.draftNarrative || narrative);
       saveDraft();
       renderWizard1();
+      mountAiTraceLinks();
       if (result.aiUnavailable) {
         _renderStep1AiUnavailableBanner('intake-output', runIntakeAssist);
       }
@@ -311,7 +382,8 @@
         guidedInput: { ...AppState.draft.guidedInput },
         citations,
         adminSettings: aiContext.adminSettings,
-        priorMessages: _getStep1PriorMessages()
+        priorMessages: _getStep1PriorMessages(),
+        traceLabel: STEP1_TRACE_LABELS.narrativeRefinement
       });
       const result = _ensureRiskConfidence(rawResult);
       draftScenarioState.applyScenarioAssistResultToDraft(result, {
@@ -325,6 +397,7 @@
       _appendStep1LlmContext(assistSeed || narrative, result.enhancedStatement || result.draftNarrative || narrative);
       saveDraft();
       renderWizard1();
+      mountAiTraceLinks();
       if (result.aiUnavailable) {
         _renderStep1AiUnavailableBanner('intake-output', enhanceNarrativeWithAI);
       }
@@ -362,7 +435,8 @@
         geography: formatScenarioGeographies(getScenarioGeographies()),
         applicableRegulations: AppState.draft.applicableRegulations || [],
         adminSettings: aiContext.adminSettings,
-        priorMessages: _getStep1PriorMessages()
+        priorMessages: _getStep1PriorMessages(),
+        traceLabel: STEP1_TRACE_LABELS.registerAnalysis
       });
       const result = _ensureRiskConfidence(rawResult);
       const parsedFallback = parseRegisterText(AppState.draft.registerFindings).map(title => ({ title, source: 'register' }));
@@ -375,6 +449,7 @@
       _syncRiskConfidenceToDraft(result.risks);
       saveDraft();
       renderWizard1();
+      mountAiTraceLinks();
       if (result.aiUnavailable) {
         _renderStep1AiUnavailableBanner('intake-output', analyseUploadedRegister);
       }
@@ -398,6 +473,7 @@
     runIntakeAssist,
     enhanceNarrativeWithAI,
     analyseUploadedRegister,
-    renderAIStatusBanner
+    renderAIStatusBanner,
+    mountAiTraceLinks
   };
 })(window);

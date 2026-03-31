@@ -84,6 +84,46 @@ function buildWordDiff(before, after) {
     .map(w => `<del class="diff-del">${escapeHtml(w)}</del>`).join(' ');
 }
 
+function buildWizard2TraceConfidenceBasis() {
+  if (typeof buildEvidenceTrustSummary !== 'function') {
+    return 'This is still a working estimate. Review the evidence and assumptions before relying on it.';
+  }
+  const trust = buildEvidenceTrustSummary({
+    confidenceLabel: AppState?.draft?.confidenceLabel,
+    evidenceQuality: AppState?.draft?.evidenceQuality,
+    evidenceSummary: AppState?.draft?.evidenceSummary,
+    missingInformation: AppState?.draft?.missingInformation,
+    inputProvenance: AppState?.draft?.inputProvenance,
+    citations: AppState?.draft?.citations,
+    primaryGrounding: AppState?.draft?.primaryGrounding,
+    supportingReferences: AppState?.draft?.supportingReferences,
+    inferredAssumptions: AppState?.draft?.inferredAssumptions,
+    inputAssignments: AppState?.draft?.inputAssignments
+  });
+  const evidenceCount = Number(trust.totalEvidenceCount || 0);
+  return `${trust.confidenceLabel}${trust.evidenceQuality ? ` · ${trust.evidenceQuality}` : ''}. ${evidenceCount ? `This estimate was grounded in ${evidenceCount} cited or tracked basis item${evidenceCount === 1 ? '' : 's'}.` : 'This estimate is still relying mainly on working judgement and current context.'}`;
+}
+
+function getWizard2LatestTrace() {
+  if (!LLMService || typeof LLMService.getLatestTrace !== 'function') return null;
+  return [
+    LLMService.getLatestTrace('Step 2 scenario analysis'),
+    LLMService.getLatestTrace('Step 2 narrative refinement')
+  ]
+    .filter(Boolean)
+    .sort((left, right) => Number(right.timestamp || 0) - Number(left.timestamp || 0))[0] || null;
+}
+
+function bindWizard2AiTraceLink() {
+  const output = document.getElementById('llm-output-area');
+  const trace = getWizard2LatestTrace();
+  if (!output || !trace || !UI || typeof UI.openAiTraceModal !== 'function') return;
+  const link = output.querySelector('#btn-why-this-wizard2');
+  link?.addEventListener('click', () => {
+    UI.openAiTraceModal(trace, { confidenceBasis: buildWizard2TraceConfidenceBasis() });
+  }, { once: true });
+}
+
 function ensureStep2NarrativeDiffStyles() {
   if (document.getElementById('step2-narrative-diff-styles')) return;
   const style = document.createElement('style');
@@ -772,7 +812,9 @@ async function runLLMAssist() {
         el.value = (el.value || '') + text;
       }
     }, {
-      priorMessages: getStep2PriorMessages()
+      priorMessages: getStep2PriorMessages(),
+      traceLabel: 'Step 2 narrative refinement',
+      traceResultLabel: 'Step 2 scenario analysis'
     });
     narrative = document.getElementById('scenario-narrative')?.value.trim()
       || document.getElementById('narrative')?.value.trim()
@@ -817,6 +859,7 @@ async function runLLMAssist() {
     bindNarrativeDiffToggle();
     saveDraft();
     const aiStatusBanner = typeof renderAIStatusBanner === 'function' ? renderAIStatusBanner() : '';
+    const wizard2Trace = getWizard2LatestTrace();
     output.innerHTML = `${aiStatusBanner}${renderWizard2AiChangeSummary(result, previousNarrative)}${renderWizard2AnalystReasoning(AppState.draft, result)}<div class="card card--glow mt-4 anim-fade-in">
       <div style="display:flex;align-items:center;gap:var(--sp-3);margin-bottom:var(--sp-3);flex-wrap:wrap">
         <span class="badge badge--${/high/i.test(result.confidenceLabel || '') ? 'gold' : /low/i.test(result.confidenceLabel || '') ? 'danger' : 'neutral'}" style="font-size:.8rem">${escapeHtml(result.confidenceLabel || 'Moderate confidence')}${result.evidenceQuality ? ' · ' + escapeHtml(result.evidenceQuality) : ''}</span>
@@ -829,7 +872,7 @@ async function runLLMAssist() {
         </div>
       </div>
       ${result.structuredScenario?`<div class="grid-2"><div><div class="form-label" style="font-size:.7rem">Primary driver</div><p style="font-size:.85rem;margin-top:4px">${escapeHtml(getStructuredScenarioField(result.structuredScenario, 'primaryDriver') || 'Not specified')}</p></div><div><div class="form-label" style="font-size:.7rem">Event path</div><p style="font-size:.85rem;margin-top:4px">${escapeHtml(getStructuredScenarioField(result.structuredScenario, 'eventPath') || 'Not specified')}</p></div></div>`:''}
-    </div>${renderScenarioAssistSummaryBlock({
+    </div>${wizard2Trace ? `<div class="form-help" style="margin-top:var(--sp-3)"><button type="button" class="link-btn" id="btn-why-this-wizard2" style="appearance:none;background:none;border:0;padding:0;color:inherit;text-decoration:underline;cursor:pointer;font:inherit">Why this?</button></div>` : ''}${renderScenarioAssistSummaryBlock({
       workflowGuidance: AppState.draft.workflowGuidance,
       confidenceLabel: AppState.draft.confidenceLabel,
       evidenceQuality: AppState.draft.evidenceQuality,
@@ -850,6 +893,7 @@ async function runLLMAssist() {
       });
     }
     attachCitationHandlers();
+    bindWizard2AiTraceLink();
     document.getElementById('btn-wizard2-ai-retry')?.addEventListener('click', runLLMAssist);
     document.getElementById('btn-wizard2-ai-continue')?.addEventListener('click', () => document.getElementById('btn-next-2')?.click());
   } catch(e) {
