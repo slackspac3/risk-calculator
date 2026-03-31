@@ -280,10 +280,29 @@ const LLMService = (() => {
     return '';
   }
 
+  function _extractJsonFromLlmResponse(raw) {
+    const text = String(raw || '').trim();
+
+    const fenceMatch = text.match(
+      /```(?:json)?\s*\r?\n?([\s\S]*?)```/i
+    );
+    if (fenceMatch) {
+      const candidate = fenceMatch[1].trim();
+      if (candidate.startsWith('{') || candidate.startsWith('[')) {
+        return candidate;
+      }
+    }
+
+    const objectMatch = text.match(/(\{[\s\S]*\})/);
+    if (objectMatch) return objectMatch[1].trim();
+
+    return text;
+  }
+
   function _parseStructuredJson(raw) {
     const text = String(raw || '').trim();
     if (!text) return null;
-    const cleaned = text.replace(/```json\s*|```/gi, '').trim();
+    const cleaned = _extractJsonFromLlmResponse(text);
     const candidates = [
       text,
       cleaned
@@ -3475,7 +3494,7 @@ Evidence quality context:
 ${evidenceMeta.promptBlock}`;
       const raw = await _callLLM(systemPrompt, userPrompt, { maxCompletionTokens: 700, timeoutMs: 15000, taskName: 'buildEntityContext' });
       if (!raw) return _decorateAiResult(_withEvidenceMeta(stub, evidenceMeta), evidenceMeta, { contentFields: ['contextSummary', 'riskAppetiteStatement', 'aiInstructions', 'benchmarkStrategy'], fallbackUsed: true, uploadedDocumentName: input.uploadedDocumentName });
-      const parsed = JSON.parse(String(raw).replace(/```json\n?|```/g, '').trim());
+      const parsed = JSON.parse(_extractJsonFromLlmResponse(raw));
       return _decorateAiResult(_withEvidenceMeta({
         geography: String(parsed.geography || stub.geography || '').trim(),
         contextSummary: _cleanUserFacingText(parsed.contextSummary || stub.contextSummary || '', { maxSentences: isDepartment ? 4 : 5 }),
@@ -3587,7 +3606,7 @@ ${evidenceMeta.promptBlock}`;
       if (!raw) {
         return _decorateAiResult(_withEvidenceMeta({ ...currentContext, responseMessage: fallbackMessage }, evidenceMeta), evidenceMeta, { contentFields: ['contextSummary', 'riskAppetiteStatement', 'aiInstructions', 'benchmarkStrategy', 'responseMessage'], fallbackUsed: true, uploadedDocumentName: input.uploadedDocumentName });
       }
-      const parsed = JSON.parse(String(raw).replace(/```json\n?|```/g, '').trim());
+      const parsed = JSON.parse(_extractJsonFromLlmResponse(raw));
       const isDepartment = String(input.entity?.type || '').toLowerCase() === 'department / function';
       return _decorateAiResult(_withEvidenceMeta({
         geography: String(parsed.geography || currentContext.geography || '').trim(),
@@ -3702,7 +3721,7 @@ ${evidenceMeta.promptBlock}`;
           responseMessage: fallbackMessage
         }, evidenceMeta), evidenceMeta, { contentFields: ['companySummary', 'businessModel', 'operatingModel', 'publicCommitments', 'keyRiskSignals', 'obligations', 'sources', 'aiGuidance', 'responseMessage'], fallbackUsed: true, uploadedDocumentName: input.uploadedDocumentName });
       }
-      const parsed = JSON.parse(String(raw).replace(/```json\n?|```/g, '').trim());
+      const parsed = JSON.parse(_extractJsonFromLlmResponse(raw));
       return _decorateAiResult(_withEvidenceMeta({
         companySummary: _cleanUserFacingText(parsed.companySummary || currentSections.companySummary || '', { maxSentences: 4 }),
         businessModel: _cleanUserFacingText(parsed.businessModel || currentSections.businessModel || '', { maxSentences: 4 }),
@@ -3768,7 +3787,7 @@ Evidence quality context:
 ${evidenceMeta.promptBlock}`;
       const raw = await _callLLM(systemPrompt, userPrompt, { maxCompletionTokens: 700, timeoutMs: 15000, taskName: 'buildUserPreferenceAssist' });
       if (!raw) return _decorateAiResult(_withEvidenceMeta(stub, evidenceMeta), evidenceMeta, { contentFields: ['workingContext', 'preferredOutputs', 'aiInstructions', 'adminContextSummary'], fallbackUsed: true });
-      const parsed = JSON.parse(String(raw).replace(/```json\n?|```/g, '').trim());
+      const parsed = JSON.parse(_extractJsonFromLlmResponse(raw));
       return _decorateAiResult(_withEvidenceMeta({
         workingContext: _cleanUserFacingText(parsed.workingContext || stub.workingContext || '', { maxSentences: 4 }),
         preferredOutputs: _cleanUserFacingText(parsed.preferredOutputs || stub.preferredOutputs || '', { maxSentences: 3 }),
@@ -3926,7 +3945,7 @@ ${evidenceMeta.promptBlock}`;
           priorMessages: Array.isArray(input?.priorMessages) ? input.priorMessages : []
         });
         if (raw) {
-          const parsed = JSON.parse(String(raw).replace(/```json\n?|```/g, '').trim());
+          const parsed = JSON.parse(_extractJsonFromLlmResponse(raw));
           const ensureRange = (value, fallbackRange) => ({
             min: value?.min ?? fallbackRange?.min ?? 0,
             likely: value?.likely ?? fallbackRange?.likely ?? 0,
@@ -4045,7 +4064,7 @@ Return JSON only:
           timeoutMs: 20000
         });
         if (!raw) return null;
-        const parsed = JSON.parse(String(raw).replace(/```json\n?|```/g, '').trim() || 'null');
+        const parsed = JSON.parse(_extractJsonFromLlmResponse(raw) || 'null');
         if (!parsed || typeof parsed !== 'object') return null;
         return {
           challengeSummary: _cleanUserFacingText(parsed.challengeSummary || '', { maxSentences: 3 }),
@@ -4114,7 +4133,7 @@ Evidence quality context:
 ${evidenceMeta.promptBlock}`;
         const raw = await _callLLM(systemPrompt, userPrompt, { taskName: 'challengeAssessment' });
         if (raw) {
-          const parsed = JSON.parse(String(raw).replace(/```json\n?|```/g, '').trim());
+          const parsed = JSON.parse(_extractJsonFromLlmResponse(raw));
           return _decorateAiResult(_withEvidenceMeta({
             summary: _cleanUserFacingText(parsed.summary || stub.summary || '', { maxSentences: 3 }),
             challengeLevel: _cleanUserFacingText(parsed.challengeLevel || stub.challengeLevel || '', { maxSentences: 1 }),
@@ -4172,7 +4191,7 @@ Return JSON only with this schema:
         timeoutMs: 12000
       });
       if (!raw) return null;
-      const parsed = JSON.parse(String(raw).replace(/```json\n?|```/g, '').trim() || 'null');
+      const parsed = JSON.parse(_extractJsonFromLlmResponse(raw) || 'null');
       if (!parsed || typeof parsed !== 'object') return null;
       return {
         whatMatters: _cleanUserFacingText(parsed.whatMatters || '', { maxSentences: 1 }),
@@ -4341,7 +4360,7 @@ Return JSON only with this schema:
         timeoutMs: 20000
       });
       if (!raw) return null;
-      const parsed = JSON.parse(String(raw).replace(/```json\n?|```/g, '').trim() || 'null');
+      const parsed = JSON.parse(_extractJsonFromLlmResponse(raw) || 'null');
       if (!parsed || typeof parsed !== 'object') return null;
       const allowedFieldPattern = /^(tef|threatCap|controlStr|vuln|ir|bi|db|rl|tp|rc)(Min|Likely|Max)$/;
       const recommendedField = allowedFieldPattern.test(String(parsed.recommendedField || '').trim())
@@ -5063,7 +5082,7 @@ Lens: ${scenarioLens?.label || 'general'}`;
       if (!raw) return null;
       const parsed = typeof raw === 'object'
         ? raw
-        : JSON.parse(String(raw).replace(/```json\n?|```/g, '').trim() || 'null');
+        : JSON.parse(_extractJsonFromLlmResponse(raw) || 'null');
       if (!parsed?.insight) return null;
       return {
         insight: String(parsed.insight),
@@ -5131,7 +5150,7 @@ Keep the numbers realistic, internally ordered, and anchored to the user's own h
         priorMessages: Array.isArray(input?.priorMessages) ? input.priorMessages : []
       });
       if (!raw) return null;
-      const parsed = JSON.parse(String(raw).replace(/```json\n?|```/g, '').trim() || 'null');
+      const parsed = JSON.parse(_extractJsonFromLlmResponse(raw) || 'null');
       if (!parsed || typeof parsed !== 'object') return null;
       const tef = ensureRange(parsed.tef, history[0]?.tef);
       const vulnerability = ensureRange(parsed.vulnerability, history[0]?.vulnerability);
@@ -5232,7 +5251,7 @@ Keep the numbers realistic, internally ordered, and anchored to the user's own h
       throw new Error('Compass returned an empty response.');
     }
     try {
-      return JSON.parse(raw.replace(/```json\n?|```/g, '').trim());
+      return JSON.parse(_extractJsonFromLlmResponse(raw));
     } catch {
       return { status: 'ok', provider: 'core42', message: 'Connection succeeded, but the response was not strict JSON.' };
     }
