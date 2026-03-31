@@ -229,6 +229,35 @@ function renderDecisionRail(statusTitle, statusDetail, executiveDecision, execut
   </div>`;
 }
 
+function renderExecutiveScenarioStatement(assessment, scenarioNarrative) {
+  const title = String(assessment?.scenarioTitle || 'Risk scenario').trim();
+  const narrative = String(
+    scenarioNarrative
+    || assessment?.enhancedNarrative
+    || assessment?.narrative
+    || assessment?.scenarioText
+    || 'No scenario statement was saved with this assessment.'
+  ).trim();
+  const lensLabel = String(assessment?.scenarioLens?.label || assessment?.scenarioLens?.key || '').trim();
+  const selectedRiskLabels = (Array.isArray(assessment?.selectedRisks) ? assessment.selectedRisks : [])
+    .map(item => String(item?.title || item?.category || '').trim())
+    .filter(Boolean)
+    .slice(0, 3);
+  return `<section class="results-scenario-statement">
+    <div class="results-scenario-statement__head">
+      <div>
+        <div class="results-driver-label">Scenario assessed</div>
+        <h3 class="results-scenario-statement__title">${escapeHtml(title)}</h3>
+      </div>
+      <div class="results-scenario-statement__chips">
+        ${lensLabel ? `<span class="badge badge--neutral">${escapeHtml(lensLabel)}</span>` : ''}
+        ${selectedRiskLabels.map(label => `<span class="badge badge--gold">${escapeHtml(label)}</span>`).join('')}
+      </div>
+    </div>
+    <p class="results-scenario-statement__copy">${escapeHtml(narrative)}</p>
+  </section>`;
+}
+
 function renderAnalystSummaryBlock(summary) {
   if (!summary) return '';
   return UI.resultsSectionBlock({
@@ -4556,6 +4585,7 @@ function renderResults(id, isShared) {
       ${renderReviewMeetingRoom(assessment)}
       <div class="results-executive-band">
         ${boardroomMode ? renderBoardroomModeIntro(comparison) : ''}
+        ${renderExecutiveScenarioStatement(assessment, scenarioNarrative)}
         ${renderHeroMetric(
           r,
           confidenceFrame,

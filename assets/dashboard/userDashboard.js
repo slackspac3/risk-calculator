@@ -1186,9 +1186,10 @@ function renderUserDashboard() {
     </div>
   </div>`;
   const renderLivingRegisterRow = row => `
-    <article class="living-register-row">
+    <article class="living-register-row living-register-row--${escapeDashboardText(row.postureTone || 'neutral')}">
       <div class="living-register-row__head">
-        <div>
+        <div class="living-register-row__identity">
+          <div class="living-register-row__eyebrow">Operating risk entry</div>
           <div class="living-register-row__title">${escapeDashboardText(row.title)}</div>
           <div class="living-register-row__meta">${escapeDashboardText(row.buName)} · Owner: ${escapeDashboardText(row.owner)} · Last review: ${escapeDashboardText(row.lastReviewLabel)}</div>
         </div>
@@ -1277,11 +1278,11 @@ function renderUserDashboard() {
   const livingRegisterBody = livingRegisterRows.length
     ? `
       <div class="living-register-summary" aria-label="Living risk register summary">
-        <span class="living-register-summary__item">${livingRegisterSummary.total} row${livingRegisterSummary.total === 1 ? '' : 's'}</span>
-        <span class="living-register-summary__item">${livingRegisterSummary.aboveTolerance} above tolerance</span>
-        <span class="living-register-summary__item">${livingRegisterSummary.nearTolerance} near tolerance</span>
-        <span class="living-register-summary__item">${livingRegisterSummary.dueNow} due now</span>
-        <span class="living-register-summary__item">${livingRegisterSummary.inReview} in review</span>
+        <span class="living-register-summary__item living-register-summary__item--total"><strong>${livingRegisterSummary.total}</strong><span>row${livingRegisterSummary.total === 1 ? '' : 's'}</span></span>
+        <span class="living-register-summary__item living-register-summary__item--danger"><strong>${livingRegisterSummary.aboveTolerance}</strong><span>above tolerance</span></span>
+        <span class="living-register-summary__item living-register-summary__item--warning"><strong>${livingRegisterSummary.nearTolerance}</strong><span>near tolerance</span></span>
+        <span class="living-register-summary__item living-register-summary__item--due"><strong>${livingRegisterSummary.dueNow}</strong><span>due now</span></span>
+        <span class="living-register-summary__item living-register-summary__item--review"><strong>${livingRegisterSummary.inReview}</strong><span>in review</span></span>
       </div>
       <div class="living-register-actions">
         <button type="button" class="btn btn--secondary btn--sm" id="btn-export-living-register">Export Register</button>
