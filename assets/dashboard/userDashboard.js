@@ -645,6 +645,10 @@ function renderUserDashboard() {
       try {
         const brief = await LLMService?.generatePortfolioExecutiveBrief?.({
           portfolioSummary: payload.portfolioSummary,
+          scopeLabel: payload.scopeLabel,
+          completedAssessments: payload.completedAssessments,
+          topAssessments: payload.topAssessments,
+          flaggedAssessments: payload.flaggedAssessments,
           preferredSection,
           emphasisOverride
         });

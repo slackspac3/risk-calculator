@@ -4164,10 +4164,58 @@ Return JSON only with this schema:
     }
   }
 
+  function _buildPortfolioExecutiveBriefStub(input = {}) {
+    const scopeLabel = String(input?.scopeLabel || 'Current portfolio').trim();
+    const completedAssessments = Array.isArray(input?.completedAssessments) ? input.completedAssessments : [];
+    const topAssessments = (Array.isArray(input?.topAssessments) ? input.topAssessments : [])
+      .filter(item => item && typeof item === 'object')
+      .slice(0, 3);
+    const flaggedAssessments = Array.isArray(input?.flaggedAssessments) ? input.flaggedAssessments : [];
+    const flaggedCount = flaggedAssessments.length;
+    const topRisk = topAssessments[0] || completedAssessments[0] || null;
+    const headline = topRisk
+      ? `${scopeLabel} is currently led by ${String(topRisk.title || topRisk.name || 'the top risk').trim()} at ${String(topRisk.aleRange || 'the highest current exposure').trim()}, so the board should treat this as the anchor portfolio issue.`
+      : `${scopeLabel} has active quantified risk exposure, but the board narrative should be refreshed once more completed assessments are available.`;
+    const topRisks = (topAssessments.length ? topAssessments : completedAssessments.slice(0, 3))
+      .filter(item => item && typeof item === 'object')
+      .slice(0, 3)
+      .map(item => ({
+        name: _cleanUserFacingText(item?.title || item?.name || 'Portfolio risk', { maxSentences: 1, stripTrailingPeriod: true }) || 'Portfolio risk',
+        description: _cleanUserFacingText(
+          `${String(item?.primaryRiskCategory || 'Risk exposure').trim()} currently sits at ${String(item?.aleRange || 'an elevated loss range').trim()} and remains ${String(item?.treatmentStatus || 'under active management').trim().toLowerCase()}.`,
+          { maxSentences: 1 }
+        ),
+        action: _cleanUserFacingText(
+          /above tolerance|ready_for_review|escalat/i.test(String(item?.treatmentStatus || ''))
+            ? `Confirm executive ownership and an immediate reduction plan for ${String(item?.title || item?.name || 'this risk').trim()}.`
+            : `Keep ${String(item?.title || item?.name || 'this risk').trim()} on the board watchlist and verify that the current treatment stays on schedule.`,
+          { maxSentences: 1 }
+        )
+      }));
+    const portfolioHealth = flaggedCount
+      ? `Overall portfolio health is elevated because ${flaggedCount} assessment${flaggedCount === 1 ? '' : 's'} already need fresh review or escalation attention.`
+      : `Overall portfolio health is stable because the current visible assessment set does not show an immediate escalation backlog.`;
+    const decisionNeeded = topRisk
+      ? _cleanUserFacingText(
+          /above tolerance|ready_for_review|escalat/i.test(String(topRisk?.treatmentStatus || ''))
+            ? `Decide whether ${String(topRisk.title || topRisk.name || 'the top exposure').trim()} should be actively reduced now or escalated for formal oversight.`
+            : `Decide whether the current treatment plan for ${String(topRisk.title || topRisk.name || 'the top exposure').trim()} is sufficient or needs stronger sponsorship.`,
+          { maxSentences: 1 }
+        )
+      : 'Decide which material scenario should be prioritised next so the portfolio view remains decision-useful.';
+    return {
+      headline,
+      topRisks,
+      portfolioHealth,
+      decisionNeeded
+    };
+  }
+
   async function generatePortfolioExecutiveBrief(input = {}) {
-    if (_isDirectCompassUrl(_compassApiUrl) && !_compassApiKey) return null;
+    const stub = _buildPortfolioExecutiveBriefStub(input);
+    if (_isDirectCompassUrl(_compassApiUrl) && !_compassApiKey) return stub;
     const portfolioSummary = String(input?.portfolioSummary || '').trim().slice(0, 7000);
-    if (!portfolioSummary) return null;
+    if (!portfolioSummary) return stub;
     const preferredSection = String(input?.preferredSection || '').trim().toLowerCase();
     const emphasisOverride = String(input?.emphasisOverride || '').trim().toLowerCase();
     const sectionHint = emphasisOverride || preferredSection;
@@ -4217,13 +4265,13 @@ ${schema}`;
         .filter(item => item.name && item.description)
         .slice(0, 3);
       return {
-        headline: _cleanUserFacingText(parsed?.headline || '', { maxSentences: 1 }),
-        topRisks,
-        portfolioHealth: _cleanUserFacingText(parsed?.portfolioHealth || '', { maxSentences: 1 }),
-        decisionNeeded: _cleanUserFacingText(parsed?.decisionNeeded || '', { maxSentences: 1 })
+        headline: _cleanUserFacingText(parsed?.headline || '', { maxSentences: 1 }) || stub.headline,
+        topRisks: topRisks.length ? topRisks : stub.topRisks,
+        portfolioHealth: _cleanUserFacingText(parsed?.portfolioHealth || '', { maxSentences: 1 }) || stub.portfolioHealth,
+        decisionNeeded: _cleanUserFacingText(parsed?.decisionNeeded || '', { maxSentences: 1 }) || stub.decisionNeeded
       };
     } catch {
-      return null;
+      return stub;
     }
   }
 
