@@ -134,14 +134,22 @@ Export options currently include:
 
 Current productization work now includes:
 - premium UI polish across dashboard, wizard, results, settings, admin, and document library
+- committed Step 1 start modes for guided, draft, and import/example paths instead of a single long scroll
+- scenario memory, overlap checks, and learnt starting points in Step 1 so new assessments can reuse prior organisational precedent
 - stronger AI quality and coherence signaling
 - role-aware examples and focus areas
 - broader enterprise taxonomy and standards coverage
 - review queue and management decision workflow
+- reviewer brief, challenge mediation, challenge synthesis, and consensus recommendation flows in results
+- living risk register, AI flags, correlation spotting, and board brief generation on role-aware dashboards
+- watchlist confidence trajectory signals so reassessment queues show whether confidence is improving, declining, or flat
 - direct PDF download
 - worker-based Monte Carlo execution so simulation no longer blocks the UI thread
 - streaming AI narrative refinement in Step 2
 - portfolio heat map on the dashboard
+- persisted session preferences for results tabs and boardroom mode
+- synced learning-store state across browser cache and shared user-state storage
+- KV-backed API rate limiting and login throttling for the shared pilot environment
 
 ## Architecture
 
@@ -188,6 +196,9 @@ Primary routes:
 - [api/review-queue.js](./api/review-queue.js)
 - [api/audit-log.js](./api/audit-log.js)
 
+Shared backend helper:
+- [api/_kvStore.js](./api/_kvStore.js)
+
 ### Persistence Model
 
 Current persistence spans:
@@ -197,9 +208,11 @@ Current persistence spans:
 - shared admin settings
 - organisation structure and scoped defaults
 - learning patterns / templates
+- AI interaction memory and acceptance signals
 - review queue items
 - audit events
 - local pilot notifications
+- session-scoped results preferences such as active tab and boardroom mode
 
 ## Local Development
 

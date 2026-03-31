@@ -2432,7 +2432,26 @@ function buildDryRunNarrative(example) {
 function getLoadedDryRunScenario(draft = AppState.draft) {
   const loadedId = draft?.loadedDryRunId;
   const availableExamples = getStep1ExampleExperienceModel(getEffectiveSettings(), draft).availableExamples || [];
-  return availableExamples.find(example => example.id === loadedId) || null;
+  const matched = availableExamples.find(example => example.id === loadedId) || null;
+  if (matched) return matched;
+  if (!loadedId) return null;
+  return createStep1DryRunScenario({
+    id: loadedId,
+    functionKey: inferStep1FunctionKey(getEffectiveSettings(), draft),
+    lensKey: String(draft?.scenarioLens?.key || '').trim(),
+    lensLabel: String(draft?.scenarioLens?.label || '').trim(),
+    title: String(draft?.scenarioTitle || 'Loaded worked example').trim(),
+    summary: 'A worked example is active in this draft.',
+    bestFor: 'Sample path',
+    nextStep: 'Clear the example if you want to return to a fresh Step 1 start.',
+    event: String(draft?.guidedInput?.event || '').trim(),
+    asset: String(draft?.guidedInput?.asset || '').trim(),
+    cause: String(draft?.guidedInput?.cause || '').trim(),
+    impact: String(draft?.guidedInput?.impact || '').trim(),
+    urgency: String(draft?.guidedInput?.urgency || 'medium').trim(),
+    geographies: Array.isArray(draft?.geographies) ? draft.geographies : [],
+    risks: getRiskCandidates()
+  });
 }
 
 function clearLoadedDryRunFlag({ save = false } = {}) {
@@ -2490,6 +2509,7 @@ function hasStep1Content() {
 function applyDryRunScenario(example) {
   const settings = getEffectiveSettings();
   const nextNarrative = buildDryRunNarrative(example);
+  AppState.draft.step1Path = 'import';
   AppState.draft.guidedInput = {
     event: example.event,
     asset: example.asset,

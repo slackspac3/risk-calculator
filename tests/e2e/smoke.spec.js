@@ -352,17 +352,14 @@ test('wizard step 1 dry-run examples prefill the scenario and shortlist', async 
 
   await expectNoClientCrashOnRoute(page, '/#/wizard/1', async () => {
     await expect(page.getByRole('heading', { name: /guided scenario builder/i })).toBeVisible();
-    const workedExampleDisclosure = page.locator('details').filter({ has: page.locator('summary').filter({ hasText: /worked example/i }) }).first();
-    await expect(workedExampleDisclosure).toBeVisible();
+    await expect(page.locator('[data-path="import"]')).toBeVisible();
     await page.evaluate(() => {
       applyDryRunScenario(STEP1_DRY_RUN_SCENARIOS[0]);
     });
-    await expect(page.locator('#btn-clear-dry-run')).toBeVisible();
-    await expect(page.locator('.card').filter({ has: page.locator('#btn-clear-dry-run') }).getByText('Supplier outage on a regulated platform')).toBeVisible();
     await expect(page.locator('#guided-event')).toContainText('critical supplier');
     await expect(page.locator('#intake-risk-statement')).toContainText('critical supplier');
     await expect(page.locator('.risk-select-checkbox:checked')).toHaveCount(3);
-    await expect(page.getByRole('button', { name: /Continue with 3 selected risks/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /continue to scenario review/i })).toBeVisible();
   });
 });
 
@@ -401,14 +398,13 @@ test('wizard handoff guidance carries the scenario cleanly into steps 2 and 3', 
   });
 
   await expectNoClientCrashOnRoute(page, '/#/wizard/1', async () => {
-    const framingDisclosure = page.locator('details').filter({ has: page.locator('summary').filter({ hasText: /assessment framing and defaults/i }) }).first();
-    await framingDisclosure.evaluate(node => { node.open = true; });
+    await expect(page.getByRole('heading', { name: /assessment context/i })).toBeVisible();
     await page.locator('#wizard-bu').selectOption({ index: 1 });
-    await expect(page.locator('details').filter({ has: page.locator('summary').filter({ hasText: /worked example/i }) }).first()).toBeVisible();
+    await expect(page.locator('[data-path="import"]')).toBeVisible();
     await page.evaluate(() => {
       applyDryRunScenario(STEP1_DRY_RUN_SCENARIOS[0]);
     });
-    await page.getByRole('button', { name: /continue with 3 selected risks/i }).click();
+    await page.getByRole('button', { name: /continue to scenario review/i }).click();
     await expect(page).toHaveURL(/#\/wizard\/2$/);
     await expect(page.getByText(/what will carry into the estimate/i)).toBeVisible();
     const continueToEstimation = page.getByRole('button', { name: /continue to estimation/i });
@@ -598,7 +594,8 @@ test('first-run onboarding can launch the sample assessment path', async ({ page
     await page.getByRole('button', { name: /^Continue$/ }).click();
     await page.getByRole('button', { name: /try sample assessment/i }).click();
     await expect(page).toHaveURL(/#\/wizard\/1$/);
-    await expect(page.locator('#btn-clear-dry-run')).toBeVisible();
+    await expect(page.locator('#intake-risk-statement')).not.toHaveValue('');
+    await expect(page.locator('.risk-select-checkbox:checked')).toHaveCount(3);
   });
 });
 
