@@ -208,6 +208,39 @@ const LLMService = (() => {
     throw new Error('The AI returned an unusable structured response for this task. Try again.');
   }
 
+  async function _repairStructuredJson(raw, schemaHint = '', { taskName = 'repairStructuredJson' } = {}) {
+    const malformed = String(raw || '').trim();
+    const schema = String(schemaHint || '').trim();
+    if (!malformed || !schema) return null;
+    const repairPrompt = `You repair malformed model output into strict JSON.
+Return ONLY valid JSON matching this schema exactly:
+${schema}`;
+    const repairUser = `Original malformed response:
+${malformed}
+
+Repair the response into the required JSON schema. Preserve scenario-specific meaning. If a field is missing, infer cautiously from the malformed response only.`;
+    const repairedRaw = await _callLLM(repairPrompt, repairUser, {
+      taskName,
+      temperature: 0,
+      maxCompletionTokens: 1800,
+      maxPromptChars: 14000
+    });
+    if (!repairedRaw) return null;
+    return _parseStructuredJson(repairedRaw);
+  }
+
+  async function _parseOrRepairStructuredJson(raw, schemaHint = '', options = {}) {
+    try {
+      return _parseStructuredJson(raw);
+    } catch (parseError) {
+      try {
+        const repaired = await _repairStructuredJson(raw, schemaHint, options);
+        if (repaired) return repaired;
+      } catch {}
+      throw parseError;
+    }
+  }
+
   function _getSessionToken() {
     try {
       return typeof AuthService !== 'undefined' && AuthService && typeof AuthService.getApiSessionToken === 'function'
@@ -2519,19 +2552,7 @@ ${businessUnit.selectedDepartmentContext}` : ''
     // Try real API first
     if (_compassApiKey || !_isDirectCompassUrl(_compassApiUrl)) {
       try {
-        const systemPrompt = `You are a senior enterprise risk analyst specialising in FAIR methodology and international risk and regulatory environments.
-
-Before producing your JSON output, reason through the following three questions:
-1. What is the most credible threat path for this scenario given the business context, the specific geography, and the applicable regulations provided? Be specific about actor, method, and likely first-order effect.
-2. What assumption in the FAIR inputs would most change the loss estimate if it were wrong? Name it explicitly.
-3. What is the single most important control or action that would most reduce expected loss for this scenario?
-
-Use that reasoning to shape scenarioTitle, structuredScenario, inputRationale, workflowGuidance, and recommendations. Do not include the reasoning questions themselves in the JSON output.
-
-The applicable regulations, geographic scope, and benchmark strategy will be provided in the user prompt. Use those as the primary reference — do not assume a default jurisdiction or benchmark source. Where the user prompt specifies a benchmark preference, follow that strategy explicitly and note any fallback in benchmarkBasis.
-
-Respond ONLY with valid JSON matching this exact schema:
-{
+        const outputSchema = `{
   "scenarioTitle": "string",
   "scenarioLens": { "key": "string", "label": "string", "functionKey": "string", "estimatePresetKey": "string", "secondaryKeys": ["string"] },
   "structuredScenario": { "assetService": "string", "primaryDriver": "string", "eventPath": "string", "effect": "string" },
@@ -2561,7 +2582,20 @@ Respond ONLY with valid JSON matching this exact schema:
     }
   },
   "recommendations": [{ "title": "string", "why": "string", "impact": "string" }]
-}
+}`;
+        const systemPrompt = `You are a senior enterprise risk analyst specialising in FAIR methodology and international risk and regulatory environments.
+
+Before producing your JSON output, reason through the following three questions:
+1. What is the most credible threat path for this scenario given the business context, the specific geography, and the applicable regulations provided? Be specific about actor, method, and likely first-order effect.
+2. What assumption in the FAIR inputs would most change the loss estimate if it were wrong? Name it explicitly.
+3. What is the single most important control or action that would most reduce expected loss for this scenario?
+
+Use that reasoning to shape scenarioTitle, structuredScenario, inputRationale, workflowGuidance, and recommendations. Do not include the reasoning questions themselves in the JSON output.
+
+The applicable regulations, geographic scope, and benchmark strategy will be provided in the user prompt. Use those as the primary reference — do not assume a default jurisdiction or benchmark source. Where the user prompt specifies a benchmark preference, follow that strategy explicitly and note any fallback in benchmarkBasis.
+
+Respond ONLY with valid JSON matching this exact schema:
+${outputSchema}
 
 Also return a 'fieldRationale' object with a one-sentence justification for each FAIR input field you estimated. Keys must match the fairParams field names. Example: { "tefLikely": "Based on GCC financial-sector incident frequency averaging 1.2 events/year (ISO 27001 Annex A ref)." }.`;
         const evidenceMeta = _buildEvidenceMeta({ citations: retrievedDocs, businessUnit: buContext, geography: buContext?.geography, applicableRegulations: buContext?.regulatoryTags || [], userProfile: buContext?.userProfileSummary, organisationContext: buContext?.companyStructureContext });
@@ -2607,7 +2641,9 @@ Treat the primary lens hint as the leading domain for this scenario unless the n
           priorMessages: Array.isArray(buContext?.priorMessages) ? buContext.priorMessages : []
         });
         if (raw) {
-          const parsed = _parseStructuredJson(raw) || {};
+          const parsed = await _parseOrRepairStructuredJson(raw, outputSchema, {
+            taskName: 'repairGenerateScenarioAndInputs'
+          }) || {};
           const fallback = _generateStub(narrative, buContext, retrievedDocs, benchmarkCandidates);
           const parsedInputs = parsed?.suggestedInputs || {};
           const fallbackInputs = fallback.suggestedInputs || {};
@@ -2819,6 +2855,19 @@ Return only the refined scenario narrative text.`;
     }
     if (_compassApiKey || !_isDirectCompassUrl(_compassApiUrl)) {
       try {
+        const outputSchema = `{
+  "draftNarrative": "string",
+  "enhancedStatement": "string",
+  "summary": "string",
+  "linkAnalysis": "string",
+  "scenarioLens": { "key": "string", "label": "string", "functionKey": "string", "estimatePresetKey": "string", "secondaryKeys": ["string"] },
+  "workflowGuidance": ["string"],
+  "benchmarkBasis": "string",
+  "risks": [
+    { "title": "string", "category": "string", "description": "string", "confidence": "high|medium|low", "regulations": ["string"] }
+  ],
+  "regulations": ["string"]
+}`;
         const systemPrompt = `You are a senior enterprise risk analyst with deep expertise in FAIR methodology and international regulatory environments including strategic, operational, cyber, AI/model risk, data governance/privacy, third-party, regulatory, financial, fraud/integrity, ESG, compliance, legal/contract, geopolitical, supply chain, procurement, business continuity, physical security, OT resilience, people/workforce, investment/JV, transformation delivery, and HSE scenarios.
 
 Before producing your JSON output, reason through the following three questions in this order:
@@ -2833,19 +2882,7 @@ The applicable regulations and geographic scope will be provided in the user pro
 If the scenario concerns identity compromise (Azure AD, Entra, SSO, directory services), explain likely downstream effects: mailbox compromise, privileged misuse, tenant changes, service disruption, fraud, and data exposure where relevant.
 
 Return JSON only with this schema:
-{
-  "draftNarrative": "string",
-  "enhancedStatement": "string",
-  "summary": "string",
-  "linkAnalysis": "string",
-  "scenarioLens": { "key": "string", "label": "string", "functionKey": "string", "estimatePresetKey": "string", "secondaryKeys": ["string"] },
-  "workflowGuidance": ["string"],
-  "benchmarkBasis": "string",
-  "risks": [
-    { "title": "string", "category": "string", "description": "string", "confidence": "high|medium|low", "regulations": ["string"] }
-  ],
-  "regulations": ["string"]
-}`;
+${outputSchema}`;
         const evidenceMeta = _buildEvidenceMeta({ citations: input.citations || [], businessUnit: input.businessUnit, geography: input.geography, applicableRegulations: input.applicableRegulations, uploadedText: input.registerText, registerText: input.registerText, userProfile: input.adminSettings?.userProfileSummary, organisationContext: input.adminSettings?.companyStructureContext, adminSettings: input.adminSettings });
         const userPrompt = `Instructions:
 - write draftNarrative as a 2-4 sentence scenario constructor that stays close to the user's event wording while making the scenario sharper, more specific, and easier to assess
@@ -2905,7 +2942,9 @@ Treat the primary lens hint as the leading domain for this scenario unless the n
           priorMessages: Array.isArray(input?.priorMessages) ? input.priorMessages : []
         });
         if (raw) {
-          const parsed = _parseStructuredJson(raw) || {};
+          const parsed = await _parseOrRepairStructuredJson(raw, outputSchema, {
+            taskName: 'repairEnhanceRiskContext'
+          }) || {};
           const candidateResult = {
             ...parsed,
             scenarioLens: _normaliseScenarioLens(parsed.scenarioLens, _buildScenarioLens(classification)),
@@ -3006,8 +3045,7 @@ Treat the primary lens hint as the leading domain for this scenario unless the n
     const compactLiveContext = _truncateText(_buildContextPromptBlock(input.adminSettings, input.businessUnit), 320);
     if (_compassApiKey || !_isDirectCompassUrl(_compassApiUrl)) {
       try {
-        const systemPrompt = `You are a senior enterprise risk analyst. You will receive a risk register that may contain multiple sheets, multiple columns, and contextual metadata. Return JSON only with this schema:
-{
+        const outputSchema = `{
   "summary": "string",
   "linkAnalysis": "string",
   "workflowGuidance": ["string"],
@@ -3016,6 +3054,8 @@ Treat the primary lens hint as the leading domain for this scenario unless the n
     { "title": "string", "category": "string", "description": "string", "confidence": "high|medium|low", "regulations": ["string"] }
   ]
 }`;
+        const systemPrompt = `You are a senior enterprise risk analyst. You will receive a risk register that may contain multiple sheets, multiple columns, and contextual metadata. Return JSON only with this schema:
+${outputSchema}`;
         const userPrompt = `Business unit: ${input.businessUnit?.name || 'Unknown'}
 Geography: ${input.geography || 'Unknown'}
 BU context summary: ${compactContextSummary}
@@ -3058,7 +3098,9 @@ ${_truncateText(evidenceMeta.promptBlock || '', 240)}`;
           priorMessages: Array.isArray(input?.priorMessages) ? input.priorMessages : []
         });
         if (raw) {
-          const parsed = _parseStructuredJson(raw) || {};
+          const parsed = await _parseOrRepairStructuredJson(raw, outputSchema, {
+            taskName: 'repairAnalyseRiskRegister'
+          }) || {};
           return _decorateAiResult(_withEvidenceMeta({
             summary: _cleanUserFacingText(parsed.summary || '', { maxSentences: 3 }),
             linkAnalysis: _cleanUserFacingText(parsed.linkAnalysis || '', { maxSentences: 3 }),
