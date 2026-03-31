@@ -721,6 +721,311 @@ function renderStep1AiIntakeSummary(draft = {}) {
   </div>`;
 }
 
+function getStep1ScenarioMemoryNarrative(draft = AppState.draft) {
+  return String(
+    draft?.enhancedNarrative
+    || draft?.narrative
+    || draft?.sourceNarrative
+    || composeStep1GuidedNarrative(draft?.guidedInput, getEffectiveSettings(), draft)
+    || ''
+  ).trim();
+}
+
+function buildStep1ScenarioMemorySignature(query = '', matches = []) {
+  return [
+    String(query || '').trim().toLowerCase().slice(0, 240),
+    (Array.isArray(matches) ? matches : []).map(match => String(match?.id || '').trim()).filter(Boolean).join('|')
+  ].join('::');
+}
+
+function ensureStep1ScenarioMemoryState(draft = AppState.draft) {
+  const currentScenario = {
+    id: draft?.id || '',
+    buId: draft?.buId || '',
+    scenarioTitle: draft?.scenarioTitle || '',
+    scenarioLens: draft?.scenarioLens || null,
+    structuredScenario: draft?.structuredScenario || null,
+    narrative: draft?.narrative || '',
+    sourceNarrative: draft?.sourceNarrative || '',
+    enhancedNarrative: draft?.enhancedNarrative || '',
+    selectedRisks: Array.isArray(draft?.selectedRisks) ? draft.selectedRisks : getSelectedRisks()
+  };
+  const matchState = typeof findSimilarScenarioMemoryMatches === 'function'
+    ? findSimilarScenarioMemoryMatches(currentScenario, { limit: 3 })
+    : { query: '', totalMatches: 0, matches: [] };
+  const signature = buildStep1ScenarioMemorySignature(matchState.query, matchState.matches);
+  const previousSignature = String(draft?.scenarioMemorySignature || '').trim();
+  const signatureChanged = signature !== previousSignature;
+  draft.scenarioMemoryQuery = matchState.query;
+  draft.scenarioMemoryMatches = Array.isArray(matchState.matches) ? matchState.matches : [];
+  draft.scenarioMemorySignature = signature;
+  if (signatureChanged) {
+    if (String(draft.scenarioMemoryPrecedentSignature || '').trim() !== signature) {
+      draft.scenarioMemoryPrecedent = '';
+      draft.scenarioMemoryPrecedentLoading = false;
+    }
+    const stillSelected = draft.scenarioMemoryReferenceId
+      && draft.scenarioMemoryMatches.some(match => String(match?.id || '').trim() === String(draft.scenarioMemoryReferenceId || '').trim());
+    if (!stillSelected) {
+      draft.scenarioMemoryReferenceId = '';
+    }
+    const nextComparisons = {};
+    const currentComparisons = draft.scenarioMemoryComparisons && typeof draft.scenarioMemoryComparisons === 'object'
+      ? draft.scenarioMemoryComparisons
+      : {};
+    draft.scenarioMemoryMatches.forEach((match) => {
+      const key = String(match?.id || '').trim();
+      if (key && currentComparisons[key]) nextComparisons[key] = currentComparisons[key];
+    });
+    draft.scenarioMemoryComparisons = nextComparisons;
+    if (!nextComparisons[String(draft.scenarioMemoryComparisonLoadingId || '').trim()]) {
+      draft.scenarioMemoryComparisonLoadingId = '';
+    }
+  }
+  return {
+    query: matchState.query,
+    totalMatches: Number(matchState.totalMatches || 0),
+    matches: draft.scenarioMemoryMatches,
+    signature,
+    reference: draft.scenarioMemoryMatches.find(match => String(match?.id || '').trim() === String(draft.scenarioMemoryReferenceId || '').trim()) || null,
+    precedent: String(draft.scenarioMemoryPrecedent || '').trim(),
+    precedentLoading: !!draft.scenarioMemoryPrecedentLoading,
+    comparisons: draft.scenarioMemoryComparisons && typeof draft.scenarioMemoryComparisons === 'object'
+      ? draft.scenarioMemoryComparisons
+      : {},
+    comparisonLoadingId: String(draft.scenarioMemoryComparisonLoadingId || '').trim()
+  };
+}
+
+function formatStep1ScenarioMemoryDate(timestamp = 0) {
+  const value = Number(timestamp || 0);
+  if (!value) return 'Date not available';
+  try {
+    return new Date(value).toLocaleDateString('en-GB');
+  } catch {
+    return 'Date not available';
+  }
+}
+
+function renderStep1ScenarioMemoryPrecedent(state = {}) {
+  if (!state?.precedentLoading && !String(state?.precedent || '').trim()) return '';
+  const headline = state.precedentLoading
+    ? 'Reviewing precedent from similar completed scenarios…'
+    : String(state.precedent || '').trim();
+  return `<div class="premium-guidance-strip premium-guidance-strip--support" style="margin-bottom:var(--sp-4)">
+    <div class="premium-guidance-strip__main">
+      <div class="premium-guidance-strip__label">Org precedent</div>
+      <strong>${escapeHtml(headline)}</strong>
+    </div>
+    <div class="premium-guidance-strip__meta">
+      <span class="badge badge--gold">${state.precedentLoading ? 'Analysing history' : 'Adjusted from your history'}</span>
+    </div>
+  </div>`;
+}
+
+function renderStep1ScenarioMemoryReferencePanel(reference = null, comparison = '', comparisonLoading = false) {
+  if (!reference) {
+    return `<details class="wizard-disclosure wizard-disclosure--support" id="scenario-memory-reference-panel">
+      <summary>Reference panel <span class="badge badge--neutral">Load a past scenario</span></summary>
+      <div class="wizard-disclosure-body">
+        <div class="form-help">Load a similar past scenario to inspect its structured event path, ALE range, and shortlisted risks without changing the current draft.</div>
+      </div>
+    </details>`;
+  }
+  const structured = normaliseStructuredScenario(reference.structuredScenario, { preserveUnknown: true }) || {};
+  const risks = Array.isArray(reference.selectedRisks)
+    ? reference.selectedRisks.map(item => String(item?.title || item?.category || '').trim()).filter(Boolean).slice(0, 4)
+    : [];
+  return `<details class="wizard-disclosure wizard-disclosure--support" id="scenario-memory-reference-panel" open>
+    <summary>Reference panel <span class="badge badge--gold">Read only</span></summary>
+    <div class="wizard-disclosure-body">
+      <div class="context-panel-title">${escapeHtml(String(reference.scenarioTitle || 'Untitled scenario'))}</div>
+      <div class="form-help" style="margin-top:6px">Last run ${escapeHtml(formatStep1ScenarioMemoryDate(reference?._scenarioMemory?.lastRunAt || reference.completedAt || reference.createdAt))} · ${escapeHtml(String(reference?._scenarioMemory?.aleRange || 'ALE not available'))}</div>
+      <div class="grid-2 mt-4" style="gap:12px">
+        <div class="card" style="padding:var(--sp-4);background:var(--bg-canvas)">
+          <div class="context-panel-title">Structured model</div>
+          <div class="form-help" style="margin-top:8px">Event path</div>
+          <div style="color:var(--text-primary);line-height:1.6">${escapeHtml(String(getStructuredScenarioField(structured, 'eventPath') || reference.scenarioTitle || 'Not stated'))}</div>
+          <div class="form-help" style="margin-top:10px">Primary driver</div>
+          <div style="color:var(--text-primary);line-height:1.6">${escapeHtml(String(getStructuredScenarioField(structured, 'primaryDriver') || 'Not stated'))}</div>
+          <div class="form-help" style="margin-top:10px">Effect</div>
+          <div style="color:var(--text-primary);line-height:1.6">${escapeHtml(String(getStructuredScenarioField(structured, 'effect') || 'Not stated'))}</div>
+        </div>
+        <div class="card" style="padding:var(--sp-4);background:var(--bg-canvas)">
+          <div class="context-panel-title">Reference read</div>
+          <div class="citation-chips" style="margin-top:10px">
+            <span class="badge badge--${escapeHtml(String(reference?._scenarioMemory?.treatmentStatus?.tone || 'neutral'))}">${escapeHtml(String(reference?._scenarioMemory?.treatmentStatus?.label || 'Monitor'))}</span>
+            ${reference.buName ? `<span class="badge badge--neutral">${escapeHtml(String(reference.buName))}</span>` : ''}
+          </div>
+          <div class="form-help" style="margin-top:12px">Top shortlisted risks</div>
+          <div class="citation-chips" style="margin-top:8px">
+            ${risks.length ? risks.map(risk => `<span class="badge badge--neutral">${escapeHtml(risk)}</span>`).join('') : '<span class="badge badge--neutral">No saved shortlist</span>'}
+          </div>
+        </div>
+      </div>
+      ${comparisonLoading ? `<div class="card" style="padding:var(--sp-4);background:var(--bg-canvas);margin-top:var(--sp-4)"><div class="context-panel-title">What changed since then?</div><div class="form-help" style="margin-top:8px">Reviewing the current draft against this saved scenario…</div></div>` : ''}
+      ${comparison && !comparisonLoading ? `<div class="card" style="padding:var(--sp-4);background:var(--bg-canvas);margin-top:var(--sp-4)"><div class="context-panel-title">What changed since then?</div><div class="context-panel-copy" style="margin-top:8px">${escapeHtml(String(comparison))}</div></div>` : ''}
+    </div>
+  </details>`;
+}
+
+function renderStep1ScenarioMemoryBand(draft = AppState.draft, state = ensureStep1ScenarioMemoryState(draft)) {
+  const matches = Array.isArray(state?.matches) ? state.matches : [];
+  if (matches.length < 2) return '';
+  return `<div class="card card--elevated anim-fade-in" style="padding:var(--sp-5);background:linear-gradient(180deg, rgba(93,212,176,0.08), rgba(255,255,255,0.02))">
+    <div class="flex items-center justify-between" style="gap:var(--sp-3);flex-wrap:wrap">
+      <div>
+        <div class="results-section-heading" style="margin:0">Similar past scenarios</div>
+        <div class="form-help" style="margin-top:8px">The organisation has worked through related cases before. Use them as reference, not as a locked answer.</div>
+      </div>
+      <div class="citation-chips">
+        <span class="badge badge--gold">${state.totalMatches} match${state.totalMatches === 1 ? '' : 'es'}</span>
+      </div>
+    </div>
+    <div style="margin-top:var(--sp-4)">
+      ${renderStep1ScenarioMemoryPrecedent(state)}
+    </div>
+    <div style="display:grid;grid-template-columns:minmax(0,1.35fr) minmax(280px,0.9fr);gap:var(--sp-4);align-items:start">
+      <div class="risk-selection-grid">
+        ${matches.map((match) => `<div class="card org-related-card--compact" style="padding:var(--sp-4);background:var(--bg-canvas)">
+          <div class="context-panel-title">${escapeHtml(String(match.scenarioTitle || 'Untitled scenario'))}</div>
+          <div class="form-help" style="margin-top:6px">Last run ${escapeHtml(formatStep1ScenarioMemoryDate(match?._scenarioMemory?.lastRunAt || match.completedAt || match.createdAt))}</div>
+          <div class="citation-chips" style="margin-top:10px">
+            <span class="badge badge--neutral">${escapeHtml(String(match?._scenarioMemory?.aleRange || 'ALE not available'))}</span>
+            <span class="badge badge--${escapeHtml(String(match?._scenarioMemory?.treatmentStatus?.tone || 'neutral'))}">${escapeHtml(String(match?._scenarioMemory?.treatmentStatus?.label || 'Monitor'))}</span>
+            ${match.referenceCount || match?._scenarioMemory?.referenceCount ? `<span class="badge badge--neutral">${escapeHtml(String(match?._scenarioMemory?.referenceCount || match.referenceCount || 0))} referenced</span>` : ''}
+          </div>
+          <div class="form-help" style="margin-top:10px">${escapeHtml(String(match.narrative || match.enhancedNarrative || '').trim().slice(0, 180) || 'No narrative summary saved.')}${String(match.narrative || match.enhancedNarrative || '').trim().length > 180 ? '…' : ''}</div>
+          <div class="admin-inline-actions" style="margin-top:var(--sp-4)">
+            <button class="btn btn--secondary btn--sm btn-scenario-memory-load" data-scenario-memory-id="${escapeHtml(String(match.id || ''))}" type="button">${String(draft.scenarioMemoryReferenceId || '') === String(match.id || '') ? 'Reference loaded' : 'Load as reference'}</button>
+            <button class="btn btn--ghost btn--sm btn-scenario-memory-compare" data-scenario-memory-id="${escapeHtml(String(match.id || ''))}" type="button">What changed since then?</button>
+          </div>
+        </div>`).join('')}
+      </div>
+      <div>
+        ${renderStep1ScenarioMemoryReferencePanel(
+          state.reference,
+          state.reference ? String(state.comparisons?.[String(state.reference.id || '').trim()] || '').trim() : '',
+          state.reference ? state.comparisonLoadingId === String(state.reference.id || '').trim() : false
+        )}
+      </div>
+    </div>
+  </div>`;
+}
+
+function getStep1PortfolioAssessmentEntries() {
+  const currentUser = AuthService.getCurrentUser?.() || null;
+  const role = String(currentUser?.role || '').trim().toLowerCase();
+  if ((role === 'bu_admin' || role === 'function_admin')
+    && typeof getNonAdminCapabilityState === 'function'
+    && typeof getReviewerVisibleAssessmentEntries === 'function') {
+    const settings = typeof getUserSettings === 'function' ? getUserSettings() : {};
+    const capability = getNonAdminCapabilityState(currentUser, settings, getAdminSettings());
+    return getReviewerVisibleAssessmentEntries(capability)
+      .map(entry => entry?.assessment || null)
+      .filter(assessment => assessment?.id && assessment?.results);
+  }
+  return (typeof getAssessments === 'function' ? getAssessments() : [])
+    .filter(assessment => assessment?.id && assessment?.results);
+}
+
+function getStep1AssessmentPrimaryRiskCategory(assessment = {}) {
+  return String(
+    assessment?.scenarioLens?.label
+    || assessment?.scenarioLens?.key
+    || assessment?.structuredScenario?.primaryRiskCategory
+    || assessment?.selectedRisks?.[0]?.category
+    || assessment?.selectedRisks?.[0]?.title
+    || 'General enterprise'
+  ).trim();
+}
+
+function buildStep1ScenarioCrossReferenceSignature(narrative = '', assessments = []) {
+  return [
+    normaliseScenarioSeedText(narrative).toLowerCase().slice(0, 260),
+    (Array.isArray(assessments) ? assessments : [])
+      .map(item => `${String(item?.id || '').trim()}:${Number(item?.lifecycleUpdatedAt || item?.completedAt || item?.createdAt || 0)}`)
+      .join('|')
+  ].join('::');
+}
+
+function resolveStep1ScenarioCrossReferenceMatch(assessments = [], matchTitle = '') {
+  const safeTitle = String(matchTitle || '').trim();
+  if (!safeTitle) return null;
+  const exact = (Array.isArray(assessments) ? assessments : []).find(item => String(item?.scenarioTitle || item?.title || '').trim().toLowerCase() === safeTitle.toLowerCase());
+  if (exact) return exact;
+  return (Array.isArray(assessments) ? assessments : [])
+    .map((item) => ({
+      assessment: item,
+      score: getStep1ScenarioOverlap(safeTitle, String(item?.scenarioTitle || item?.title || ''))
+    }))
+    .sort((left, right) => right.score - left.score)[0]?.assessment || null;
+}
+
+function getStep1ScenarioCrossReferenceContext({ draft = AppState.draft, narrativeOverride = '' } = {}) {
+  const narrative = String(narrativeOverride || getStep1ScenarioMemoryNarrative(draft)).trim();
+  const assessments = getStep1PortfolioAssessmentEntries()
+    .filter(assessment => String(assessment?.id || '').trim() !== String(draft?.id || '').trim())
+    .filter(assessment => deriveAssessmentLifecycleStatus(assessment) !== ASSESSMENT_LIFECYCLE_STATUS.ARCHIVED);
+  const signature = buildStep1ScenarioCrossReferenceSignature(narrative, assessments);
+  return {
+    narrative,
+    assessments,
+    signature,
+    portfolio: assessments.map((assessment) => ({
+      title: String(assessment?.scenarioTitle || assessment?.title || 'Untitled assessment').trim(),
+      primaryRiskCategory: getStep1AssessmentPrimaryRiskCategory(assessment)
+    }))
+  };
+}
+
+function renderStep1ScenarioCrossReferenceBand(draft = AppState.draft, context = getStep1ScenarioCrossReferenceContext({ draft })) {
+  const hasSignals = normaliseAssessmentTokens(context?.narrative || '').length >= 4;
+  if (!hasSignals || !(context?.assessments || []).length) return '';
+  const dismissals = draft?.scenarioCrossReferenceDismissals && typeof draft.scenarioCrossReferenceDismissals === 'object'
+    ? draft.scenarioCrossReferenceDismissals
+    : {};
+  const activeInsight = String(draft?.scenarioCrossReferenceSignature || '').trim() === String(context?.signature || '').trim()
+    ? (draft?.scenarioCrossReference && typeof draft.scenarioCrossReference === 'object' ? draft.scenarioCrossReference : null)
+    : null;
+  const overlap = activeInsight?.overlap && activeInsight.overlap.found ? activeInsight.overlap : null;
+  const gap = activeInsight?.gap && activeInsight.gap.isNew ? activeInsight.gap : null;
+  const showOverlap = overlap && String(dismissals.overlap || '').trim() !== String(context?.signature || '').trim();
+  const showGap = gap && String(dismissals.gap || '').trim() !== String(context?.signature || '').trim();
+  const isLoading = !!draft?.scenarioCrossReferenceLoading
+    && String(draft?.scenarioCrossReferenceLoadingSignature || '').trim() === String(context?.signature || '').trim();
+  if (!isLoading && !showOverlap && !showGap) return '';
+  return `<div class="wizard-summary-stack">
+    ${isLoading ? `<div class="premium-guidance-strip premium-guidance-strip--support">
+      <div class="premium-guidance-strip__main">
+        <div class="premium-guidance-strip__label">Portfolio cross-reference</div>
+        <strong>Checking the current scenario against saved assessment coverage…</strong>
+      </div>
+    </div>` : ''}
+    ${showOverlap ? `<div class="premium-guidance-strip premium-guidance-strip--warning">
+      <div class="premium-guidance-strip__main">
+        <div class="premium-guidance-strip__label">Portfolio overlap</div>
+        <strong>Heads up — this looks similar to '${escapeHtml(String(overlap.matchTitle || 'an existing assessment'))}'.</strong>
+        <div class="premium-guidance-strip__copy">${escapeHtml(String(overlap.overlapSummary || 'A saved assessment already covers much of the same scenario path.'))}</div>
+      </div>
+      <div class="premium-guidance-strip__meta" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        ${overlap.matchId ? `<button type="button" class="btn btn--secondary btn--sm" data-scenario-cross-reference-view="${escapeHtml(String(overlap.matchId || ''))}">View it</button>` : ''}
+        <button type="button" class="btn btn--ghost btn--sm" data-scenario-cross-reference-dismiss="overlap">Continue with new assessment</button>
+      </div>
+    </div>` : ''}
+    ${showGap ? `<div class="premium-guidance-strip premium-guidance-strip--success">
+      <div class="premium-guidance-strip__main">
+        <div class="premium-guidance-strip__label">New coverage area</div>
+        <strong>This scenario appears to fill a gap in the current risk portfolio.</strong>
+        <div class="premium-guidance-strip__copy">${escapeHtml(String(gap.gapSummary || 'This adds a scenario the current portfolio does not yet appear to cover directly.'))}</div>
+      </div>
+      <div class="premium-guidance-strip__meta" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <button type="button" class="btn btn--ghost btn--sm" data-scenario-cross-reference-dismiss="gap">Dismiss</button>
+      </div>
+    </div>` : ''}
+  </div>`;
+}
+
 function renderStep1GuidedBuilderCard(draft, recommendation, functionLabel = 'your role', promptSuggestions = []) {
   const draftPreview = String(draft.guidedDraftPreview || '').trim() || composeStep1GuidedNarrative(draft.guidedInput, getEffectiveSettings(), draft);
   const draftPreviewStatus = String(draft.guidedDraftStatus || '').trim();
@@ -804,7 +1109,7 @@ function renderStep1GuidedBuilderCard(draft, recommendation, functionLabel = 'yo
   </div>`;
 }
 
-function renderStep1SupportBand({ draft, hasScenarioDraft, hasImportedSource, featuredDryRun, recommendedDryRuns, learnedDryRuns, availableDryRuns, functionLabel, activeDryRun, buList, scenarioGeographies, regs, settings, riskCandidates, regulationModel }) {
+function renderStep1SupportBand({ draft, hasScenarioDraft, hasImportedSource, featuredDryRun, recommendedDryRuns, learnedDryRuns, availableDryRuns, functionLabel, activeDryRun, buList, scenarioGeographies, regs, settings, riskCandidates, regulationModel, scenarioMemoryState }) {
   return `<section class="wizard-support-band anim-fade-in">
     <div class="results-section-heading">Support and alternate starts</div>
     <div class="form-help" style="margin-top:8px">Use these only when you need existing context, a faster starting point, or a different source for the shortlist.</div>
@@ -851,6 +1156,12 @@ function renderStep1SupportBand({ draft, hasScenarioDraft, hasImportedSource, fe
       })}
       ${renderStep1FeaturedExampleCard(featuredDryRun, recommendedDryRuns, learnedDryRuns, functionLabel)}
       ${renderStep1OtherWaysToStart(draft, hasScenarioDraft, hasImportedSource, availableDryRuns, functionLabel)}
+      <div id="scenario-cross-reference-host">
+        ${renderStep1ScenarioCrossReferenceBand(draft)}
+      </div>
+      <div id="scenario-memory-host">
+        ${renderStep1ScenarioMemoryBand(draft, scenarioMemoryState)}
+      </div>
       <div id="intake-output">
         ${renderStep1AiIntakeSummary(draft)}
       </div>
@@ -2115,12 +2426,196 @@ function createStep1GeographySyncHandler({ buList, settings }) {
   };
 }
 
+let _scenarioMemoryDebounce = null;
+let _scenarioCrossReferenceDebounce = null;
+
+function refreshStep1ScenarioCrossReferenceHost({ includeAi = true, force = false, narrativeOverride = '' } = {}) {
+  const host = document.getElementById('scenario-cross-reference-host');
+  const context = getStep1ScenarioCrossReferenceContext({
+    draft: AppState.draft,
+    narrativeOverride
+  });
+  if (host) {
+    host.innerHTML = renderStep1ScenarioCrossReferenceBand(AppState.draft, context);
+  }
+  bindStep1ScenarioCrossReferenceActions();
+  if (!includeAi || !context.signature || normaliseAssessmentTokens(context.narrative).length < 4 || !context.portfolio.length) return;
+  if (!force && String(AppState.draft.scenarioCrossReferenceSignature || '').trim() === String(context.signature || '').trim()) return;
+  if (!force && AppState.draft.scenarioCrossReferenceLoading && String(AppState.draft.scenarioCrossReferenceLoadingSignature || '').trim() === String(context.signature || '').trim()) return;
+  AppState.draft.scenarioCrossReferenceLoading = true;
+  AppState.draft.scenarioCrossReferenceLoadingSignature = context.signature;
+  if (host) {
+    host.innerHTML = renderStep1ScenarioCrossReferenceBand(AppState.draft, context);
+  }
+  bindStep1ScenarioCrossReferenceActions();
+  const capturedSignature = context.signature;
+  const capturedAssessments = context.assessments.slice();
+  window.setTimeout(async () => {
+    const result = await window.Step1Assist?.checkScenarioPortfolioOverlap?.({
+      scenarioText: context.narrative,
+      portfolio: context.portfolio
+    });
+    if (String(AppState.draft.scenarioCrossReferenceLoadingSignature || '').trim() !== capturedSignature) return;
+    const overlap = result?.overlap && result.overlap.found
+      ? {
+          found: true,
+          matchTitle: String(result.overlap.matchTitle || '').trim(),
+          overlapSummary: String(result.overlap.overlapSummary || '').trim()
+        }
+      : { found: false, matchTitle: '', overlapSummary: '' };
+    const matchedAssessment = overlap.found
+      ? resolveStep1ScenarioCrossReferenceMatch(capturedAssessments, overlap.matchTitle)
+      : null;
+    AppState.draft.scenarioCrossReference = {
+      overlap: {
+        ...overlap,
+        matchId: String(matchedAssessment?.id || '').trim()
+      },
+      gap: result?.gap && result.gap.isNew
+        ? {
+            isNew: true,
+            gapSummary: String(result.gap.gapSummary || '').trim()
+          }
+        : {
+            isNew: false,
+            gapSummary: ''
+          }
+    };
+    AppState.draft.scenarioCrossReferenceSignature = capturedSignature;
+    AppState.draft.scenarioCrossReferenceLoading = false;
+    AppState.draft.scenarioCrossReferenceLoadingSignature = '';
+    const nextHost = document.getElementById('scenario-cross-reference-host');
+    if (nextHost) {
+      nextHost.innerHTML = renderStep1ScenarioCrossReferenceBand(AppState.draft, getStep1ScenarioCrossReferenceContext({ draft: AppState.draft }));
+    }
+    bindStep1ScenarioCrossReferenceActions();
+  }, 0);
+}
+
+function refreshStep1ScenarioMemoryHost({ includeAi = true } = {}) {
+  const host = document.getElementById('scenario-memory-host');
+  const state = ensureStep1ScenarioMemoryState(AppState.draft);
+  if (host) {
+    host.innerHTML = renderStep1ScenarioMemoryBand(AppState.draft, state);
+  }
+  bindStep1ScenarioMemoryActions();
+  if (!includeAi || state.matches.length < 2 || !state.signature) return;
+  if (String(AppState.draft.scenarioMemoryPrecedentSignature || '').trim() === state.signature) return;
+  AppState.draft.scenarioMemoryPrecedentLoading = true;
+  if (host) {
+    host.innerHTML = renderStep1ScenarioMemoryBand(AppState.draft, ensureStep1ScenarioMemoryState(AppState.draft));
+  }
+  bindStep1ScenarioMemoryActions();
+  const capturedSignature = state.signature;
+  const currentScenario = getStep1ScenarioMemoryNarrative(AppState.draft);
+  window.setTimeout(async () => {
+    const precedent = await window.Step1Assist?.generateScenarioMemoryPrecedent?.({
+      currentScenario,
+      matches: state.matches
+    });
+    if (String(AppState.draft.scenarioMemorySignature || '').trim() !== capturedSignature) return;
+    AppState.draft.scenarioMemoryPrecedent = String(precedent || '').trim();
+    AppState.draft.scenarioMemoryPrecedentSignature = capturedSignature;
+    AppState.draft.scenarioMemoryPrecedentLoading = false;
+    const nextHost = document.getElementById('scenario-memory-host');
+    if (nextHost) nextHost.innerHTML = renderStep1ScenarioMemoryBand(AppState.draft, ensureStep1ScenarioMemoryState(AppState.draft));
+    bindStep1ScenarioMemoryActions();
+  }, 0);
+}
+
+function scheduleStep1ScenarioMemoryRefresh({ immediate = false } = {}) {
+  window.clearTimeout(_scenarioMemoryDebounce);
+  if (immediate) {
+    refreshStep1ScenarioMemoryHost({ includeAi: true });
+    return;
+  }
+  _scenarioMemoryDebounce = window.setTimeout(() => {
+    refreshStep1ScenarioMemoryHost({ includeAi: true });
+  }, 500);
+}
+
+function scheduleStep1ScenarioCrossReferenceRefresh({ immediate = false, force = false, narrativeOverride = '' } = {}) {
+  window.clearTimeout(_scenarioCrossReferenceDebounce);
+  if (immediate) {
+    refreshStep1ScenarioCrossReferenceHost({ includeAi: true, force, narrativeOverride });
+    return;
+  }
+  _scenarioCrossReferenceDebounce = window.setTimeout(() => {
+    refreshStep1ScenarioCrossReferenceHost({ includeAi: true, force, narrativeOverride });
+  }, 500);
+}
+
+function bindStep1ScenarioCrossReferenceActions() {
+  document.querySelectorAll('[data-scenario-cross-reference-view]').forEach((button) => {
+    if (button.dataset.bound === 'true') return;
+    button.dataset.bound = 'true';
+    button.addEventListener('click', () => {
+      const id = String(button.dataset.scenarioCrossReferenceView || '').trim();
+      if (!id) return;
+      Router.navigate(`/results/${id}`);
+    });
+  });
+  document.querySelectorAll('[data-scenario-cross-reference-dismiss]').forEach((button) => {
+    if (button.dataset.bound === 'true') return;
+    button.dataset.bound = 'true';
+    button.addEventListener('click', () => {
+      const kind = String(button.dataset.scenarioCrossReferenceDismiss || '').trim();
+      if (!kind) return;
+      const signature = String(AppState.draft.scenarioCrossReferenceSignature || '').trim();
+      AppState.draft.scenarioCrossReferenceDismissals = {
+        ...(AppState.draft.scenarioCrossReferenceDismissals && typeof AppState.draft.scenarioCrossReferenceDismissals === 'object' ? AppState.draft.scenarioCrossReferenceDismissals : {}),
+        [kind]: signature
+      };
+      refreshStep1ScenarioCrossReferenceHost({ includeAi: false });
+    });
+  });
+}
+
+function bindStep1ScenarioMemoryActions() {
+  document.querySelectorAll('.btn-scenario-memory-load').forEach((button) => {
+    button.addEventListener('click', () => {
+      const targetId = String(button.dataset.scenarioMemoryId || '').trim();
+      if (!targetId) return;
+      AppState.draft.scenarioMemoryReferenceId = targetId;
+      if (typeof markScenarioMemoryReference === 'function') {
+        markScenarioMemoryReference(targetId);
+      }
+      refreshStep1ScenarioMemoryHost({ includeAi: false });
+    });
+  });
+  document.querySelectorAll('.btn-scenario-memory-compare').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const targetId = String(button.dataset.scenarioMemoryId || '').trim();
+      const state = ensureStep1ScenarioMemoryState(AppState.draft);
+      const reference = state.matches.find(match => String(match?.id || '').trim() === targetId) || null;
+      if (!reference) return;
+      AppState.draft.scenarioMemoryReferenceId = targetId;
+      AppState.draft.scenarioMemoryComparisonLoadingId = targetId;
+      refreshStep1ScenarioMemoryHost({ includeAi: false });
+      const capturedSignature = String(AppState.draft.scenarioMemorySignature || '').trim();
+      const difference = await window.Step1Assist?.compareScenarioMemory?.({
+        currentScenario: getStep1ScenarioMemoryNarrative(AppState.draft),
+        referenceScenario: reference,
+        scenarioLens: AppState.draft.scenarioLens
+      });
+      if (String(AppState.draft.scenarioMemorySignature || '').trim() !== capturedSignature) return;
+      AppState.draft.scenarioMemoryComparisonLoadingId = '';
+      AppState.draft.scenarioMemoryComparisons = {
+        ...(AppState.draft.scenarioMemoryComparisons && typeof AppState.draft.scenarioMemoryComparisons === 'object' ? AppState.draft.scenarioMemoryComparisons : {}),
+        [targetId]: String(difference || '').trim()
+      };
+      refreshStep1ScenarioMemoryHost({ includeAi: false });
+    });
+  });
+}
+
 function bindStep1PrimaryInputs({ buList, wizardGeographyInput }) {
   document.getElementById('wizard-bu').addEventListener('change', function() {
     const bu = buList.find(b => b.id === this.value) || null;
     AppState.draft.buId = bu?.id || null;
     AppState.draft.buName = bu?.name || null;
     persistAndRenderStep1({ buList, scenarioGeographies: getScenarioGeographies(), refreshRegulations: true });
+    scheduleStep1ScenarioCrossReferenceRefresh({ immediate: true, force: true });
   });
 
   document.querySelectorAll('.wizard-geo-chip').forEach(button => {
@@ -2142,6 +2637,12 @@ function bindStep1PrimaryInputs({ buList, wizardGeographyInput }) {
       updateStep1GuidedPreview();
       markDraftDirty();
       scheduleDraftAutosave();
+      scheduleStep1ScenarioMemoryRefresh();
+      scheduleStep1ScenarioCrossReferenceRefresh();
+    });
+    document.getElementById(`guided-${key}`).addEventListener('blur', () => {
+      scheduleStep1ScenarioMemoryRefresh({ immediate: true });
+      scheduleStep1ScenarioCrossReferenceRefresh({ immediate: true });
     });
   });
 
@@ -2156,6 +2657,12 @@ function bindStep1PrimaryInputs({ buList, wizardGeographyInput }) {
     updateStep1GuidedPreview();
     markDraftDirty();
     scheduleDraftAutosave();
+    scheduleStep1ScenarioMemoryRefresh();
+    scheduleStep1ScenarioCrossReferenceRefresh();
+  });
+  document.getElementById('guided-urgency').addEventListener('blur', () => {
+    scheduleStep1ScenarioMemoryRefresh({ immediate: true });
+    scheduleStep1ScenarioCrossReferenceRefresh({ immediate: true });
   });
 
   document.getElementById('intake-risk-statement').addEventListener('input', function() {
@@ -2169,6 +2676,12 @@ function bindStep1PrimaryInputs({ buList, wizardGeographyInput }) {
     clearLoadedDryRunFlag();
     markDraftDirty();
     scheduleDraftAutosave();
+    scheduleStep1ScenarioMemoryRefresh();
+    scheduleStep1ScenarioCrossReferenceRefresh();
+  });
+  document.getElementById('intake-risk-statement').addEventListener('blur', () => {
+    scheduleStep1ScenarioMemoryRefresh({ immediate: true });
+    scheduleStep1ScenarioCrossReferenceRefresh({ immediate: true });
   });
 }
 
@@ -2185,6 +2698,8 @@ function bindStep1ScenarioActions({ buList, settings, exampleModel }) {
       updateStep1GuidedPreview();
       markDraftDirty();
       scheduleDraftAutosave();
+      scheduleStep1ScenarioMemoryRefresh();
+      scheduleStep1ScenarioCrossReferenceRefresh();
     });
   });
 
@@ -2197,6 +2712,8 @@ function bindStep1ScenarioActions({ buList, settings, exampleModel }) {
       if (!example) return;
       if (hasStep1Content() && !window.confirm('Load this dry-run example and replace the current step-1 scenario draft and shortlist?')) return;
       applyDryRunScenario(example);
+      scheduleStep1ScenarioMemoryRefresh({ immediate: true });
+      scheduleStep1ScenarioCrossReferenceRefresh({ immediate: true, force: true });
     });
   });
 
@@ -2233,6 +2750,7 @@ function bindStep1ScenarioActions({ buList, settings, exampleModel }) {
     AppState.draft.narrative = narrative;
     AppState.draft.sourceNarrative = AppState.draft.sourceNarrative || narrative;
     persistAndRenderStep1();
+    scheduleStep1ScenarioMemoryRefresh({ immediate: true });
     UI.toast(seededCount ? `Added ${seededCount} risk${seededCount === 1 ? '' : 's'} from the scenario draft.` : 'No additional risks were generated from that draft.', seededCount ? 'success' : 'warning');
   });
 
@@ -2293,6 +2811,7 @@ function bindStep1NavigationActions({ buList, settings, wizardGeographyInput }) 
     if (!AppState.draft.scenarioTitle) {
       AppState.draft.scenarioTitle = selected.length === 1 ? selected[0].title : `${selected.length || 1}-risk scenario for ${AppState.draft.buName}`;
     }
+    scheduleStep1ScenarioCrossReferenceRefresh({ immediate: true, force: true, narrativeOverride: AppState.draft.narrative });
     saveDraft();
     Router.navigate('/wizard/2');
   });
@@ -2319,6 +2838,7 @@ function renderWizard1() {
   const regs = regulationModel.selected;
   const recommendation = getStep1RecommendedAction(draft, selectedRisks);
   const exampleModel = getStep1ExampleExperienceModel(settings, draft);
+  const scenarioMemoryState = ensureStep1ScenarioMemoryState(draft);
   const activeDryRun = getLoadedDryRunScenario(draft);
   const starterFeaturedExample = !activeDryRun && !draft.buId
     ? exampleModel.availableExamples.find(example => example.id === 'supplier-platform-outage')
@@ -2383,7 +2903,8 @@ function renderWizard1() {
             regs,
             settings,
             riskCandidates,
-            regulationModel
+            regulationModel,
+            scenarioMemoryState
           })}
           ${renderStep1ScopeBand({ draft, selectedRisks, riskCandidates, regs })}
         </div>
@@ -2408,6 +2929,15 @@ function renderWizard1() {
   bindStep1ScenarioActions({ buList, settings, exampleModel });
   bindStep1NavigationActions({ buList, settings, wizardGeographyInput });
   bindRiskCardActions({ buList });
+  bindStep1ScenarioCrossReferenceActions();
+  bindStep1ScenarioMemoryActions();
+  if (scenarioMemoryState.matches.length >= 2 && String(AppState.draft.scenarioMemoryPrecedentSignature || '').trim() !== String(scenarioMemoryState.signature || '').trim()) {
+    scheduleStep1ScenarioMemoryRefresh();
+  }
+  refreshStep1ScenarioCrossReferenceHost({ includeAi: false });
+  if (normaliseAssessmentTokens(getStep1ScenarioMemoryNarrative(draft)).length >= 4 && !String(AppState.draft.scenarioCrossReferenceSignature || '').trim()) {
+    scheduleStep1ScenarioCrossReferenceRefresh();
+  }
   window.Step1Assist?.mountAiTraceLinks?.();
   document.getElementById('btn-clear-ghost-draft')?.addEventListener('click', () => {
     clearGhostDraftSuggestion();
@@ -2427,6 +2957,8 @@ function renderWizard1() {
       persistAndRenderStep1();
     });
 }
+
+window.scheduleStep1ScenarioCrossReferenceRefresh = scheduleStep1ScenarioCrossReferenceRefresh;
 
 function normaliseAssessmentTokens(text) {
   return Array.from(new Set(

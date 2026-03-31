@@ -4164,6 +4164,69 @@ Return JSON only with this schema:
     }
   }
 
+  async function generatePortfolioExecutiveBrief(input = {}) {
+    if (_isDirectCompassUrl(_compassApiUrl) && !_compassApiKey) return null;
+    const portfolioSummary = String(input?.portfolioSummary || '').trim().slice(0, 7000);
+    if (!portfolioSummary) return null;
+    const preferredSection = String(input?.preferredSection || '').trim().toLowerCase();
+    const emphasisOverride = String(input?.emphasisOverride || '').trim().toLowerCase();
+    const sectionHint = emphasisOverride || preferredSection;
+    const sectionPrompt = sectionHint
+      ? `The reader usually focuses most on ${sectionHint.replace(/([A-Z])/g, ' $1').replace(/-/g, ' ').trim().toLowerCase()}, so make that section especially crisp and concrete.`
+      : '';
+    const schema = `{
+  "headline": "string",
+  "topRisks": [
+    {
+      "name": "string",
+      "description": "string",
+      "action": "string"
+    }
+  ],
+  "portfolioHealth": "string",
+  "decisionNeeded": "string"
+}`;
+    const systemPrompt = `You are the Chief Risk Officer of a technology company headquartered in Abu Dhabi with global operations and significant US regulatory exposure including AI technology export controls.
+
+Generate a board briefing note with:
+1. ONE headline sentence: the single most important risk message.
+2. TOP 3 RISKS: name, one-sentence plain description, recommended action.
+3. PORTFOLIO HEALTH: one sentence on overall trend (improving/stable/worsening).
+4. ONE DECISION NEEDED: the single most important decision the board should make today.
+
+Write in formal but plain English. No acronyms without explanation.
+Return JSON only with this schema:
+${schema}`;
+    const userPrompt = `${sectionPrompt ? `${sectionPrompt}\n\n` : ''}Here is the current risk portfolio:\n${portfolioSummary}`;
+    try {
+      const raw = await _callLLM(systemPrompt, userPrompt, {
+        taskName: 'generatePortfolioExecutiveBrief',
+        maxCompletionTokens: 520,
+        timeoutMs: 18000
+      });
+      if (!raw) return null;
+      const parsed = await _parseOrRepairStructuredJson(raw, schema, {
+        taskName: 'repairPortfolioExecutiveBrief'
+      });
+      const topRisks = (Array.isArray(parsed?.topRisks) ? parsed.topRisks : [])
+        .map((item) => ({
+          name: _cleanUserFacingText(item?.name || '', { maxSentences: 1 }),
+          description: _cleanUserFacingText(item?.description || '', { maxSentences: 1 }),
+          action: _cleanUserFacingText(item?.action || '', { maxSentences: 1 })
+        }))
+        .filter(item => item.name && item.description)
+        .slice(0, 3);
+      return {
+        headline: _cleanUserFacingText(parsed?.headline || '', { maxSentences: 1 }),
+        topRisks,
+        portfolioHealth: _cleanUserFacingText(parsed?.portfolioHealth || '', { maxSentences: 1 }),
+        decisionNeeded: _cleanUserFacingText(parsed?.decisionNeeded || '', { maxSentences: 1 })
+      };
+    } catch {
+      return null;
+    }
+  }
+
   async function mediateAssessmentDispute(input = {}) {
     if (_isDirectCompassUrl(_compassApiUrl) && !_compassApiKey) return null;
     const reviewerView = String(input?.reviewerView || '').trim();
@@ -4230,6 +4293,681 @@ Return JSON only with this schema:
         evidenceToVerify: _cleanUserFacingText(parsed.evidenceToVerify || '', { maxSentences: 1 }),
         continueDiscussionPrompt: _cleanUserFacingText(parsed.continueDiscussionPrompt || '', { maxSentences: 1 })
       };
+    } catch {
+      return null;
+    }
+  }
+
+  function _buildParameterChallengeStub(input = {}) {
+    const parameterLabel = String(input?.parameterLabel || 'parameter').trim();
+    const currentValueLabel = String(input?.currentValueLabel || input?.currentValue || '').trim();
+    const concern = String(input?.reviewerConcern || '').trim();
+    const concernLower = concern.toLowerCase();
+    const parameterKey = String(input?.parameterKey || '').trim();
+    const numericValue = Number(input?.currentValue);
+    const adjustmentDirection = /too low|understat|optimistic|higher|increase|more severe|too weak|not enough/i.test(concernLower)
+      ? 'up'
+      : /too high|overstat|conservative|lower|decrease|too strong/i.test(concernLower)
+        ? 'down'
+        : (parameterKey === 'controlStrLikely' ? 'down' : 'up');
+    const questions = [
+      `What direct evidence supports keeping ${parameterLabel} at ${currentValueLabel || 'the current value'}?`,
+      `Which internal record, test result, or source would satisfy the reviewer if you defend this ${parameterLabel.toLowerCase()} estimate?`,
+      parameterKey === 'lmLow' || parameterKey === 'lmHigh'
+        ? 'Which loss component is doing most of the work in this range, and do you have finance or operations evidence for it?'
+        : parameterKey === 'controlStrLikely'
+          ? 'What control test, operating evidence, or recent incident data shows the current control strength is realistic?'
+          : 'What evidence would make you revise this estimate instead of defending it?'
+    ].filter(Boolean).slice(0, 3);
+    let suggestedValue = Number.isFinite(numericValue) ? numericValue : 0;
+    if (Number.isFinite(numericValue)) {
+      if (parameterKey === 'controlStrLikely') {
+        suggestedValue = adjustmentDirection === 'up'
+          ? Math.min(0.99, numericValue + 0.08)
+          : Math.max(0.01, numericValue - 0.08);
+      } else if (parameterKey === 'vulnerability') {
+        suggestedValue = adjustmentDirection === 'up'
+          ? Math.min(0.99, numericValue + 0.08)
+          : Math.max(0.01, numericValue - 0.08);
+      } else {
+        const factor = adjustmentDirection === 'up' ? 1.12 : 0.9;
+        suggestedValue = numericValue * factor;
+      }
+    }
+    return {
+      analystQuestions: questions,
+      reviewerAdjustment: {
+        param: parameterKey || parameterLabel,
+        suggestedValue: Number.isFinite(suggestedValue) ? Number(suggestedValue.toFixed(parameterKey === 'lmLow' || parameterKey === 'lmHigh' ? 0 : 2)) : numericValue,
+        aleImpact: adjustmentDirection === 'up'
+          ? 'ALE would likely move upward unless the analyst can narrow the evidence base and defend the current estimate.'
+          : 'ALE would likely move downward if the reviewer concern is accepted without new evidence.',
+        rationale: concern
+          ? `This is the smallest directional adjustment that reflects the reviewer concern: ${concern}`
+          : `This is the smallest directional adjustment that reflects a cautious reviewer challenge to ${parameterLabel.toLowerCase()}.`
+      }
+    };
+  }
+
+  async function generateParameterChallengeRecord(input = {}) {
+    const stub = _buildParameterChallengeStub(input);
+    if (_isDirectCompassUrl(_compassApiUrl) && !_compassApiKey) return stub;
+    const parameterLabel = String(input?.parameterLabel || 'Parameter').trim();
+    const currentValueLabel = String(input?.currentValueLabel || input?.currentValue || '').trim();
+    const scenarioSummary = String(input?.scenarioSummary || '').trim().slice(0, 900);
+    const reviewerConcern = String(input?.reviewerConcern || '').trim().slice(0, 1000);
+    const allowedParams = Array.isArray(input?.allowedParams)
+      ? input.allowedParams.map(item => String(item || '').trim()).filter(Boolean)
+      : ['tefLikely', 'vulnerability', 'lmLow', 'lmHigh', 'controlStrLikely'];
+    const currentAle = String(input?.currentAle || '').trim();
+    const schema = `{
+  "analystQuestions": ["string"],
+  "reviewerAdjustment": {
+    "param": "string",
+    "suggestedValue": "number",
+    "aleImpact": "string",
+    "rationale": "string"
+  }
+}`;
+    const systemPrompt = `A reviewer has challenged a key parameter in a quantified risk assessment.
+Generate two outputs:
+A) For the ANALYST: 1-3 specific questions they must answer to defend or revise the estimate. Be precise about what evidence would satisfy the reviewer.
+B) For the REVIEWER: the minimum parameter adjustment that would reflect the concern if the analyst cannot provide new evidence. Show the impact on ALE.
+
+Return JSON only with this schema:
+${schema}
+
+Allowed reviewerAdjustment.param values: ${allowedParams.join(', ')}`;
+    const userPrompt = [
+      `Parameter challenged: ${parameterLabel}`,
+      `Current value: ${currentValueLabel}`,
+      currentAle ? `Current ALE: ${currentAle}` : '',
+      `Scenario summary: ${scenarioSummary}`,
+      `Reviewer concern: ${reviewerConcern}`
+    ].filter(Boolean).join('\n');
+    try {
+      const raw = await _callLLM(systemPrompt, userPrompt, {
+        taskName: 'generateParameterChallengeRecord',
+        maxCompletionTokens: 500,
+        timeoutMs: 16000
+      });
+      if (!raw) return stub;
+      const parsed = await _parseOrRepairStructuredJson(raw, schema, {
+        taskName: 'repairParameterChallengeRecord'
+      });
+      const analystQuestions = (Array.isArray(parsed?.analystQuestions) ? parsed.analystQuestions : stub.analystQuestions)
+        .map(item => _cleanUserFacingText(item || '', { maxSentences: 1 }))
+        .filter(Boolean)
+        .slice(0, 3);
+      const adjustment = parsed?.reviewerAdjustment && typeof parsed.reviewerAdjustment === 'object'
+        ? parsed.reviewerAdjustment
+        : stub.reviewerAdjustment;
+      return {
+        analystQuestions: analystQuestions.length ? analystQuestions : stub.analystQuestions,
+        reviewerAdjustment: {
+          param: String(adjustment?.param || stub.reviewerAdjustment.param || '').trim() || stub.reviewerAdjustment.param,
+          suggestedValue: Number.isFinite(Number(adjustment?.suggestedValue))
+            ? Number(adjustment.suggestedValue)
+            : stub.reviewerAdjustment.suggestedValue,
+          aleImpact: _cleanUserFacingText(adjustment?.aleImpact || stub.reviewerAdjustment.aleImpact || '', { maxSentences: 1 }) || stub.reviewerAdjustment.aleImpact,
+          rationale: _cleanUserFacingText(adjustment?.rationale || stub.reviewerAdjustment.rationale || '', { maxSentences: 2 }) || stub.reviewerAdjustment.rationale
+        }
+      };
+    } catch {
+      return stub;
+    }
+  }
+
+  function _buildChallengeSynthesisStub(input = {}) {
+    const records = Array.isArray(input?.records) ? input.records : [];
+    const overallConcern = records.length
+      ? `Reviewers are consistently challenging ${String(records[0]?.parameter || 'the current assumptions').toLowerCase()} and the overall severity looks more exposed than the base case suggests.`
+      : 'Reviewers are questioning whether the current estimate is too optimistic overall.';
+    const revisedAleRange = String(input?.baseAleRange || '').trim()
+      ? `A prudent committee view would treat the outcome as materially higher than the current ${String(input.baseAleRange).trim()} planning range until the challenged assumptions are defended.`
+      : 'A prudent committee view would treat the annual loss range as materially higher until the challenged assumptions are defended.';
+    const keyEvidence = 'The single best way to resolve most of these challenges is to produce one current evidence pack that proves the disputed control performance and loss-range assumptions together.';
+    return {
+      overallConcern,
+      revisedAleRange,
+      keyEvidence
+    };
+  }
+
+  async function generateChallengeSynthesis(input = {}) {
+    const stub = _buildChallengeSynthesisStub(input);
+    if (_isDirectCompassUrl(_compassApiUrl) && !_compassApiKey) return stub;
+    const records = Array.isArray(input?.records)
+      ? input.records.filter(item => item && typeof item === 'object').slice(0, 8)
+      : [];
+    if (records.length < 2) return null;
+    const schema = `{
+  "overallConcern": "string",
+  "revisedAleRange": "string",
+  "keyEvidence": "string"
+}`;
+    const systemPrompt = `A risk assessment has received separate parameter challenges from reviewers.
+Synthesise them into one coherent alternative view for a risk committee.
+
+Return JSON only with this schema:
+${schema}
+
+Requirements:
+- overallConcern: one sentence on the reviewer's combined concern
+- revisedAleRange: one sentence stating the revised ALE range or direction implied by the combined challenges
+- keyEvidence: one sentence naming the single most useful new evidence item to resolve most of the challenge
+
+Write as if advising a risk committee. Keep the total to 3 sentences.`;
+    const userPrompt = JSON.stringify({
+      scenarioTitle: String(input?.scenarioTitle || '').trim(),
+      scenarioSummary: String(input?.scenarioSummary || '').trim().slice(0, 1200),
+      currentAleRange: String(input?.baseAleRange || '').trim(),
+      challenges: records.map(item => ({
+        parameter: String(item?.parameter || '').trim(),
+        concern: String(item?.concern || '').trim(),
+        reviewerAdjustment: item?.reviewerAdjustment || {}
+      }))
+    }, null, 2);
+    try {
+      const raw = await _callLLM(systemPrompt, userPrompt, {
+        taskName: 'generateChallengeSynthesis',
+        maxCompletionTokens: 260,
+        timeoutMs: 14000
+      });
+      if (!raw) return stub;
+      const parsed = await _parseOrRepairStructuredJson(raw, schema, {
+        taskName: 'repairChallengeSynthesis'
+      });
+      return {
+        overallConcern: _cleanUserFacingText(parsed?.overallConcern || '', { maxSentences: 1 }) || stub.overallConcern,
+        revisedAleRange: _cleanUserFacingText(parsed?.revisedAleRange || '', { maxSentences: 1 }) || stub.revisedAleRange,
+        keyEvidence: _cleanUserFacingText(parsed?.keyEvidence || '', { maxSentences: 1 }) || stub.keyEvidence
+      };
+    } catch {
+      return stub;
+    }
+  }
+
+  function _buildConsensusRecommendationStub(input = {}) {
+    const challenges = Array.isArray(input?.challenges) ? input.challenges : [];
+    const acceptable = challenges
+      .filter(item => Math.abs(Number(item?.impactPct || 0)) <= 15)
+      .map(item => String(item?.ref || '').trim())
+      .filter(Boolean);
+    const defend = challenges
+      .filter(item => !acceptable.includes(String(item?.ref || '').trim()))
+      .map(item => String(item?.ref || '').trim())
+      .filter(Boolean);
+    const meetInMiddleAleRange = String(input?.projectedAleRange || input?.adjustedAleRange || input?.originalAleRange || '').trim()
+      || 'Use the projected consensus path as the working annual loss range until new evidence closes the challenge.';
+    const headline = challenges.length
+      ? `Accept the smaller committee adjustments first, then defend the changes that would materially reshape the current result without new evidence.`
+      : 'Accept the smallest defensible reviewer adjustments first, then defend the assumptions that would materially change the outcome.';
+    const defendLine = defend.length
+      ? `Defend ${defend.join(', ')} unless the reviewer can show stronger evidence, because those changes would move the outcome materially beyond the current management read.`
+      : 'Defend any remaining large-impact changes until stronger evidence shows the base case is too optimistic.';
+    const consensusLine = `A workable middle ground is ${meetInMiddleAleRange}.`;
+    return {
+      summaryBullets: [headline, defendLine, consensusLine],
+      acceptChallenges: acceptable,
+      defendChallenges: defend,
+      meetInTheMiddleAleRange: meetInMiddleAleRange
+    };
+  }
+
+  async function generateConsensusRecommendation(input = {}) {
+    const stub = _buildConsensusRecommendationStub(input);
+    if (_isDirectCompassUrl(_compassApiUrl) && !_compassApiKey) return stub;
+    const challenges = Array.isArray(input?.challenges)
+      ? input.challenges.filter(item => item && typeof item === 'object').slice(0, 8)
+      : [];
+    if (!challenges.length) return stub;
+    const allowedRefs = challenges.map(item => String(item?.ref || '').trim()).filter(Boolean);
+    const schema = `{
+  "summaryBullets": ["string", "string", "string"],
+  "acceptChallenges": ["${allowedRefs[0] || 'C1'}"],
+  "defendChallenges": ["${allowedRefs[1] || 'C2'}"],
+  "meetInTheMiddleAleRange": "string"
+}`;
+    const systemPrompt = `An analyst's assessment has reviewer challenges.
+Original parameters: current estimate.
+Original ALE: current estimate.
+If all reviewer adjustments applied: adjusted estimate.
+Adjusted ALE: adjusted estimate.
+
+Generate a consensus recommendation:
+- Which adjustments should the analyst accept? (small ALE impact)
+- Which should they defend? (large ALE impact, needs evidence)
+- What is the "meet in the middle" ALE range both sides could accept?
+
+Return JSON only with this schema:
+${schema}
+
+Rules:
+- Use only the supplied challenge refs in acceptChallenges and defendChallenges.
+- Write exactly 3 direct bullets for a risk committee.
+- Put the committee-friendly projected range in meetInTheMiddleAleRange.`;
+    const userPrompt = JSON.stringify({
+      scenarioTitle: String(input?.scenarioTitle || '').trim(),
+      scenarioSummary: String(input?.scenarioSummary || '').trim().slice(0, 1000),
+      originalAleRange: String(input?.originalAleRange || '').trim(),
+      adjustedAleRange: String(input?.adjustedAleRange || '').trim(),
+      projectedAleRange: String(input?.projectedAleRange || '').trim(),
+      aleChangePct: Number(input?.aleChangePct || 0),
+      originalParameters: input?.originalParameters || {},
+      adjustedParameters: input?.adjustedParameters || {},
+      challenges: challenges.map(item => ({
+        ref: String(item?.ref || '').trim(),
+        parameter: String(item?.parameter || '').trim(),
+        concern: String(item?.concern || '').trim(),
+        proposedValue: String(item?.proposedValue || '').trim(),
+        impactPct: Number(item?.impactPct || 0),
+        aleImpact: String(item?.aleImpact || '').trim()
+      }))
+    }, null, 2);
+    try {
+      const raw = await _callLLM(systemPrompt, userPrompt, {
+        taskName: 'generateConsensusRecommendation',
+        maxCompletionTokens: 320,
+        timeoutMs: 14000
+      });
+      if (!raw) return stub;
+      const parsed = await _parseOrRepairStructuredJson(raw, schema, {
+        taskName: 'repairConsensusRecommendation'
+      });
+      const cleanRefs = values => (Array.isArray(values) ? values : [])
+        .map(item => String(item || '').trim())
+        .filter(item => allowedRefs.includes(item));
+      const summaryBullets = (Array.isArray(parsed?.summaryBullets) ? parsed.summaryBullets : stub.summaryBullets)
+        .map(item => _cleanUserFacingText(item || '', { maxSentences: 1 }))
+        .filter(Boolean)
+        .slice(0, 3);
+      const acceptChallenges = cleanRefs(parsed?.acceptChallenges);
+      const defendChallenges = cleanRefs(parsed?.defendChallenges).filter(item => !acceptChallenges.includes(item));
+      return {
+        summaryBullets: summaryBullets.length ? summaryBullets : stub.summaryBullets,
+        acceptChallenges: acceptChallenges.length ? acceptChallenges : stub.acceptChallenges,
+        defendChallenges: defendChallenges.length ? defendChallenges : stub.defendChallenges,
+        meetInTheMiddleAleRange: _cleanUserFacingText(parsed?.meetInTheMiddleAleRange || '', { maxSentences: 1 }) || stub.meetInTheMiddleAleRange
+      };
+    } catch {
+      return stub;
+    }
+  }
+
+  function _buildAssessmentVersionNarrativeStub(input = {}) {
+    const diffLines = Array.isArray(input?.parameterDiffLines) ? input.parameterDiffLines.filter(Boolean) : [];
+    const priorAle = String(input?.previousAleLabel || 'the earlier outcome').trim();
+    const currentAle = String(input?.currentAleLabel || 'the current outcome').trim();
+    if (!diffLines.length) {
+      return `The analyst appears to have refreshed the assessment without making a major visible parameter change. The outcome moved from ${priorAle} to ${currentAle}, which suggests the update was more about context, evidence, or scenario framing than a wholesale reset. Review the narrative and supporting evidence to confirm what changed.`;
+    }
+    return `The analyst changed ${diffLines[0].replace(':', '').toLowerCase()}, which suggests they revised the practical severity or likelihood of the scenario. The outcome moved from ${priorAle} to ${currentAle}, so the update changed the scale of the expected loss rather than just the wording. This usually means new evidence, stronger challenge, or a tighter view of how the scenario would actually play out.`;
+  }
+
+  async function generateAssessmentVersionNarrative(input = {}) {
+    const stub = _buildAssessmentVersionNarrativeStub(input);
+    if (_isDirectCompassUrl(_compassApiUrl) && !_compassApiKey) return stub;
+    const diffLines = Array.isArray(input?.parameterDiffLines)
+      ? input.parameterDiffLines.map(item => String(item || '').trim()).filter(Boolean).slice(0, 8)
+      : [];
+    if (!diffLines.length) return stub;
+    const schema = `{
+  "narrative": "string"
+}`;
+    const systemPrompt = `A risk assessment was updated. Here is what changed.
+Generate a plain-English narrative of what these changes mean: why might the analyst have changed these values? What does the change in ALE outcome tell us?
+Write 3 sentences maximum. Do not use FAIR jargon.
+
+Return JSON only with this schema:
+${schema}`;
+    const userPrompt = [
+      `Earlier scenario summary: ${String(input?.previousScenarioSummary || '').trim().slice(0, 900) || 'Not stated'}`,
+      `Current scenario summary: ${String(input?.currentScenarioSummary || '').trim().slice(0, 900) || 'Not stated'}`,
+      `Earlier ALE outcome: ${String(input?.previousAleLabel || 'Not stated').trim()}`,
+      `Current ALE outcome: ${String(input?.currentAleLabel || 'Not stated').trim()}`,
+      'Key parameter differences:',
+      diffLines.map(item => `- ${item}`).join('\n')
+    ].join('\n');
+    try {
+      const raw = await _callLLM(systemPrompt, userPrompt, {
+        taskName: 'generateAssessmentVersionNarrative',
+        maxCompletionTokens: 220,
+        timeoutMs: 12000
+      });
+      if (!raw) return stub;
+      const parsed = await _parseOrRepairStructuredJson(raw, schema, {
+        taskName: 'repairAssessmentVersionNarrative'
+      });
+      const narrative = _cleanUserFacingText(parsed?.narrative || '', { maxSentences: 3 });
+      return narrative || stub;
+    } catch {
+      return stub;
+    }
+  }
+
+  function _buildSensitivityNarrativeStub(input = {}) {
+    const rows = Array.isArray(input?.rows) ? input.rows : [];
+    if (!rows.length) return 'This sensitivity view did not produce enough data to identify a single dominant parameter yet.';
+    const winner = rows
+      .map((item) => ({
+        ...item,
+        highRatio: Number(item?.highRatio || 1),
+        lowRatio: Number(item?.lowRatio || 1),
+        leverage: Math.max(Math.abs(Number(item?.highRatio || 1) - 1), Math.abs(1 - Number(item?.lowRatio || 1)))
+      }))
+      .sort((left, right) => right.leverage - left.leverage)[0];
+    const low = Number(winner?.lowRatio || 1).toFixed(1);
+    const high = Number(winner?.highRatio || 1).toFixed(1);
+    return `This assessment is most sensitive to ${String(winner?.parameter || 'one key parameter').toLowerCase()} — if that estimate is wrong, the true risk could be ${low}-${high}x the current annual loss view.`;
+  }
+
+  async function generateSensitivityNarrative(input = {}) {
+    const stub = _buildSensitivityNarrativeStub(input);
+    if (_isDirectCompassUrl(_compassApiUrl) && !_compassApiKey) return stub;
+    const rows = Array.isArray(input?.rows)
+      ? input.rows.filter(item => item && typeof item === 'object').slice(0, 6)
+      : [];
+    if (!rows.length) return stub;
+    const schema = `{
+  "sentence": "string"
+}`;
+    const systemPrompt = `Here is a sensitivity analysis for a risk scenario. Which parameter has the most leverage on the outcome? Generate one sentence: "This assessment is most sensitive to [parameter] — if your estimate is wrong, the true risk could be [X-Y]x higher." Be direct.
+
+Return JSON only with this schema:
+${schema}`;
+    const userPrompt = JSON.stringify({
+      scenarioTitle: String(input?.scenarioTitle || '').trim(),
+      baseAle: String(input?.baseAleLabel || '').trim(),
+      sensitivityTable: rows
+    }, null, 2);
+    try {
+      const raw = await _callLLM(systemPrompt, userPrompt, {
+        taskName: 'generateSensitivityNarrative',
+        maxCompletionTokens: 160,
+        timeoutMs: 10000
+      });
+      if (!raw) return stub;
+      const parsed = await _parseOrRepairStructuredJson(raw, schema, {
+        taskName: 'repairSensitivityNarrative'
+      });
+      const sentence = _cleanUserFacingText(parsed?.sentence || '', { maxSentences: 1 });
+      return sentence || stub;
+    } catch {
+      return stub;
+    }
+  }
+
+  async function generateScenarioMemoryPrecedent(input = {}) {
+    if (_isDirectCompassUrl(_compassApiUrl) && !_compassApiKey) return null;
+    const currentScenario = _cleanUserFacingText(input?.currentScenario || '', { maxSentences: 5 }).slice(0, 1000);
+    const matches = Array.isArray(input?.matches)
+      ? input.matches.filter(item => item && typeof item === 'object').slice(0, 3)
+      : [];
+    if (!currentScenario || matches.length < 2) return null;
+    const schema = `{
+  "precedent": "string"
+}`;
+    const systemPrompt = `You are a risk memory assistant for an enterprise risk platform.
+Return JSON only with this schema:
+${schema}
+
+Write one sentence only. Summarise organisational precedent from similar completed scenarios.
+Include the typical ALE range and the controls or themes most often cited.`;
+    const userPrompt = [
+      `Current scenario: ${currentScenario}`,
+      'Similar completed scenarios:',
+      matches.map((match, index) => [
+        `${index + 1}. ${String(match?.scenarioTitle || match?.title || 'Untitled scenario').trim()}`,
+        `ALE range: ${String(match?._scenarioMemory?.aleRange || 'Not stated').trim()}`,
+        `Treatment status: ${String(match?._scenarioMemory?.treatmentStatus?.label || 'Monitor').trim()}`,
+        `Narrative: ${String(match?.enhancedNarrative || match?.narrative || '').trim().slice(0, 260)}`,
+        `Risks: ${(Array.isArray(match?.selectedRisks) ? match.selectedRisks.map(item => item?.title || item?.category || '').filter(Boolean) : []).slice(0, 4).join(', ') || 'Not stated'}`
+      ].join('\n')).join('\n\n')
+    ].join('\n\n');
+    try {
+      const raw = await _callLLM(systemPrompt, userPrompt, {
+        taskName: 'generateScenarioMemoryPrecedent',
+        maxCompletionTokens: 180,
+        timeoutMs: 12000
+      });
+      if (!raw) return null;
+      const parsed = await _parseOrRepairStructuredJson(raw, schema, {
+        taskName: 'repairScenarioMemoryPrecedent'
+      });
+      const precedent = _cleanUserFacingText(parsed?.precedent || '', { maxSentences: 1 });
+      return precedent || null;
+    } catch {
+      return null;
+    }
+  }
+
+  async function compareScenarioMemory(input = {}) {
+    if (_isDirectCompassUrl(_compassApiUrl) && !_compassApiKey) return null;
+    const currentScenario = _cleanUserFacingText(input?.currentScenario || '', { maxSentences: 6 }).slice(0, 1200);
+    const referenceScenario = input?.referenceScenario && typeof input.referenceScenario === 'object'
+      ? input.referenceScenario
+      : null;
+    if (!currentScenario || !referenceScenario) return null;
+    const schema = `{
+  "differenceSummary": "string"
+}`;
+    const systemPrompt = `You are a scenario comparison assistant for an enterprise risk team.
+Return JSON only with this schema:
+${schema}
+
+Write 2 short sentences highlighting what is materially different between the current scenario and the earlier reference scenario.
+Focus on scope, driver, control posture, dependency pattern, and likely impact.`;
+    const userPrompt = [
+      `Current scenario: ${currentScenario}`,
+      `Current lens: ${String(input?.scenarioLens?.label || input?.scenarioLens?.key || 'general').trim()}`,
+      '',
+      `Reference scenario title: ${String(referenceScenario?.scenarioTitle || referenceScenario?.title || 'Untitled scenario').trim()}`,
+      `Reference narrative: ${String(referenceScenario?.enhancedNarrative || referenceScenario?.narrative || '').trim().slice(0, 800)}`,
+      `Reference ALE range: ${String(referenceScenario?._scenarioMemory?.aleRange || 'Not stated').trim()}`,
+      `Reference top risks: ${(Array.isArray(referenceScenario?.selectedRisks) ? referenceScenario.selectedRisks.map(item => item?.title || item?.category || '').filter(Boolean) : []).slice(0, 4).join(', ') || 'Not stated'}`
+    ].join('\n');
+    try {
+      const raw = await _callLLM(systemPrompt, userPrompt, {
+        taskName: 'compareScenarioMemory',
+        maxCompletionTokens: 180,
+        timeoutMs: 12000
+      });
+      if (!raw) return null;
+      const parsed = await _parseOrRepairStructuredJson(raw, schema, {
+        taskName: 'repairCompareScenarioMemory'
+      });
+      const differenceSummary = _cleanUserFacingText(parsed?.differenceSummary || '', { maxSentences: 2 });
+      return differenceSummary || null;
+    } catch {
+      return null;
+    }
+  }
+
+  async function checkScenarioPortfolioOverlap(input = {}) {
+    if (_isDirectCompassUrl(_compassApiUrl) && !_compassApiKey) return null;
+    const scenarioText = _cleanUserFacingText(input?.scenarioText || '', { maxSentences: 6 }).slice(0, 1600);
+    const portfolio = Array.isArray(input?.portfolio)
+      ? input.portfolio
+        .filter(item => item && typeof item === 'object')
+        .map(item => ({
+          title: String(item?.title || '').trim(),
+          primaryRiskCategory: String(item?.primaryRiskCategory || '').trim()
+        }))
+        .filter(item => item.title)
+      : [];
+    if (!scenarioText || !portfolio.length) return null;
+    const schema = `{
+  "overlap": {
+    "found": true,
+    "matchTitle": "string",
+    "overlapSummary": "string"
+  },
+  "gap": {
+    "isNew": true,
+    "gapSummary": "string"
+  }
+}`;
+    const systemPrompt = `New scenario being started: [user text].
+Existing portfolio: [array of {title, primaryRiskCategory}].
+
+Answer two questions:
+A) Is this scenario substantially covered by an existing assessment? If yes, which one and what is the overlap?
+B) Does this scenario create a new gap not covered in the portfolio?
+
+Return JSON only with this schema:
+${schema}`;
+    const userPrompt = [
+      `New scenario being started: ${scenarioText}`,
+      `Existing portfolio: ${JSON.stringify(portfolio, null, 2)}`
+    ].join('\n\n');
+    try {
+      const raw = await _callLLM(systemPrompt, userPrompt, {
+        taskName: 'checkScenarioPortfolioOverlap',
+        maxCompletionTokens: 240,
+        timeoutMs: 12000
+      });
+      if (!raw) return null;
+      const parsed = await _parseOrRepairStructuredJson(raw, schema, {
+        taskName: 'repairScenarioPortfolioOverlap'
+      });
+      return {
+        overlap: {
+          found: !!parsed?.overlap?.found,
+          matchTitle: _cleanUserFacingText(parsed?.overlap?.matchTitle || '', { maxSentences: 1 }),
+          overlapSummary: _cleanUserFacingText(parsed?.overlap?.overlapSummary || '', { maxSentences: 1 })
+        },
+        gap: {
+          isNew: !!parsed?.gap?.isNew,
+          gapSummary: _cleanUserFacingText(parsed?.gap?.gapSummary || '', { maxSentences: 1 })
+        }
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  async function spotPortfolioCorrelations(input = {}) {
+    if (_isDirectCompassUrl(_compassApiUrl) && !_compassApiKey) return null;
+    const fingerprints = Array.isArray(input?.fingerprints)
+      ? input.fingerprints.filter(item => item && typeof item === 'object' && item.id).slice(0, 30)
+      : [];
+    if (fingerprints.length < 2) return [];
+    const prioritisedDependencies = Array.isArray(input?.prioritisedDependencies)
+      ? input.prioritisedDependencies.map(item => String(item || '').trim()).filter(Boolean).slice(0, 4)
+      : [];
+    const reviewerScope = String(input?.reviewerScope || '').trim();
+    const schema = `{
+  "clusters": [
+    {
+      "clusterLabel": "string",
+      "assessmentIds": ["string"],
+      "sharedDependency": "string",
+      "whyItMatters": "string",
+      "oneActionThatFixesAll": "string"
+    }
+  ]
+}`;
+    const systemPrompt = `You are a risk portfolio analyst.
+Identify clusters of 2 or more assessments that share a common single point of failure such as the same threat actor, failing control, vendor, regulation, or data asset.
+For each cluster return:
+- clusterLabel
+- assessmentIds
+- sharedDependency
+- whyItMatters
+- oneActionThatFixesAll
+
+Return JSON only with this schema:
+${schema}
+
+Return no more than 5 clusters. Be specific. Ignore weak coincidences.`;
+    const userPrompt = [
+      reviewerScope ? `Reviewer scope: ${reviewerScope}` : '',
+      prioritisedDependencies.length
+        ? `Dependencies this reviewer has acted on before: ${prioritisedDependencies.join('; ')}`
+        : '',
+      'Assessment fingerprints:',
+      JSON.stringify(fingerprints, null, 2)
+    ].filter(Boolean).join('\n\n');
+    try {
+      const raw = await _callLLM(systemPrompt, userPrompt, {
+        taskName: 'spotPortfolioCorrelations',
+        maxCompletionTokens: 650,
+        timeoutMs: 18000
+      });
+      if (!raw) return null;
+      const parsed = await _parseOrRepairStructuredJson(raw, schema, {
+        taskName: 'repairPortfolioCorrelations'
+      });
+      const clusters = Array.isArray(parsed?.clusters) ? parsed.clusters : [];
+      return clusters
+        .map((item) => ({
+          clusterLabel: _cleanUserFacingText(item?.clusterLabel || '', { maxSentences: 1 }),
+          assessmentIds: Array.isArray(item?.assessmentIds) ? item.assessmentIds.map(id => String(id || '').trim()).filter(Boolean) : [],
+          sharedDependency: _cleanUserFacingText(item?.sharedDependency || '', { maxSentences: 1 }),
+          whyItMatters: _cleanUserFacingText(item?.whyItMatters || '', { maxSentences: 2 }),
+          oneActionThatFixesAll: _cleanUserFacingText(item?.oneActionThatFixesAll || '', { maxSentences: 1 })
+        }))
+        .filter(item => item.sharedDependency && item.assessmentIds.length >= 2)
+        .slice(0, 5);
+    } catch {
+      return null;
+    }
+  }
+
+  async function generateProactiveReassessmentReasons(input = {}) {
+    if (_isDirectCompassUrl(_compassApiUrl) && !_compassApiKey) return null;
+    const assessments = Array.isArray(input?.assessments)
+      ? input.assessments.filter(item => item && typeof item === 'object' && item.id)
+      : [];
+    if (!assessments.length) return [];
+    const prioritisedSignals = Array.isArray(input?.prioritisedSignals)
+      ? input.prioritisedSignals.map(item => String(item || '').trim()).filter(Boolean).slice(0, 3)
+      : [];
+    const deprioritisedSignals = Array.isArray(input?.deprioritisedSignals)
+      ? input.deprioritisedSignals.map(item => String(item || '').trim()).filter(Boolean).slice(0, 3)
+      : [];
+    const schema = `{
+  "items": [
+    {
+      "id": "string",
+      "reason": "string"
+    }
+  ]
+}`;
+    const systemPrompt = `You are a risk portfolio analyst.
+Here are risk assessments with staleness signals.
+For each assessment generate one sentence in plain English explaining why it may need revisiting now.
+Be specific to the signals. Be direct. Do not repeat generic warnings.
+
+Return JSON only with this schema:
+${schema}`;
+    const userPrompt = [
+      prioritisedSignals.length
+        ? `Signals this user tends to act on: ${prioritisedSignals.join(', ')}`
+        : '',
+      deprioritisedSignals.length
+        ? `Signals this user often dismisses when stronger signals are absent: ${deprioritisedSignals.join(', ')}`
+        : '',
+      'Flagged assessments:',
+      JSON.stringify(assessments, null, 2)
+    ].filter(Boolean).join('\n\n');
+    try {
+      const raw = await _callLLM(systemPrompt, userPrompt, {
+        taskName: 'generateProactiveReassessmentReasons',
+        maxCompletionTokens: 650,
+        timeoutMs: 18000
+      });
+      if (!raw) return null;
+      const parsed = await _parseOrRepairStructuredJson(raw, schema, {
+        taskName: 'repairProactiveReassessmentReasons'
+      });
+      return (Array.isArray(parsed?.items) ? parsed.items : [])
+        .map((item) => ({
+          id: String(item?.id || '').trim(),
+          reason: _cleanUserFacingText(item?.reason || '', { maxSentences: 1 })
+        }))
+        .filter(item => item.id && item.reason);
     } catch {
       return null;
     }
@@ -4448,7 +5186,18 @@ Keep the numbers realistic, internally ordered, and anchored to the user's own h
     suggestTreatmentImprovement,
     challengeAssessment,
     generateReviewerDecisionBrief,
+    generatePortfolioExecutiveBrief,
     mediateAssessmentDispute,
+    generateParameterChallengeRecord,
+    generateChallengeSynthesis,
+    generateConsensusRecommendation,
+    generateAssessmentVersionNarrative,
+    generateSensitivityNarrative,
+    generateScenarioMemoryPrecedent,
+    compareScenarioMemory,
+    checkScenarioPortfolioOverlap,
+    spotPortfolioCorrelations,
+    generateProactiveReassessmentReasons,
     coachRiskShortlist,
     suggestSmartParamPrefill,
     getLatestTrace,

@@ -117,6 +117,9 @@ const AdminPlatformDefaultsSection = (() => {
   function renderGovernanceBody(settings) {
     const buList = getBUList();
     const firstScopedId = buList[0]?.id || '';
+    const companyTargets = typeof getScenarioMemoryResetTargetOptions === 'function'
+      ? getScenarioMemoryResetTargetOptions('company', settings)
+      : [];
     return `<div class="admin-workbench-strip">
       <div>
         <div class="admin-workbench-strip__label">Governance inputs</div>
@@ -144,6 +147,32 @@ const AdminPlatformDefaultsSection = (() => {
       <label class="form-label">Typical Departments</label>
       <div class="tag-input-wrap" id="ti-admin-typical-departments"></div>
       <span class="form-help">These appear as suggested department names when BU admins or global admins add a new function or department.</span>
+    </div>
+    <div class="card mt-5" style="padding:var(--sp-5);background:var(--bg-elevated)">
+      <div class="context-panel-title">Scenario Memory Reset</div>
+      <div class="form-help" style="margin-top:6px">Clear reference weighting for the Similar Past Scenarios panel without deleting saved assessments or changing their quantitative results.</div>
+      <div class="grid-3 mt-4" style="gap:12px">
+        <div class="form-group">
+          <label class="form-label" for="admin-scenario-memory-scope">Reset scope</label>
+          <select class="form-select" id="admin-scenario-memory-scope">
+            <option value="company">Company</option>
+            <option value="bu">Business unit</option>
+            <option value="function">Function</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="admin-scenario-memory-target">Target</label>
+          <select class="form-select" id="admin-scenario-memory-target">
+            ${companyTargets.length
+              ? companyTargets.map(option => `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`).join('')
+              : '<option value="">All current company memory</option>'}
+          </select>
+        </div>
+        <div class="form-group" style="display:flex;align-items:flex-end">
+          <button class="btn btn--secondary" id="btn-reset-scenario-memory" type="button">Reset Scenario Memory</button>
+        </div>
+      </div>
+      <div class="form-help" id="admin-scenario-memory-help" style="margin-top:10px">Company reset clears organisation-level reference weighting. BU and function resets only clear matching scenario-memory signals.</div>
     </div>
     <div class="form-group mt-4">
       <label class="form-label" for="admin-ai-instructions">AI Guidance</label>
@@ -202,12 +231,39 @@ const AdminPlatformDefaultsSection = (() => {
     const typicalDepartmentsInput = typicalDepartmentsHost ? UI.tagInput('ti-admin-typical-departments', getTypicalDepartments(settings)) : null;
     const targetEl = document.getElementById('admin-scoped-default-target');
     const summaryEl = document.getElementById('admin-scoped-default-summary');
+    const scenarioMemoryScopeEl = document.getElementById('admin-scenario-memory-scope');
+    const scenarioMemoryTargetEl = document.getElementById('admin-scenario-memory-target');
+    const scenarioMemoryHelpEl = document.getElementById('admin-scenario-memory-help');
     const updateSummary = () => {
       if (!summaryEl) return;
       const targetBu = getBUList().find(item => item.id === (targetEl?.value || '')) || null;
       summaryEl.innerHTML = renderScopedDefaultsSummary(targetBu, getAdminSettings());
     };
+    const updateScenarioMemoryTargets = () => {
+      if (!scenarioMemoryScopeEl || !scenarioMemoryTargetEl) return;
+      const scope = String(scenarioMemoryScopeEl.value || 'company').trim().toLowerCase();
+      const options = typeof getScenarioMemoryResetTargetOptions === 'function'
+        ? getScenarioMemoryResetTargetOptions(scope, getAdminSettings())
+        : [];
+      const emptyLabel = scope === 'company'
+        ? 'All current company memory'
+        : scope === 'bu'
+          ? 'No business units available'
+          : 'No function scopes available';
+      scenarioMemoryTargetEl.innerHTML = options.length
+        ? options.map(option => `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`).join('')
+        : `<option value="">${escapeHtml(emptyLabel)}</option>`;
+      if (scenarioMemoryHelpEl) {
+        scenarioMemoryHelpEl.textContent = scope === 'function'
+          ? 'Function reset clears Scenario Memory signals for the selected function lens across saved assessments.'
+          : scope === 'bu'
+            ? 'Business-unit reset clears Scenario Memory signals only for the selected BU.'
+            : 'Company reset clears organisation-level reference weighting for the selected company slice.';
+      }
+    };
     targetEl?.addEventListener('change', updateSummary);
+    scenarioMemoryScopeEl?.addEventListener('change', updateScenarioMemoryTargets);
+    updateScenarioMemoryTargets();
     document.getElementById('btn-edit-scoped-defaults')?.addEventListener('click', () => {
       const targetBu = getBUList().find(item => item.id === (targetEl?.value || '')) || null;
       if (!targetBu) {
@@ -220,6 +276,20 @@ const AdminPlatformDefaultsSection = (() => {
           updateSummary();
         }
       });
+    });
+    document.getElementById('btn-reset-scenario-memory')?.addEventListener('click', () => {
+      const scope = String(scenarioMemoryScopeEl?.value || 'company').trim().toLowerCase();
+      const targetId = String(scenarioMemoryTargetEl?.value || '').trim();
+      if (!window.confirm('Reset Scenario Memory for this scope? Saved assessments will remain, but reference weighting and reuse signals will be cleared.')) return;
+      const result = typeof resetScenarioMemorySignals === 'function'
+        ? resetScenarioMemorySignals({ scope, targetId })
+        : { resetCount: 0 };
+      UI.toast(
+        result?.resetCount
+          ? `Scenario Memory reset for ${result.resetCount} saved assessment${result.resetCount === 1 ? '' : 's'}.`
+          : 'No Scenario Memory signals matched that scope.',
+        result?.resetCount ? 'success' : 'info'
+      );
     });
     return {
       regsInput,

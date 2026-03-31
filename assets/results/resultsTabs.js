@@ -19,19 +19,30 @@
       supportingReferences,
       inferredAssumptions
     } = model;
+    const openChallengeRecords = typeof getOpenParameterChallengeRecords === 'function'
+      ? getOpenParameterChallengeRecords(assessment)
+      : [];
     return `
       <section class="results-technical-view ${activeTab === 'technical' ? '' : 'hidden'}" id="results-tab-technical" role="tabpanel" aria-labelledby="results-tab-btn-technical" tabindex="-1" data-results-panel="technical" data-page-focus>
         ${renderTechnicalOrientationBlock(rolePresentation, runMetadata, confidenceFrame)}
         ${renderTechnicalReviewSurface(r, assessmentIntelligence, confidenceFrame, assessment, thresholdModel)}
         ${renderTechnicalStoryBand(r, assessmentIntelligence, confidenceFrame, thresholdModel, assessment)}
+        ${renderChallengeSynthesisCard(assessment)}
 
         <section class="results-section-stack results-layer-band results-layer-band--editorial">
-          <div class="results-section-heading">Review-ready metrics and sensitivities</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:var(--sp-4);flex-wrap:wrap">
+            <div class="results-section-heading" style="margin:0">Review-ready metrics and sensitivities</div>
+            ${openChallengeRecords.length ? '<button type="button" class="btn btn--secondary btn--sm" data-consensus-path-run>Find Consensus</button>' : ''}
+          </div>
           <div class="results-detail-disclosure-copy">Start here when you want to challenge the size of the result, the dominant sensitivities, and whether the ranges are credible enough for management use.</div>
           <div class="results-disclosure-stack">
+            ${renderParameterChallengeActionStrip(assessment, technicalInputs, assessmentIntelligence)}
             <div id="results-technical-challenge-panel">
               ${renderTechnicalChallengePanel(assessment, technicalInputs, assessmentIntelligence, confidenceFrame, comparison)}
             </div>
+            ${renderAssumptionSensitivitySection()}
+            ${typeof renderConsensusPathPanel === 'function' ? renderConsensusPathPanel(assessment) : ''}
+            ${renderParameterChallengeRecordSection(assessment)}
             <div class="grid-3 mb-6 anim-fade-in results-metric-band">
               <div class="metric-card"><div class="metric-label">Typical conditional event loss</div><div class="metric-value">${fmtCurrency(r.eventLoss.p50)}</div><div class="metric-sub">Midpoint successful-event view</div></div>
               <div class="metric-card"><div class="metric-label">Severe conditional event loss</div><div class="metric-value ${r.toleranceBreached ? 'danger' : ''}">${fmtCurrency(r.eventLoss.p90)}</div><div class="metric-sub">Used for tolerance check</div></div>
@@ -146,6 +157,7 @@
               <div id="assessment-challenge-status" class="form-help" style="margin-top:12px">${assessmentChallenge ? 'Latest challenge review saved with this assessment.' : 'No challenge review has been generated yet.'}</div>
             </div>
             ${assessmentChallenge ? renderAssessmentChallengeBlock(assessmentChallenge) : ''}
+            ${renderParameterChallengeAuditTrail(assessment)}
             ${(workflowGuidance.length || assessment.benchmarkBasis || assessment.inputRationale || assessment.evidenceSummary || assessment.confidenceLabel || assessment.inputProvenance?.length) ? `
             <div class="grid-2 anim-fade-in">
               ${renderWorkflowGuidanceBlock(workflowGuidance, 'How AI guided this assessment')}
@@ -154,6 +166,8 @@
             </div>` : ''}
           </div>
         </details>
+
+        ${renderAssessmentVersionHistorySection(assessment)}
 
         <details class="results-detail-disclosure">
           <summary>Charts, references, and full treatment set</summary>

@@ -1254,6 +1254,916 @@ function renderTechnicalChallengePanel(assessment, technicalInputs, assessmentIn
   });
 }
 
+function renderAssumptionSensitivitySection() {
+  return `<details class="results-detail-disclosure" id="results-sensitivity-analysis">
+    <summary>Sensitivity analysis</summary>
+    <div class="results-detail-disclosure-copy">Open this to pressure-test the main result against faster optimistic and pessimistic changes to the most important parameters.</div>
+    <div class="results-disclosure-stack" id="results-sensitivity-analysis-body">
+      <div class="form-help">Expand this section to run quick 1,000-iteration stress tests.</div>
+    </div>
+  </details>`;
+}
+
+function clampParameterValue(value, min = 0, max = 1) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return Number(min || 0);
+  return Math.min(Number(max), Math.max(Number(min), numeric));
+}
+
+function deriveVulnerabilityRange(technicalInputs = {}) {
+  if (technicalInputs?.vulnDirect) {
+    return {
+      min: clampParameterValue(technicalInputs?.vulnMin, 0.01, 0.99),
+      likely: clampParameterValue(technicalInputs?.vulnLikely, 0.01, 0.99),
+      max: clampParameterValue(technicalInputs?.vulnMax, 0.01, 0.99)
+    };
+  }
+  const toVulnerability = (threatCapability, controlStrength) => clampParameterValue(
+    1 / (1 + Math.exp(-(clampParameterValue(threatCapability, 0.01, 0.99) - clampParameterValue(controlStrength, 0.01, 0.99)))),
+    0.01,
+    0.99
+  );
+  return {
+    min: toVulnerability(technicalInputs?.threatCapMin, technicalInputs?.controlStrMax),
+    likely: toVulnerability(technicalInputs?.threatCapLikely, technicalInputs?.controlStrLikely),
+    max: toVulnerability(technicalInputs?.threatCapMax, technicalInputs?.controlStrMin)
+  };
+}
+
+function deriveLikelyVulnerability(technicalInputs = {}) {
+  if (technicalInputs?.vulnDirect) {
+    return clampParameterValue(technicalInputs.vulnLikely, 0.01, 0.99);
+  }
+  const tc = clampParameterValue(technicalInputs?.threatCapLikely, 0.01, 0.99);
+  const cs = clampParameterValue(technicalInputs?.controlStrLikely, 0.01, 0.99);
+  const raw = 1 / (1 + Math.exp(-(tc - cs)));
+  return clampParameterValue(raw, 0.01, 0.99);
+}
+
+function sumLossMagnitudeEdge(technicalInputs = {}, suffix = 'Min') {
+  return ['ir', 'bi', 'db', 'rl', 'tp', 'rc']
+    .reduce((sum, key) => sum + Number(technicalInputs?.[`${key}${suffix}`] || 0), 0);
+}
+
+function buildParameterChallengeTargets(assessment, technicalInputs, assessmentIntelligence = {}) {
+  const vulnerabilityLikely = deriveLikelyVulnerability(technicalInputs);
+  const confidenceScore = Number(assessmentIntelligence?.confidence?.score || 0);
+  return [
+    {
+      key: 'tefLikely',
+      label: 'TEF',
+      currentValue: Number(technicalInputs?.tefLikely || 0),
+      currentValueLabel: `${Number(technicalInputs?.tefLikely || 0).toFixed(2)} events/year`,
+      helperCopy: 'Expected event frequency in a typical year.',
+      challengeTarget: 'event-frequency'
+    },
+    {
+      key: 'vulnerability',
+      label: 'Vulnerability',
+      currentValue: vulnerabilityLikely,
+      currentValueLabel: `${Math.round(vulnerabilityLikely * 100)}% event success likelihood`,
+      helperCopy: technicalInputs?.vulnDirect ? 'Direct exposure mode.' : 'Derived from threat capability and control strength.',
+      challengeTarget: 'event-success'
+    },
+    {
+      key: 'lmLow',
+      label: 'LM Low',
+      currentValue: sumLossMagnitudeEdge(technicalInputs, 'Min'),
+      currentValueLabel: fmtCurrency(sumLossMagnitudeEdge(technicalInputs, 'Min')),
+      helperCopy: 'Lower bound of the current loss magnitude range.',
+      challengeTarget: 'business-interruption'
+    },
+    {
+      key: 'lmHigh',
+      label: 'LM High',
+      currentValue: sumLossMagnitudeEdge(technicalInputs, 'Max'),
+      currentValueLabel: fmtCurrency(sumLossMagnitudeEdge(technicalInputs, 'Max')),
+      helperCopy: 'Upper bound of the current loss magnitude range.',
+      challengeTarget: 'regulatory-legal'
+    },
+    {
+      key: 'controlStrLikely',
+      label: 'Controls confidence',
+      currentValue: clampParameterValue(technicalInputs?.controlStrLikely, 0.01, 0.99),
+      currentValueLabel: `${Math.round(clampParameterValue(technicalInputs?.controlStrLikely, 0.01, 0.99) * 100)}% control strength likely`,
+      helperCopy: confidenceScore
+        ? `${confidenceScore}/100 overall assessment confidence.`
+        : 'Current control-strength read in the model.',
+      challengeTarget: 'event-success'
+    }
+  ];
+}
+
+function findParameterChallengeTarget(assessment, technicalInputs, assessmentIntelligence, key) {
+  const safeKey = String(key || '').trim();
+  return buildParameterChallengeTargets(assessment, technicalInputs, assessmentIntelligence)
+    .find(item => item.key === safeKey) || null;
+}
+
+function renderParameterChallengeActionStrip(assessment, technicalInputs, assessmentIntelligence = {}) {
+  const items = buildParameterChallengeTargets(assessment, technicalInputs, assessmentIntelligence);
+  if (!items.length) return '';
+  return `<section class="results-section-stack">
+    <div class="results-section-heading">Challenge a parameter</div>
+    <div class="results-detail-disclosure-copy">Use this focused lane when a reviewer wants to challenge one number directly rather than reopening the whole assessment at once.</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">
+      ${items.map(item => `<article class="card card--elevated" style="padding:var(--sp-4);background:var(--bg-canvas)">
+        <div class="results-driver-label">${escapeHtml(String(item.label || 'Parameter'))}</div>
+        <strong style="display:block;margin-top:6px;color:var(--text-primary)">${escapeHtml(String(item.currentValueLabel || 'Not stated'))}</strong>
+        <div class="form-help" style="margin-top:8px">${escapeHtml(String(item.helperCopy || ''))}</div>
+        <button type="button" class="btn btn--secondary btn--sm" style="margin-top:var(--sp-4)" data-parameter-challenge-open="${escapeHtml(String(item.key || ''))}">Challenge a Parameter</button>
+      </article>`).join('')}
+    </div>
+  </section>`;
+}
+
+function normaliseParameterChallengeRecords(assessment = {}) {
+  const list = Array.isArray(assessment?.parameterChallenges) ? assessment.parameterChallenges : [];
+  return list
+    .filter(item => item && typeof item === 'object')
+    .map(item => ({
+      id: String(item.id || '').trim(),
+      parameterKey: String(item.parameterKey || '').trim(),
+      parameterLabel: String(item.parameterLabel || 'Parameter').trim(),
+      currentValueLabel: String(item.currentValueLabel || '').trim(),
+      reviewerConcern: String(item.reviewerConcern || '').trim(),
+      analystQuestions: Array.isArray(item.analystQuestions) ? item.analystQuestions.map(q => String(q || '').trim()).filter(Boolean) : [],
+      reviewerAdjustment: item.reviewerAdjustment && typeof item.reviewerAdjustment === 'object'
+        ? {
+            param: String(item.reviewerAdjustment.param || '').trim(),
+            suggestedValue: Number(item.reviewerAdjustment.suggestedValue),
+            suggestedValueLabel: String(item.reviewerAdjustment.suggestedValueLabel || '').trim(),
+            aleImpact: String(item.reviewerAdjustment.aleImpact || '').trim(),
+            rationale: String(item.reviewerAdjustment.rationale || '').trim()
+          }
+        : null,
+      createdAt: Number(item.createdAt || 0),
+      appliedAt: Number(item.appliedAt || 0)
+    }))
+    .filter(item => item.id)
+    .sort((left, right) => Number(right.createdAt || 0) - Number(left.createdAt || 0));
+}
+
+function getOpenParameterChallengeRecords(assessment = {}) {
+  return normaliseParameterChallengeRecords(assessment)
+    .filter(item => !item.appliedAt && item.reviewerAdjustment && Number.isFinite(Number(item.reviewerAdjustment.suggestedValue)));
+}
+
+function formatAnnualAleRangeLabel(results = {}) {
+  const mean = Number(results?.annualLoss?.mean || results?.ale?.mean || 0);
+  const p90 = Number(results?.annualLoss?.p90 || results?.ale?.p90 || results?.eventLoss?.p90 || 0);
+  return `${fmtCurrency(mean)} mean ALE · ${fmtCurrency(p90)} bad year`;
+}
+
+function buildConsensusParameterSnapshot(params = {}) {
+  return {
+    tefLikely: Number(params?.tefLikely || 0),
+    vulnerability: Number(deriveLikelyVulnerability(params).toFixed(2)),
+    lmLow: Number(sumLossMagnitudeEdge(params, 'Min').toFixed(0)),
+    lmHigh: Number(sumLossMagnitudeEdge(params, 'Max').toFixed(0)),
+    controlStrLikely: Number(clampParameterValue(params?.controlStrLikely, 0.01, 0.99).toFixed(2))
+  };
+}
+
+function applyChallengeRecordsToSimulationParams(baseParams = {}, records = []) {
+  const draftRecord = {
+    fairParams: cloneSerializableState(baseParams, {}) || {}
+  };
+  (Array.isArray(records) ? records : []).forEach(record => {
+    applyParameterAdjustmentToDraftRecord(draftRecord, record);
+  });
+  return draftRecord.fairParams || baseParams;
+}
+
+function runChallengeConsensusPreview({
+  technicalInputs,
+  r,
+  runMetadata,
+  records = []
+} = {}) {
+  if (typeof RiskEngine === 'undefined' || !technicalInputs || !r) return null;
+  const baseParams = buildSensitivitySimulationParams(technicalInputs, r, runMetadata);
+  const selectedRecords = Array.isArray(records) ? records.filter(Boolean) : [];
+  const projectedParams = applyChallengeRecordsToSimulationParams(baseParams, selectedRecords);
+  const baseResults = RiskEngine.run(baseParams);
+  const projectedResults = RiskEngine.run(projectedParams);
+  const baseMean = Number(baseResults?.annualLoss?.mean || baseResults?.ale?.mean || 0);
+  const projectedMean = Number(projectedResults?.annualLoss?.mean || projectedResults?.ale?.mean || 0);
+  return {
+    baseParams,
+    projectedParams,
+    baseResults,
+    projectedResults,
+    baseAleRange: formatAnnualAleRangeLabel(baseResults),
+    projectedAleRange: formatAnnualAleRangeLabel(projectedResults),
+    changePct: baseMean > 0 ? Number((((projectedMean - baseMean) / baseMean) * 100).toFixed(1)) : 0
+  };
+}
+
+function runConsensusPathAnalysis({
+  assessment,
+  technicalInputs,
+  r,
+  runMetadata,
+  records = []
+} = {}) {
+  const openRecords = Array.isArray(records) ? records.filter(Boolean) : [];
+  if (typeof RiskEngine === 'undefined' || !assessment || !technicalInputs || !r || !openRecords.length) return null;
+  const baseParams = buildSensitivitySimulationParams(technicalInputs, r, runMetadata);
+  const baseResults = RiskEngine.run(baseParams);
+  const baseMean = Number(baseResults?.annualLoss?.mean || baseResults?.ale?.mean || 0);
+  const adjustments = openRecords.map((record, index) => {
+    const params = applyChallengeRecordsToSimulationParams(baseParams, [record]);
+    const results = RiskEngine.run(params);
+    const mean = Number(results?.annualLoss?.mean || results?.ale?.mean || 0);
+    const impactPct = baseMean > 0 ? Number((((mean - baseMean) / baseMean) * 100).toFixed(1)) : 0;
+    return {
+      ref: `C${index + 1}`,
+      record,
+      params,
+      results,
+      impactPct,
+      aleRange: formatAnnualAleRangeLabel(results)
+    };
+  });
+  const allAdjustedParams = applyChallengeRecordsToSimulationParams(baseParams, openRecords);
+  const allAdjustedResults = RiskEngine.run(allAdjustedParams);
+  const adjustedMean = Number(allAdjustedResults?.annualLoss?.mean || allAdjustedResults?.ale?.mean || 0);
+  return {
+    baseParams,
+    baseResults,
+    baseAleRange: formatAnnualAleRangeLabel(baseResults),
+    baseSnapshot: buildConsensusParameterSnapshot(baseParams),
+    adjustments,
+    allAdjustedParams,
+    allAdjustedResults,
+    adjustedAleRange: formatAnnualAleRangeLabel(allAdjustedResults),
+    adjustedSnapshot: buildConsensusParameterSnapshot(allAdjustedParams),
+    adjustedChangePct: baseMean > 0 ? Number((((adjustedMean - baseMean) / baseMean) * 100).toFixed(1)) : 0
+  };
+}
+
+function normaliseConsensusPath(assessment = {}) {
+  const path = assessment?.consensusPath;
+  if (!path || typeof path !== 'object') return null;
+  return {
+    createdAt: Number(path.createdAt || 0),
+    summaryBullets: Array.isArray(path.summaryBullets) ? path.summaryBullets.map(item => String(item || '').trim()).filter(Boolean).slice(0, 3) : [],
+    acceptRecordIds: Array.isArray(path.acceptRecordIds) ? path.acceptRecordIds.map(item => String(item || '').trim()).filter(Boolean) : [],
+    defendRecordIds: Array.isArray(path.defendRecordIds) ? path.defendRecordIds.map(item => String(item || '').trim()).filter(Boolean) : [],
+    meetInTheMiddleAleRange: String(path.meetInTheMiddleAleRange || '').trim(),
+    projectedAleRange: String(path.projectedAleRange || '').trim(),
+    baseAleRange: String(path.baseAleRange || '').trim(),
+    adjustedAleRange: String(path.adjustedAleRange || '').trim(),
+    appliedAt: Number(path.appliedAt || 0)
+  };
+}
+
+function renderConsensusPathPanel(assessment = {}) {
+  const openRecords = getOpenParameterChallengeRecords(assessment);
+  if (!openRecords.length) return '';
+  const consensus = normaliseConsensusPath(assessment);
+  return `<section class="results-section-stack" id="results-consensus-path-panel">
+    <div class="card card--elevated" style="padding:var(--sp-5);background:var(--bg-canvas)">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:var(--sp-4);flex-wrap:wrap">
+        <div>
+          <div class="results-driver-label">Consensus path</div>
+          <div class="context-panel-title" style="margin-top:8px">Minimum adjustment path across the current reviewer challenges.</div>
+          <div class="form-help" style="margin-top:6px">${consensus ? 'Toggle which reviewer adjustments to accept, then preview the projected ALE before you rerun.' : 'Run Find Consensus to pressure-test the smallest combined adjustment path across the current open challenges.'}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          ${consensus?.createdAt ? `<span class="badge badge--neutral">${escapeHtml(new Date(consensus.createdAt).toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: 'numeric' }))}</span>` : ''}
+          ${consensus?.appliedAt ? '<span class="badge badge--success">Applied</span>' : ''}
+        </div>
+      </div>
+      ${consensus ? `
+        <div style="display:grid;grid-template-columns:1fr;gap:12px;margin-top:var(--sp-4)">
+          <div style="background:var(--bg-elevated);padding:var(--sp-4);border-radius:var(--radius-lg)">
+            <div class="results-driver-label">Consensus recommendation</div>
+            <div class="results-summary-copy" style="margin-top:8px">${consensus.summaryBullets.length ? consensus.summaryBullets.map(item => `• ${escapeHtml(String(item))}`).join('<br>') : '• No consensus guidance saved yet.'}</div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">
+            <div style="background:var(--bg-elevated);padding:var(--sp-4);border-radius:var(--radius-lg)">
+              <div class="results-driver-label">Projected ALE if consensus applied</div>
+              <div id="results-consensus-projected-ale" style="margin-top:8px;font-weight:700;color:var(--text-primary)">${escapeHtml(String(consensus.projectedAleRange || consensus.baseAleRange || 'Not available'))}</div>
+              <div id="results-consensus-projected-meta" class="form-help" style="margin-top:6px">${escapeHtml(`Base: ${consensus.baseAleRange || 'Not stated'} · All reviewer adjustments: ${consensus.adjustedAleRange || 'Not stated'}`)}</div>
+            </div>
+            <div style="background:var(--bg-elevated);padding:var(--sp-4);border-radius:var(--radius-lg)">
+              <div class="results-driver-label">Meet in the middle</div>
+              <div style="margin-top:8px;font-weight:700;color:var(--text-primary)">${escapeHtml(String(consensus.meetInTheMiddleAleRange || 'Not stated yet'))}</div>
+              <div class="form-help" style="margin-top:6px">Use this as the committee-friendly compromise range while evidence is still being gathered.</div>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            ${openRecords.map(record => {
+              const checked = consensus.acceptRecordIds.includes(record.id);
+              const stateLabel = checked ? 'Accept' : 'Defend';
+              const stateTone = checked ? 'success' : 'warning';
+              return `<label class="card card--elevated" style="padding:var(--sp-4);background:var(--bg-elevated);display:flex;align-items:flex-start;gap:12px">
+                <input type="checkbox" ${checked ? 'checked' : ''} data-consensus-record-toggle="${escapeHtml(String(record.id || ''))}" style="margin-top:4px">
+                <div style="flex:1">
+                  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                    <strong style="color:var(--text-primary)">${escapeHtml(String(record.parameterLabel || 'Parameter'))}</strong>
+                    <span class="badge badge--${stateTone}" data-consensus-record-state="${escapeHtml(String(record.id || ''))}">${stateLabel}</span>
+                  </div>
+                  <div class="form-help" style="margin-top:6px">${escapeHtml(String(record.reviewerConcern || ''))}</div>
+                  <div class="form-help" style="margin-top:6px"><strong>Suggested value:</strong> ${escapeHtml(String(record?.reviewerAdjustment?.suggestedValueLabel || 'Not stated'))}</div>
+                </div>
+              </label>`;
+            }).join('')}
+          </div>
+          <div style="display:flex;justify-content:flex-end">
+            <button type="button" class="btn btn--secondary btn--sm" data-consensus-apply>Apply Consensus</button>
+          </div>
+        </div>
+      ` : '<div class="form-help" style="margin-top:12px">No consensus path has been generated yet. Use Find Consensus to see which reviewer adjustments can be accepted without reopening every assumption.</div>'}
+    </div>
+  </section>`;
+}
+
+function syncConsensusProjectionDisplay({
+  assessment,
+  technicalInputs,
+  r,
+  runMetadata
+} = {}) {
+  const projectedEl = document.getElementById('results-consensus-projected-ale');
+  const metaEl = document.getElementById('results-consensus-projected-meta');
+  if (!projectedEl || !metaEl) return;
+  const latest = assessment?.id ? (getAssessmentById(assessment.id) || assessment) : assessment;
+  const openRecords = getOpenParameterChallengeRecords(latest);
+  const selectedIds = Array.from(document.querySelectorAll('[data-consensus-record-toggle]:checked'))
+    .map(input => String(input?.dataset?.consensusRecordToggle || '').trim())
+    .filter(Boolean);
+  const selectedRecords = openRecords.filter(record => selectedIds.includes(record.id));
+  const preview = runChallengeConsensusPreview({
+    technicalInputs,
+    r,
+    runMetadata,
+    records: selectedRecords
+  });
+  if (!preview) {
+    projectedEl.textContent = 'Not available right now';
+    metaEl.textContent = 'Quick consensus projection could not be calculated for this assessment.';
+    return;
+  }
+  projectedEl.textContent = preview.projectedAleRange;
+  metaEl.textContent = `Base: ${preview.baseAleRange} · Change: ${preview.changePct >= 0 ? '+' : ''}${preview.changePct}%`;
+  document.querySelectorAll('[data-consensus-record-state]').forEach(stateEl => {
+    const id = String(stateEl.dataset.consensusRecordState || '').trim();
+    const checked = selectedIds.includes(id);
+    stateEl.textContent = checked ? 'Accept' : 'Defend';
+    stateEl.className = `badge badge--${checked ? 'success' : 'warning'}`;
+  });
+}
+
+function renderParameterChallengeRecordCard(record = {}, { showApplyAction = true } = {}) {
+  const analystQuestions = Array.isArray(record?.analystQuestions) ? record.analystQuestions : [];
+  const adjustment = record?.reviewerAdjustment || {};
+  const createdLabel = record?.createdAt
+    ? new Date(record.createdAt).toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: 'numeric' })
+    : 'Saved now';
+  return `<article class="card card--elevated" style="padding:var(--sp-5);background:var(--bg-canvas)">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:var(--sp-4);flex-wrap:wrap">
+      <div>
+        ${typeof UI.sectionEyebrow === 'function' ? UI.sectionEyebrow(record.parameterLabel || 'Challenge record') : ''}
+        <div class="context-panel-title" style="margin-top:${typeof UI.sectionEyebrow === 'function' ? '10px' : '0'}">${escapeHtml(String(record.parameterLabel || 'Challenge record'))}</div>
+        <div class="form-help" style="margin-top:6px">${escapeHtml(String(record.currentValueLabel || 'Current value not recorded'))}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span class="badge badge--neutral">${escapeHtml(createdLabel)}</span>
+        ${record.appliedAt ? '<span class="badge badge--success">Applied</span>' : ''}
+      </div>
+    </div>
+    <div class="form-help" style="margin-top:var(--sp-3)">${escapeHtml(String(record.reviewerConcern || 'No reviewer concern was saved.'))}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-4);margin-top:var(--sp-4)">
+      <div style="background:var(--bg-elevated);padding:var(--sp-4);border-radius:var(--radius-lg)">
+        <div class="results-driver-label">For the Analyst</div>
+        <div class="results-summary-copy" style="margin-top:8px">${analystQuestions.length ? analystQuestions.map(item => `• ${escapeHtml(String(item))}`).join('<br>') : '• No analyst questions were generated.'}</div>
+      </div>
+      <div style="background:var(--bg-elevated);padding:var(--sp-4);border-radius:var(--radius-lg)">
+        <div class="results-driver-label">Reviewer&apos;s Proposed Adjustment</div>
+        <div style="margin-top:8px;font-weight:700;color:var(--text-primary)">${escapeHtml(String(adjustment.suggestedValueLabel || 'No adjustment suggested'))}</div>
+        <div class="form-help" style="margin-top:6px">${escapeHtml(String(adjustment.rationale || ''))}</div>
+        <div class="form-help" style="margin-top:6px"><strong>ALE impact:</strong> ${escapeHtml(String(adjustment.aleImpact || 'Not stated'))}</div>
+        ${showApplyAction && adjustment.param && Number.isFinite(Number(adjustment.suggestedValue))
+          ? `<button type="button" class="btn btn--secondary btn--sm" style="margin-top:var(--sp-4)" data-parameter-challenge-apply="${escapeHtml(String(record.id || ''))}">${record.appliedAt ? 'Apply Again' : 'Apply This'}</button>`
+          : ''}
+      </div>
+    </div>
+  </article>`;
+}
+
+function normaliseChallengeSynthesis(assessment = {}) {
+  const synthesis = assessment?.challengeSynthesis;
+  if (!synthesis || typeof synthesis !== 'object') return null;
+  return {
+    createdAt: Number(synthesis.createdAt || 0),
+    overallConcern: String(synthesis.overallConcern || '').trim(),
+    revisedAleRange: String(synthesis.revisedAleRange || '').trim(),
+    keyEvidence: String(synthesis.keyEvidence || '').trim()
+  };
+}
+
+function normaliseChallengeSynthesisRequest(assessment = {}) {
+  const request = assessment?.challengeSynthesisRequest;
+  if (!request || typeof request !== 'object') return null;
+  return {
+    id: String(request.id || '').trim(),
+    createdAt: Number(request.createdAt || 0),
+    requestedBy: String(request.requestedBy || '').trim(),
+    targetUsername: String(request.targetUsername || '').trim().toLowerCase(),
+    message: String(request.message || '').trim(),
+    status: String(request.status || 'pending').trim().toLowerCase()
+  };
+}
+
+function renderChallengeSynthesisCard(assessment) {
+  const records = normaliseParameterChallengeRecords(assessment);
+  const synthesis = normaliseChallengeSynthesis(assessment);
+  const request = normaliseChallengeSynthesisRequest(assessment);
+  const currentUsername = String(AuthService.getCurrentUser?.()?.username || '').trim().toLowerCase();
+  const isAnalystTarget = !!request
+    && request.status === 'pending'
+    && currentUsername
+    && currentUsername === String(request.targetUsername || '').trim().toLowerCase();
+  if (records.length < 2 && !synthesis && !isAnalystTarget) return '';
+  const createdLabel = synthesis?.createdAt
+    ? new Date(synthesis.createdAt).toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: 'numeric' })
+    : '';
+  const showRequestButton = records.length >= 2 && synthesis && currentUsername && currentUsername !== String(assessment?.submittedBy || '').trim().toLowerCase();
+  return `<section class="results-section-stack">
+    ${isAnalystTarget ? `<div class="card card--elevated" style="padding:var(--sp-4);background:var(--bg-elevated);border-left:3px solid var(--color-accent-300)">
+      <div class="results-driver-label">Analyst response requested</div>
+      <div class="results-summary-copy" style="margin-top:8px">${escapeHtml(String(request?.message || 'A reviewer asked for your response to the synthesised challenge view on this assessment.'))}</div>
+    </div>` : ''}
+    <div class="card card--elevated" style="padding:var(--sp-5);background:var(--bg-canvas);border-left:3px solid var(--color-accent-300)">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:var(--sp-4);flex-wrap:wrap">
+        <div>
+          <div class="results-driver-label">Reviewer Consensus View (AI Synthesised)</div>
+          <div class="context-panel-title" style="margin-top:8px">One dissenting view across all saved reviewer challenges.</div>
+          <div class="form-help" style="margin-top:6px">${records.length >= 2 ? `${records.length} challenge records are included in this synthesis.` : 'A synthesis will appear once at least two challenge records exist.'}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          ${createdLabel ? `<span class="badge badge--neutral">${escapeHtml(createdLabel)}</span>` : ''}
+          ${records.length >= 2 ? '<button type="button" class="btn btn--secondary btn--sm" data-challenge-synthesis-run>Synthesise Challenges</button>' : ''}
+          ${showRequestButton ? '<button type="button" class="btn btn--ghost btn--sm" data-challenge-synthesis-request>Request analyst response to synthesis</button>' : ''}
+        </div>
+      </div>
+      ${synthesis ? `
+        <div style="display:grid;grid-template-columns:1fr;gap:12px;margin-top:var(--sp-4)">
+          <div style="background:var(--bg-elevated);padding:var(--sp-4);border-radius:var(--radius-lg)">
+            <div class="results-driver-label">Overall concern</div>
+            <div class="results-summary-copy" style="margin-top:8px">${escapeHtml(String(synthesis.overallConcern || ''))}</div>
+          </div>
+          <div style="background:var(--bg-elevated);padding:var(--sp-4);border-radius:var(--radius-lg)">
+            <div class="results-driver-label">Revised ALE view</div>
+            <div class="results-summary-copy" style="margin-top:8px">${escapeHtml(String(synthesis.revisedAleRange || ''))}</div>
+          </div>
+          <div style="background:var(--bg-elevated);padding:var(--sp-4);border-radius:var(--radius-lg)">
+            <div class="results-driver-label">Single best evidence to resolve most challenges</div>
+            <div class="results-summary-copy" style="margin-top:8px">${escapeHtml(String(synthesis.keyEvidence || ''))}</div>
+          </div>
+        </div>
+      ` : records.length >= 2 ? '<div class="form-help" style="margin-top:12px">Run synthesis to consolidate the current reviewer challenges into one coherent committee view.</div>' : ''}
+    </div>
+  </section>`;
+}
+
+function renderParameterChallengeRecordSection(assessment) {
+  const records = normaliseParameterChallengeRecords(assessment);
+  if (!records.length) return '';
+  return `<section class="results-section-stack">
+    <div class="results-section-heading">Challenge records</div>
+    <div class="results-detail-disclosure-copy">Saved reviewer challenges stay here so the analyst and reviewer can work from one visible audit trail instead of ad hoc comments.</div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      ${records.map(record => renderParameterChallengeRecordCard(record, { showApplyAction: true })).join('')}
+    </div>
+  </section>`;
+}
+
+function renderParameterChallengeAuditTrail(assessment) {
+  const records = normaliseParameterChallengeRecords(assessment);
+  if (!records.length) return '';
+  return `<div style="display:flex;flex-direction:column;gap:12px">
+    ${records.map(record => renderParameterChallengeRecordCard(record, { showApplyAction: false })).join('')}
+  </div>`;
+}
+
+function getAssessmentVersionHistory(assessment = {}) {
+  return typeof normaliseAssessmentVersionHistory === 'function'
+    ? normaliseAssessmentVersionHistory(assessment?.versionHistory || [])
+    : (Array.isArray(assessment?.versionHistory) ? assessment.versionHistory : []);
+}
+
+function findAssessmentVersionRecord(assessment = {}, savedAt = 0) {
+  const target = Number(savedAt || 0);
+  return getAssessmentVersionHistory(assessment).find(item => Number(item?.savedAt || 0) === target) || null;
+}
+
+function renderAssessmentVersionHistorySection(assessment) {
+  const versions = getAssessmentVersionHistory(assessment).slice().reverse();
+  return `<details class="results-detail-disclosure">
+    <summary>Version history</summary>
+    <div class="results-detail-disclosure-copy">Open this to see how the assessment changed across saved versions, ask AI to narrate what shifted, and restore an earlier parameter set into the wizard for rerun.</div>
+    <div class="results-disclosure-stack">
+      ${versions.length ? `<div style="display:flex;flex-direction:column;gap:12px">
+        ${versions.map((version, index) => `
+          <article class="card card--elevated anim-fade-in" style="padding:var(--sp-4);background:var(--bg-canvas);border-left:2px solid var(--border-subtle)">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:var(--sp-4);flex-wrap:wrap">
+              <div>
+                <div class="results-driver-label">Version ${versions.length - index}</div>
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px">
+                  <strong style="color:var(--text-primary)">${escapeHtml(new Date(Number(version.savedAt || 0) || Date.now()).toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: 'numeric' }))}</strong>
+                  <span class="badge badge--neutral">${escapeHtml(buildAssessmentVersionAleLabel(version.aleResult || {}))}</span>
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <button type="button" class="btn btn--ghost btn--sm" data-version-history-narrate="${escapeHtml(String(version.savedAt || ''))}">Explain this change</button>
+                <button type="button" class="btn btn--secondary btn--sm" data-version-history-restore="${escapeHtml(String(version.savedAt || ''))}">Restore this version</button>
+              </div>
+            </div>
+            ${version.scenarioSummary ? `<div class="form-help" style="margin-top:10px">${escapeHtml(String(version.scenarioSummary).slice(0, 320))}${String(version.scenarioSummary).length > 320 ? '…' : ''}</div>` : ''}
+            ${version.aiNarrative ? `<div class="form-help" style="font-style:italic;margin-top:12px;padding:var(--sp-3);background:var(--bg-elevated);border-radius:var(--radius-lg)">${escapeHtml(String(version.aiNarrative))}</div>` : ''}
+          </article>
+        `).join('')}
+      </div>` : '<div class="form-help">No prior saved versions yet. This timeline starts after the next material assessment update is saved.</div>'}
+    </div>
+  </details>`;
+}
+
+function buildAssessmentVersionNarrationFallback(version = {}, assessment = {}) {
+  const input = typeof buildAssessmentVersionNarrationInput === 'function'
+    ? buildAssessmentVersionNarrationInput(version, assessment)
+    : null;
+  if (!input) return 'The earlier version could not be compared to the current result right now.';
+  const firstChange = Array.isArray(input.parameterDiffLines) && input.parameterDiffLines.length
+    ? input.parameterDiffLines[0]
+    : 'No major parameter change was recorded';
+  return `${firstChange}. The outcome moved from ${input.previousAleLabel || 'the earlier result'} to ${input.currentAleLabel || 'the current result'}, which suggests the analyst changed the practical severity or likelihood of the scenario rather than only the wording. Review the updated evidence and scenario framing to confirm whether that shift is justified.`;
+}
+
+function scaleLossEdge(fairParams = {}, suffix = 'Min', targetTotal = 0) {
+  const keys = ['ir', 'bi', 'db', 'rl', 'tp', 'rc'];
+  const currentTotal = keys.reduce((sum, key) => sum + Number(fairParams?.[`${key}${suffix}`] || 0), 0);
+  const safeTarget = Math.max(0, Number(targetTotal || 0) || 0);
+  const factor = currentTotal > 0 ? (safeTarget / currentTotal) : 1;
+  keys.forEach((key) => {
+    const edgeKey = `${key}${suffix}`;
+    const likelyKey = `${key}Likely`;
+    const oppositeKey = suffix === 'Min' ? `${key}Max` : `${key}Min`;
+    const current = Number(fairParams?.[edgeKey] || 0);
+    const nextEdge = currentTotal > 0
+      ? Math.max(0, Number((current * factor).toFixed(2)))
+      : 0;
+    fairParams[edgeKey] = nextEdge;
+    if (suffix === 'Min') {
+      if (Number(fairParams?.[likelyKey] || 0) < nextEdge) fairParams[likelyKey] = nextEdge;
+      if (Number(fairParams?.[oppositeKey] || 0) < Number(fairParams?.[likelyKey] || 0)) fairParams[oppositeKey] = Number(fairParams?.[likelyKey] || 0);
+    } else {
+      if (Number(fairParams?.[likelyKey] || 0) > nextEdge) fairParams[likelyKey] = nextEdge;
+      if (Number(fairParams?.[oppositeKey] || 0) > Number(fairParams?.[likelyKey] || 0)) fairParams[oppositeKey] = Number(fairParams?.[likelyKey] || 0);
+    }
+  });
+}
+
+function applyParameterAdjustmentToDraftRecord(draftRecord, record = {}) {
+  const adjustment = record?.reviewerAdjustment || {};
+  const fairParams = draftRecord?.fairParams && typeof draftRecord.fairParams === 'object'
+    ? draftRecord.fairParams
+    : (draftRecord.fairParams = {});
+  const param = String(adjustment.param || '').trim();
+  const suggestedValue = Number(adjustment.suggestedValue);
+  if (!param || !Number.isFinite(suggestedValue)) return draftRecord;
+  const setLikelyWithBounds = (prefix, value, min = 0, max = 1) => {
+    const safeValue = clampParameterValue(value, min, max);
+    fairParams[`${prefix}Likely`] = safeValue;
+    if (Number(fairParams?.[`${prefix}Min`] || 0) > safeValue) fairParams[`${prefix}Min`] = safeValue;
+    if (Number(fairParams?.[`${prefix}Max`] || 0) < safeValue) fairParams[`${prefix}Max`] = safeValue;
+  };
+  if (param === 'tefLikely') {
+    setLikelyWithBounds('tef', suggestedValue, 0, 1000);
+  } else if (param === 'controlStrLikely') {
+    setLikelyWithBounds('controlStr', suggestedValue, 0.01, 0.99);
+  } else if (param === 'vulnerability') {
+    const safeVulnerability = clampParameterValue(suggestedValue, 0.01, 0.99);
+    if (fairParams.vulnDirect) {
+      setLikelyWithBounds('vuln', safeVulnerability, 0.01, 0.99);
+    } else {
+      const tcLikely = clampParameterValue(fairParams.threatCapLikely, 0.01, 0.99);
+      const logit = Math.log(safeVulnerability / Math.max(0.0001, 1 - safeVulnerability));
+      setLikelyWithBounds('controlStr', tcLikely - logit, 0.01, 0.99);
+    }
+  } else if (param === 'lmLow') {
+    scaleLossEdge(fairParams, 'Min', suggestedValue);
+  } else if (param === 'lmHigh') {
+    scaleLossEdge(fairParams, 'Max', suggestedValue);
+  }
+  return draftRecord;
+}
+
+function formatParameterChallengeSuggestedValueLabel(parameterKey, suggestedValue, technicalInputs = {}) {
+  const numeric = Number(suggestedValue);
+  if (!Number.isFinite(numeric)) return 'Suggested value not stated';
+  if (parameterKey === 'tefLikely') return `${numeric.toFixed(2)} events/year`;
+  if (parameterKey === 'vulnerability') return `${Math.round(clampParameterValue(numeric, 0.01, 0.99) * 100)}% event success likelihood`;
+  if (parameterKey === 'controlStrLikely') return `${Math.round(clampParameterValue(numeric, 0.01, 0.99) * 100)}% control strength likely`;
+  if (parameterKey === 'lmLow' || parameterKey === 'lmHigh') return fmtCurrency(numeric);
+  return String(numeric);
+}
+
+function normaliseParameterAdjustmentKey(value, fallback = '') {
+  const safe = String(value || '').trim().toLowerCase();
+  if (!safe) return String(fallback || '').trim();
+  if (safe === 'tef' || safe === 'teflikely' || safe === 'event frequency') return 'tefLikely';
+  if (safe === 'vulnerability' || safe === 'event success likelihood') return 'vulnerability';
+  if (safe === 'lm low' || safe === 'lmlow' || safe === 'loss magnitude low') return 'lmLow';
+  if (safe === 'lm high' || safe === 'lmhigh' || safe === 'loss magnitude high') return 'lmHigh';
+  if (safe === 'controlstrlikely' || safe === 'control strength' || safe === 'controls confidence') return 'controlStrLikely';
+  return String(fallback || '').trim() || String(value || '').trim();
+}
+
+function buildSensitivitySimulationParams(technicalInputs = {}, r = {}, runMetadata = {}) {
+  return {
+    ...cloneSerializableState(technicalInputs, {}) || {},
+    iterations: 1000,
+    seed: Number(runMetadata?.seed || 1337),
+    distType: String(runMetadata?.distributions?.eventModel || r?.distType || technicalInputs?.distType || 'triangular'),
+    threshold: Number(r?.threshold || technicalInputs?.threshold || getToleranceThreshold()),
+    annualReviewThreshold: Number(r?.annualReviewThreshold || technicalInputs?.annualReviewThreshold || getAnnualReviewThreshold()),
+    vulnDirect: !!technicalInputs?.vulnDirect,
+    secondaryEnabled: !!technicalInputs?.secondaryEnabled,
+    corrBiIr: Number(runMetadata?.distributions?.correlations?.businessInterruptionVsIncidentResponse ?? technicalInputs?.corrBiIr ?? 0.3),
+    corrRlRc: Number(runMetadata?.distributions?.correlations?.regulatoryVsReputation ?? technicalInputs?.corrRlRc ?? 0.2)
+  };
+}
+
+function scaleOrderedRange(min, likely, max, factor, { lowerBound = 0, upperBound = null } = {}) {
+  const values = [Number(min || 0), Number(likely || 0), Number(max || 0)]
+    .map(value => Math.max(Number(lowerBound || 0), value * factor))
+    .map(value => upperBound == null ? value : clampParameterValue(value, Number(lowerBound || 0), Number(upperBound)));
+  values.sort((left, right) => left - right);
+  return {
+    min: values[0],
+    likely: values[1],
+    max: values[2]
+  };
+}
+
+function applySensitivityFactor(params = {}, parameterKey = '', factor = 1) {
+  const next = cloneSerializableState(params, {}) || {};
+  const safeFactor = Math.max(0.01, Number(factor || 1));
+  if (parameterKey === 'tefLikely') {
+    const scaled = scaleOrderedRange(next.tefMin, next.tefLikely, next.tefMax, safeFactor, { lowerBound: 0 });
+    next.tefMin = scaled.min;
+    next.tefLikely = scaled.likely;
+    next.tefMax = scaled.max;
+    return next;
+  }
+  if (parameterKey === 'vulnerability') {
+    const scaled = scaleOrderedRange(
+      deriveVulnerabilityRange(next).min,
+      deriveVulnerabilityRange(next).likely,
+      deriveVulnerabilityRange(next).max,
+      safeFactor,
+      { lowerBound: 0.01, upperBound: 0.99 }
+    );
+    next.vulnDirect = true;
+    next.vulnMin = scaled.min;
+    next.vulnLikely = scaled.likely;
+    next.vulnMax = scaled.max;
+    return next;
+  }
+  if (parameterKey === 'lmLow') {
+    ['ir', 'bi', 'db', 'rl', 'tp', 'rc'].forEach((prefix) => {
+      next[`${prefix}Min`] = Math.max(0, Number(next?.[`${prefix}Min`] || 0) * safeFactor);
+      if (Number(next?.[`${prefix}Likely`] || 0) < Number(next?.[`${prefix}Min`] || 0)) {
+        next[`${prefix}Likely`] = Number(next[`${prefix}Min`]);
+      }
+      if (Number(next?.[`${prefix}Max`] || 0) < Number(next?.[`${prefix}Likely`] || 0)) {
+        next[`${prefix}Max`] = Number(next[`${prefix}Likely`]);
+      }
+    });
+    return next;
+  }
+  if (parameterKey === 'lmHigh') {
+    ['ir', 'bi', 'db', 'rl', 'tp', 'rc'].forEach((prefix) => {
+      next[`${prefix}Max`] = Math.max(0, Number(next?.[`${prefix}Max`] || 0) * safeFactor);
+      if (Number(next?.[`${prefix}Likely`] || 0) > Number(next?.[`${prefix}Max`] || 0)) {
+        next[`${prefix}Likely`] = Number(next[`${prefix}Max`]);
+      }
+      if (Number(next?.[`${prefix}Min`] || 0) > Number(next?.[`${prefix}Likely`] || 0)) {
+        next[`${prefix}Min`] = Number(next[`${prefix}Likely`]);
+      }
+    });
+    return next;
+  }
+  return next;
+}
+
+function classifySensitivityVerdict(changeRatio = 0) {
+  const safeRatio = Math.max(0, Number(changeRatio || 0));
+  if (safeRatio > 0.5) return { label: 'High leverage', tone: 'danger' };
+  if (safeRatio < 0.2) return { label: 'Stable', tone: 'success' };
+  return { label: 'Watch closely', tone: 'warning' };
+}
+
+function renderAssumptionSensitivityAnalysisResult({
+  rows = [],
+  baseAle = 0,
+  keySensitivity = ''
+} = {}) {
+  if (!rows.length) {
+    return '<div class="form-help">Sensitivity analysis is not available for this assessment right now.</div>';
+  }
+  return `
+    ${keySensitivity ? `<div class="card card--elevated" style="padding:var(--sp-4);background:var(--bg-elevated)"><div class="results-driver-label">Key sensitivity</div><div style="margin-top:8px;color:var(--text-primary);font-weight:600">${escapeHtml(String(keySensitivity))}</div></div>` : ''}
+    <div class="card card--elevated" style="padding:0;overflow:auto;background:var(--bg-canvas)">
+      <table style="width:100%;border-collapse:collapse;font-size:14px">
+        <thead>
+          <tr style="background:var(--bg-elevated);text-align:left">
+            <th style="padding:12px 14px">Parameter</th>
+            <th style="padding:12px 14px">-50%</th>
+            <th style="padding:12px 14px">Base</th>
+            <th style="padding:12px 14px">+100%</th>
+            <th style="padding:12px 14px">Verdict</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map((row) => `
+            <tr style="border-top:1px solid var(--border-subtle)">
+              <td style="padding:12px 14px;font-weight:600;color:var(--text-primary)">${escapeHtml(String(row.parameter || 'Parameter'))}</td>
+              <td style="padding:12px 14px;color:var(--text-secondary)">${escapeHtml(String(row.lowAleLabel || '—'))}</td>
+              <td style="padding:12px 14px;color:var(--text-primary)">${escapeHtml(String(row.baseAleLabel || '—'))}</td>
+              <td style="padding:12px 14px;color:var(--text-secondary)">${escapeHtml(String(row.highAleLabel || '—'))}</td>
+              <td style="padding:12px 14px"><span class="badge badge--${escapeHtml(String(row.verdictTone || 'neutral'))}">${escapeHtml(String(row.verdictLabel || 'Check basis'))}</span></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div class="form-help" style="margin-top:8px">Quick stress test only. Each row re-runs the model at 1,000 iterations with one parameter shifted while the rest stay fixed.</div>
+  `;
+}
+
+async function runAssumptionSensitivityAnalysis({
+  assessment,
+  technicalInputs,
+  r,
+  runMetadata
+} = {}) {
+  if (typeof RiskEngine === 'undefined' || !assessment || !technicalInputs || !r) return null;
+  const baseParams = buildSensitivitySimulationParams(technicalInputs, r, runMetadata);
+  const baseResults = RiskEngine.run(baseParams);
+  const baseAle = Number(baseResults?.annualLoss?.mean || baseResults?.ale?.mean || 0);
+  const rows = [
+    { key: 'tefLikely', parameter: 'TEF' },
+    { key: 'vulnerability', parameter: 'Vulnerability' },
+    { key: 'lmLow', parameter: 'LM Low' },
+    { key: 'lmHigh', parameter: 'LM High' }
+  ].map((row) => {
+    const lowResults = RiskEngine.run(applySensitivityFactor(baseParams, row.key, 0.5));
+    const highResults = RiskEngine.run(applySensitivityFactor(baseParams, row.key, 2));
+    const lowAle = Number(lowResults?.annualLoss?.mean || lowResults?.ale?.mean || 0);
+    const highAle = Number(highResults?.annualLoss?.mean || highResults?.ale?.mean || 0);
+    const lowRatio = baseAle > 0 ? lowAle / baseAle : 1;
+    const highRatio = baseAle > 0 ? highAle / baseAle : 1;
+    const changeRatio = Math.max(Math.abs(lowRatio - 1), Math.abs(highRatio - 1));
+    const verdict = classifySensitivityVerdict(changeRatio);
+    return {
+      ...row,
+      lowAle,
+      highAle,
+      baseAle,
+      lowAleLabel: fmtCurrency(lowAle),
+      baseAleLabel: fmtCurrency(baseAle),
+      highAleLabel: fmtCurrency(highAle),
+      lowRatio: Number(lowRatio.toFixed(2)),
+      highRatio: Number(highRatio.toFixed(2)),
+      verdictLabel: verdict.label,
+      verdictTone: verdict.tone
+    };
+  });
+  const keySensitivity = await LLMService.generateSensitivityNarrative({
+    scenarioTitle: assessment?.scenarioTitle || '',
+    baseAleLabel: fmtCurrency(baseAle),
+    rows: rows.map((row) => ({
+      parameter: row.parameter,
+      lowAle: row.lowAleLabel,
+      baseAle: row.baseAleLabel,
+      highAle: row.highAleLabel,
+      lowRatio: row.lowRatio,
+      highRatio: row.highRatio,
+      verdict: row.verdictLabel
+    }))
+  });
+  return {
+    baseAle,
+    rows,
+    keySensitivity
+  };
+}
+
+function openParameterChallengeModal({
+  assessment,
+  parameterTarget,
+  technicalInputs,
+  assessmentIntelligence,
+  isShared,
+  id
+} = {}) {
+  if (!assessment || !parameterTarget) return;
+  const concernId = `challenge-concern-${Date.now()}`;
+  const submitId = `btn-submit-parameter-challenge-${Date.now()}`;
+  const cancelId = `btn-cancel-parameter-challenge-${Date.now()}`;
+  const modal = UI.modal({
+    title: `Challenge ${parameterTarget.label}`,
+    body: `
+      <div style="display:flex;flex-direction:column;gap:var(--sp-4)">
+        <div class="card" style="padding:var(--sp-4);background:var(--bg-elevated)">
+          <div class="results-driver-label">${escapeHtml(String(parameterTarget.label || 'Parameter'))}</div>
+          <strong style="display:block;margin-top:6px;color:var(--text-primary)">${escapeHtml(String(parameterTarget.currentValueLabel || 'Current value not stated'))}</strong>
+        </div>
+        <div>
+          <label class="form-label" for="${concernId}">What concerns you about this estimate?</label>
+          <textarea id="${concernId}" class="form-textarea" rows="5" placeholder="Be direct about what feels too high, too low, weakly supported, or not aligned to the scenario."></textarea>
+        </div>
+        <div class="flex items-center gap-3" style="flex-wrap:wrap">
+          <button type="button" class="btn btn--primary" id="${submitId}">Submit Challenge</button>
+          <button type="button" class="btn btn--ghost" id="${cancelId}">Cancel</button>
+        </div>
+      </div>
+    `
+  });
+  document.getElementById(cancelId)?.addEventListener('click', () => modal?.close?.());
+  document.getElementById(submitId)?.addEventListener('click', async () => {
+    const concernEl = document.getElementById(concernId);
+    const reviewerConcern = String(concernEl?.value || '').trim();
+    if (!reviewerConcern) {
+      UI.toast('Add the reviewer concern before submitting the challenge.', 'warning');
+      concernEl?.focus();
+      return;
+    }
+    const submitButton = document.getElementById(submitId);
+    if (submitButton) {
+      submitButton.disabled = true;
+      submitButton.textContent = 'Generating…';
+    }
+    try {
+      const currentAle = assessment?.results?.annualLoss?.mean || assessment?.results?.ale?.mean || 0;
+      const result = await LLMService.generateParameterChallengeRecord({
+        parameterKey: parameterTarget.key,
+        parameterLabel: parameterTarget.label,
+        currentValue: parameterTarget.currentValue,
+        currentValueLabel: parameterTarget.currentValueLabel,
+        scenarioSummary: assessment.enhancedNarrative || assessment.narrative || assessment.scenarioTitle || '',
+        reviewerConcern,
+        currentAle: fmtCurrency(currentAle),
+        allowedParams: ['tefLikely', 'vulnerability', 'lmLow', 'lmHigh', 'controlStrLikely']
+      });
+      if (!result) throw new Error('No challenge record generated');
+      const adjustmentParam = normaliseParameterAdjustmentKey(result?.reviewerAdjustment?.param, parameterTarget.key);
+      const nextRecord = {
+        id: `pcr_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+        parameterKey: parameterTarget.key,
+        parameterLabel: parameterTarget.label,
+        currentValueLabel: parameterTarget.currentValueLabel,
+        reviewerConcern,
+        analystQuestions: Array.isArray(result?.analystQuestions) ? result.analystQuestions.slice(0, 3) : [],
+        reviewerAdjustment: {
+          ...(result?.reviewerAdjustment || {}),
+          param: adjustmentParam || parameterTarget.key,
+          suggestedValue: Number(result?.reviewerAdjustment?.suggestedValue),
+          suggestedValueLabel: formatParameterChallengeSuggestedValueLabel(
+            adjustmentParam || parameterTarget.key,
+            Number(result?.reviewerAdjustment?.suggestedValue),
+            technicalInputs
+          )
+        },
+        createdAt: Date.now(),
+        appliedAt: 0
+      };
+      updateAssessmentRecord(assessment.id, current => ({
+        ...current,
+        parameterChallenges: [
+          nextRecord,
+          ...(Array.isArray(current?.parameterChallenges) ? current.parameterChallenges : [])
+        ].slice(0, 12)
+      }));
+      modal?.close?.();
+      UI.toast('Challenge record saved.', 'success');
+      renderResults(id || assessment.id, isShared || assessment._shared);
+    } catch (error) {
+      console.error('generateParameterChallengeRecord failed:', error);
+      UI.toast('The challenge record could not be generated right now. Try again.', 'danger');
+      if (submitButton) {
+        submitButton.disabled = false;
+        submitButton.textContent = 'Submit Challenge';
+      }
+    }
+  });
+}
+
 function renderPreRunAssumptionExplainer(draft, liveInputAssignments = []) {
   const entries = buildParameterChallengeEntries({
     technicalInputs: draft?.fairParams || {},
@@ -1814,6 +2724,20 @@ function renderWizard4() {
     if (progressText) progressText.textContent = 'Cancelling the simulation…';
     if (progressMeta) progressMeta.textContent = 'The current run will stop at the next safe checkpoint.';
   });
+  if (AppState.pendingParameterChallengeAutoRun && String(AppState.pendingParameterChallengeAutoRun.assessmentId || '') === String(draft.id || '')) {
+    AppState.pendingParameterChallengeAutoRun = null;
+    window.setTimeout(() => {
+      UI.toast('Reviewer adjustment loaded. Re-running the simulation now.', 'info', 3200);
+      runSimulation();
+    }, 120);
+  }
+  if (AppState.pendingConsensusAutoRun && String(AppState.pendingConsensusAutoRun.assessmentId || '') === String(draft.id || '')) {
+    AppState.pendingConsensusAutoRun = null;
+    window.setTimeout(() => {
+      UI.toast('Consensus path loaded. Re-running the simulation now.', 'info', 3200);
+      runSimulation();
+    }, 120);
+  }
 }
 
 async function runSimulation() {
@@ -2710,6 +3634,7 @@ function bindResultsInteractions({
   assessment,
   activeTab,
   r,
+  technicalInputs,
   assessmentIntelligence,
   missingInformation,
   rolePresentation,
@@ -2778,6 +3703,361 @@ function bindResultsInteractions({
     button.addEventListener('click', () => {
       AppState.resultsReviewerBriefTarget = String(button.dataset.reviewerBriefChallenge || '').trim();
       activateResultsTab('technical', { focusTarget: 'panel' });
+    });
+  });
+  document.querySelectorAll('[data-parameter-challenge-open]').forEach(button => {
+    button.addEventListener('click', () => {
+      const parameterKey = String(button.dataset.parameterChallengeOpen || '').trim();
+      const parameterTarget = findParameterChallengeTarget(assessment, technicalInputs, assessmentIntelligence, parameterKey);
+      if (!parameterTarget) {
+        UI.toast('That parameter is not available to challenge right now.', 'warning');
+        return;
+      }
+      openParameterChallengeModal({
+        assessment,
+        parameterTarget,
+        technicalInputs,
+        assessmentIntelligence,
+        isShared,
+        id
+      });
+    });
+  });
+  document.querySelectorAll('[data-parameter-challenge-apply]').forEach(button => {
+    button.addEventListener('click', () => {
+      const challengeId = String(button.dataset.parameterChallengeApply || '').trim();
+      const latest = getAssessmentById(assessment.id) || assessment;
+      const record = normaliseParameterChallengeRecords(latest).find(item => item.id === challengeId);
+      if (!record) {
+        UI.toast('That challenge record could not be found anymore.', 'warning');
+        return;
+      }
+      updateAssessmentRecord(latest.id, current => ({
+        ...current,
+        parameterChallenges: normaliseParameterChallengeRecords(current).map(item => (
+          item.id === challengeId ? { ...item, appliedAt: Date.now() } : item
+        ))
+      }));
+      AppState.pendingParameterChallengeAutoRun = {
+        assessmentId: latest.id,
+        challengeId
+      };
+      openAssessmentForRevision(latest, {
+        targetStep: '/wizard/4',
+        applyDraftChanges: draftRecord => {
+          const nextDraft = applyParameterAdjustmentToDraftRecord(draftRecord, record);
+          nextDraft.parameterChallenges = normaliseParameterChallengeRecords(getAssessmentById(latest.id) || latest).map(item => (
+            item.id === challengeId ? { ...item, appliedAt: Date.now() } : item
+          ));
+          return nextDraft;
+        }
+      });
+      UI.toast('Reviewer adjustment loaded into the model and queued for rerun.', 'success');
+    });
+  });
+  document.querySelectorAll('[data-consensus-path-run]').forEach(button => {
+    button.addEventListener('click', async () => {
+      const latest = getAssessmentById(assessment.id) || assessment;
+      const openRecords = getOpenParameterChallengeRecords(latest);
+      if (!openRecords.length) {
+        UI.toast('There are no open reviewer adjustments to reconcile right now.', 'warning');
+        return;
+      }
+      const analysis = runConsensusPathAnalysis({
+        assessment: latest,
+        technicalInputs,
+        r,
+        runMetadata
+      });
+      if (!analysis) {
+        UI.toast('Consensus analysis is not available for this assessment right now.', 'warning');
+        return;
+      }
+      const original = button.textContent;
+      button.disabled = true;
+      button.textContent = 'Finding…';
+      try {
+        const result = await LLMService.generateConsensusRecommendation({
+          scenarioTitle: latest.scenarioTitle || '',
+          scenarioSummary: latest.enhancedNarrative || latest.narrative || '',
+          originalAleRange: analysis.baseAleRange,
+          adjustedAleRange: analysis.adjustedAleRange,
+          projectedAleRange: analysis.adjustedAleRange,
+          aleChangePct: analysis.adjustedChangePct,
+          originalParameters: analysis.baseSnapshot,
+          adjustedParameters: analysis.adjustedSnapshot,
+          challenges: analysis.adjustments.map(item => ({
+            ref: item.ref,
+            parameter: item.record.parameterLabel,
+            concern: item.record.reviewerConcern,
+            proposedValue: item.record?.reviewerAdjustment?.suggestedValueLabel || item.record?.reviewerAdjustment?.suggestedValue,
+            impactPct: item.impactPct,
+            aleImpact: item.record?.reviewerAdjustment?.aleImpact || ''
+          }))
+        });
+        const refToRecordId = new Map(analysis.adjustments.map(item => [item.ref, item.record.id]));
+        let acceptRecordIds = (Array.isArray(result?.acceptChallenges) ? result.acceptChallenges : [])
+          .map(ref => refToRecordId.get(String(ref || '').trim()))
+          .filter(Boolean);
+        if (!acceptRecordIds.length) {
+          acceptRecordIds = analysis.adjustments
+            .filter(item => Math.abs(Number(item.impactPct || 0)) <= 15)
+            .map(item => item.record.id);
+        }
+        if (!acceptRecordIds.length && analysis.adjustments.length) {
+          acceptRecordIds = [analysis.adjustments
+            .slice()
+            .sort((left, right) => Math.abs(Number(left.impactPct || 0)) - Math.abs(Number(right.impactPct || 0)))[0].record.id];
+        }
+        const defendRecordIds = openRecords.map(item => item.id).filter(id => !acceptRecordIds.includes(id));
+        const projectedPreview = runChallengeConsensusPreview({
+          technicalInputs,
+          r,
+          runMetadata,
+          records: openRecords.filter(record => acceptRecordIds.includes(record.id))
+        });
+        updateAssessmentRecord(latest.id, current => ({
+          ...current,
+          consensusPath: {
+            createdAt: Date.now(),
+            summaryBullets: Array.isArray(result?.summaryBullets) ? result.summaryBullets.slice(0, 3) : [],
+            acceptRecordIds,
+            defendRecordIds,
+            meetInTheMiddleAleRange: String(result?.meetInTheMiddleAleRange || '').trim(),
+            projectedAleRange: String(projectedPreview?.projectedAleRange || analysis.baseAleRange || '').trim(),
+            baseAleRange: String(analysis.baseAleRange || '').trim(),
+            adjustedAleRange: String(analysis.adjustedAleRange || '').trim()
+          }
+        }));
+        renderResults(latest.id, isShared || latest._shared);
+      } catch (error) {
+        console.error('generateConsensusRecommendation failed:', error);
+        UI.toast('Consensus analysis is unavailable right now. Try again.', 'danger');
+        button.disabled = false;
+        button.textContent = original;
+      }
+    });
+  });
+  document.querySelectorAll('[data-consensus-record-toggle]').forEach(input => {
+    input.addEventListener('change', () => {
+      syncConsensusProjectionDisplay({
+        assessment,
+        technicalInputs,
+        r,
+        runMetadata
+      });
+    });
+  });
+  if (document.querySelector('[data-consensus-record-toggle]')) {
+    syncConsensusProjectionDisplay({
+      assessment,
+      technicalInputs,
+      r,
+      runMetadata
+    });
+  }
+  document.querySelectorAll('[data-consensus-apply]').forEach(button => {
+    button.addEventListener('click', () => {
+      const latest = getAssessmentById(assessment.id) || assessment;
+      const openRecords = getOpenParameterChallengeRecords(latest);
+      const selectedIds = Array.from(document.querySelectorAll('[data-consensus-record-toggle]:checked'))
+        .map(input => String(input?.dataset?.consensusRecordToggle || '').trim())
+        .filter(Boolean);
+      if (!selectedIds.length) {
+        UI.toast('Select at least one reviewer adjustment to apply as the consensus path.', 'warning');
+        return;
+      }
+      const selectedRecords = openRecords.filter(record => selectedIds.includes(record.id));
+      const defendRecordIds = openRecords.map(item => item.id).filter(id => !selectedIds.includes(id));
+      const preview = runChallengeConsensusPreview({
+        technicalInputs,
+        r,
+        runMetadata,
+        records: selectedRecords
+      });
+      const now = Date.now();
+      updateAssessmentRecord(latest.id, current => ({
+        ...current,
+        parameterChallenges: normaliseParameterChallengeRecords(current).map(item => (
+          selectedIds.includes(item.id) ? { ...item, appliedAt: now } : item
+        )),
+        consensusPath: {
+          ...(normaliseConsensusPath(current) || current.consensusPath || {}),
+          createdAt: Number(current?.consensusPath?.createdAt || now),
+          acceptRecordIds: selectedIds,
+          defendRecordIds,
+          projectedAleRange: String(preview?.projectedAleRange || '').trim(),
+          baseAleRange: String(preview?.baseAleRange || normaliseConsensusPath(current)?.baseAleRange || '').trim(),
+          appliedAt: now
+        }
+      }));
+      AppState.pendingConsensusAutoRun = {
+        assessmentId: latest.id
+      };
+      openAssessmentForRevision(latest, {
+        targetStep: '/wizard/4',
+        applyDraftChanges: draftRecord => {
+          selectedRecords.forEach(record => {
+            applyParameterAdjustmentToDraftRecord(draftRecord, record);
+          });
+          const refreshed = getAssessmentById(latest.id) || latest;
+          draftRecord.parameterChallenges = normaliseParameterChallengeRecords(refreshed);
+          draftRecord.consensusPath = {
+            ...(normaliseConsensusPath(refreshed) || refreshed.consensusPath || {}),
+            acceptRecordIds: selectedIds,
+            defendRecordIds,
+            projectedAleRange: String(preview?.projectedAleRange || '').trim(),
+            baseAleRange: String(preview?.baseAleRange || '').trim(),
+            appliedAt: now
+          };
+          return draftRecord;
+        }
+      });
+      UI.toast('Consensus path loaded into the model and queued for rerun.', 'success');
+    });
+  });
+  document.querySelectorAll('[data-challenge-synthesis-run]').forEach(button => {
+    button.addEventListener('click', async () => {
+      const latest = getAssessmentById(assessment.id) || assessment;
+      const records = normaliseParameterChallengeRecords(latest);
+      if (records.length < 2) {
+        UI.toast('At least two challenge records are needed before synthesis can run.', 'warning');
+        return;
+      }
+      const original = button.textContent;
+      button.disabled = true;
+      button.textContent = 'Synthesising…';
+      try {
+        const result = await LLMService.generateChallengeSynthesis({
+          scenarioTitle: latest.scenarioTitle || '',
+          scenarioSummary: latest.enhancedNarrative || latest.narrative || '',
+          baseAleRange: `${fmtCurrency(Number(latest?.results?.annualLoss?.mean || latest?.results?.ale?.mean || 0))} mean ALE · ${fmtCurrency(Number(latest?.results?.annualLoss?.p90 || latest?.results?.ale?.p90 || latest?.results?.eventLoss?.p90 || 0))} bad year`,
+          records: records.map(item => ({
+            parameter: item.parameterLabel,
+            concern: item.reviewerConcern,
+            reviewerAdjustment: item.reviewerAdjustment
+          }))
+        });
+        updateAssessmentRecord(latest.id, current => ({
+          ...current,
+          challengeSynthesis: {
+            overallConcern: String(result?.overallConcern || '').trim(),
+            revisedAleRange: String(result?.revisedAleRange || '').trim(),
+            keyEvidence: String(result?.keyEvidence || '').trim(),
+            createdAt: Date.now()
+          }
+        }));
+        renderResults(latest.id, isShared || latest._shared);
+      } catch (error) {
+        console.error('generateChallengeSynthesis failed:', error);
+        UI.toast('Challenge synthesis is unavailable right now. Try again.', 'danger');
+        button.disabled = false;
+        button.textContent = original;
+      }
+    });
+  });
+  document.querySelectorAll('[data-challenge-synthesis-request]').forEach(button => {
+    button.addEventListener('click', () => {
+      const latest = getAssessmentById(assessment.id) || assessment;
+      const synthesis = normaliseChallengeSynthesis(latest);
+      if (!synthesis) {
+        UI.toast('Run the synthesis first so the analyst can respond to a coherent review view.', 'warning');
+        return;
+      }
+      const requester = String(AuthService.getCurrentUser?.()?.username || '').trim().toLowerCase();
+      const targetUsername = String(latest?.submittedBy || '').trim().toLowerCase();
+      updateAssessmentRecord(latest.id, current => ({
+        ...current,
+        challengeSynthesisRequest: {
+          id: `csr_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+          createdAt: Date.now(),
+          requestedBy: requester,
+          targetUsername,
+          status: 'pending',
+          message: 'A reviewer asked for your response to the synthesised challenge view. Review the consensus concern, revised ALE view, and the evidence request before rerunning.'
+        }
+      }));
+      UI.toast('Analyst response requested.', 'success');
+      renderResults(latest.id, isShared || latest._shared);
+    });
+  });
+  const sensitivityDisclosure = document.getElementById('results-sensitivity-analysis');
+  sensitivityDisclosure?.addEventListener('toggle', async () => {
+    if (!sensitivityDisclosure.open) return;
+    const body = document.getElementById('results-sensitivity-analysis-body');
+    if (!body || body.dataset.loaded === 'true' || body.dataset.loading === 'true') return;
+    body.dataset.loading = 'true';
+    body.innerHTML = '<div class="form-help">Running quick sensitivity checks…</div>';
+    try {
+      const analysis = await runAssumptionSensitivityAnalysis({
+        assessment,
+        technicalInputs,
+        r,
+        runMetadata: assessment?.results?.runMetadata || null
+      });
+      body.innerHTML = renderAssumptionSensitivityAnalysisResult(analysis || {});
+      body.dataset.loaded = 'true';
+    } catch (error) {
+      console.error('runAssumptionSensitivityAnalysis failed:', error);
+      body.innerHTML = '<div class="form-help">Sensitivity analysis could not be generated right now. Try again in a moment.</div>';
+      delete body.dataset.loaded;
+    } finally {
+      delete body.dataset.loading;
+    }
+  });
+  document.querySelectorAll('[data-version-history-narrate]').forEach(button => {
+    button.addEventListener('click', async () => {
+      const savedAt = Number(button.dataset.versionHistoryNarrate || 0);
+      const latest = getAssessmentById(assessment.id) || assessment;
+      const version = findAssessmentVersionRecord(latest, savedAt);
+      if (!version) {
+        UI.toast('That saved version could not be found anymore.', 'warning');
+        return;
+      }
+      const original = button.textContent;
+      button.disabled = true;
+      button.textContent = 'Explaining…';
+      try {
+        const input = typeof buildAssessmentVersionNarrationInput === 'function'
+          ? buildAssessmentVersionNarrationInput(version, latest)
+          : null;
+        const narrative = await LLMService.generateAssessmentVersionNarrative(input || {}) || buildAssessmentVersionNarrationFallback(version, latest);
+        updateAssessmentRecord(latest.id, current => ({
+          ...current,
+          versionHistory: getAssessmentVersionHistory(current).map(item => (
+            Number(item.savedAt || 0) === savedAt
+              ? { ...item, aiNarrative: narrative, narratedAt: Date.now() }
+              : item
+          ))
+        }));
+        renderResults(latest.id, isShared || latest._shared);
+      } catch (error) {
+        console.error('generateAssessmentVersionNarrative failed:', error);
+        UI.toast('Version narration is unavailable right now. Try again.', 'danger');
+        button.disabled = false;
+        button.textContent = original;
+      }
+    });
+  });
+  document.querySelectorAll('[data-version-history-restore]').forEach(button => {
+    button.addEventListener('click', () => {
+      const savedAt = Number(button.dataset.versionHistoryRestore || 0);
+      const latest = getAssessmentById(assessment.id) || assessment;
+      const version = findAssessmentVersionRecord(latest, savedAt);
+      if (!version) {
+        UI.toast('That saved version could not be found anymore.', 'warning');
+        return;
+      }
+      openAssessmentForRevision(latest, {
+        targetStep: '/wizard/4',
+        applyDraftChanges: draftRecord => ({
+          ...draftRecord,
+          fairParams: cloneSerializableState(version.parameters, {}) || {},
+          enhancedNarrative: String(version.scenarioSummary || draftRecord.enhancedNarrative || draftRecord.narrative || '').trim(),
+          narrative: String(version.scenarioSummary || draftRecord.narrative || draftRecord.enhancedNarrative || '').trim()
+        })
+      });
+      UI.toast('Earlier parameters loaded into the wizard. Re-run to compare this version again.', 'success');
     });
   });
   document.getElementById('btn-generate-reviewer-brief')?.addEventListener('click', async function() {
@@ -3453,6 +4733,7 @@ function renderResults(id, isShared) {
     assessment,
     activeTab,
     r,
+    technicalInputs,
     assessmentIntelligence,
     missingInformation,
     rolePresentation,

@@ -105,10 +105,16 @@ function saveAssessment(a, options = {}) {
   const list = getAssessments().slice();
   const idx = list.findIndex(x => x.id === a.id);
   const current = idx > -1 ? list[idx] : null;
+  const versionHistory = current && typeof appendAssessmentVersionHistory === 'function'
+    ? appendAssessmentVersionHistory(current.versionHistory, current)
+    : (typeof normaliseAssessmentVersionHistory === 'function'
+      ? normaliseAssessmentVersionHistory(a?.versionHistory || [])
+      : (Array.isArray(a?.versionHistory) ? a.versionHistory : []));
   const submittingUser = (typeof AuthService !== 'undefined' && AuthService.getCurrentUser()?.username) || '';
   const assessmentWithOwner = {
     ...a,
-    submittedBy: String(a.submittedBy || submittingUser || '').trim().toLowerCase()
+    submittedBy: String(a.submittedBy || submittingUser || '').trim().toLowerCase(),
+    versionHistory
   };
   const nextAssessment = prepareAssessmentForSave(assessmentWithOwner, {
     existingAssessment: current,

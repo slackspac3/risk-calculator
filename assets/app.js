@@ -24,6 +24,7 @@ const DRAFT_RECOVERY_STORAGE_PREFIX = 'rq_draft_recovery';
 const SESSION_LLM_STORAGE_PREFIX = 'rq_llm_session';
 const MAX_AI_UPLOAD_BYTES = 5 * 1024 * 1024;
 const MAX_AI_UPLOAD_CHARS = 20000;
+const MAX_ASSESSMENT_VERSION_HISTORY = 5;
 const DEFAULT_TYPICAL_DEPARTMENTS = [
   'Information Security',
   'Technology',
@@ -267,6 +268,152 @@ function cloneSerializableState(value, fallback = null) {
   } catch {
     return fallback;
   }
+}
+
+function clampAssessmentVersionNumber(value, min = 0, max = 1) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return Number(min || 0);
+  return Math.min(Number(max), Math.max(Number(min), numeric));
+}
+
+function sumAssessmentVersionLossEdge(parameters = {}, suffix = 'Min') {
+  return ['ir', 'bi', 'db', 'rl', 'tp', 'rc']
+    .reduce((sum, key) => sum + Number(parameters?.[`${key}${suffix}`] || 0), 0);
+}
+
+function deriveAssessmentVersionVulnerability(parameters = {}) {
+  if (parameters?.vulnDirect) {
+    return clampAssessmentVersionNumber(parameters?.vulnLikely, 0.01, 0.99);
+  }
+  const threatCapability = clampAssessmentVersionNumber(parameters?.threatCapLikely, 0.01, 0.99);
+  const controlStrength = clampAssessmentVersionNumber(parameters?.controlStrLikely, 0.01, 0.99);
+  return clampAssessmentVersionNumber(1 / (1 + Math.exp(-(threatCapability - controlStrength))), 0.01, 0.99);
+}
+
+function extractAssessmentVersionKeyParameters(parameters = {}) {
+  return {
+    tefLikely: Number(parameters?.tefLikely || 0),
+    vulnerability: deriveAssessmentVersionVulnerability(parameters),
+    controlStrLikely: clampAssessmentVersionNumber(parameters?.controlStrLikely, 0.01, 0.99),
+    lmLow: sumAssessmentVersionLossEdge(parameters, 'Min'),
+    lmHigh: sumAssessmentVersionLossEdge(parameters, 'Max')
+  };
+}
+
+function formatAssessmentVersionParameterValue(key = '', value = 0) {
+  const numeric = Number(value || 0);
+  if (key === 'tefLikely') return `${numeric.toFixed(2)} events/year`;
+  if (key === 'vulnerability' || key === 'controlStrLikely') return `${Math.round(clampAssessmentVersionNumber(numeric, 0.01, 0.99) * 100)}%`;
+  if (key === 'lmLow' || key === 'lmHigh') return fmtCurrency(Math.max(0, numeric));
+  return String(numeric);
+}
+
+function buildAssessmentVersionAleLabel(aleResult = {}) {
+  const mean = Number(aleResult?.mean || 0);
+  const p90 = Number(aleResult?.p90 || 0);
+  if (mean > 0 || p90 > 0) {
+    return `${fmtCurrency(mean)} mean ALE · ${fmtCurrency(p90)} bad year`;
+  }
+  return 'ALE not recorded';
+}
+
+function buildAssessmentVersionSnapshot(assessment = {}) {
+  const parameters = cloneSerializableState(assessment?.fairParams || assessment?.results?.inputs || {}, {}) || {};
+  const results = assessment?.results || {};
+  const aleResult = {
+    mean: Number(results?.annualLoss?.mean || results?.ale?.mean || 0),
+    p90: Number(results?.annualLoss?.p90 || results?.ale?.p90 || results?.eventLoss?.p90 || 0)
+  };
+  const scenarioSummary = String(
+    assessment?.enhancedNarrative
+    || assessment?.narrative
+    || assessment?.scenarioTitle
+    || ''
+  ).trim().slice(0, 2000);
+  if (!Object.keys(parameters).length && !scenarioSummary && !(aleResult.mean || aleResult.p90)) return null;
+  return {
+    savedAt: Number(assessment?.completedAt || assessment?.lifecycleUpdatedAt || assessment?.createdAt || Date.now()),
+    parameters,
+    scenarioSummary,
+    aleResult
+  };
+}
+
+function normaliseAssessmentVersionHistory(history = []) {
+  return (Array.isArray(history) ? history : [])
+    .filter(item => item && typeof item === 'object')
+    .map((item) => ({
+      savedAt: Number(item.savedAt || item.createdAt || item.updatedAt || 0),
+      parameters: cloneSerializableState(item.parameters, {}) || {},
+      scenarioSummary: String(item.scenarioSummary || item.summary || '').trim().slice(0, 2000),
+      aleResult: {
+        mean: Number(item?.aleResult?.mean || item?.aleMean || 0),
+        p90: Number(item?.aleResult?.p90 || item?.aleP90 || 0)
+      },
+      aiNarrative: String(item.aiNarrative || '').trim(),
+      narratedAt: Number(item.narratedAt || 0)
+    }))
+    .filter(item => item.savedAt || item.scenarioSummary || Object.keys(item.parameters || {}).length || item.aleResult.mean || item.aleResult.p90)
+    .sort((left, right) => Number(left.savedAt || 0) - Number(right.savedAt || 0))
+    .slice(-MAX_ASSESSMENT_VERSION_HISTORY);
+}
+
+function appendAssessmentVersionHistory(existingHistory = [], previousAssessment = null) {
+  const history = normaliseAssessmentVersionHistory(existingHistory);
+  const snapshot = buildAssessmentVersionSnapshot(previousAssessment);
+  if (!snapshot) return history;
+  const last = history[history.length - 1];
+  const snapshotSignature = JSON.stringify({
+    parameters: snapshot.parameters,
+    scenarioSummary: snapshot.scenarioSummary,
+    aleResult: snapshot.aleResult
+  });
+  const lastSignature = last ? JSON.stringify({
+    parameters: last.parameters,
+    scenarioSummary: last.scenarioSummary,
+    aleResult: last.aleResult
+  }) : '';
+  if (snapshotSignature === lastSignature) return history;
+  return normaliseAssessmentVersionHistory([...history, snapshot]);
+}
+
+function buildAssessmentVersionNarrationInput(previousVersion = {}, currentAssessment = {}) {
+  const previousParameters = extractAssessmentVersionKeyParameters(previousVersion?.parameters || {});
+  const currentParameters = extractAssessmentVersionKeyParameters(currentAssessment?.fairParams || currentAssessment?.results?.inputs || {});
+  const parameterLabels = {
+    tefLikely: 'Event frequency',
+    vulnerability: 'Event success likelihood',
+    controlStrLikely: 'Control strength',
+    lmLow: 'Lower loss range',
+    lmHigh: 'Upper loss range'
+  };
+  const diffLines = Object.keys(parameterLabels)
+    .map((key) => {
+      const previousValue = Number(previousParameters?.[key] || 0);
+      const currentValue = Number(currentParameters?.[key] || 0);
+      const changed = key === 'lmLow' || key === 'lmHigh'
+        ? Math.abs(currentValue - previousValue) >= 1
+        : Math.abs(currentValue - previousValue) >= 0.01;
+      if (!changed) return '';
+      return `${parameterLabels[key]}: ${formatAssessmentVersionParameterValue(key, previousValue)} -> ${formatAssessmentVersionParameterValue(key, currentValue)}`;
+    })
+    .filter(Boolean);
+  return {
+    previousScenarioSummary: String(previousVersion?.scenarioSummary || '').trim(),
+    currentScenarioSummary: String(
+      currentAssessment?.enhancedNarrative
+      || currentAssessment?.narrative
+      || currentAssessment?.scenarioTitle
+      || ''
+    ).trim(),
+    previousAleLabel: buildAssessmentVersionAleLabel(previousVersion?.aleResult || {}),
+    currentAleLabel: buildAssessmentVersionAleLabel({
+      mean: Number(currentAssessment?.results?.annualLoss?.mean || currentAssessment?.results?.ale?.mean || 0),
+      p90: Number(currentAssessment?.results?.annualLoss?.p90 || currentAssessment?.results?.ale?.p90 || currentAssessment?.results?.eventLoss?.p90 || 0)
+    }),
+    parameterDiffLines: diffLines,
+    parameterDiffText: diffLines.join('\n')
+  };
 }
 
 
@@ -561,6 +708,793 @@ function buildSmartParamHistoryRecord(source = {}) {
     lm_likely: Math.max(0, Math.round(lmLikely)),
     lm_high: Math.max(0, Math.round(lmHigh))
   };
+}
+
+const SCENARIO_MEMORY_STOPWORDS = new Set([
+  'the', 'and', 'for', 'with', 'from', 'into', 'this', 'that', 'your', 'have', 'will',
+  'risk', 'scenario', 'assessment', 'about', 'after', 'before', 'when', 'what', 'could',
+  'would', 'should', 'been', 'were', 'they', 'them', 'their', 'there', 'where', 'while',
+  'only', 'also', 'than', 'then', 'because', 'through', 'across', 'still', 'team', 'current',
+  'draft', 'built', 'using', 'used'
+]);
+
+const SCENARIO_MEMORY_FUNCTION_OPTIONS = [
+  { key: 'technology', label: 'Technology' },
+  { key: 'operations', label: 'Operations' },
+  { key: 'finance', label: 'Finance' },
+  { key: 'procurement', label: 'Procurement' },
+  { key: 'compliance', label: 'Compliance' },
+  { key: 'strategic', label: 'Strategic' },
+  { key: 'hse', label: 'HSE' },
+  { key: 'general', label: 'General' }
+];
+
+function tokeniseScenarioMemoryText(text = '') {
+  return Array.from(new Set(
+    String(text || '')
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .map(token => token.trim())
+      .filter(token => token.length > 2 && !SCENARIO_MEMORY_STOPWORDS.has(token))
+  ));
+}
+
+function buildScenarioMemoryNarrative(source = {}) {
+  return [
+    String(source?.scenarioTitle || source?.title || '').trim(),
+    String(source?.enhancedNarrative || source?.narrative || source?.sourceNarrative || '').trim(),
+    String(getStructuredScenarioField(source?.structuredScenario, 'assetService') || '').trim(),
+    String(getStructuredScenarioField(source?.structuredScenario, 'primaryDriver') || '').trim(),
+    String(getStructuredScenarioField(source?.structuredScenario, 'eventPath') || '').trim(),
+    String(getStructuredScenarioField(source?.structuredScenario, 'effect') || '').trim(),
+    ...(Array.isArray(source?.selectedRisks) ? source.selectedRisks.map(item => item?.title || item?.category || '') : []),
+    ...(Array.isArray(source?.selectedRiskTitles) ? source.selectedRiskTitles : [])
+  ].map(item => String(item || '').trim()).filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+}
+
+function _buildScenarioMemoryCurrentContext(source = {}) {
+  return {
+    narrative: buildScenarioMemoryNarrative(source),
+    buId: String(source?.buId || '').trim(),
+    lensKey: String(source?.scenarioLens?.key || '').trim().toLowerCase(),
+    functionKey: inferStoredScenarioFunctionKey(source)
+  };
+}
+
+function _readAllScenarioMemoryAssessments() {
+  const results = [];
+  const seen = new Set();
+  const prefix = `${ASSESSMENTS_STORAGE_PREFIX}__`;
+  if (typeof localStorage === 'undefined') return results;
+  try {
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      if (!key || !key.startsWith(prefix)) continue;
+      const username = key.slice(prefix.length);
+      const raw = JSON.parse(localStorage.getItem(key) || '[]');
+      if (!Array.isArray(raw)) continue;
+      raw.forEach((entry) => {
+        const assessment = typeof normaliseAssessmentRecord === 'function'
+          ? normaliseAssessmentRecord(entry)
+          : entry;
+        if (!assessment?.id || !assessment?.results) return;
+        if (seen.has(String(assessment.id))) return;
+        seen.add(String(assessment.id));
+        results.push({
+          assessment,
+          username: String(username || '').trim().toLowerCase(),
+          storageKey: key
+        });
+      });
+    }
+  } catch {}
+  return results;
+}
+
+function _resolveScenarioMemoryCompanyEntityId(assessment, settings = getAdminSettings()) {
+  const bu = getBUList().find(item => item.id === String(assessment?.buId || '').trim()) || null;
+  let node = bu?.orgEntityId ? getEntityById(settings.companyStructure || [], bu.orgEntityId) : null;
+  let companyId = '';
+  while (node) {
+    if (typeof isCompanyEntityType === 'function' && isCompanyEntityType(node.type)) {
+      companyId = String(node.id || '').trim();
+    }
+    const parentId = String(node.parentId || '').trim();
+    node = parentId ? getEntityById(settings.companyStructure || [], parentId) : null;
+  }
+  return companyId;
+}
+
+function _buildScenarioMemoryAleRange(results = {}) {
+  const ale = results?.ale && typeof results.ale === 'object' ? results.ale : {};
+  const low = Number(ale.p50 || ale.mean || 0);
+  const high = Number(ale.p90 || ale.mean || 0);
+  if (!Number.isFinite(low) && !Number.isFinite(high)) return 'ALE not available';
+  return `${fmtCurrency(Math.max(0, low || 0))}–${fmtCurrency(Math.max(0, high || 0))}`;
+}
+
+function _deriveScenarioMemoryTreatmentStatus(assessment = {}) {
+  const reviewStatus = String(assessment?.reviewSubmission?.reviewStatus || '').trim().toLowerCase();
+  if (reviewStatus === 'approved') return { label: 'Approved', tone: 'success' };
+  if (reviewStatus === 'pending') return { label: 'Under review', tone: 'warning' };
+  if (reviewStatus === 'changes_requested') return { label: 'Needs revision', tone: 'warning' };
+  if (reviewStatus === 'escalated') return { label: 'Escalated', tone: 'danger' };
+  if (String(assessment?.lifecycleStatus || '').trim().toLowerCase() === 'treatment_variant') {
+    return { label: 'Treatment case', tone: 'gold' };
+  }
+  if (assessment?.results?.toleranceBreached) return { label: 'Needs treatment', tone: 'danger' };
+  if (assessment?.results?.nearTolerance) return { label: 'Monitor closely', tone: 'warning' };
+  if (Array.isArray(assessment?.recommendations) && assessment.recommendations.length) {
+    return { label: 'Action identified', tone: 'neutral' };
+  }
+  return { label: 'Monitor', tone: 'neutral' };
+}
+
+function _scoreScenarioMemoryMatch(currentContext, assessment = {}) {
+  const queryTokens = tokeniseScenarioMemoryText(currentContext?.narrative || '');
+  const candidateTokens = tokeniseScenarioMemoryText(buildScenarioMemoryNarrative(assessment));
+  const candidateTokenSet = new Set(candidateTokens);
+  const overlapTokens = queryTokens.filter(token => candidateTokenSet.has(token));
+  const referenceCount = Math.max(
+    0,
+    Number(assessment?.scenarioMemory?.referenceCount || assessment?.referenceCount || 0)
+  );
+  let score = overlapTokens.length * 14;
+  if (currentContext?.buId && String(assessment?.buId || '').trim() === currentContext.buId) score += 12;
+  if (currentContext?.functionKey && inferStoredScenarioFunctionKey(assessment) === currentContext.functionKey) score += 10;
+  if (currentContext?.lensKey && String(assessment?.scenarioLens?.key || '').trim().toLowerCase() === currentContext.lensKey) score += 8;
+  score += Math.min(referenceCount * 4, 20);
+  if (assessment?.scenarioMemory?.referenced || assessment?.referenced) score += 4;
+  if (String(currentContext?.narrative || '').trim() && buildScenarioMemoryNarrative(assessment).toLowerCase().includes(String(currentContext.narrative || '').trim().toLowerCase().slice(0, 80))) {
+    score += 6;
+  }
+  return {
+    overlapTokens,
+    overlapCount: overlapTokens.length,
+    referenceCount,
+    score
+  };
+}
+
+function findSimilarScenarioMemoryMatches(source = {}, { limit = 3 } = {}) {
+  const currentContext = _buildScenarioMemoryCurrentContext(source);
+  const query = String(currentContext.narrative || '').trim();
+  if (tokeniseScenarioMemoryText(query).length < 4) {
+    return { query, totalMatches: 0, matches: [] };
+  }
+  const ranked = _readAllScenarioMemoryAssessments()
+    .filter((entry) => entry?.assessment?.id && String(entry.assessment.id) !== String(source?.id || '').trim())
+    .map((entry) => {
+      const scoring = _scoreScenarioMemoryMatch(currentContext, entry.assessment);
+      return {
+        ...entry,
+        ...scoring,
+        companyEntityId: _resolveScenarioMemoryCompanyEntityId(entry.assessment),
+        functionKey: inferStoredScenarioFunctionKey(entry.assessment),
+        lastRunAt: Number(entry.assessment.completedAt || entry.assessment.createdAt || 0),
+        aleRange: _buildScenarioMemoryAleRange(entry.assessment.results),
+        treatmentStatus: _deriveScenarioMemoryTreatmentStatus(entry.assessment)
+      };
+    })
+    .filter((entry) => entry.overlapCount >= 2 || entry.score >= 24)
+    .sort((left, right) => (
+      right.score - left.score
+      || right.referenceCount - left.referenceCount
+      || right.lastRunAt - left.lastRunAt
+      || String(left.assessment?.scenarioTitle || '').localeCompare(String(right.assessment?.scenarioTitle || ''))
+    ));
+  return {
+    query,
+    totalMatches: ranked.length,
+    matches: ranked.slice(0, Math.max(1, Number(limit || 0) || 3)).map((entry) => ({
+      ...entry.assessment,
+      _scenarioMemory: {
+        storageKey: entry.storageKey,
+        username: entry.username,
+        score: entry.score,
+        overlapCount: entry.overlapCount,
+        overlapTokens: entry.overlapTokens,
+        referenceCount: entry.referenceCount,
+        functionKey: entry.functionKey,
+        companyEntityId: entry.companyEntityId,
+        aleRange: entry.aleRange,
+        treatmentStatus: entry.treatmentStatus,
+        lastRunAt: entry.lastRunAt
+      }
+    }))
+  };
+}
+
+function markScenarioMemoryReference(assessmentId = '') {
+  const targetId = String(assessmentId || '').trim();
+  if (!targetId || typeof localStorage === 'undefined') return 0;
+  const prefix = `${ASSESSMENTS_STORAGE_PREFIX}__`;
+  let updated = 0;
+  try {
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      if (!key || !key.startsWith(prefix)) continue;
+      const raw = JSON.parse(localStorage.getItem(key) || '[]');
+      if (!Array.isArray(raw)) continue;
+      let changed = false;
+      const next = raw.map((entry) => {
+        const assessment = typeof normaliseAssessmentRecord === 'function'
+          ? normaliseAssessmentRecord(entry)
+          : entry;
+        if (String(assessment?.id || '').trim() !== targetId) return assessment;
+        changed = true;
+        updated += 1;
+        const currentCount = Math.max(
+          0,
+          Number(assessment?.scenarioMemory?.referenceCount || assessment?.referenceCount || 0)
+        );
+        return {
+          ...assessment,
+          referenced: true,
+          referenceCount: currentCount + 1,
+          lastReferencedAt: Date.now(),
+          scenarioMemory: {
+            ...(assessment?.scenarioMemory && typeof assessment.scenarioMemory === 'object' ? assessment.scenarioMemory : {}),
+            referenced: true,
+            referenceCount: currentCount + 1,
+            lastReferencedAt: Date.now()
+          }
+        };
+      });
+      if (changed) localStorage.setItem(key, JSON.stringify(next));
+    }
+  } catch {}
+  return updated;
+}
+
+function getScenarioMemoryResetTargetOptions(scope = 'company', settings = getAdminSettings()) {
+  const safeScope = String(scope || 'company').trim().toLowerCase();
+  if (safeScope === 'bu') {
+    return getBUList().map(bu => ({
+      value: String(bu.id || '').trim(),
+      label: String(bu.name || 'Business unit').trim()
+    })).filter(item => item.value);
+  }
+  if (safeScope === 'function') {
+    return SCENARIO_MEMORY_FUNCTION_OPTIONS.map(item => ({
+      value: item.key,
+      label: item.label
+    }));
+  }
+  const companies = getCompanyEntities(settings.companyStructure || []);
+  return companies.map(company => ({
+    value: String(company.id || '').trim(),
+    label: String(company.name || 'Company').trim()
+  })).filter(item => item.value);
+}
+
+function resetScenarioMemorySignals({ scope = 'company', targetId = '' } = {}) {
+  if (typeof localStorage === 'undefined') return { resetCount: 0 };
+  const safeScope = String(scope || 'company').trim().toLowerCase();
+  const safeTargetId = String(targetId || '').trim();
+  const settings = getAdminSettings();
+  const prefix = `${ASSESSMENTS_STORAGE_PREFIX}__`;
+  let resetCount = 0;
+  try {
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      if (!key || !key.startsWith(prefix)) continue;
+      const raw = JSON.parse(localStorage.getItem(key) || '[]');
+      if (!Array.isArray(raw)) continue;
+      let changed = false;
+      const next = raw.map((entry) => {
+        const assessment = typeof normaliseAssessmentRecord === 'function'
+          ? normaliseAssessmentRecord(entry)
+          : entry;
+        const matchesScope = safeScope === 'bu'
+          ? String(assessment?.buId || '').trim() === safeTargetId
+          : safeScope === 'function'
+            ? inferStoredScenarioFunctionKey(assessment) === safeTargetId
+            : (!safeTargetId || _resolveScenarioMemoryCompanyEntityId(assessment, settings) === safeTargetId);
+        if (!matchesScope) return assessment;
+        if (!(assessment?.scenarioMemory?.referenced || assessment?.referenced || assessment?.scenarioMemory?.referenceCount || assessment?.referenceCount)) {
+          return assessment;
+        }
+        changed = true;
+        resetCount += 1;
+        const nextAssessment = { ...assessment };
+        delete nextAssessment.referenced;
+        delete nextAssessment.referenceCount;
+        delete nextAssessment.lastReferencedAt;
+        if (nextAssessment.scenarioMemory && typeof nextAssessment.scenarioMemory === 'object') {
+          delete nextAssessment.scenarioMemory.referenced;
+          delete nextAssessment.scenarioMemory.referenceCount;
+          delete nextAssessment.scenarioMemory.lastReferencedAt;
+          if (!Object.keys(nextAssessment.scenarioMemory).length) delete nextAssessment.scenarioMemory;
+        }
+        return nextAssessment;
+      });
+      if (changed) localStorage.setItem(key, JSON.stringify(next));
+    }
+  } catch {}
+  return { resetCount };
+}
+
+const AI_FLAG_FEEDBACK_STORAGE_PREFIX = 'rip_ai_flags_feedback';
+const AI_FLAG_SNOOZE_STORAGE_PREFIX = 'rip_ai_flags_snooze';
+const AI_FLAG_HISTORY_STORAGE_PREFIX = 'rip_ai_flags_history';
+
+function getAiFlagStorageKey(prefix) {
+  try {
+    return buildUserStorageKey(prefix);
+  } catch {
+    return prefix;
+  }
+}
+
+function readAiFlagFeedback() {
+  if (typeof localStorage === 'undefined') return [];
+  try {
+    const parsed = JSON.parse(localStorage.getItem(getAiFlagStorageKey(AI_FLAG_FEEDBACK_STORAGE_PREFIX)) || '[]');
+    return Array.isArray(parsed) ? parsed.filter(item => item && typeof item === 'object') : [];
+  } catch {
+    return [];
+  }
+}
+
+function recordAiFlagFeedback({
+  assessmentId = '',
+  outcome = '',
+  signalFamilies = []
+} = {}) {
+  if (typeof localStorage === 'undefined') return null;
+  const entry = {
+    id: `ai_flag_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+    timestamp: Date.now(),
+    assessmentId: String(assessmentId || '').trim(),
+    outcome: String(outcome || '').trim().toLowerCase(),
+    signalFamilies: Array.isArray(signalFamilies) ? signalFamilies.map(item => String(item || '').trim().toLowerCase()).filter(Boolean) : []
+  };
+  try {
+    const existing = readAiFlagFeedback();
+    existing.unshift(entry);
+    localStorage.setItem(getAiFlagStorageKey(AI_FLAG_FEEDBACK_STORAGE_PREFIX), JSON.stringify(existing.slice(0, 80)));
+  } catch {}
+  return entry;
+}
+
+function readAiFlagSnoozes() {
+  if (typeof localStorage === 'undefined') return {};
+  try {
+    const parsed = JSON.parse(localStorage.getItem(getAiFlagStorageKey(AI_FLAG_SNOOZE_STORAGE_PREFIX)) || '{}');
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function snoozeAssessmentAiFlag(assessmentId = '', days = 30) {
+  if (typeof localStorage === 'undefined') return 0;
+  const safeId = String(assessmentId || '').trim();
+  if (!safeId) return 0;
+  const until = Date.now() + (Math.max(1, Number(days || 0) || 30) * 86400000);
+  try {
+    const next = { ...readAiFlagSnoozes(), [safeId]: until };
+    localStorage.setItem(getAiFlagStorageKey(AI_FLAG_SNOOZE_STORAGE_PREFIX), JSON.stringify(next));
+  } catch {}
+  return until;
+}
+
+function readAiFlagGenerationHistory() {
+  if (typeof localStorage === 'undefined') return [];
+  try {
+    const parsed = JSON.parse(localStorage.getItem(getAiFlagStorageKey(AI_FLAG_HISTORY_STORAGE_PREFIX)) || '[]');
+    return Array.isArray(parsed) ? parsed.filter(item => item && typeof item === 'object') : [];
+  } catch {
+    return [];
+  }
+}
+
+function noteAiFlagGenerationSession({
+  sessionId = '',
+  generatedCount = 0
+} = {}) {
+  if (typeof localStorage === 'undefined') return null;
+  const safeSessionId = String(sessionId || '').trim();
+  if (!safeSessionId) return null;
+  const existing = readAiFlagGenerationHistory();
+  const alreadyRecorded = existing.find(item => String(item?.sessionId || '') === safeSessionId);
+  if (alreadyRecorded) return alreadyRecorded;
+  const entry = {
+    id: `ai_flag_session_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+    sessionId: safeSessionId,
+    timestamp: Date.now(),
+    generatedCount: Math.max(0, Number(generatedCount || 0) || 0)
+  };
+  try {
+    existing.unshift(entry);
+    localStorage.setItem(getAiFlagStorageKey(AI_FLAG_HISTORY_STORAGE_PREFIX), JSON.stringify(existing.slice(0, 30)));
+  } catch {}
+  return entry;
+}
+
+function getAiFlagPromptBias({ minSessions = 3, limit = 3 } = {}) {
+  const history = readAiFlagGenerationHistory();
+  const sessionCount = new Set(history.map(item => String(item?.sessionId || '').trim()).filter(Boolean)).size;
+  if (sessionCount < Math.max(1, Number(minSessions || 0) || 3)) {
+    return { sessionCount, prioritised: [], deprioritised: [] };
+  }
+  const counts = new Map();
+  readAiFlagFeedback().forEach((entry) => {
+    const outcome = String(entry?.outcome || '').trim().toLowerCase();
+    if (!outcome) return;
+    const families = Array.isArray(entry?.signalFamilies) ? entry.signalFamilies : [];
+    families.forEach((family) => {
+      const key = String(family || '').trim().toLowerCase();
+      if (!key) return;
+      const current = counts.get(key) || { acted: 0, dismissed: 0 };
+      if (outcome === 'acted') current.acted += 1;
+      if (outcome === 'dismissed') current.dismissed += 1;
+      counts.set(key, current);
+    });
+  });
+  const ranked = Array.from(counts.entries()).map(([family, values]) => ({
+    family,
+    acted: values.acted || 0,
+    dismissed: values.dismissed || 0,
+    delta: (values.acted || 0) - (values.dismissed || 0)
+  }));
+  return {
+    sessionCount,
+    prioritised: ranked
+      .filter(item => item.delta > 0)
+      .sort((left, right) => right.delta - left.delta || right.acted - left.acted || left.family.localeCompare(right.family))
+      .slice(0, Math.max(1, Number(limit || 0) || 3))
+      .map(item => item.family),
+    deprioritised: ranked
+      .filter(item => item.delta < 0)
+      .sort((left, right) => left.delta - right.delta || right.dismissed - left.dismissed || left.family.localeCompare(right.family))
+      .slice(0, Math.max(1, Number(limit || 0) || 3))
+      .map(item => item.family)
+  };
+}
+
+function _coerceAssessmentReferenceTimestamp(value) {
+  if (value == null || value === '') return 0;
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    if (value > 1e12) return value;
+    if (value > 1e9) return value * 1000;
+    return 0;
+  }
+  const safe = String(value || '').trim();
+  if (!safe) return 0;
+  const direct = Date.parse(safe);
+  if (Number.isFinite(direct)) return direct;
+  if (/^\d{4}$/.test(safe)) {
+    const yearOnly = Date.parse(`${safe}-01-01`);
+    return Number.isFinite(yearOnly) ? yearOnly : 0;
+  }
+  return 0;
+}
+
+function _extractAssessmentEvidenceAgeDays(assessment = {}, now = Date.now()) {
+  const sources = [
+    ...(Array.isArray(assessment?.citations) ? normaliseCitations(assessment.citations) : []),
+    ...(Array.isArray(assessment?.supportingReferences) ? assessment.supportingReferences : [])
+  ].filter(Boolean);
+  let maxAgeDays = 0;
+  sources.forEach((item) => {
+    const candidate = item && typeof item === 'object'
+      ? [
+          item.lastUpdated,
+          item.publishedAt,
+          item.sourceDate,
+          item.date,
+          item.effectiveDate,
+          item.updatedAt
+        ]
+      : [];
+    candidate.forEach((value) => {
+      const ts = _coerceAssessmentReferenceTimestamp(value);
+      if (!ts || ts > now) return;
+      maxAgeDays = Math.max(maxAgeDays, Math.floor((now - ts) / 86400000));
+    });
+  });
+  return maxAgeDays;
+}
+
+function _extractAssessmentConfidenceScore(assessment = {}) {
+  const direct = [
+    assessment?.assessmentIntelligence?.confidence?.score,
+    assessment?.results?.confidence?.score,
+    assessment?.confidenceScore
+  ].map(Number).find(Number.isFinite);
+  if (Number.isFinite(direct)) return direct;
+  const label = String(assessment?.confidenceLabel || assessment?.assessmentIntelligence?.confidence?.label || '').trim().toLowerCase();
+  if (label.includes('high')) return 82;
+  if (label.includes('low')) return 42;
+  return 58;
+}
+
+function _buildAssessmentTreatmentStatus(assessment = {}) {
+  const reviewStatus = String(assessment?.reviewSubmission?.reviewStatus || '').trim();
+  if (reviewStatus === 'changes_requested') return 'Changes requested';
+  if (reviewStatus === 'approved') return 'Approved';
+  if (reviewStatus === 'pending') return 'Pending review';
+  const treatmentRequest = String(assessment?.treatmentImprovementRequest || '').trim();
+  if (treatmentRequest) return treatmentRequest;
+  const recommendation = Array.isArray(assessment?.recommendations) ? assessment.recommendations.find(Boolean) : null;
+  if (recommendation?.title || recommendation?.why) {
+    return String(recommendation.title || recommendation.why || '').trim();
+  }
+  return String(assessment?.assessmentIntelligence?.executiveAction || 'Current treatment state not stated').trim();
+}
+
+function _hasPlannedTreatmentWithoutFollowUp(assessment = {}, lifecycleStatus = '') {
+  const text = [
+    assessment?.treatmentImprovementRequest,
+    assessment?.assessmentIntelligence?.executiveAction,
+    ...(Array.isArray(assessment?.recommendations)
+      ? assessment.recommendations.flatMap(item => [item?.title, item?.why, item?.impact])
+      : [])
+  ].map(item => String(item || '').trim()).filter(Boolean).join(' ');
+  if (!/(planned|plan\b|roadmap|rollout|deploy|implementation|implement|in progress|pending)/i.test(text)) return false;
+  if (/(completed|implemented|closed|validated|done)/i.test(text)) return false;
+  const hasFollowUp = lifecycleStatus === ASSESSMENT_LIFECYCLE_STATUS.TREATMENT_VARIANT
+    || !!assessment?.comparisonBaselineId
+    || !!assessment?.reviewSubmission?.reviewedAt
+    || !!assessment?.nextReviewDue
+    || !!assessment?.treatmentFollowUpAt;
+  return !hasFollowUp;
+}
+
+function buildAssessmentAiFlagSignals(assessment, { now = Date.now() } = {}) {
+  if (!assessment?.id || !assessment?.results) return null;
+  const results = assessment.results || {};
+  const completedAt = new Date(assessment.completedAt || assessment.lifecycleUpdatedAt || assessment.createdAt || 0).getTime() || 0;
+  const ageInDays = completedAt ? Math.max(0, Math.floor((now - completedAt) / 86400000)) : 0;
+  const evidenceAgeInDays = _extractAssessmentEvidenceAgeDays(assessment, now);
+  const lifecycleStatus = typeof deriveAssessmentLifecycleStatus === 'function'
+    ? deriveAssessmentLifecycleStatus(assessment)
+    : String(assessment?.lifecycleStatus || '').trim().toLowerCase();
+  const treatmentStatus = _buildAssessmentTreatmentStatus(assessment);
+  const confidenceScore = _extractAssessmentConfidenceScore(assessment);
+  const aleMean = Number(results?.ale?.mean || 0);
+  const p90Loss = Number(results?.eventLoss?.p90 || 0);
+  const signals = [];
+  const addSignal = (key, label, family, weight) => {
+    if (!key || signals.some(item => item.key === key)) return;
+    signals.push({ key, label, family, weight: Number(weight || 0) || 0 });
+  };
+
+  if (ageInDays > 180) {
+    addSignal('age', `Reviewed ${ageInDays} days ago`, 'age', 1);
+  }
+  if (evidenceAgeInDays > 365) {
+    addSignal('evidence_age', `Evidence references are ${evidenceAgeInDays} days old`, 'evidence', 2);
+  }
+  if (_hasPlannedTreatmentWithoutFollowUp(assessment, lifecycleStatus)) {
+    addSignal('planned_treatment', 'Treatment is planned but no follow-up is recorded', 'treatment', 2);
+  }
+  if (aleMean > 500000 && confidenceScore < 60) {
+    addSignal('confidence_gap', 'Loss remains material while confidence is still low', 'confidence', 3);
+  }
+  if (!signals.length) return null;
+  const severity = signals.reduce((sum, item) => sum + item.weight, 0);
+  return {
+    id: String(assessment.id || '').trim(),
+    title: String(assessment.scenarioTitle || assessment.title || 'Untitled assessment').trim(),
+    updatedAt: completedAt,
+    ageInDays,
+    evidenceAgeInDays,
+    confidenceScore,
+    aleMean,
+    p90Loss,
+    aleRange: `${fmtCurrency(aleMean || 0)} mean ALE · ${fmtCurrency(p90Loss || 0)} bad year`,
+    treatmentStatus,
+    signals,
+    severity,
+    assessment
+  };
+}
+
+const PORTFOLIO_CORRELATION_ACTIONS_KEY = 'rip_corr_acted';
+
+function getPortfolioCorrelationActionStorageKey() {
+  try {
+    return buildUserStorageKey(PORTFOLIO_CORRELATION_ACTIONS_KEY);
+  } catch {
+    return PORTFOLIO_CORRELATION_ACTIONS_KEY;
+  }
+}
+
+function readPortfolioCorrelationActions() {
+  if (typeof localStorage === 'undefined') return [];
+  try {
+    const parsed = JSON.parse(localStorage.getItem(getPortfolioCorrelationActionStorageKey()) || '[]');
+    return Array.isArray(parsed) ? parsed.filter(item => item && typeof item === 'object') : [];
+  } catch {
+    return [];
+  }
+}
+
+function recordPortfolioCorrelationAction({
+  clusterLabel = '',
+  sharedDependency = '',
+  assessmentIds = []
+} = {}) {
+  if (typeof localStorage === 'undefined') return null;
+  const entry = {
+    id: `corr_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+    timestamp: Date.now(),
+    clusterLabel: String(clusterLabel || '').trim(),
+    sharedDependency: String(sharedDependency || '').trim(),
+    assessmentIds: Array.isArray(assessmentIds) ? assessmentIds.map(id => String(id || '').trim()).filter(Boolean) : []
+  };
+  try {
+    const existing = readPortfolioCorrelationActions();
+    existing.unshift(entry);
+    localStorage.setItem(getPortfolioCorrelationActionStorageKey(), JSON.stringify(existing.slice(0, 40)));
+  } catch {}
+  return entry;
+}
+
+function getPrioritisedPortfolioCorrelationDependencies(limit = 3) {
+  const counts = new Map();
+  readPortfolioCorrelationActions().forEach((entry) => {
+    const key = String(entry?.sharedDependency || entry?.clusterLabel || '').trim().toLowerCase();
+    if (!key) return;
+    counts.set(key, (counts.get(key) || 0) + 1);
+  });
+  return Array.from(counts.entries())
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+    .slice(0, Math.max(1, Number(limit || 0) || 3))
+    .map(([dependency]) => dependency);
+}
+
+function inferCapabilityManagedFunctionKey(capability = {}) {
+  const label = String(
+    capability?.managedDepartment?.departmentHint
+    || capability?.managedDepartment?.name
+    || capability?.selectedDepartment?.departmentHint
+    || capability?.selectedDepartment?.name
+    || ''
+  ).trim();
+  if (!label) return '';
+  return inferStoredScenarioFunctionKey({ title: label });
+}
+
+function getReviewerVisibleAssessmentEntries(capability = {}) {
+  const allEntries = _readAllScenarioMemoryAssessments();
+  const buList = Array.isArray(getBUList?.()) ? getBUList() : [];
+  const managedBusinessEntityId = String(
+    capability?.managedBusinessId
+    || capability?.selection?.businessUnitEntityId
+    || ''
+  ).trim();
+  const managedDepartmentParentId = String(
+    capability?.managedDepartment?.parentId
+    || capability?.selection?.businessUnitEntityId
+    || ''
+  ).trim();
+  const managedFunctionKey = inferCapabilityManagedFunctionKey(capability);
+  const canManageBusinessUnit = !!capability?.canManageBusinessUnit;
+  const canManageDepartment = !!capability?.canManageDepartment;
+  return allEntries.filter((entry) => {
+    const assessment = entry?.assessment;
+    if (!assessment?.id || !assessment?.results) return false;
+    if (deriveAssessmentLifecycleStatus(assessment) === ASSESSMENT_LIFECYCLE_STATUS.ARCHIVED) return false;
+    const assessmentBu = buList.find(item => String(item?.id || '').trim() === String(assessment?.buId || '').trim()) || null;
+    const assessmentBusinessEntityId = String(assessmentBu?.orgEntityId || '').trim();
+    if (canManageBusinessUnit) {
+      return !managedBusinessEntityId || assessmentBusinessEntityId === managedBusinessEntityId;
+    }
+    if (canManageDepartment) {
+      if (managedDepartmentParentId && assessmentBusinessEntityId && assessmentBusinessEntityId !== managedDepartmentParentId) return false;
+      if (managedFunctionKey) return inferStoredScenarioFunctionKey(assessment) === managedFunctionKey;
+      return true;
+    }
+    return false;
+  });
+}
+
+function _truncateCorrelationText(value = '', maxLength = 140) {
+  const safe = String(value || '').replace(/\s+/g, ' ').trim();
+  if (safe.length <= maxLength) return safe;
+  return `${safe.slice(0, Math.max(24, maxLength - 1)).trimEnd()}…`;
+}
+
+function _extractPortfolioControlHints(assessment = {}) {
+  const fairParams = assessment?.results?.inputs || assessment?.draft?.fairParams || assessment?.fairParams || {};
+  const rationale = fairParams?.fieldRationale && typeof fairParams.fieldRationale === 'object'
+    ? fairParams.fieldRationale
+    : {};
+  const controlStrength = fairParams?.controlStrLikely != null
+    ? `Control strength likely ${fairParams.controlStrLikely}`
+    : '';
+  const hints = [
+    controlStrength,
+    rationale.controlStrLikely,
+    rationale.controlStrMin,
+    rationale.controlStrMax,
+    ...(Array.isArray(assessment?.assessmentIntelligence?.assumptions) ? assessment.assessmentIntelligence.assumptions.map(item => item?.text || item) : []),
+    ...(Array.isArray(assessment?.results?.runMetadata?.assumptions) ? assessment.results.runMetadata.assumptions : []),
+    ...(Array.isArray(assessment?.citations) ? assessment.citations.map(item => item?.title || item?.sourceTitle || '') : [])
+  ]
+    .map(item => String(item || '').trim())
+    .filter(Boolean)
+    .filter((item) => /control|mfa|identity|monitor|vendor|backup|recovery|segregation|approval|detection|response|patch|access|encryption|screening|review/i.test(item));
+  return Array.from(new Set(hints)).slice(0, 4);
+}
+
+function buildPortfolioCorrelationFingerprint(assessment = {}) {
+  const topRisks = Array.isArray(assessment?.selectedRisks)
+    ? assessment.selectedRisks.map(item => item?.title || item?.category || '').filter(Boolean).slice(0, 3)
+    : [];
+  const primaryThreat = [
+    getStructuredScenarioField(assessment?.structuredScenario, 'primaryDriver'),
+    getStructuredScenarioField(assessment?.structuredScenario, 'assetService'),
+    getStructuredScenarioField(assessment?.structuredScenario, 'eventPath'),
+    Array.isArray(assessment?.applicableRegulations) ? assessment.applicableRegulations.slice(0, 3).join(', ') : '',
+    topRisks.join(', ')
+  ].map(item => String(item || '').trim()).filter(Boolean).join(' · ');
+  const treatmentStatus = _deriveScenarioMemoryTreatmentStatus(assessment);
+  return {
+    id: String(assessment?.id || '').trim(),
+    title: String(assessment?.scenarioTitle || assessment?.title || 'Untitled assessment').trim(),
+    primaryThreat: _truncateCorrelationText(primaryThreat || assessment?.narrative || assessment?.enhancedNarrative || 'Threat not stated', 180),
+    controlsListed: _extractPortfolioControlHints(assessment).join('; ') || 'Controls not explicitly stated',
+    treatmentStatus: treatmentStatus.label,
+    aleRange: _buildScenarioMemoryAleRange(assessment?.results)
+  };
+}
+
+function flagPortfolioCorrelationClusterForReview(assessmentIds = [], {
+  clusterLabel = '',
+  sharedDependency = ''
+} = {}) {
+  const ids = new Set((Array.isArray(assessmentIds) ? assessmentIds : []).map(id => String(id || '').trim()).filter(Boolean));
+  if (!ids.size || typeof localStorage === 'undefined') return { updatedCount: 0 };
+  const prefix = `${ASSESSMENTS_STORAGE_PREFIX}__`;
+  let updatedCount = 0;
+  try {
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      if (!key || !key.startsWith(prefix)) continue;
+      const raw = JSON.parse(localStorage.getItem(key) || '[]');
+      if (!Array.isArray(raw)) continue;
+      let changed = false;
+      const next = raw.map((entry) => {
+        const assessment = typeof normaliseAssessmentRecord === 'function'
+          ? normaliseAssessmentRecord(entry)
+          : entry;
+        if (!ids.has(String(assessment?.id || '').trim()) || !assessment?.results) return assessment;
+        changed = true;
+        updatedCount += 1;
+        const flaggedCandidate = {
+          ...assessment,
+          portfolioCorrelationFlag: {
+            clusterLabel: String(clusterLabel || '').trim(),
+            sharedDependency: String(sharedDependency || '').trim(),
+            flaggedAt: Date.now()
+          }
+        };
+        if (typeof prepareAssessmentForSave === 'function') {
+          return prepareAssessmentForSave(flaggedCandidate, {
+            existingAssessment: assessment,
+            targetStatus: ASSESSMENT_LIFECYCLE_STATUS.READY_FOR_REVIEW,
+            at: new Date().toISOString()
+          });
+        }
+        return {
+          ...flaggedCandidate,
+          lifecycleStatus: ASSESSMENT_LIFECYCLE_STATUS.READY_FOR_REVIEW
+        };
+      });
+      if (changed) localStorage.setItem(key, JSON.stringify(next));
+    }
+  } catch {}
+  if (updatedCount) {
+    try {
+      resetUserStateCache(AuthService.getCurrentUser()?.username || '');
+    } catch {}
+  }
+  return { updatedCount };
 }
 
 function extractScenarioPattern(assessment) {
@@ -1807,6 +2741,15 @@ function ensureDraftShape() {
     selectedRisks: Array.isArray(AppState.draft.selectedRisks) ? AppState.draft.selectedRisks : [],
     sourceNarrative: AppState.draft.sourceNarrative || AppState.draft.narrative || '',
     enhancedNarrative: AppState.draft.enhancedNarrative || '',
+    scenarioMemoryQuery: AppState.draft.scenarioMemoryQuery || '',
+    scenarioMemorySignature: AppState.draft.scenarioMemorySignature || '',
+    scenarioMemoryMatches: Array.isArray(AppState.draft.scenarioMemoryMatches) ? AppState.draft.scenarioMemoryMatches : [],
+    scenarioMemoryPrecedent: AppState.draft.scenarioMemoryPrecedent || '',
+    scenarioMemoryPrecedentSignature: AppState.draft.scenarioMemoryPrecedentSignature || '',
+    scenarioMemoryPrecedentLoading: !!AppState.draft.scenarioMemoryPrecedentLoading,
+    scenarioMemoryReferenceId: AppState.draft.scenarioMemoryReferenceId || '',
+    scenarioMemoryComparisons: AppState.draft.scenarioMemoryComparisons && typeof AppState.draft.scenarioMemoryComparisons === 'object' ? AppState.draft.scenarioMemoryComparisons : {},
+    scenarioMemoryComparisonLoadingId: AppState.draft.scenarioMemoryComparisonLoadingId || '',
     aiNarrativeBaseline: AppState.draft.aiNarrativeBaseline || '',
     uploadedRegisterName: AppState.draft.uploadedRegisterName || '',
     registerFindings: AppState.draft.registerFindings || '',

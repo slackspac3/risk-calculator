@@ -14,6 +14,10 @@ function buildWatchlistDeltaLine(item) {
 }
 
 const ADMIN_WORKSPACE_PREVIEW_SESSION_KEY = 'rq_admin_workspace_preview';
+const AI_FLAGS_SESSION_KEY = 'rip_flags_generated';
+const AI_FLAGS_SESSION_ID_KEY = 'rip_flags_session_id';
+const BOARD_BRIEF_FEEDBACK_STORAGE_PREFIX = 'rip_board_brief_feedback';
+const BOARD_BRIEF_SECTION_SEQUENCE = ['headline', 'topRisks', 'portfolioHealth', 'decisionNeeded'];
 
 function isAdminWorkspacePreviewEnabled() {
   try {
@@ -21,6 +25,190 @@ function isAdminWorkspacePreviewEnabled() {
   } catch {
     return false;
   }
+}
+
+function getAiFlagsCurrentUserKey() {
+  return String((typeof AuthService !== 'undefined' && AuthService.getCurrentUser?.()?.username) || 'guest').trim().toLowerCase() || 'guest';
+}
+
+function getBoardBriefStorageKey() {
+  try {
+    return buildUserStorageKey(BOARD_BRIEF_FEEDBACK_STORAGE_PREFIX);
+  } catch {
+    return `${BOARD_BRIEF_FEEDBACK_STORAGE_PREFIX}__${getAiFlagsCurrentUserKey()}`;
+  }
+}
+
+function readBoardBriefFeedbackStore() {
+  if (typeof localStorage === 'undefined') return { openCount: 0, sections: {}, lastEmphasisIndex: -1 };
+  try {
+    const parsed = JSON.parse(localStorage.getItem(getBoardBriefStorageKey()) || '{}');
+    return parsed && typeof parsed === 'object'
+      ? {
+          openCount: Math.max(0, Number(parsed.openCount || 0)),
+          sections: parsed.sections && typeof parsed.sections === 'object' ? parsed.sections : {},
+          lastEmphasisIndex: Number.isFinite(Number(parsed.lastEmphasisIndex)) ? Number(parsed.lastEmphasisIndex) : -1
+        }
+      : { openCount: 0, sections: {}, lastEmphasisIndex: -1 };
+  } catch {
+    return { openCount: 0, sections: {}, lastEmphasisIndex: -1 };
+  }
+}
+
+function writeBoardBriefFeedbackStore(nextStore) {
+  try {
+    localStorage.setItem(getBoardBriefStorageKey(), JSON.stringify(nextStore && typeof nextStore === 'object' ? nextStore : {}));
+  } catch {}
+  return nextStore;
+}
+
+function recordBoardBriefOpen() {
+  const store = readBoardBriefFeedbackStore();
+  return writeBoardBriefFeedbackStore({
+    ...store,
+    openCount: Math.max(0, Number(store.openCount || 0)) + 1
+  });
+}
+
+function recordBoardBriefSectionAction(section = '', action = 'copy') {
+  const safeSection = BOARD_BRIEF_SECTION_SEQUENCE.includes(section) ? section : '';
+  if (!safeSection) return readBoardBriefFeedbackStore();
+  const store = readBoardBriefFeedbackStore();
+  const current = store.sections && typeof store.sections[safeSection] === 'object' ? store.sections[safeSection] : {};
+  return writeBoardBriefFeedbackStore({
+    ...store,
+    sections: {
+      ...(store.sections && typeof store.sections === 'object' ? store.sections : {}),
+      [safeSection]: {
+        copyCount: Math.max(0, Number(current.copyCount || 0)) + (action === 'copy' ? 1 : 0),
+        exportCount: Math.max(0, Number(current.exportCount || 0)) + (action === 'export' ? 1 : 0)
+      }
+    }
+  });
+}
+
+function getBoardBriefPreferredSection() {
+  const store = readBoardBriefFeedbackStore();
+  if (Number(store.openCount || 0) < 3) return '';
+  let winner = '';
+  let winnerScore = 0;
+  BOARD_BRIEF_SECTION_SEQUENCE.forEach((section) => {
+    const current = store.sections && typeof store.sections[section] === 'object' ? store.sections[section] : {};
+    const score = Number(current.copyCount || 0) * 2 + Number(current.exportCount || 0);
+    if (score > winnerScore) {
+      winner = section;
+      winnerScore = score;
+    }
+  });
+  return winnerScore > 0 ? winner : '';
+}
+
+function getNextBoardBriefEmphasisOverride() {
+  const store = readBoardBriefFeedbackStore();
+  const nextIndex = (Number(store.lastEmphasisIndex || -1) + 1) % BOARD_BRIEF_SECTION_SEQUENCE.length;
+  writeBoardBriefFeedbackStore({
+    ...store,
+    lastEmphasisIndex: nextIndex
+  });
+  return BOARD_BRIEF_SECTION_SEQUENCE[nextIndex] || '';
+}
+
+function describeBoardBriefSection(section = '') {
+  if (section === 'topRisks') return 'Top 3 risks';
+  if (section === 'portfolioHealth') return 'Portfolio health';
+  if (section === 'decisionNeeded') return 'Decision needed';
+  return 'Headline';
+}
+
+function buildBoardBriefPrimaryRiskCategory(assessment = {}) {
+  return String(
+    assessment?.scenarioLens?.label
+    || assessment?.scenarioLens?.key
+    || assessment?.structuredScenario?.primaryRiskCategory
+    || assessment?.selectedRisks?.[0]?.category
+    || assessment?.selectedRisks?.[0]?.title
+    || 'General enterprise'
+  ).trim();
+}
+
+function buildBoardBriefAleRange(assessment = {}) {
+  const mean = Number(assessment?.results?.ale?.mean || 0);
+  const high = Number(assessment?.results?.ale?.p90 || mean || 0);
+  if (!mean && !high) return 'ALE not stated';
+  return `${fmtCurrency(Math.max(0, mean || 0))}–${fmtCurrency(Math.max(0, high || 0))}`;
+}
+
+function buildBoardBriefTreatmentStatus(assessment = {}) {
+  const reviewStatus = String(assessment?.reviewSubmission?.reviewStatus || '').trim().toLowerCase();
+  if (reviewStatus === 'pending') return 'Awaiting management review';
+  if (reviewStatus === 'approved') return 'Approved';
+  if (reviewStatus === 'changes_requested') return 'Changes requested';
+  if (reviewStatus === 'escalated') return 'Escalated';
+  if (assessment?.results?.toleranceBreached) return 'Above tolerance';
+  if (assessment?.results?.nearTolerance) return 'Near tolerance';
+  if (assessment?.results?.annualReviewTriggered) return 'Annual review triggered';
+  if (Array.isArray(assessment?.recommendations) && assessment.recommendations.length) return 'Action identified';
+  return 'Monitor';
+}
+
+function readAiFlagsSessionStore() {
+  try {
+    const parsed = JSON.parse(sessionStorage.getItem(AI_FLAGS_SESSION_KEY) || '{}');
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function readAiFlagsSessionEntry() {
+  const store = readAiFlagsSessionStore();
+  return store[getAiFlagsCurrentUserKey()] || null;
+}
+
+function writeAiFlagsSessionEntry(entry) {
+  try {
+    const store = readAiFlagsSessionStore();
+    store[getAiFlagsCurrentUserKey()] = entry && typeof entry === 'object' ? entry : {};
+    sessionStorage.setItem(AI_FLAGS_SESSION_KEY, JSON.stringify(store));
+  } catch {}
+  return entry;
+}
+
+function getAiFlagsSessionId() {
+  try {
+    let sessionId = String(sessionStorage.getItem(AI_FLAGS_SESSION_ID_KEY) || '').trim();
+    if (!sessionId) {
+      sessionId = `flags_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      sessionStorage.setItem(AI_FLAGS_SESSION_ID_KEY, sessionId);
+    }
+    return sessionId;
+  } catch {
+    return `flags_${Date.now()}`;
+  }
+}
+
+function buildAiFlagFallbackReason(item = {}) {
+  const signals = Array.isArray(item?.signalLabels) ? item.signalLabels.filter(Boolean) : [];
+  if (!signals.length) return 'This assessment has drift signals and is worth revisiting now.';
+  if (signals.length === 1) return `${signals[0]}. A fresh pass would confirm whether the current view still holds.`;
+  return `${signals[0]}, and ${signals[1].charAt(0).toLowerCase()}${signals[1].slice(1)}. A fresh pass would confirm whether the current view still holds.`;
+}
+
+function scoreAiFlagCandidate(item, promptBias = {}) {
+  const prioritised = new Set((Array.isArray(promptBias?.prioritised) ? promptBias.prioritised : []).map(value => String(value || '').trim().toLowerCase()));
+  const deprioritised = new Set((Array.isArray(promptBias?.deprioritised) ? promptBias.deprioritised : []).map(value => String(value || '').trim().toLowerCase()));
+  const base = Number(item?.severity || 0) * 10 + Number(item?.signals?.length || 0) * 4 + Math.min(12, Math.floor(Number(item?.ageInDays || 0) / 45));
+  const families = Array.isArray(item?.signalFamilies) && item.signalFamilies.length
+    ? item.signalFamilies
+    : (Array.isArray(item?.signals) ? item.signals.map(signal => signal?.family).filter(Boolean) : []);
+  const bias = families.reduce((score, family) => {
+    const key = String(family || '').trim().toLowerCase();
+    if (!key) return score;
+    if (prioritised.has(key)) return score + 6;
+    if (deprioritised.has(key)) return score - 4;
+    return score;
+  }, 0);
+  return base + bias;
 }
 
 function renderUserDashboard() {
@@ -43,6 +231,21 @@ function renderUserDashboard() {
   const profile = normaliseUserProfile(settings.userProfile, user);
   const capability = getNonAdminCapabilityState(user, settings, globalSettings);
   const isOversightUser = capability.canManageBusinessUnit || capability.canManageDepartment;
+  const canGenerateBoardBrief = String(user?.role || '').trim().toLowerCase() === 'admin'
+    || String(user?.role || '').trim().toLowerCase() === 'bu_admin';
+  const boardBriefEntries = canGenerateBoardBrief
+    ? (String(user?.role || '').trim().toLowerCase() === 'admin'
+      ? (typeof _readAllScenarioMemoryAssessments === 'function' ? _readAllScenarioMemoryAssessments() : [])
+      : (typeof getReviewerVisibleAssessmentEntries === 'function' ? getReviewerVisibleAssessmentEntries(capability) : []))
+    : [];
+  const boardBriefAssessments = Array.from(new Map(
+    (Array.isArray(boardBriefEntries) ? boardBriefEntries : [])
+      .map(entry => entry?.assessment || null)
+      .filter(assessment => assessment?.id && assessment?.results)
+      .map(assessment => [String(assessment.id || '').trim(), assessment])
+  ).values())
+    .filter(assessment => deriveAssessmentLifecycleStatus(assessment) !== ASSESSMENT_LIFECYCLE_STATUS.ARCHIVED)
+    .sort((left, right) => Number(right?.results?.ale?.mean || 0) - Number(left?.results?.ale?.mean || 0));
   const allAssessments = getAssessments();
   const assessments = allAssessments
     .filter(a => deriveAssessmentLifecycleStatus(a) !== ASSESSMENT_LIFECYCLE_STATUS.ARCHIVED)
@@ -178,6 +381,31 @@ function renderUserDashboard() {
   const watchlistSummary = buildAssessmentWatchlistSummary(watchlistItems);
   const visibleWatchlistItems = watchlistItems.slice(0, 3);
   const hiddenWatchlistItems = watchlistItems.slice(3);
+  const boardBriefTopAssessments = boardBriefAssessments.slice(0, 5).map((assessment) => ({
+    id: String(assessment.id || '').trim(),
+    title: String(assessment.scenarioTitle || assessment.title || 'Untitled assessment').trim(),
+    aleRange: buildBoardBriefAleRange(assessment),
+    treatmentStatus: buildBoardBriefTreatmentStatus(assessment),
+    lastRunDate: new Date(assessment.completedAt || assessment.createdAt || Date.now()).toLocaleDateString('en-AE', { year: 'numeric', month: 'short', day: 'numeric' }),
+    primaryRiskCategory: buildBoardBriefPrimaryRiskCategory(assessment),
+    aleMean: Number(assessment?.results?.ale?.mean || 0),
+    postureLabel: buildBoardBriefTreatmentStatus(assessment)
+  }));
+  const boardBriefFlaggedItems = buildAssessmentWatchlist({
+    assessments: boardBriefAssessments,
+    maxItems: 5
+  }).slice(0, 5).map((item) => ({
+    id: String(item.id || '').trim(),
+    title: String(item.title || 'Untitled assessment').trim(),
+    reason: String(item.detail || item.nextAction || '').trim(),
+    treatmentStatus: String(item.badgeLabel || item.urgencyLabel || 'Needs review').trim(),
+    postureLabel: String(item.badgeLabel || '').trim()
+  }));
+  const boardBriefScopeLabel = String(user?.role || '').trim().toLowerCase() === 'admin'
+    ? 'Global portfolio board brief'
+    : capability.canManageBusinessUnit
+      ? `Business unit board brief · ${capability.managedBusiness?.name || capability.selectedBusiness?.name || profile.businessUnit || 'Managed scope'}`
+      : 'Board brief';
   const livingRegisterRows = typeof buildLivingRiskRegisterRows === 'function'
     ? buildLivingRiskRegisterRows({ assessments, now: Date.now() })
     : [];
@@ -194,6 +422,16 @@ function renderUserDashboard() {
       };
   const visibleRegisterRows = livingRegisterRows.slice(0, 6);
   const hiddenRegisterRows = livingRegisterRows.slice(6);
+  const persistedAiFlagsState = !isOversightUser && AppState.dashboardAiFlagsState && typeof AppState.dashboardAiFlagsState === 'object'
+    ? AppState.dashboardAiFlagsState
+    : {};
+  const sessionAiFlagsState = !isOversightUser ? readAiFlagsSessionEntry() : null;
+  const initialAiFlagsState = !isOversightUser
+    ? {
+        ...(sessionAiFlagsState && typeof sessionAiFlagsState === 'object' ? sessionAiFlagsState : {}),
+        ...(persistedAiFlagsState && typeof persistedAiFlagsState === 'object' ? persistedAiFlagsState : {})
+      }
+    : {};
   const watchlistTitle = isOversightUser ? 'Reassessment lane' : 'Needs revisit';
   const watchlistDescription = isOversightUser
     ? 'Secondary revisit queue for saved results that deserve another look after the active attention lane is clear. The lane stays compact, but now groups the strongest revisit patterns.'
@@ -279,6 +517,179 @@ function renderUserDashboard() {
       onError: () => UI.toast('That JSON file could not be imported.', 'warning')
     });
   };
+  const buildBoardBriefPortfolioPayload = () => {
+    const completed = boardBriefAssessments.map((assessment) => ({
+      id: String(assessment.id || '').trim(),
+      title: String(assessment.scenarioTitle || assessment.title || 'Untitled assessment').trim(),
+      aleRange: buildBoardBriefAleRange(assessment),
+      treatmentStatus: buildBoardBriefTreatmentStatus(assessment),
+      lastRunDate: new Date(assessment.completedAt || assessment.createdAt || Date.now()).toLocaleDateString('en-AE', { year: 'numeric', month: 'short', day: 'numeric' }),
+      primaryRiskCategory: buildBoardBriefPrimaryRiskCategory(assessment),
+      aleMean: Number(assessment?.results?.ale?.mean || 0)
+    }));
+    return {
+      scopeLabel: boardBriefScopeLabel,
+      completedAssessments: completed,
+      topAssessments: boardBriefTopAssessments,
+      flaggedAssessments: boardBriefFlaggedItems,
+      portfolioSummary: ReportPresentation.buildPortfolioBoardBriefSource({
+        scopeLabel: boardBriefScopeLabel,
+        completedAssessments: completed,
+        topAssessments: boardBriefTopAssessments,
+        flaggedAssessments: boardBriefFlaggedItems
+      })
+    };
+  };
+  const renderBoardBriefModalContent = (brief = {}, meta = {}) => {
+    const topRisks = Array.isArray(brief?.topRisks) ? brief.topRisks : [];
+    const generatedLabel = meta?.generatedAt
+      ? new Date(meta.generatedAt).toLocaleString('en-AE', { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+      : new Date().toLocaleString('en-AE', { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    return `
+      <div class="form-help" style="margin-bottom:var(--sp-4)">Scope: ${escapeDashboardText(meta.scopeLabel || boardBriefScopeLabel)} · ${escapeDashboardText(generatedLabel)}</div>
+      <div class="card card--elevated" style="padding:var(--sp-5);background:var(--bg-canvas);margin-bottom:12px">
+        ${typeof UI.sectionEyebrow === 'function' ? UI.sectionEyebrow('Headline') : ''}
+        <div class="context-panel-title" style="margin-top:${typeof UI.sectionEyebrow === 'function' ? '10px' : '0'}">${escapeDashboardText(brief?.headline || 'No headline generated')}</div>
+        <div style="margin-top:var(--sp-3)"><button type="button" class="btn btn--ghost btn--sm" data-board-brief-copy="headline">Copy section</button></div>
+      </div>
+      <div class="card card--elevated" style="padding:var(--sp-5);background:var(--bg-canvas);margin-bottom:12px">
+        ${typeof UI.sectionEyebrow === 'function' ? UI.sectionEyebrow('Top 3 risks') : ''}
+        <div style="display:flex;flex-direction:column;gap:12px;margin-top:${typeof UI.sectionEyebrow === 'function' ? '10px' : '0'}">
+          ${topRisks.length ? topRisks.map((item, index) => `
+            <div ${index ? 'style="padding-top:12px;border-top:1px solid var(--border-subtle)"' : ''}>
+              <div class="context-panel-title">${escapeDashboardText(item?.name || 'Risk')}</div>
+              <div class="results-summary-copy" style="margin-top:6px">${escapeDashboardText(item?.description || '')}</div>
+              <div class="form-help" style="margin-top:8px"><strong>Recommended action:</strong> ${escapeDashboardText(item?.action || '')}</div>
+            </div>
+          `).join('') : '<div class="form-help">No top-risk narrative was generated.</div>'}
+        </div>
+        <div style="margin-top:var(--sp-3)"><button type="button" class="btn btn--ghost btn--sm" data-board-brief-copy="topRisks">Copy section</button></div>
+      </div>
+      <div class="card card--elevated" style="padding:var(--sp-5);background:var(--bg-canvas);margin-bottom:12px">
+        ${typeof UI.sectionEyebrow === 'function' ? UI.sectionEyebrow('Portfolio health') : ''}
+        <div class="results-summary-copy" style="margin-top:${typeof UI.sectionEyebrow === 'function' ? '10px' : '0'}">${escapeDashboardText(brief?.portfolioHealth || 'No portfolio health narrative generated')}</div>
+        <div style="margin-top:var(--sp-3)"><button type="button" class="btn btn--ghost btn--sm" data-board-brief-copy="portfolioHealth">Copy section</button></div>
+      </div>
+      <div class="card card--elevated" style="padding:var(--sp-5);background:var(--bg-canvas)">
+        ${typeof UI.sectionEyebrow === 'function' ? UI.sectionEyebrow('Decision needed') : ''}
+        <div class="results-summary-copy" style="margin-top:${typeof UI.sectionEyebrow === 'function' ? '10px' : '0'}">${escapeDashboardText(brief?.decisionNeeded || 'No decision recommendation generated')}</div>
+        <div style="margin-top:var(--sp-3)"><button type="button" class="btn btn--ghost btn--sm" data-board-brief-copy="decisionNeeded">Copy section</button></div>
+      </div>
+    `;
+  };
+  const openBoardBriefModal = () => {
+    if (!canGenerateBoardBrief) return;
+    if (!boardBriefAssessments.length) {
+      UI.toast('At least one completed assessment is needed before a board brief can be generated.', 'warning');
+      return;
+    }
+    recordBoardBriefOpen();
+    const modal = UI.modal({
+      title: 'Board Brief',
+      body: `
+        <div id="dashboard-board-brief-body">
+          <div class="form-help">Preparing a portfolio-level executive narrative from the visible assessment set…</div>
+        </div>
+      `,
+      footer: `
+        <button type="button" class="btn btn--ghost" id="btn-board-brief-close">Close</button>
+        <button type="button" class="btn btn--secondary" id="btn-board-brief-regenerate">Regenerate with different emphasis</button>
+        <button type="button" class="btn btn--primary" id="btn-board-brief-export" disabled>Print / Export</button>
+      `
+    });
+    const bodyEl = document.getElementById('dashboard-board-brief-body');
+    const exportButton = document.getElementById('btn-board-brief-export');
+    const regenerateButton = document.getElementById('btn-board-brief-regenerate');
+    let currentBrief = null;
+    let currentMeta = null;
+    const bindBoardBriefSectionActions = () => {
+      document.querySelectorAll('[data-board-brief-copy]').forEach((button) => {
+        if (button.dataset.bound === 'true') return;
+        button.dataset.bound = 'true';
+        button.addEventListener('click', async () => {
+          if (!currentBrief) return;
+          const section = String(button.dataset.boardBriefCopy || '').trim();
+          let text = '';
+          if (section === 'topRisks') {
+            text = (Array.isArray(currentBrief.topRisks) ? currentBrief.topRisks : [])
+              .map((item, index) => `${index + 1}. ${item?.name || 'Risk'}\n${item?.description || ''}\nRecommended action: ${item?.action || ''}`)
+              .join('\n\n');
+          } else if (section === 'portfolioHealth') {
+            text = String(currentBrief.portfolioHealth || '').trim();
+          } else if (section === 'decisionNeeded') {
+            text = String(currentBrief.decisionNeeded || '').trim();
+          } else {
+            text = String(currentBrief.headline || '').trim();
+          }
+          if (!text) return;
+          try {
+            await navigator.clipboard.writeText(text);
+            recordBoardBriefSectionAction(section, 'copy');
+            UI.toast(`${describeBoardBriefSection(section)} copied.`, 'success');
+          } catch {
+            UI.toast('That section could not be copied right now.', 'warning');
+          }
+        });
+      });
+    };
+    const loadBoardBrief = async ({ emphasisOverride = '' } = {}) => {
+      if (!bodyEl) return;
+      const payload = buildBoardBriefPortfolioPayload();
+      const preferredSection = getBoardBriefPreferredSection();
+      bodyEl.innerHTML = '<div class="form-help">Generating the portfolio board brief…</div>';
+      if (exportButton) exportButton.disabled = true;
+      if (regenerateButton) {
+        regenerateButton.disabled = true;
+        regenerateButton.textContent = 'Generating…';
+      }
+      try {
+        const brief = await LLMService?.generatePortfolioExecutiveBrief?.({
+          portfolioSummary: payload.portfolioSummary,
+          preferredSection,
+          emphasisOverride
+        });
+        if (!brief) throw new Error('No board brief returned');
+        currentBrief = brief;
+        currentMeta = {
+          scopeLabel: payload.scopeLabel,
+          generatedAt: Date.now(),
+          portfolioSummary: payload.portfolioSummary,
+          preferredSection,
+          emphasisOverride
+        };
+        bodyEl.innerHTML = renderBoardBriefModalContent(currentBrief, currentMeta);
+        bindBoardBriefSectionActions();
+        if (exportButton) exportButton.disabled = false;
+      } catch (error) {
+        console.error('generatePortfolioExecutiveBrief failed:', error);
+        bodyEl.innerHTML = '<div class="form-help">The board brief could not be generated right now. Try again in a moment.</div>';
+      } finally {
+        if (regenerateButton) {
+          regenerateButton.disabled = false;
+          regenerateButton.textContent = 'Regenerate with different emphasis';
+        }
+      }
+    };
+    document.getElementById('btn-board-brief-close')?.addEventListener('click', () => modal.close());
+    regenerateButton?.addEventListener('click', () => {
+      loadBoardBrief({ emphasisOverride: getNextBoardBriefEmphasisOverride() });
+    });
+    exportButton?.addEventListener('click', () => {
+      if (!currentBrief || !currentMeta) return;
+      ExportService.exportPortfolioBoardBrief({
+        scopeLabel: currentMeta.scopeLabel,
+        generatedLabel: new Date(currentMeta.generatedAt || Date.now()).toLocaleString('en-AE', { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }),
+        headline: currentBrief.headline,
+        topRisks: currentBrief.topRisks,
+        portfolioHealth: currentBrief.portfolioHealth,
+        decisionNeeded: currentBrief.decisionNeeded,
+        portfolioSummary: currentMeta.portfolioSummary
+      });
+      recordBoardBriefSectionAction(getBoardBriefPreferredSection() || 'decisionNeeded', 'export');
+      UI.toast('Board brief prepared for print or PDF save.', 'success');
+    });
+    loadBoardBrief();
+  };
   const launchGuidedAssessmentStart = () => {
     if (typeof window.launchGuidedAssessmentStart === 'function') {
       window.launchGuidedAssessmentStart();
@@ -292,6 +703,72 @@ function renderUserDashboard() {
   };
   const launchSampleStart = () => launchPilotSampleAssessment();
   const escapeDashboardText = value => escapeHtml(String(value || ''));
+  const renderAiFlagsPanelBody = (state = initialAiFlagsState) => {
+    const snoozes = typeof readAiFlagSnoozes === 'function' ? readAiFlagSnoozes() : {};
+    const rawItems = Array.isArray(state?.items) ? state.items : [];
+    const visibleItems = rawItems
+      .filter(item => {
+        const until = Number(snoozes?.[String(item?.id || '').trim()] || 0);
+        return !until || until <= Date.now();
+      })
+      .slice(0, 3);
+    if (state?.loading) {
+      return '<div class="form-help">Scanning your saved results for reassessment signals and shaping direct AI reasons…</div>';
+    }
+    if (state?.error) {
+      return `<div class="form-help">${escapeDashboardText(state.error)}</div>`;
+    }
+    if (!completedAssessments.length) {
+      return '<div class="form-help">Complete an assessment first. AI Flags only scans saved results.</div>';
+    }
+    if (!rawItems.length) {
+      return '<div class="form-help">Nothing in your current portfolio looks urgent to reassess right now.</div>';
+    }
+    if (!visibleItems.length) {
+      return '<div class="form-help">All current AI flags are snoozed. They will reappear automatically after the snooze window ends.</div>';
+    }
+    return `
+      <div class="premium-guidance-strip premium-guidance-strip--warning" style="margin-bottom:var(--sp-4)">
+        <div class="premium-guidance-strip__main">
+          <div class="premium-guidance-strip__label">AI Flags</div>
+          <strong>${visibleItems.length} assessment${visibleItems.length === 1 ? '' : 's'} may need a fresh look now.</strong>
+          <div class="premium-guidance-strip__copy">These prompts are generated once per session and turn the strongest staleness signals into direct reassessment guidance.</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px">
+        ${visibleItems.map((item) => `
+          <article class="card card--elevated" style="padding:var(--sp-5);background:var(--bg-canvas)">
+            ${typeof UI.sectionEyebrow === 'function' ? UI.sectionEyebrow(item.signalLabels?.[0] || 'AI flag') : ''}
+            <div class="context-panel-title" style="margin-top:${typeof UI.sectionEyebrow === 'function' ? '10px' : '0'}">${escapeDashboardText(item.title || 'Saved assessment')}</div>
+            <div class="form-help" style="margin-top:6px">${escapeDashboardText(item.aleRange || 'ALE not stated')} · ${escapeDashboardText(item.treatmentStatus || 'Treatment state not stated')}</div>
+            <p class="form-help" style="margin-top:var(--sp-3);font-style:italic;color:var(--text-primary)">${escapeDashboardText(item.reason || buildAiFlagFallbackReason(item))}</p>
+            <div class="form-help" style="margin-top:8px">Signals: ${escapeDashboardText((item.signalLabels || []).join(' · '))}</div>
+            <div class="flex items-center gap-3" style="margin-top:var(--sp-4);flex-wrap:wrap">
+              <button type="button" class="btn btn--secondary btn--sm dashboard-ai-flag-reassess" data-assessment-id="${escapeDashboardText(item.id || '')}" data-signal-families="${escapeDashboardText((item.signalFamilies || []).join(','))}">Reassess Now</button>
+              <button type="button" class="btn btn--ghost btn--sm dashboard-ai-flag-dismiss" data-assessment-id="${escapeDashboardText(item.id || '')}" data-signal-families="${escapeDashboardText((item.signalFamilies || []).join(','))}">Dismiss for 30 days</button>
+            </div>
+          </article>
+        `).join('')}
+      </div>
+    `;
+  };
+  const aiFlagsCount = Array.isArray(initialAiFlagsState?.items)
+    ? initialAiFlagsState.items.filter(item => {
+      const snoozes = typeof readAiFlagSnoozes === 'function' ? readAiFlagSnoozes() : {};
+      const until = Number(snoozes?.[String(item?.id || '').trim()] || 0);
+      return !until || until <= Date.now();
+    }).length
+    : 0;
+  const aiFlagsPanelMarkup = !isOversightUser ? `
+    <section class="dashboard-primary-band dashboard-primary-band--work">
+      <details class="dashboard-disclosure card card--elevated dashboard-section-card dashboard-section-card--secondary" id="dashboard-ai-flags-panel" ${initialAiFlagsState.open ? 'open' : ''}>
+        <summary>AI Flags <span class="badge badge--neutral" id="dashboard-ai-flags-count">${aiFlagsCount}</span></summary>
+        <div class="dashboard-disclosure-copy">Open this when you want AI to tell you which saved assessments deserve revisiting now, and why, before the usual work queue takes over.</div>
+        <div class="dashboard-disclosure-body">
+          <div id="dashboard-ai-flags-body">${renderAiFlagsPanelBody(initialAiFlagsState)}</div>
+        </div>
+      </details>
+    </section>` : '';
   // TODO: extend buildAssessmentWatchlist to derive and attach confidenceTrajectory by comparing the current assessment confidenceLabel to the previous saved result for the same scenario.
   const renderWatchlistRows = items => items.map(item => UI.dashboardAssessmentRow({
     assessmentId: item.id,
@@ -494,6 +971,20 @@ function renderUserDashboard() {
         spotlightTitle: 'Worked example and templates',
         spotlightCopy: 'Use the worked example when you want a fast demo path. Open templates when you want structure without starting from a blank assessment.'
       };
+  const boardBriefButtonMarkup = canGenerateBoardBrief
+    ? `<button class="btn btn--secondary btn--lg" id="btn-dashboard-board-brief" aria-label="Generate Board Brief">Generate Board Brief</button>`
+    : '';
+  const boardBriefSupportMarkup = canGenerateBoardBrief
+    ? `<div class="card card--elevated dashboard-section-card dashboard-section-card--secondary" style="margin-bottom:var(--sp-4)">
+        <div class="flex items-center justify-between" style="gap:var(--sp-4);flex-wrap:wrap">
+          <div style="max-width:58ch">
+            <div class="context-panel-title">Board-ready portfolio narrative</div>
+            <div class="form-help" style="margin-top:8px">Generate a portfolio-level executive brief from the current visible assessment set when leadership wants the story, the trend, and the decision in one pass.</div>
+          </div>
+          ${boardBriefButtonMarkup}
+        </div>
+      </div>`
+    : '';
   const inheritedContextModel = buildInheritedContextDisplayModel({
     user,
     userSettings: settings,
@@ -722,6 +1213,63 @@ function renderUserDashboard() {
       </div>
     </article>
   `;
+  const persistedCorrelationState = AppState.dashboardCorrelationState && typeof AppState.dashboardCorrelationState === 'object'
+    ? AppState.dashboardCorrelationState
+    : {};
+  const renderCorrelationClusterCard = (cluster, state = persistedCorrelationState) => {
+    const assessmentMap = state.assessmentsById && typeof state.assessmentsById === 'object'
+      ? state.assessmentsById
+      : {};
+    const linkedAssessments = (Array.isArray(cluster?.assessmentIds) ? cluster.assessmentIds : [])
+      .map(id => assessmentMap[String(id || '').trim()])
+      .filter(Boolean);
+    if (linkedAssessments.length < 2) return '';
+    return `<article class="card card--elevated" style="padding:var(--sp-5);background:var(--bg-canvas)">
+      ${typeof UI.sectionEyebrow === 'function' ? UI.sectionEyebrow(cluster.clusterLabel || 'Correlated cluster') : ''}
+      <div class="context-panel-title" style="margin-top:${typeof UI.sectionEyebrow === 'function' ? '10px' : '0'}">${escapeDashboardText(cluster.sharedDependency || 'Shared dependency')}</div>
+      <div class="context-panel-copy" style="margin-top:10px">${escapeDashboardText(cluster.whyItMatters || 'These assessments appear to lean on the same failure pattern.')}</div>
+      <div style="margin-top:var(--sp-4)">
+        <div class="form-help">Assessments in this cluster</div>
+        <div class="flex items-center gap-3" style="margin-top:8px;flex-wrap:wrap">
+          ${linkedAssessments.map(item => `<button type="button" class="btn btn--ghost btn--sm dashboard-open-action" data-assessment-id="${escapeDashboardText(item.id || '')}">${escapeDashboardText(item.title || 'Open result')}</button>`).join('')}
+        </div>
+      </div>
+      <div class="card" style="margin-top:var(--sp-4);padding:var(--sp-4);background:var(--bg-elevated)">
+        <div class="form-help">One action that covers all</div>
+        <div style="color:var(--text-primary);line-height:1.6;margin-top:6px">${escapeDashboardText(cluster.oneActionThatFixesAll || 'No shared action was suggested.')}</div>
+      </div>
+      <div class="flex items-center justify-between" style="margin-top:var(--sp-4);gap:var(--sp-3);flex-wrap:wrap">
+        <span class="badge badge--neutral">${linkedAssessments.length} assessment${linkedAssessments.length === 1 ? '' : 's'}</span>
+        <button type="button" class="btn btn--secondary btn--sm dashboard-correlation-flag" data-cluster-id="${escapeDashboardText(cluster.id || '')}" ${cluster.flagged ? 'disabled' : ''}>${cluster.flagged ? 'Flagged for review' : 'Flag for review'}</button>
+      </div>
+    </article>`;
+  };
+  const renderCorrelationPanelBody = (state = persistedCorrelationState) => {
+    if (state.loading) {
+      return '<div class="form-help">Scanning the visible portfolio for shared single points of failure…</div>';
+    }
+    if (state.error) {
+      return `<div class="form-help">${escapeDashboardText(state.error)}</div>`;
+    }
+    if (state.sourceCount && state.sourceCount < 2) {
+      return '<div class="form-help">At least two visible completed assessments are needed before AI can spot cross-assessment correlations.</div>';
+    }
+    const clusters = Array.isArray(state.clusters) ? state.clusters : [];
+    if (!clusters.length) {
+      return '<div class="form-help">No material correlated-risk clusters surfaced from the currently visible assessments.</div>';
+    }
+    return `
+      <div class="premium-guidance-strip premium-guidance-strip--support" style="margin-bottom:var(--sp-4)">
+        <div class="premium-guidance-strip__main">
+          <div class="premium-guidance-strip__label">Portfolio scan</div>
+          <strong>AI found ${clusters.length} shared dependency cluster${clusters.length === 1 ? '' : 's'} across ${Number(state.sourceCount || 0)} visible assessment${Number(state.sourceCount || 0) === 1 ? '' : 's'}.</strong>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px">
+        ${clusters.map(cluster => renderCorrelationClusterCard(cluster, state)).join('')}
+      </div>
+    `;
+  };
   const livingRegisterBody = livingRegisterRows.length
     ? `
       <div class="living-register-summary" aria-label="Living risk register summary">
@@ -755,6 +1303,16 @@ function renderUserDashboard() {
         secondaryId: 'btn-empty-register-sample',
         secondaryLabel: 'Try Sample Assessment'
       });
+  const correlationPanelMarkup = isOversightUser ? `
+    <section class="dashboard-primary-band dashboard-primary-band--correlations">
+      <details class="dashboard-disclosure card card--elevated dashboard-section-card dashboard-section-card--secondary" id="dashboard-correlation-panel" ${persistedCorrelationState.open ? 'open' : ''}>
+        <summary>AI — Correlated Risks <span class="badge badge--neutral">Portfolio scan</span></summary>
+        <div class="dashboard-disclosure-copy">Open this when you want AI to scan the visible oversight portfolio for shared threat actors, failing controls, vendors, regulations, or data assets that make multiple assessments rise together.</div>
+        <div class="dashboard-disclosure-body">
+          <div id="dashboard-correlation-body">${persistedCorrelationState.open ? renderCorrelationPanelBody(persistedCorrelationState) : '<div class="form-help">Expand this panel to scan the current oversight portfolio for correlated risks.</div>'}</div>
+        </div>
+      </details>
+    </section>` : '';
   const portfolioRecentBody = compactRecentAssessments.length
     ? `
       <section class="dashboard-portfolio-band" style="margin-bottom:var(--sp-5)">
@@ -772,6 +1330,7 @@ function renderUserDashboard() {
         secondaryLabel: 'Try Sample Assessment'
       });
   const standardStartModule = !isOversightUser ? `
+    ${boardBriefSupportMarkup}
     <div class="dashboard-start-module">
       <div class="dashboard-start-head">
         <div class="context-panel-title">Start a risk scenario</div>
@@ -837,6 +1396,7 @@ function renderUserDashboard() {
                 <button class="btn btn--primary btn--lg" id="btn-dashboard-new-assessment" aria-label="${roleFrontDoor.primaryActionLabel}">${roleFrontDoor.primaryActionLabel}</button>
                 <!-- Keep start-new visible for oversight users instead of burying it in the overflow menu. -->
                 <button class="btn btn--secondary btn--lg" id="btn-dashboard-new-assessment-oversight" aria-label="Start Guided Assessment">Start Guided Assessment</button>
+                ${boardBriefButtonMarkup}
                 ${renderWorkspaceToolsMenu({ includeResumeDraft: hasDraft, includeSettings: true, useSupportIds: false, includeNewAssessment: false })}
               </div>
               <div class="form-help" style="margin-top:12px;color:rgba(255,255,255,.65)">${roleFrontDoor.heroHint}</div>` : standardStartModule}
@@ -856,6 +1416,8 @@ function renderUserDashboard() {
         </section>
 
         ${inheritedContextMarkup}
+
+        ${aiFlagsPanelMarkup}
 
         <section class="dashboard-primary-band dashboard-primary-band--work">
           <div class="results-section-heading">Do the work</div>
@@ -965,6 +1527,8 @@ function renderUserDashboard() {
             </div>
           </div>
         </section>
+
+        ${correlationPanelMarkup}
 
         <section class="dashboard-open-band dashboard-open-band--compact" style="margin-top:var(--sp-12)">
           <div class="results-section-heading">At a glance</div>
@@ -1126,6 +1690,8 @@ function renderUserDashboard() {
     ?.addEventListener('click', _handleNewAssessmentOversight);
   document.getElementById('btn-dashboard-new-assessment-support')
     ?.addEventListener('click', _handleNewAssessmentOversight);
+  document.getElementById('btn-dashboard-board-brief')
+    ?.addEventListener('click', () => openBoardBriefModal());
   document.getElementById('btn-dashboard-run-demo')?.addEventListener('click', () => {
     if (typeof DemoMode === 'undefined') {
       UI.toast('Demo mode is not loaded.', 'warning');
@@ -1168,6 +1734,273 @@ function renderUserDashboard() {
       UI.toast('The register CSV could not be exported right now.', 'danger');
     }
   });
+  const aiFlagsPanel = document.getElementById('dashboard-ai-flags-panel');
+  const aiFlagsBody = document.getElementById('dashboard-ai-flags-body');
+  const aiFlagsCountEl = document.getElementById('dashboard-ai-flags-count');
+  const renderAiFlagsBodyToDom = () => {
+    if (!aiFlagsBody) return;
+    const state = AppState.dashboardAiFlagsState && typeof AppState.dashboardAiFlagsState === 'object'
+      ? AppState.dashboardAiFlagsState
+      : initialAiFlagsState;
+    aiFlagsBody.innerHTML = renderAiFlagsPanelBody(state);
+    if (aiFlagsCountEl) {
+      const snoozes = typeof readAiFlagSnoozes === 'function' ? readAiFlagSnoozes() : {};
+      const visibleCount = (Array.isArray(state?.items) ? state.items : []).filter((item) => {
+        const until = Number(snoozes?.[String(item?.id || '').trim()] || 0);
+        return !until || until <= Date.now();
+      }).length;
+      aiFlagsCountEl.textContent = String(visibleCount);
+    }
+  };
+  const loadAiFlags = async (force = false) => {
+    if (isOversightUser || !aiFlagsBody) return;
+    const sessionEntry = readAiFlagsSessionEntry();
+    if (!force && sessionEntry && typeof sessionEntry === 'object' && sessionEntry.loaded) {
+      AppState.dashboardAiFlagsState = {
+        ...sessionEntry,
+        open: !!aiFlagsPanel?.open
+      };
+      renderAiFlagsBodyToDom();
+      return;
+    }
+    const promptBias = typeof getAiFlagPromptBias === 'function'
+      ? getAiFlagPromptBias()
+      : { sessionCount: 0, prioritised: [], deprioritised: [] };
+    const candidates = completedAssessments
+      .map(assessment => typeof buildAssessmentAiFlagSignals === 'function'
+        ? buildAssessmentAiFlagSignals(assessment, { now: Date.now() })
+        : null)
+      .filter(Boolean)
+      .sort((left, right) => {
+        const leftScore = scoreAiFlagCandidate(left, promptBias);
+        const rightScore = scoreAiFlagCandidate(right, promptBias);
+        if (rightScore !== leftScore) return rightScore - leftScore;
+        return (right.updatedAt || 0) - (left.updatedAt || 0);
+      });
+    AppState.dashboardAiFlagsState = {
+      ...(AppState.dashboardAiFlagsState && typeof AppState.dashboardAiFlagsState === 'object' ? AppState.dashboardAiFlagsState : {}),
+      open: !!aiFlagsPanel?.open,
+      loading: true,
+      loaded: false,
+      items: [],
+      sourceCount: candidates.length,
+      error: ''
+    };
+    renderAiFlagsBodyToDom();
+    if (!candidates.length) {
+      const emptyState = {
+        open: !!aiFlagsPanel?.open,
+        loading: false,
+        loaded: true,
+        items: [],
+        sourceCount: 0,
+        error: ''
+      };
+      AppState.dashboardAiFlagsState = emptyState;
+      writeAiFlagsSessionEntry(emptyState);
+      renderAiFlagsBodyToDom();
+      return;
+    }
+    try {
+      const reasons = await LLMService?.generateProactiveReassessmentReasons?.({
+        assessments: candidates.map(item => ({
+          id: item.id,
+          title: item.title,
+          ageInDays: item.ageInDays,
+          signals: item.signals.map(signal => signal.label),
+          aleRange: item.aleRange,
+          treatmentStatus: item.treatmentStatus
+        })),
+        prioritisedSignals: promptBias.prioritised,
+        deprioritisedSignals: promptBias.deprioritised
+      });
+      const reasonMap = new Map((Array.isArray(reasons) ? reasons : []).map(item => [String(item?.id || '').trim(), String(item?.reason || '').trim()]));
+      const items = candidates.map(item => ({
+        id: item.id,
+        title: item.title,
+        ageInDays: item.ageInDays,
+        aleRange: item.aleRange,
+        treatmentStatus: item.treatmentStatus,
+        severity: item.severity,
+        signalLabels: item.signals.map(signal => signal.label),
+        signalFamilies: item.signals.map(signal => signal.family).filter(Boolean),
+        reason: reasonMap.get(item.id) || buildAiFlagFallbackReason({
+          signalLabels: item.signals.map(signal => signal.label)
+        })
+      }));
+      const nextState = {
+        open: !!aiFlagsPanel?.open,
+        loading: false,
+        loaded: true,
+        items,
+        sourceCount: candidates.length,
+        error: ''
+      };
+      AppState.dashboardAiFlagsState = nextState;
+      writeAiFlagsSessionEntry(nextState);
+      if (typeof noteAiFlagGenerationSession === 'function') {
+        noteAiFlagGenerationSession({
+          sessionId: getAiFlagsSessionId(),
+          generatedCount: items.length
+        });
+      }
+    } catch (error) {
+      console.error('AI flags generation failed:', error);
+      const failureState = {
+        open: !!aiFlagsPanel?.open,
+        loading: false,
+        loaded: true,
+        items: candidates.slice(0, 3).map(item => ({
+          id: item.id,
+          title: item.title,
+          ageInDays: item.ageInDays,
+          aleRange: item.aleRange,
+          treatmentStatus: item.treatmentStatus,
+          severity: item.severity,
+          signalLabels: item.signals.map(signal => signal.label),
+          signalFamilies: item.signals.map(signal => signal.family).filter(Boolean),
+          reason: buildAiFlagFallbackReason({
+            signalLabels: item.signals.map(signal => signal.label)
+          })
+        })),
+        sourceCount: candidates.length,
+        error: ''
+      };
+      AppState.dashboardAiFlagsState = failureState;
+      writeAiFlagsSessionEntry(failureState);
+      if (typeof noteAiFlagGenerationSession === 'function') {
+        noteAiFlagGenerationSession({
+          sessionId: getAiFlagsSessionId(),
+          generatedCount: failureState.items.length
+        });
+      }
+    }
+    renderAiFlagsBodyToDom();
+  };
+  aiFlagsPanel?.addEventListener('toggle', () => {
+    AppState.dashboardAiFlagsState = {
+      ...(AppState.dashboardAiFlagsState && typeof AppState.dashboardAiFlagsState === 'object' ? AppState.dashboardAiFlagsState : {}),
+      open: !!aiFlagsPanel.open
+    };
+  });
+  if (!isOversightUser) loadAiFlags();
+  const correlationPanel = document.getElementById('dashboard-correlation-panel');
+  const correlationBody = document.getElementById('dashboard-correlation-body');
+  const renderCorrelationBodyToDom = () => {
+    if (!correlationBody) return;
+    correlationBody.innerHTML = renderCorrelationPanelBody(AppState.dashboardCorrelationState && typeof AppState.dashboardCorrelationState === 'object'
+      ? AppState.dashboardCorrelationState
+      : {});
+  };
+  const loadPortfolioCorrelations = async (force = false) => {
+    if (!isOversightUser || !correlationBody) return;
+    const entries = typeof getReviewerVisibleAssessmentEntries === 'function'
+      ? getReviewerVisibleAssessmentEntries(capability)
+      : [];
+    const signature = entries
+      .map(entry => `${String(entry?.assessment?.id || '')}:${Number(entry?.assessment?.lifecycleUpdatedAt || entry?.assessment?.completedAt || entry?.assessment?.createdAt || 0)}`)
+      .sort()
+      .join('|');
+    const existingState = AppState.dashboardCorrelationState && typeof AppState.dashboardCorrelationState === 'object'
+      ? AppState.dashboardCorrelationState
+      : {};
+    if (!force && existingState.loaded && existingState.signature === signature) {
+      renderCorrelationBodyToDom();
+      return;
+    }
+    AppState.dashboardCorrelationState = {
+      ...existingState,
+      open: true,
+      loading: true,
+      loaded: false,
+      signature,
+      sourceCount: entries.length,
+      clusters: [],
+      assessmentsById: {},
+      error: ''
+    };
+    renderCorrelationBodyToDom();
+    if (entries.length < 2) {
+      AppState.dashboardCorrelationState = {
+        ...AppState.dashboardCorrelationState,
+        loading: false,
+        loaded: true,
+        clusters: []
+      };
+      renderCorrelationBodyToDom();
+      return;
+    }
+    const assessmentsById = entries.reduce((acc, entry) => {
+      const assessment = entry?.assessment || null;
+      if (!assessment?.id) return acc;
+      acc[String(assessment.id || '').trim()] = {
+        id: String(assessment.id || '').trim(),
+        title: String(assessment.scenarioTitle || assessment.title || 'Untitled assessment').trim()
+      };
+      return acc;
+    }, {});
+    const fingerprints = entries
+      .map(entry => typeof buildPortfolioCorrelationFingerprint === 'function'
+        ? buildPortfolioCorrelationFingerprint(entry.assessment)
+        : null)
+      .filter(item => item && item.id);
+    try {
+      const reviewerScope = capability.canManageBusinessUnit
+        ? `Business unit admin for ${capability.managedBusiness?.name || capability.selectedBusiness?.name || capability.roleSummary || 'managed scope'}`
+        : `Function admin for ${capability.managedDepartment?.name || capability.selectedDepartment?.name || capability.roleSummary || 'managed scope'}`;
+      const clusters = await LLMService?.spotPortfolioCorrelations?.({
+        fingerprints,
+        prioritisedDependencies: typeof getPrioritisedPortfolioCorrelationDependencies === 'function'
+          ? getPrioritisedPortfolioCorrelationDependencies(3)
+          : [],
+        reviewerScope
+      });
+      const normalisedClusters = (Array.isArray(clusters) ? clusters : [])
+        .map((cluster, index) => {
+          const assessmentIds = Array.isArray(cluster?.assessmentIds)
+            ? cluster.assessmentIds.map(id => String(id || '').trim()).filter(id => assessmentsById[id])
+            : [];
+          return {
+            id: `corr-cluster-${index + 1}`,
+            clusterLabel: String(cluster?.clusterLabel || `Cluster ${index + 1}`).trim(),
+            assessmentIds: Array.from(new Set(assessmentIds)),
+            sharedDependency: String(cluster?.sharedDependency || '').trim(),
+            whyItMatters: String(cluster?.whyItMatters || '').trim(),
+            oneActionThatFixesAll: String(cluster?.oneActionThatFixesAll || '').trim(),
+            flagged: false
+          };
+        })
+        .filter(cluster => cluster.sharedDependency && cluster.assessmentIds.length >= 2)
+        .slice(0, 5);
+      AppState.dashboardCorrelationState = {
+        ...AppState.dashboardCorrelationState,
+        loading: false,
+        loaded: true,
+        assessmentsById,
+        clusters: normalisedClusters,
+        error: ''
+      };
+    } catch (error) {
+      console.error('Portfolio correlation scan failed:', error);
+      AppState.dashboardCorrelationState = {
+        ...AppState.dashboardCorrelationState,
+        loading: false,
+        loaded: true,
+        assessmentsById,
+        clusters: [],
+        error: 'The AI portfolio scan is unavailable right now. Try again in a moment.'
+      };
+    }
+    renderCorrelationBodyToDom();
+  };
+  correlationPanel?.addEventListener('toggle', () => {
+    AppState.dashboardCorrelationState = {
+      ...(AppState.dashboardCorrelationState && typeof AppState.dashboardCorrelationState === 'object' ? AppState.dashboardCorrelationState : {}),
+      open: !!correlationPanel.open
+    };
+    if (correlationPanel.open) loadPortfolioCorrelations();
+  });
+  if (correlationPanel?.open) loadPortfolioCorrelations();
   const portfolioHeatmap = document.getElementById('portfolio-heatmap');
   const portfolioListView = document.getElementById('portfolio-list-view');
   const dashboardListToolbar = document.getElementById('dashboard-list-toolbar');
@@ -1227,6 +2060,80 @@ function renderUserDashboard() {
           return;
         }
         if (id) Router.navigate(`/results/${id}`);
+        return;
+      }
+
+      if (target.classList.contains('dashboard-ai-flag-reassess')) {
+        if (!id) return;
+        const duplicated = duplicateAssessmentToDraft(id);
+        if (!duplicated) {
+          UI.toast('That assessment could not be opened for reassessment right now.', 'warning');
+          return;
+        }
+        if (typeof recordAiFlagFeedback === 'function') {
+          recordAiFlagFeedback({
+            assessmentId: id,
+            outcome: 'acted',
+            signalFamilies: String(target.dataset.signalFamilies || '').split(',').map(item => item.trim()).filter(Boolean)
+          });
+        }
+        UI.toast('Opened as a fresh reassessment draft.', 'success');
+        openDraftWorkspaceRoute();
+        return;
+      }
+
+      if (target.classList.contains('dashboard-ai-flag-dismiss')) {
+        if (!id) return;
+        if (typeof snoozeAssessmentAiFlag === 'function') {
+          snoozeAssessmentAiFlag(id, 30);
+        }
+        if (typeof recordAiFlagFeedback === 'function') {
+          recordAiFlagFeedback({
+            assessmentId: id,
+            outcome: 'dismissed',
+            signalFamilies: String(target.dataset.signalFamilies || '').split(',').map(item => item.trim()).filter(Boolean)
+          });
+        }
+        renderUserDashboard();
+        UI.toast('AI flag dismissed for 30 days.', 'success');
+        return;
+      }
+
+      if (target.classList.contains('dashboard-correlation-flag')) {
+        const clusterId = String(target.dataset.clusterId || '').trim();
+        const state = AppState.dashboardCorrelationState && typeof AppState.dashboardCorrelationState === 'object'
+          ? AppState.dashboardCorrelationState
+          : {};
+        const cluster = (Array.isArray(state.clusters) ? state.clusters : []).find(item => String(item?.id || '') === clusterId);
+        if (!cluster) return;
+        target.disabled = true;
+        const result = typeof flagPortfolioCorrelationClusterForReview === 'function'
+          ? flagPortfolioCorrelationClusterForReview(cluster.assessmentIds, {
+            clusterLabel: cluster.clusterLabel,
+            sharedDependency: cluster.sharedDependency
+          })
+          : { updatedCount: 0 };
+        if (result.updatedCount) {
+          if (typeof recordPortfolioCorrelationAction === 'function') {
+            recordPortfolioCorrelationAction({
+              clusterLabel: cluster.clusterLabel,
+              sharedDependency: cluster.sharedDependency,
+              assessmentIds: cluster.assessmentIds
+            });
+          }
+          AppState.dashboardCorrelationState = {
+            ...state,
+            open: true,
+            clusters: (Array.isArray(state.clusters) ? state.clusters : []).map(item => (
+              item.id === clusterId ? { ...item, flagged: true } : item
+            ))
+          };
+          renderUserDashboard();
+          UI.toast(`Flagged ${result.updatedCount} assessment${result.updatedCount === 1 ? '' : 's'} for review.`, 'success');
+        } else {
+          target.disabled = false;
+          UI.toast('No matching assessments could be flagged right now.', 'warning');
+        }
         return;
       }
 

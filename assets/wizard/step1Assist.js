@@ -178,6 +178,31 @@
     }
   }
 
+  async function generateScenarioMemoryPrecedent({ currentScenario = '', matches = [] } = {}) {
+    if (!LLMService || typeof LLMService.generateScenarioMemoryPrecedent !== 'function') return null;
+    return LLMService.generateScenarioMemoryPrecedent({
+      currentScenario,
+      matches
+    });
+  }
+
+  async function compareScenarioMemory({ currentScenario = '', referenceScenario = null, scenarioLens = null } = {}) {
+    if (!LLMService || typeof LLMService.compareScenarioMemory !== 'function') return null;
+    return LLMService.compareScenarioMemory({
+      currentScenario,
+      referenceScenario,
+      scenarioLens
+    });
+  }
+
+  async function checkScenarioPortfolioOverlap({ scenarioText = '', portfolio = [] } = {}) {
+    if (!LLMService || typeof LLMService.checkScenarioPortfolioOverlap !== 'function') return null;
+    return LLMService.checkScenarioPortfolioOverlap({
+      scenarioText,
+      portfolio
+    });
+  }
+
   async function buildGuidedScenarioDraft() {
     _clearStep1AiUnavailableBanners();
     const settings = getEffectiveSettings();
@@ -196,6 +221,7 @@
     if (preview) {
       preview.textContent = 'Building a scenario draft from the current event, impact, and context…';
     }
+    window.scheduleStep1ScenarioCrossReferenceRefresh?.({ immediate: true, force: true, narrativeOverride: localDraft });
 
     try {
       const aiContext = buildCurrentAIAssistContext({ buId: bu?.id || AppState.draft.buId });
@@ -246,6 +272,7 @@
       document.getElementById('intake-risk-statement').value = finalDraft;
       saveDraft();
       renderWizard1();
+      window.scheduleStep1ScenarioCrossReferenceRefresh?.({ immediate: true, force: true, narrativeOverride: finalDraft });
       mountAiTraceLinks();
       if (result.aiUnavailable) {
         _renderStep1AiUnavailableBanner('guided-preview', buildGuidedScenarioDraft);
@@ -269,6 +296,7 @@
       const seededCount = seedRisksFromScenarioDraft(localDraft, { force: true, replaceGenerated: true });
       saveDraft();
       renderWizard1();
+      window.scheduleStep1ScenarioCrossReferenceRefresh?.({ immediate: true, force: true, narrativeOverride: localDraft });
       if (error?.code === 'LLM_UNAVAILABLE') {
         _renderStep1AiUnavailableBanner('guided-preview', buildGuidedScenarioDraft, error);
       }
@@ -294,6 +322,7 @@
       UI.toast('Add a risk statement or upload a risk register first.', 'warning');
       return;
     }
+    window.scheduleStep1ScenarioCrossReferenceRefresh?.({ immediate: true, force: true, narrativeOverride: assistSeed || narrative });
     if (output) output.innerHTML = UI.wizardAssistSkeleton();
     try {
       const preferredLens = getStep1PreferredScenarioLens(getEffectiveSettings(), AppState.draft, assistSeed || narrative);
@@ -332,6 +361,7 @@
       _appendStep1LlmContext(assistSeed || narrative, result.enhancedStatement || result.draftNarrative || narrative);
       saveDraft();
       renderWizard1();
+      window.scheduleStep1ScenarioCrossReferenceRefresh?.({ immediate: true, force: true, narrativeOverride: result.enhancedStatement || narrative });
       mountAiTraceLinks();
       if (result.aiUnavailable) {
         _renderStep1AiUnavailableBanner('intake-output', runIntakeAssist);
@@ -359,6 +389,7 @@
     }
     const button = document.getElementById('btn-enhance-risk-statement');
     const resetButton = _setStep1ButtonBusy(button, 'Enhancing…');
+    window.scheduleStep1ScenarioCrossReferenceRefresh?.({ immediate: true, force: true, narrativeOverride: assistSeed || narrative });
     if (output) output.innerHTML = UI.wizardAssistSkeleton();
     try {
       const preferredLens = getStep1PreferredScenarioLens(getEffectiveSettings(), AppState.draft, assistSeed || narrative);
@@ -397,6 +428,7 @@
       _appendStep1LlmContext(assistSeed || narrative, result.enhancedStatement || result.draftNarrative || narrative);
       saveDraft();
       renderWizard1();
+      window.scheduleStep1ScenarioCrossReferenceRefresh?.({ immediate: true, force: true, narrativeOverride: result.enhancedStatement || narrative });
       mountAiTraceLinks();
       if (result.aiUnavailable) {
         _renderStep1AiUnavailableBanner('intake-output', enhanceNarrativeWithAI);
@@ -473,6 +505,9 @@
     runIntakeAssist,
     enhanceNarrativeWithAI,
     analyseUploadedRegister,
+    generateScenarioMemoryPrecedent,
+    compareScenarioMemory,
+    checkScenarioPortfolioOverlap,
     renderAIStatusBanner,
     mountAiTraceLinks
   };

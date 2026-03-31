@@ -468,6 +468,42 @@ const ReportPresentation = (() => {
     ].filter(Boolean).join('\n');
   }
 
+  function buildPortfolioBoardBriefSource({
+    scopeLabel = '',
+    completedAssessments = [],
+    topAssessments = [],
+    flaggedAssessments = []
+  } = {}) {
+    const safeCompleted = Array.isArray(completedAssessments) ? completedAssessments : [];
+    const safeTop = Array.isArray(topAssessments) ? topAssessments : [];
+    const safeFlagged = Array.isArray(flaggedAssessments) ? flaggedAssessments : [];
+    const totalAle = safeCompleted.reduce((sum, item) => sum + Number(item?.aleMean || 0), 0);
+    const aboveTolerance = safeCompleted.filter(item => /above tolerance/i.test(String(item?.treatmentStatus || item?.postureLabel || ''))).length;
+    const nearTolerance = safeCompleted.filter(item => /near tolerance|review/i.test(String(item?.treatmentStatus || item?.postureLabel || ''))).length;
+    const currentYear = new Date().getFullYear();
+    const topRiskLines = safeTop.map((item, index) => [
+      `${index + 1}. ${String(item?.title || 'Untitled assessment').trim()}`,
+      `ALE range: ${String(item?.aleRange || 'Not stated').trim()}`,
+      `Treatment status: ${String(item?.treatmentStatus || 'Monitor').trim()}`,
+      `Primary risk category: ${String(item?.primaryRiskCategory || 'General enterprise').trim()}`,
+      `Last run date: ${String(item?.lastRunDate || 'Not stated').trim()}`
+    ].join('\n'));
+    const flaggedLines = safeFlagged.map((item, index) => [
+      `${index + 1}. ${String(item?.title || 'Untitled assessment').trim()}`,
+      `Flag reason: ${String(item?.reason || item?.detail || item?.statusNote || 'Needs fresh review').trim()}`,
+      `Current posture: ${String(item?.treatmentStatus || item?.postureLabel || 'Monitor').trim()}`
+    ].join('\n'));
+    return [
+      scopeLabel ? `Portfolio scope: ${String(scopeLabel).trim()}` : '',
+      `Portfolio size: ${safeCompleted.length} completed assessments`,
+      `Combined expected annual exposure: ${Number(totalAle || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })}`,
+      `Current posture mix: ${aboveTolerance} above tolerance, ${nearTolerance} near tolerance or already in review, ${safeCompleted.length - aboveTolerance - nearTolerance} currently within tolerance`,
+      `Calendar context: ${currentYear} board update for an Abu Dhabi-headquartered technology organisation with global operations and US regulatory exposure`,
+      safeTop.length ? `Top risks by ALE:\n${topRiskLines.join('\n\n')}` : '',
+      safeFlagged.length ? `Flagged or watchlist items:\n${flaggedLines.join('\n\n')}` : ''
+    ].filter(Boolean).join('\n\n');
+  }
+
   const exported = {
     clampNumber,
     cleanExecutiveNarrativeText,
@@ -481,7 +517,8 @@ const ReportPresentation = (() => {
     buildAnalystAdvisorySummary,
     buildFastestReductionLever,
     buildMetricAnchorSentence,
-    buildReviewerBriefSource
+    buildReviewerBriefSource,
+    buildPortfolioBoardBriefSource
   };
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = exported;
