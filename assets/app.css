@@ -117,9 +117,28 @@ code { font-family: var(--font-mono); font-size: 0.875em; background: var(--bg-e
     linear-gradient(180deg, transparent 0%, rgba(16,20,16,0.12) 12%, rgba(16,20,16,0.3) 40%, rgba(16,20,16,0.48) 100%);
 }
 #main-content:focus { outline: none; }
+#main-content {
+  min-height: calc(100vh - var(--app-bar-height));
+  display: flex;
+  flex-direction: column;
+}
+#main-content > :first-child {
+  flex: 1 0 auto;
+}
 #main-content,
 #main-content :is(h1, h2, h3, [data-page-focus]) {
   scroll-margin-top: calc(72px + var(--sp-6));
+}
+.app-platform-version {
+  flex-shrink: 0;
+  padding: 0 var(--sp-6) var(--sp-5);
+  text-align: center;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  opacity: 0.82;
 }
 
 @keyframes pageSurfaceIn {

@@ -1,6 +1,8 @@
 (function(global) {
   'use strict';
 
+  const PLATFORM_VERSION_LABEL = 'Risk Intelligence Engine v0.8';
+
   function getWizardStepNumber(route = '') {
     const value = String(route || '').trim();
     const match = value.match(/^\/wizard\/([1-4])(?:$|[/?#])/);
@@ -79,7 +81,8 @@
 
     setPage(html) {
       const root = document.getElementById('main-content');
-      root.innerHTML = html;
+      root.innerHTML = `${html}
+        <div class="app-platform-version" aria-label="Platform version">${PLATFORM_VERSION_LABEL}</div>`;
       const routePageClass = getRoutePageClass(window.location.hash.replace('#', ''));
       const pageNode = root.querySelector('.page');
       if (pageNode) {
