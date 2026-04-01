@@ -130,6 +130,38 @@ Export options currently include:
 - board note
 - PPTX spec export stub
 
+## Evaluation Harness
+
+The repository now includes a benchmark fixture and two evaluation paths so quality is not judged only by static exact-match rules.
+
+Benchmark fixture:
+- [tests/fixtures/eval/g42_eval_master_repaired.jsonl](./tests/fixtures/eval/g42_eval_master_repaired.jsonl)
+
+Commands:
+- `npm run test:eval:fixture`
+  - validates that the shipped benchmark fixture stays complete and balanced
+- `npm run eval:local -- --mode stub`
+  - runs the current Step 1 scenario-assist path against the fixture using the browser LLM service in fast local stub mode
+- `npm run eval:local -- --mode live`
+  - runs the same harness against live AI using `RC_COMPASS_API_KEY` / `RC_COMPASS_API_URL` / `RC_COMPASS_MODEL`
+- `npm run eval:ai -- --report test-results/eval/local-eval-report.json`
+  - uses a second AI pass as a semantic judge over the generated outputs, so the benchmark is not only a static deterministic score
+- `npm run eval:harvest -- exported-user-state.json`
+  - mines real user interaction exports for high-signal candidate scenarios that should feed the next benchmark revision
+
+Outputs:
+- local deterministic report: `test-results/eval/local-eval-report.json`
+- AI judge report: `test-results/eval/ai-judge-report.json`
+- harvested growth candidates: `test-results/eval/eval-growth-candidates.jsonl`
+
+The intended operating loop is:
+1. run `eval:local`
+2. run `eval:ai` on the failures or a targeted slice
+3. review the overlap between deterministic failures and AI-judge failures
+4. promote only the strongest real-world growth candidates into the fixture after human review
+
+This keeps the benchmark grounded by a stable gold set while still using AI as a semantic checker and user behaviour as a source of new benchmark cases.
+
 ## Product Quality Highlights
 
 Current productization work now includes:

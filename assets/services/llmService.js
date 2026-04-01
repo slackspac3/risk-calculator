@@ -1245,6 +1245,10 @@ Repair the response into the required JSON schema. Preserve scenario-specific me
 
   function _buildRiskContextLinkAnalysis({ classification, riskTitles = [] } = {}) {
     const key = String(classification?.key || 'general').trim();
+    const combinedRiskText = (Array.isArray(riskTitles) ? riskTitles : [])
+      .map((risk) => typeof risk === 'string' ? risk : `${risk?.title || ''} ${risk?.description || ''}`)
+      .join(' ')
+      .toLowerCase();
     if (key === 'ai-model-risk') {
       return 'The main chain is weak AI governance, unsafe or low-trust model behaviour, and conduct or regulatory consequences from how the output is used. Keep only the risks that share that path.';
     }
@@ -1261,6 +1265,15 @@ Repair the response into the required JSON schema. Preserve scenario-specific me
       return 'The main chain is control or obligation failure, management challenge, and regulatory or assurance consequences. Keep only the risks that share that same path.';
     }
     if (key === 'financial') {
+      if (/bankrupt|bankruptcy|insolv|insolven|receivable|bad debt|write[- ]?off|counterparty|credit loss|credit exposure|customer default|client default|collections|collectability|working capital|provisioning|provision/.test(combinedRiskText)) {
+        return 'The main chain is counterparty deterioration, weaker receivables recovery, and bad-debt or cashflow pressure. Keep only the risks that share that same recovery and financial-consequence path.';
+      }
+      if (/liquidity|funding|collateral|cash buffer|cashflow/.test(combinedRiskText)) {
+        return 'The main chain is funding or liquidity pressure, delayed treasury response, and wider financial or confidence consequences. Keep only the risks that belong in that same path.';
+      }
+      if (/payment|invoice|duplicate transfer|treasury|approval/.test(combinedRiskText)) {
+        return 'The main chain is payment or financial-control weakness, direct loss or recovery effort, and follow-on assurance or treasury consequences. Keep only the risks that fit that path.';
+      }
       return 'The main chain is control weakness or manipulation, direct financial loss, and escalation through assurance, legal, or treasury response. Keep only the risks that fit that path.';
     }
     if (key === 'fraud-integrity') {
@@ -1481,6 +1494,335 @@ ${businessUnit.selectedDepartmentContext}` : ''
     return parts.length ? parts.join('\n\n') : '(no additional live BU/function/user context provided)';
   }
 
+  function _getContextResolverPriorPatterns(buId = '', limit = 6) {
+    try {
+      if (typeof getRelevantScenarioPatterns === 'function') {
+        return getRelevantScenarioPatterns(buId, limit);
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  }
+
+  function _buildContextResolverSourceText(source = {}) {
+    return [
+      source?.title,
+      source?.text,
+      source?.summary,
+      source?.scenarioType,
+      source?.geography,
+      source?.topGap,
+      source?.keyRecommendation
+    ].filter(Boolean).join(' ');
+  }
+
+  function _scoreContextApplicability(source = {}, eventCore = {}) {
+    const text = _cleanUserFacingText(_buildContextResolverSourceText(source), { maxSentences: 4 });
+    if (!text) {
+      return {
+        key: source?.key || '',
+        label: source?.label || 'Context source',
+        kind: source?.kind || 'context',
+        status: 'ignore',
+        score: -1,
+        useFor: 'ignore',
+        reason: 'No usable context was available from this source.',
+        text: ''
+      };
+    }
+    const kind = String(source?.kind || 'context').trim() || 'context';
+    if (kind === 'geography') {
+      return {
+        key: source?.key || 'geography',
+        label: source?.label || 'Geography',
+        kind,
+        status: 'applies',
+        score: 10,
+        useFor: 'jurisdiction and operating footprint',
+        reason: 'This sets the scenario jurisdiction and operating footprint, so it always applies.',
+        text
+      };
+    }
+    if (kind === 'regulations') {
+      return {
+        key: source?.key || 'regulations',
+        label: source?.label || 'Applicable regulations',
+        kind,
+        status: 'applies',
+        score: 9,
+        useFor: 'regulatory framing and obligations',
+        reason: 'These define the relevant obligations and should inform regulatory framing, but not change the event type.',
+        text
+      };
+    }
+
+    const expectedLens = _normaliseScenarioHintKey(eventCore?.classification?.key || '');
+    const anchors = Array.isArray(eventCore?.anchors) ? eventCore.anchors : [];
+    const overlap = _countScenarioAnchorOverlap(text, anchors);
+    const classified = _classifyScenario(text, {
+      scenarioLensHint: expectedLens
+    });
+    const sourceLens = _normaliseScenarioHintKey(classified?.key || '');
+    const exactLens = !!sourceLens && sourceLens === expectedLens;
+    const compatibleLens = !sourceLens
+      || sourceLens === 'general'
+      || !expectedLens
+      || _isCompatibleScenarioLens(expectedLens, sourceLens)
+      || _isCompatibleScenarioLens(sourceLens, expectedLens);
+
+    let score = 0;
+    score += Math.min(3, overlap) * 3;
+    if (exactLens) score += 3;
+    else if (compatibleLens) score += 1;
+    else score -= 4;
+    if (kind === 'business-unit' || kind === 'department') score += 1;
+    if (kind === 'prior-pattern') score += overlap ? 2 : 0;
+    if (kind === 'user') score += overlap ? 1 : -1;
+    if (kind === 'guidance') score += overlap ? 1 : -2;
+
+    let status = score >= 5 ? 'applies' : score >= 2 ? 'maybe' : 'ignore';
+    let useFor = 'operating context';
+    if (kind === 'user') {
+      useFor = status === 'ignore' ? 'ignore' : 'wording and operating nuance only';
+    } else if (kind === 'prior-pattern') {
+      useFor = status === 'ignore' ? 'ignore' : 'analogy and precedent only';
+    } else if (kind === 'guidance') {
+      useFor = status === 'ignore' ? 'ignore' : 'workflow shaping only';
+    } else if (kind === 'organisation') {
+      useFor = status === 'ignore' ? 'ignore' : 'background organisation context';
+    } else if (kind === 'business-unit' || kind === 'department') {
+      useFor = status === 'ignore' ? 'ignore' : 'operating and control context';
+    }
+
+    let reason = '';
+    if (!compatibleLens && overlap === 0) {
+      reason = 'This context points to a different domain than the current scenario and has no direct event overlap, so it is excluded.';
+    } else if (overlap >= 2) {
+      reason = `It shares ${overlap} strong event anchor${overlap === 1 ? '' : 's'} with the current scenario and supports the current event path.`;
+    } else if (overlap === 1) {
+      reason = 'It has limited direct overlap with the current scenario, so it can refine context but should not redefine the event.';
+    } else if (kind === 'user') {
+      reason = 'This can help with wording or working nuance, but it should not determine scenario type on its own.';
+    } else if (kind === 'prior-pattern') {
+      reason = 'This is useful as precedent only if it clearly matches the current event path.';
+    } else if (compatibleLens) {
+      reason = 'This context is directionally compatible, but the current scenario text remains the primary source of truth.';
+    } else {
+      reason = 'This context does not materially support the current event path and is therefore ignored.';
+    }
+
+    return {
+      key: source?.key || kind,
+      label: source?.label || 'Context source',
+      kind,
+      status,
+      score,
+      useFor,
+      reason,
+      lens: sourceLens,
+      overlap,
+      text
+    };
+  }
+
+  function _buildScenarioContextResolution({
+    narrative = '',
+    guidedInput = {},
+    businessUnit = null,
+    adminSettings = {},
+    geography = '',
+    applicableRegulations = [],
+    priorPatterns = [],
+    scenarioLensHint = ''
+  } = {}) {
+    const classification = _classifyScenario(narrative, {
+      guidedInput,
+      businessUnit,
+      scenarioLensHint
+    });
+    const lens = _buildScenarioLens(classification);
+    const eventCore = {
+      classification,
+      lens,
+      narrative: _cleanUserFacingText(_stripScenarioLeadIns(narrative || ''), { maxSentences: 4 }),
+      anchors: _extractGuidedDraftAnchors({ guidedInput }, narrative),
+      primaryDriver: String(classification?.primaryDriver || '').trim(),
+      eventPath: String(classification?.eventPath || '').trim(),
+      effect: String(guidedInput?.impact || classification?.effect || '').trim()
+    };
+    const sources = [
+      {
+        key: 'organisation',
+        label: 'Organisation context',
+        kind: 'organisation',
+        text: [
+          adminSettings?.inheritedContextSummary,
+          adminSettings?.companyContextProfile,
+          adminSettings?.companyStructureContext
+        ].filter(Boolean).join(' ')
+      },
+      {
+        key: 'business_unit',
+        label: 'Business unit context',
+        kind: 'business-unit',
+        text: [
+          businessUnit?.name ? `Business unit: ${businessUnit.name}` : '',
+          businessUnit?.contextSummary,
+          businessUnit?.notes,
+          Array.isArray(businessUnit?.criticalServices) && businessUnit.criticalServices.length
+            ? `Critical services: ${businessUnit.criticalServices.join(', ')}`
+            : '',
+          Array.isArray(businessUnit?.dataTypes) && businessUnit.dataTypes.length
+            ? `Data types: ${businessUnit.dataTypes.join(', ')}`
+            : ''
+        ].filter(Boolean).join(' ')
+      },
+      {
+        key: 'department',
+        label: 'Function context',
+        kind: 'department',
+        text: [
+          adminSettings?.departmentContext,
+          businessUnit?.selectedDepartmentContext
+        ].filter(Boolean).join(' ')
+      },
+      {
+        key: 'user',
+        label: 'User context',
+        kind: 'user',
+        text: [
+          adminSettings?.userProfileSummary,
+          adminSettings?.personalContextSummary
+        ].filter(Boolean).join(' ')
+      },
+      {
+        key: 'guidance',
+        label: 'AI guidance',
+        kind: 'guidance',
+        text: [
+          businessUnit?.aiGuidance,
+          adminSettings?.aiInstructions
+        ].filter(Boolean).join(' ')
+      },
+      {
+        key: 'geography',
+        label: 'Geography',
+        kind: 'geography',
+        text: String(geography || businessUnit?.geography || adminSettings?.geography || '').trim()
+      },
+      {
+        key: 'regulations',
+        label: 'Applicable regulations',
+        kind: 'regulations',
+        text: (Array.isArray(applicableRegulations) ? applicableRegulations : []).map(String).filter(Boolean).join(', ')
+      },
+      ...((Array.isArray(priorPatterns) ? priorPatterns : []).slice(0, 3).map((pattern, index) => ({
+        key: `prior_pattern_${index + 1}`,
+        label: `Prior pattern ${index + 1}`,
+        kind: 'prior-pattern',
+        title: pattern?.scenarioTitle || pattern?.scenarioType || 'Prior scenario',
+        summary: `Geography: ${pattern?.geography || 'unknown'}; posture: ${pattern?.posture || 'unknown'}; confidence: ${pattern?.confidenceLabel || 'unknown'}; recommendation: ${pattern?.keyRecommendation || 'none recorded'}`,
+        scenarioType: pattern?.scenarioType || '',
+        text: ''
+      })))
+    ].map((source) => _scoreContextApplicability(source, eventCore));
+
+    const applies = sources.filter(source => source.status === 'applies');
+    const maybe = sources.filter(source => source.status === 'maybe');
+    const ignore = sources.filter(source => source.status === 'ignore');
+    const pickBucketText = (kind) => {
+      const candidates = applies
+        .concat(maybe.filter(source => kind === 'user' || source.kind !== 'guidance'))
+        .filter(source => source.kind === kind)
+        .map(source => source.text)
+        .filter(Boolean);
+      return candidates.length ? _truncateText(candidates.join('\n\n'), 1400) : '(none approved for this scenario)';
+    };
+
+    return {
+      classification,
+      lens,
+      eventCore,
+      sources,
+      applies,
+      maybe,
+      ignore,
+      approvedContext: {
+        organisation: pickBucketText('organisation'),
+        businessUnit: pickBucketText('business-unit'),
+        department: pickBucketText('department'),
+        user: pickBucketText('user'),
+        guidance: pickBucketText('guidance'),
+        geography: pickBucketText('geography'),
+        regulations: pickBucketText('regulations'),
+        priorPatterns: pickBucketText('prior-pattern')
+      }
+    };
+  }
+
+  function _buildContextResolutionPromptBlock(resolution = {}) {
+    const eventCore = resolution?.eventCore || {};
+    const classification = resolution?.classification || {};
+    const lens = resolution?.lens || _buildScenarioLens(classification);
+    const formatSources = (items = []) => items.length
+      ? items.map((item) => `- ${item.label}: ${_truncateText(item.text || '', 260)} | use for: ${item.useFor} | reason: ${item.reason}`).join('\n')
+      : '- (none)';
+    return [
+      'Scenario core:',
+      `- Primary lens: ${lens?.label || classification?.scenarioType || 'General enterprise risk'}`,
+      `- Event path: ${eventCore?.eventPath || classification?.eventPath || 'Unknown'}`,
+      `- Primary driver: ${eventCore?.primaryDriver || classification?.primaryDriver || 'Unknown'}`,
+      `- Main consequence: ${eventCore?.effect || classification?.effect || 'Unknown'}`,
+      eventCore?.anchors?.length ? `- Anchor terms: ${eventCore.anchors.slice(0, 8).join(', ')}` : '',
+      '',
+      'Context applicability:',
+      'APPLIES:',
+      formatSources(resolution?.applies || []),
+      '',
+      'MAYBE:',
+      formatSources(resolution?.maybe || []),
+      '',
+      'IGNORE:',
+      formatSources(resolution?.ignore || []),
+      '',
+      'Approved hierarchical context for generation:',
+      `ORG_CONTEXT:\n${resolution?.approvedContext?.organisation || '(none approved for this scenario)'}`,
+      `BU_CONTEXT:\n${resolution?.approvedContext?.businessUnit || '(none approved for this scenario)'}`,
+      `FUNCTION_CONTEXT:\n${resolution?.approvedContext?.department || '(none approved for this scenario)'}`,
+      `USER_CONTEXT:\n${resolution?.approvedContext?.user || '(none approved for this scenario)'}`,
+      `GUIDANCE_CONTEXT:\n${resolution?.approvedContext?.guidance || '(none approved for this scenario)'}`,
+      `GEOGRAPHY_SCOPE:\n${resolution?.approvedContext?.geography || '(none approved for this scenario)'}`,
+      `REGULATORY_SCOPE:\n${resolution?.approvedContext?.regulations || '(none approved for this scenario)'}`,
+      `PRIOR_MATCHING_PATTERNS:\n${resolution?.approvedContext?.priorPatterns || '(none approved for this scenario)'}`,
+      '',
+      'Use only APPLIES items to determine scenario type and candidate risks. MAYBE items may refine wording or workflow guidance, but must not change the event domain. IGNORE items must not appear in the draft, summary, or risk shortlist unless directly evidenced by the scenario text.'
+    ].filter(Boolean).join('\n');
+  }
+
+  function _isScenarioTextCoherent(text = '', {
+    seedNarrative = '',
+    guidedInput = {},
+    classification = {}
+  } = {}) {
+    const cleaned = _cleanUserFacingText(text, { maxSentences: 4 });
+    if (!cleaned) return false;
+    if (_looksGenericRiskContextCopy(cleaned)) return false;
+    const anchors = _extractGuidedDraftAnchors({ guidedInput }, seedNarrative);
+    const overlap = _countScenarioAnchorOverlap(cleaned, anchors);
+    const expectedLens = _normaliseScenarioHintKey(classification?.key || '');
+    const actualLens = _classifyScenario(cleaned, {
+      guidedInput,
+      scenarioLensHint: expectedLens
+    }).key;
+    const lensCompatible = !expectedLens
+      || !actualLens
+      || actualLens === expectedLens
+      || _isCompatibleScenarioLens(expectedLens, actualLens);
+    const minOverlap = anchors.length >= 5 ? 2 : anchors.length ? 1 : 0;
+    return lensCompatible && overlap >= minOverlap;
+  }
+
   function _withEvidenceMeta(result = {}, evidenceMeta = null) {
     const meta = evidenceMeta || {};
     const normalised = {
@@ -1603,7 +1945,8 @@ ${businessUnit.selectedDepartmentContext}` : ''
       options.businessUnit?.contextSummary,
       options.businessUnit?.notes
     ].filter(Boolean).join(' ');
-    const n = [narrative, guidedText, businessContext].filter(Boolean).join(' ').toLowerCase();
+    const directScenarioText = [narrative, guidedText].filter(Boolean).join(' ').trim();
+    const n = String(directScenarioText || businessContext || '').toLowerCase();
     const hintKey = _normaliseScenarioHintKey(options.scenarioLensHint);
 
     const isRansomware = n.includes('ransomware') || n.includes('encrypt') || n.includes('ransom');
@@ -2174,6 +2517,42 @@ ${businessUnit.selectedDepartmentContext}` : ''
     )).filter(token => token.length > 4 && !stopWords.has(token));
   }
 
+  function _countScenarioAnchorOverlap(text = '', anchors = []) {
+    const haystack = String(text || '').toLowerCase();
+    return (Array.isArray(anchors) ? anchors : []).filter(token => token && haystack.includes(token)).length;
+  }
+
+  function _filterScenarioRelevantRisks(risks = [], {
+    seedNarrative = '',
+    guidedInput = {},
+    classification = {},
+    fallbackRisks = []
+  } = {}) {
+    const expectedLens = _normaliseScenarioHintKey(classification?.key || '');
+    const anchors = _extractGuidedDraftAnchors({ guidedInput }, seedNarrative);
+    const candidateRisks = _normaliseRiskCards(risks);
+    const fallback = _normaliseRiskCards(fallbackRisks);
+    const filtered = candidateRisks.filter((risk) => {
+      const riskText = `${risk?.title || ''} ${risk?.description || ''}`;
+      const riskLens = _classifyScenario(riskText, {
+        guidedInput,
+        scenarioLensHint: expectedLens
+      }).key;
+      const lensCompatible = !riskLens
+        || riskLens === expectedLens
+        || _isCompatibleScenarioLens(expectedLens, riskLens);
+      const anchorCompatible = !anchors.length || _countScenarioAnchorOverlap(riskText, anchors) > 0;
+      return lensCompatible && anchorCompatible;
+    });
+    if (filtered.length >= Math.max(1, Math.min(2, candidateRisks.length || 0))) {
+      return filtered;
+    }
+    const merged = _normaliseRiskCards([...filtered, ...fallback]);
+    if (merged.length) return merged;
+    if (fallback.length) return fallback;
+    return candidateRisks;
+  }
+
   function _isCompatibleScenarioLens(expected = '', actual = '') {
     const expectedKey = _normaliseScenarioHintKey(expected);
     const actualKey = _normaliseScenarioHintKey(actual);
@@ -2322,11 +2701,20 @@ ${businessUnit.selectedDepartmentContext}` : ''
     const risks = _normaliseRiskCards(Array.isArray(result?.risks) && result.risks.length
       ? result.risks
       : (fallbackScenarioExpansion?.riskTitles || []));
+    const narrativeAnchors = _extractGuidedDraftAnchors({ guidedInput: input.guidedInput }, seedNarrative || draftNarrative);
     const alignedRiskCount = risks.filter(risk => {
-      const riskLens = _inferLensFromRiskCard(risk);
-      return !riskLens
+      const riskText = `${risk?.title || ''} ${risk?.description || ''}`;
+      const riskLens = _inferLensFromRiskCard(risk)
+        || _classifyScenario(riskText, {
+          guidedInput: input.guidedInput,
+          businessUnit: input.businessUnit,
+          scenarioLensHint: expectedLens
+        }).key;
+      const lensCompatible = !riskLens
         || _isCompatibleScenarioLens(resolvedLens.key, riskLens)
         || (Array.isArray(resolvedLens.secondaryKeys) && resolvedLens.secondaryKeys.some(key => key === riskLens || _isCompatibleScenarioLens(key, riskLens)));
+      const anchorCompatible = !narrativeAnchors.length || _countScenarioAnchorOverlap(riskText, narrativeAnchors) > 0;
+      return lensCompatible && anchorCompatible;
     }).length;
     const benchmarkRefs = Array.isArray(result?.benchmarkReferences) ? result.benchmarkReferences : [];
     const benchmarkSignalCount = [
@@ -2363,7 +2751,7 @@ ${businessUnit.selectedDepartmentContext}` : ''
         label: 'Shortlist fit',
         status: risks.length && alignedRiskCount >= Math.max(1, Math.ceil(risks.length / 2)) ? 'ok' : 'warning',
         detail: risks.length
-          ? `${alignedRiskCount} of ${risks.length} suggested risks align with the current scenario lens${secondaryLabels.length ? ' or its secondary facets' : ''}.`
+          ? `${alignedRiskCount} of ${risks.length} suggested risks stay aligned with the current event path and scenario lens${secondaryLabels.length ? ' or its secondary facets' : ''}.`
           : 'No candidate risks were returned, so the shortlist falls back to lens-aware local seeds.'
       },
       {
@@ -2725,10 +3113,18 @@ ${businessUnit.selectedDepartmentContext}` : ''
    */
   async function generateScenarioAndInputs(narrative, buContext, retrievedDocs, benchmarkCandidates = [], options = {}) {
     const aiUnavailable = isUsingStub();
-    const classification = _classifyScenario(narrative, {
+    const priorPatterns = _getContextResolverPriorPatterns(buContext?.id || '');
+    const contextResolution = _buildScenarioContextResolution({
+      narrative,
+      guidedInput: {},
       businessUnit: buContext,
+      adminSettings: buContext,
+      geography: buContext?.geography,
+      applicableRegulations: buContext?.regulatoryTags || [],
+      priorPatterns,
       scenarioLensHint: buContext?.scenarioLensHint
     });
+    const classification = contextResolution.classification;
     if (aiUnavailable) {
       await new Promise(r => setTimeout(r, 2200 + Math.random() * 800));
     }
@@ -2785,29 +3181,16 @@ Also return a 'fieldRationale' object with a one-sentence justification for each
         const evidenceMeta = _buildEvidenceMeta({ citations: retrievedDocs, businessUnit: buContext, geography: buContext?.geography, applicableRegulations: buContext?.regulatoryTags || [], userProfile: buContext?.userProfileSummary, organisationContext: buContext?.companyStructureContext });
         const userPrompt = `Risk narrative: ${narrative}
 Scenario taxonomy hint: ${classification.scenarioType} | ${classification.eventPath} | ${classification.effect}
-Primary lens hint: ${_normaliseScenarioHintKey(buContext?.scenarioLensHint) || classification.key}
+Primary lens hint: ${_normaliseScenarioHintKey(contextResolution?.lens?.key || buContext?.scenarioLensHint) || classification.key}
 If the scenario clearly spans another domain as a secondary aspect, include up to 2 secondary lens keys. Do not let a profile hint override an explicit primary event signal.
 BU: ${buContext?.name || 'Unknown'}
 Data types: ${(buContext?.dataTypes || []).join(', ')}
 Regulatory tags: ${(buContext?.regulatoryTags || []).join(', ')}
 Critical services: ${(buContext?.criticalServices || []).join(', ')}
 Geography: ${buContext?.geography || 'Unknown'}
-BU context summary: ${buContext?.contextSummary || buContext?.notes || '(none)'}
-BU-specific AI guidance: ${buContext?.aiGuidance || '(none)'}
 Benchmark strategy: ${buContext?.benchmarkStrategy || 'Prefer GCC and UAE references, then fall back to best global data with clear explanation.'}
-Company context profile: ${buContext?.companyContextProfile || '(none)'}
-User profile context:
-${buContext?.userProfileSummary || '(none)'}
-Organisation structure context:
-${buContext?.companyStructureContext || '(none)'}
-Live scoped context:
-${_buildContextPromptBlock(
-  buContext,
-  buContext,
-  (typeof getRelevantScenarioPatterns === 'function'
-    ? getRelevantScenarioPatterns(buContext?.id || '')
-    : [])
-)}
+Context applicability resolution:
+${_buildContextResolutionPromptBlock(contextResolution)}
 Relevant citations:
 ${_buildCitationPromptBlock(retrievedDocs)}
 
@@ -2863,10 +3246,20 @@ Treat the primary lens hint as the leading domain for this scenario unless the n
           });
           const cleanedTitle = String(parsed.scenarioTitle || '').trim();
           const keepFallbackClassification = classification.key === 'identity' && /cloud|misconfig/i.test(cleanedTitle);
+          const titleCoherent = !cleanedTitle || _isScenarioTextCoherent(cleanedTitle, {
+            seedNarrative: narrative,
+            guidedInput: {},
+            classification
+          });
           return _decorateAiResult(_withEvidenceMeta({
             ...fallback,
             ...parsed,
-            scenarioTitle: _cleanUserFacingText(keepFallbackClassification ? fallback.scenarioTitle : (cleanedTitle || fallback.scenarioTitle), { maxSentences: 1, stripTrailingPeriod: true }),
+            scenarioTitle: _cleanUserFacingText(
+              keepFallbackClassification || !titleCoherent
+                ? fallback.scenarioTitle
+                : (cleanedTitle || fallback.scenarioTitle),
+              { maxSentences: 1, stripTrailingPeriod: true }
+            ),
             scenarioLens: _normaliseScenarioLens(parsed.scenarioLens, fallback.scenarioLens),
             structuredScenario: (() => {
               const mergedStructured = {
@@ -2909,10 +3302,11 @@ Treat the primary lens hint as the leading domain for this scenario unless the n
               }
             },
             recommendations: _normaliseRiskCards((parsed.recommendations || fallback.recommendations || []).map((rec) => ({ title: rec.title, category: 'Recommendation', description: rec.why, regulations: [], impact: rec.impact }))).map((rec) => ({ title: rec.title, why: rec.description, impact: rec.impact || '' })),
-            citations: retrievedDocs
+            citations: retrievedDocs,
+            contextResolution
           }, evidenceMeta), evidenceMeta, {
             contentFields: ['scenarioTitle', 'benchmarkBasis'],
-            fallbackUsed: false
+            fallbackUsed: !titleCoherent
           });
         }
       } catch (e) {
@@ -3045,11 +3439,18 @@ Return only the refined scenario narrative text.`;
 
   async function enhanceRiskContext(input) {
     const aiUnavailable = isUsingStub();
-    const classification = _classifyScenario(input.riskStatement || input.registerText || '', {
+    const priorPatterns = _getContextResolverPriorPatterns(input.businessUnit?.id || '');
+    const contextResolution = _buildScenarioContextResolution({
+      narrative: input.riskStatement || input.registerText || '',
       guidedInput: input.guidedInput,
       businessUnit: input.businessUnit,
+      adminSettings: input.adminSettings,
+      geography: input.geography,
+      applicableRegulations: input.applicableRegulations,
+      priorPatterns,
       scenarioLensHint: input.scenarioLensHint
     });
+    const classification = contextResolution.classification;
     const fallbackScenarioExpansion = _buildScenarioExpansion({ ...input, classification });
     if (aiUnavailable) {
       await new Promise(r => setTimeout(r, 1400 + Math.random() * 600));
@@ -3096,31 +3497,18 @@ ${outputSchema}`;
 - produce concise but concrete candidate risks that a user can choose from
 - For each risk, include a "confidence" field: "high", "medium", or "low". High = directly evidenced by the scenario description and retrieved docs. Medium = reasonably inferred from the scenario context. Low = potentially relevant but speculative given the current information.
 - classify the scenario using credible enterprise risk taxonomy across strategic, operational, cyber, AI/model risk, data governance/privacy, third-party, regulatory, financial, fraud/integrity, ESG, compliance, legal/contract, geopolitical, supply chain, procurement, business continuity, physical security, OT resilience, people/workforce, investment/JV, transformation delivery, and HSE lenses; do not force a scenario into cyber if the primary driver is strategic, operational, governance, people, or market-related
+- the user's described event path wins over business-unit profile text, regulatory tags, and generic compliance language; do not recast a financial, supplier, continuity, or operational event as compliance unless the event itself is a compliance breach
+- use the context applicability resolution below as binding guidance: APPLIES items can shape domain and risk selection, MAYBE items can refine wording, and IGNORE items must not steer the classification or shortlist
 
 Business unit: ${input.businessUnit?.name || 'Unknown'}
 Geography: ${input.geography || 'Unknown'}
-Primary lens hint: ${_normaliseScenarioHintKey(input.scenarioLensHint) || classification.key}
+Primary lens hint: ${_normaliseScenarioHintKey(contextResolution?.lens?.key || input.scenarioLensHint) || classification.key}
 If the scenario clearly spans another domain as a secondary aspect, include up to 2 secondary lens keys. Do not let a profile hint override an explicit primary event signal.
-BU context summary: ${input.businessUnit?.contextSummary || input.businessUnit?.notes || '(none)'}
-BU-specific AI guidance: ${input.businessUnit?.aiGuidance || '(none)'}
 Applicable regulations: ${(input.applicableRegulations || []).join(', ')}
 Guided intake: ${JSON.stringify(input.guidedInput || {})}
-AI guidance: ${input.adminSettings?.aiInstructions || ''}
 Benchmark strategy: ${input.adminSettings?.benchmarkStrategy || ''}
-Admin context summary: ${input.adminSettings?.adminContextSummary || ''}
-Company context profile: ${input.adminSettings?.companyContextProfile || ''}
-User profile context:
-${input.adminSettings?.userProfileSummary || '(none)'}
-Organisation structure context:
-${input.adminSettings?.companyStructureContext || '(none)'}
-Live scoped context:
-${_buildContextPromptBlock(
-  input.adminSettings,
-  input.businessUnit,
-  (typeof getRelevantScenarioPatterns === 'function'
-    ? getRelevantScenarioPatterns(input.businessUnit?.id || '')
-    : [])
-)}
+Context applicability resolution:
+${_buildContextResolutionPromptBlock(contextResolution)}
 Register metadata: ${input.registerMeta ? JSON.stringify(input.registerMeta) : '(none)'}
 
 Risk statement:
@@ -3165,26 +3553,75 @@ Treat the primary lens hint as the leading domain for this scenario unless the n
             ),
             workflowGuidance: _normaliseGuidance(parsed.workflowGuidance),
             benchmarkBasis: _normaliseBenchmarkBasis(parsed.benchmarkBasis || 'Use FAIR-aligned assumptions, test them against control evidence, and prefer local regulatory or operational comparators where credible before falling back to mature global incident patterns.'),
-            risks: _normaliseRiskCards(Array.isArray(parsed.risks) && parsed.risks.length ? parsed.risks : fallbackScenarioExpansion.riskTitles),
+            risks: _filterScenarioRelevantRisks(
+              Array.isArray(parsed.risks) && parsed.risks.length ? parsed.risks : fallbackScenarioExpansion.riskTitles,
+              {
+                seedNarrative: input.riskStatement || input.registerText || '',
+                guidedInput: input.guidedInput,
+                classification,
+                fallbackRisks: fallbackScenarioExpansion.riskTitles
+              }
+            ),
             regulations: Array.from(new Set((parsed.regulations || []).map(String).filter(Boolean))),
-            citations: input.citations || []
+            citations: input.citations || [],
+            contextResolution
           };
           const candidateAlignment = _buildAiAlignment(input, candidateResult, {
             classification,
             seedNarrative: input.riskStatement || input.registerText || '',
             fallbackScenarioExpansion
           });
-          const coherenceFallback = candidateAlignment.score < 65;
+          const summaryCoherent = _isScenarioTextCoherent(candidateResult.summary, {
+            seedNarrative: input.riskStatement || input.registerText || '',
+            guidedInput: input.guidedInput,
+            classification
+          });
+          const linkAnalysisCoherent = _isScenarioTextCoherent(candidateResult.linkAnalysis, {
+            seedNarrative: input.riskStatement || input.registerText || '',
+            guidedInput: input.guidedInput,
+            classification
+          });
+          const hasCriticalAlignmentIssue = Array.isArray(candidateAlignment.checks)
+            && candidateAlignment.checks.some((check) => (
+              check?.status !== 'ok'
+              && ['Primary lens', 'Scenario draft', 'Shortlist fit'].includes(String(check?.label || ''))
+            ));
+          const coherenceFallback = candidateAlignment.score < 65 || hasCriticalAlignmentIssue || !summaryCoherent || !linkAnalysisCoherent;
+          const coherentRiskTitles = _filterScenarioRelevantRisks(candidateResult.risks, {
+            seedNarrative: input.riskStatement || input.registerText || '',
+            guidedInput: input.guidedInput,
+            classification,
+            fallbackRisks: fallbackScenarioExpansion.riskTitles
+          });
+          const coherentSummary = (!summaryCoherent || coherenceFallback)
+            ? _buildRiskContextSummary({
+                classification,
+                asset: input.guidedInput?.asset || '',
+                impact: input.guidedInput?.impact || '',
+                riskTitles: coherentRiskTitles
+              })
+            : candidateResult.summary;
+          const coherentLinkAnalysis = (!linkAnalysisCoherent || coherenceFallback)
+            ? _buildRiskContextLinkAnalysis({
+                classification,
+                riskTitles: coherentRiskTitles
+              })
+            : candidateResult.linkAnalysis;
           const finalResult = coherenceFallback
             ? {
                 ...candidateResult,
                 draftNarrative: fallbackScenarioExpansion.scenarioExpansion,
-                summary: fallbackScenarioExpansion.summary,
-                linkAnalysis: _buildRiskContextLinkAnalysis({ classification, riskTitles: fallbackScenarioExpansion.riskTitles }),
+                summary: coherentSummary,
+                linkAnalysis: coherentLinkAnalysis,
                 scenarioLens: _buildScenarioLens(classification),
-                risks: _normaliseRiskCards(fallbackScenarioExpansion.riskTitles)
+                risks: coherentRiskTitles
               }
-            : candidateResult;
+            : {
+                ...candidateResult,
+                summary: coherentSummary,
+                linkAnalysis: coherentLinkAnalysis,
+                risks: coherentRiskTitles
+              };
           finalResult.aiAlignment = _buildAiAlignment(input, finalResult, {
             classification,
             seedNarrative: input.riskStatement || input.registerText || '',
