@@ -264,6 +264,100 @@ test('stale draft autosave shows a recovery dialog instead of silently overwriti
   });
 });
 
+test('wizard step 1 shows per-risk AI rating controls for generated risks and saves the chosen score', async ({ page }) => {
+  const seededUserSettings = buildSeededUserSettings({
+    userProfile: {
+      department: 'Operations',
+      focusAreas: ['Resilience']
+    }
+  });
+  await seedAuthenticatedUser(page, { userSettings: seededUserSettings });
+  await mockSharedApis(page, {
+    settings: {
+      geography: 'United Arab Emirates',
+      applicableRegulations: ['ISO 22301'],
+      entityContextLayers: [],
+      companyStructure: [],
+      aiInstructions: 'Use British English.',
+      benchmarkStrategy: 'Prefer GCC and UAE benchmark references.',
+      typicalDepartments: ['Operations']
+    },
+    userState: {
+      userSettings: seededUserSettings,
+      assessments: [],
+      learningStore: {
+        templates: {},
+        scenarioPatterns: [],
+        analystSignals: { keptRisks: [], removedRisks: [], narrativeEdits: [], rerunDeltas: [] },
+        aiFeedback: { events: [] }
+      },
+      draft: {
+        id: 'draft-step1-risk-feedback',
+        scenarioTitle: 'Operational outage scenario',
+        narrative: 'Unscheduled IT system downtime due to aging infrastructure may cause critical operational disruption.',
+        guidedInput: {
+          event: 'Unscheduled IT system downtime due to aging infrastructure may cause critical operational disruption',
+          asset: 'Cloud System',
+          cause: 'Human Error',
+          impact: 'Customer Impact, Reputational Loss',
+          urgency: 'Critical'
+        },
+        scenarioLens: {
+          key: 'operational',
+          label: 'Operational',
+          functionKey: 'operations'
+        },
+        llmAssisted: true,
+        aiQualityState: 'ai',
+        guidedDraftSource: 'ai',
+        riskCandidates: [
+          {
+            id: 'risk-ops-1',
+            title: 'Business continuity and recovery failure',
+            category: 'Business Continuity',
+            source: 'ai',
+            description: 'Recovery plans may not restore the affected service inside the required operating window.'
+          },
+          {
+            id: 'risk-cy-1',
+            title: 'Cyber compromise of critical platforms or data',
+            category: 'Cyber',
+            source: 'ai',
+            description: 'Shown here only to verify the per-risk feedback control is attached to AI-generated suggestions.'
+          }
+        ],
+        selectedRiskIds: ['risk-ops-1'],
+        applicableRegulations: ['ISO 22301']
+      },
+      _meta: { revision: 1, updatedAt: Date.now() }
+    }
+  });
+  await page.route('**/api/org-intelligence', async route => {
+    const method = route.request().method();
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(method === 'GET'
+        ? {
+            patterns: [],
+            calibration: { updatedAt: 0, scenarioTypes: {} },
+            decisions: [],
+            coverageMap: { updatedAt: 0, scenarioTypes: {} },
+            feedback: { updatedAt: 0, events: [] }
+          }
+        : { ok: true, feedback: { updatedAt: Date.now(), events: [] } })
+    });
+  });
+
+  await expectNoClientCrashOnRoute(page, '/#/wizard/1', async () => {
+    await expect(page.getByText('Business continuity and recovery failure')).toBeVisible();
+    const stars = page.locator('.step1-risk-feedback__star[data-risk-feedback-id="risk-ops-1"]');
+    await expect(stars).toHaveCount(5);
+    await stars.nth(3).click();
+    await expect(page.locator('#risk-feedback-status-risk-ops-1')).toContainText('Saved');
+  });
+});
+
 test('draft recovery restores the latest local draft after refresh', async ({ page }) => {
   const seededUserSettings = {
     userProfile: {

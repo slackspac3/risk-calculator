@@ -149,7 +149,10 @@ const OrgIntelligenceService = (() => {
   }
 
   function _normaliseFeedbackTarget(value = '') {
-    return _safeText(value, 40).toLowerCase() === 'shortlist' ? 'shortlist' : 'draft';
+    const raw = _safeText(value, 40).toLowerCase();
+    if (raw === 'shortlist') return 'shortlist';
+    if (raw === 'risk' || raw === 'risk-card' || raw === 'risk_card') return 'risk';
+    return 'draft';
   }
 
   function _normaliseFeedbackTitleList(list = [], limit = 10, max = 160) {
@@ -186,6 +189,11 @@ const OrgIntelligenceService = (() => {
       reasons: Array.from(new Set((Array.isArray(event.reasons) ? event.reasons : []).map(_normaliseReasonTag).filter(Boolean))).slice(0, 6),
       scenarioFingerprint: _safeText(event.scenarioFingerprint, 260),
       outputFingerprint: _safeText(event.outputFingerprint, 260),
+      riskId: _safeText(event.riskId, 120),
+      riskTitle: _safeText(event.riskTitle, 180),
+      riskCategory: _safeText(event.riskCategory, 90),
+      riskSource: _safeText(event.riskSource, 40),
+      selectedInAssessment: event.selectedInAssessment === true ? true : event.selectedInAssessment === false ? false : null,
       shownRiskTitles: _normaliseFeedbackTitleList(event.shownRiskTitles, 10),
       keptRiskTitles: _normaliseFeedbackTitleList(event.keptRiskTitles, 10),
       removedRiskTitles: _normaliseFeedbackTitleList(event.removedRiskTitles, 10),
@@ -589,6 +597,7 @@ const OrgIntelligenceService = (() => {
       runtimeCounts: { live_ai: 0, fallback: 0, local: 0 },
       draft: { count: 0, totalScore: 0, averageScore: 0, reasons: {} },
       shortlist: { count: 0, totalScore: 0, averageScore: 0, reasons: {} },
+      risk: { count: 0, totalScore: 0, averageScore: 0, reasons: {} },
       riskWeights: {},
       docWeights: {},
       docTagWeights: {},
@@ -620,7 +629,11 @@ const OrgIntelligenceService = (() => {
       profile.runtimeCounts[runtimeMode] = Number(profile.runtimeCounts[runtimeMode] || 0) + 1;
       if (runtimeMode === 'live_ai') profile.liveAiEvents += 1;
       if (event.submittedBy) submitters.add(event.submittedBy);
-      const bucket = event.target === 'shortlist' ? profile.shortlist : profile.draft;
+      const bucket = event.target === 'shortlist'
+        ? profile.shortlist
+        : event.target === 'risk'
+          ? profile.risk
+          : profile.draft;
       bucket.count += 1;
       bucket.totalScore += Number(event.score || 0);
       (Array.isArray(event.reasons) ? event.reasons : []).forEach(reason => {
@@ -634,6 +647,18 @@ const OrgIntelligenceService = (() => {
       });
       if (runtimeMode !== 'live_ai') return;
       const baseDelta = _feedbackScoreDelta(event.score);
+      if (event.target === 'risk') {
+        const riskTitle = _safeText(event.riskTitle, 180);
+        if (riskTitle) {
+          _incrementWeightedMapValue(profile.riskWeights, riskTitle, baseDelta * 1.5);
+          if (event.selectedInAssessment === true) {
+            _incrementWeightedMapValue(profile.riskWeights, riskTitle, 0.3 + Math.max(0, baseDelta) * 0.5);
+          } else if (event.selectedInAssessment === false) {
+            _incrementWeightedMapValue(profile.riskWeights, riskTitle, -0.3 + Math.min(0, baseDelta) * 0.5);
+          }
+        }
+        return;
+      }
       const draftWeight = event.target === 'draft' ? 0.9 : 0.45;
       const shortlistWeight = event.target === 'shortlist' ? 0.95 : 0.3;
       (Array.isArray(event.citations) ? event.citations : []).forEach((citation) => {
@@ -662,6 +687,9 @@ const OrgIntelligenceService = (() => {
     }
     if (profile.shortlist.count) {
       profile.shortlist.averageScore = Number((profile.shortlist.totalScore / profile.shortlist.count).toFixed(2));
+    }
+    if (profile.risk.count) {
+      profile.risk.averageScore = Number((profile.risk.totalScore / profile.risk.count).toFixed(2));
     }
     profile.topPositiveRisks = Object.entries(profile.riskWeights)
       .filter(([, value]) => Number(value) > 0.35)

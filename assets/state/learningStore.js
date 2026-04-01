@@ -92,7 +92,10 @@ const LearningStore = (() => {
   }
 
   function _normaliseFeedbackTarget(value = '') {
-    return String(value || '').trim().toLowerCase() === 'shortlist' ? 'shortlist' : 'draft';
+    const raw = String(value || '').trim().toLowerCase();
+    if (raw === 'shortlist') return 'shortlist';
+    if (raw === 'risk' || raw === 'risk-card' || raw === 'risk_card') return 'risk';
+    return 'draft';
   }
 
   function _clampScore(value) {
@@ -120,6 +123,11 @@ const LearningStore = (() => {
       )).slice(0, 6),
       scenarioFingerprint: _normaliseText(payload?.scenarioFingerprint || '', 260),
       outputFingerprint: _normaliseText(payload?.outputFingerprint || '', 260),
+      riskId: _normaliseText(payload?.riskId || '', 120),
+      riskTitle: _normaliseText(payload?.riskTitle || '', 180),
+      riskCategory: _normaliseText(payload?.riskCategory || '', 90),
+      riskSource: _normaliseText(payload?.riskSource || '', 40),
+      selectedInAssessment: payload?.selectedInAssessment === true ? true : payload?.selectedInAssessment === false ? false : null,
       shownRiskTitles: _normaliseFeedbackTitleList(payload?.shownRiskTitles, 10),
       keptRiskTitles: _normaliseFeedbackTitleList(payload?.keptRiskTitles, 10),
       removedRiskTitles: _normaliseFeedbackTitleList(payload?.removedRiskTitles, 10),
@@ -330,6 +338,12 @@ const LearningStore = (() => {
         totalScore: 0,
         reasons: {}
       },
+      risk: {
+        count: 0,
+        averageScore: 0,
+        totalScore: 0,
+        reasons: {}
+      },
       riskWeights: {},
       docWeights: {},
       docTagWeights: {},
@@ -353,6 +367,9 @@ const LearningStore = (() => {
     }
     if (next.shortlist.count) {
       next.shortlist.averageScore = Number((next.shortlist.totalScore / next.shortlist.count).toFixed(2));
+    }
+    if (next.risk.count) {
+      next.risk.averageScore = Number((next.risk.totalScore / next.risk.count).toFixed(2));
     }
     next.topPositiveRisks = Object.entries(next.riskWeights || {})
       .filter(([, value]) => Number(value) > 0.35)
@@ -388,7 +405,11 @@ const LearningStore = (() => {
       profile.runtimeCounts[runtimeMode] = Number(profile.runtimeCounts[runtimeMode] || 0) + 1;
       if (runtimeMode === 'live_ai') profile.liveAiEvents += 1;
       if (event.submittedBy) submitters.add(event.submittedBy);
-      const bucket = event.target === 'shortlist' ? profile.shortlist : profile.draft;
+      const bucket = event.target === 'shortlist'
+        ? profile.shortlist
+        : event.target === 'risk'
+          ? profile.risk
+          : profile.draft;
       bucket.count += 1;
       bucket.totalScore += Number(event.score || 0);
       (Array.isArray(event.reasons) ? event.reasons : []).forEach(reason => {
@@ -402,6 +423,18 @@ const LearningStore = (() => {
       });
       if (runtimeMode !== 'live_ai') return;
       const baseDelta = _scoreDelta(event.score);
+      if (event.target === 'risk') {
+        const riskTitle = _normaliseText(event.riskTitle || '', 180);
+        if (riskTitle) {
+          _incrementWeightedMapValue(profile.riskWeights, riskTitle, baseDelta * 1.5);
+          if (event.selectedInAssessment === true) {
+            _incrementWeightedMapValue(profile.riskWeights, riskTitle, 0.3 + Math.max(0, baseDelta) * 0.5);
+          } else if (event.selectedInAssessment === false) {
+            _incrementWeightedMapValue(profile.riskWeights, riskTitle, -0.3 + Math.min(0, baseDelta) * 0.5);
+          }
+        }
+        return;
+      }
       const draftWeight = event.target === 'draft' ? 0.9 : 0.45;
       const shortlistWeight = event.target === 'shortlist' ? 0.95 : 0.3;
       (Array.isArray(event.citations) ? event.citations : []).forEach((citation) => {

@@ -5237,8 +5237,8 @@ function guessRisksFromText(text, { lensHint = null } = {}) {
     { key: 'ai-model-risk', title: 'AI model governance or responsible-AI failure', category: 'AI / Model Risk', regulations: ['ISO/IEC 42001', 'NIST AI RMF', 'EU AI Act'], terms: ['ai', 'model risk', 'responsible ai', 'model drift', 'hallucination', 'bias', 'algorithm', 'llm', 'training data', 'ai act'] },
     { key: 'data-governance', title: 'Data-governance or privacy-control breakdown', category: 'Data Governance', regulations: ['ISO 27701', 'GDPR', 'UAE PDPL'], terms: ['data governance', 'data quality', 'data lineage', 'retention', 'purpose limitation', 'privacy', 'personal data', 'consent', 'residency', 'master data'] },
     { key: 'strategic', title: 'Strategic execution or market-position risk', category: 'Strategic', regulations: ['ISO 31000', 'COSO ERM'], terms: ['strategy', 'strategic', 'expansion', 'transformation', 'growth', 'market', 'competitive', 'portfolio', 'investment'] },
-    { key: 'operational', title: 'Operational breakdown affecting core services', category: 'Operational', regulations: ['ISO 31000', 'ISO 22301'], terms: ['outage', 'availability', 'disruption', 'failure', 'breakdown', 'backlog', 'capacity', 'process failure'] },
-    { key: 'cyber', title: 'Cyber compromise of critical platforms or data', category: 'Cyber', regulations: ['UAE PDPL', 'ISO 27001'], terms: ['ransom', 'malware', 'phish', 'identity', 'credential', 'sso', 'entra', 'azure ad', 'breach', 'exfil', 'cloud', 'misconfig', 'vulnerability', 'privileged'] },
+    { key: 'operational', title: 'Operational breakdown affecting core services', category: 'Operational', regulations: ['ISO 31000', 'ISO 22301'], terms: ['outage', 'downtime', 'availability', 'service disruption', 'operational disruption', 'failure', 'breakdown', 'backlog', 'capacity', 'process failure', 'human error', 'manual error', 'aging infrastructure', 'ageing infrastructure', 'legacy infrastructure', 'platform instability', 'system instability'] },
+    { key: 'cyber', title: 'Cyber compromise of critical platforms or data', category: 'Cyber', regulations: ['UAE PDPL', 'ISO 27001'], terms: ['ransom', 'malware', 'phish', 'identity', 'credential', 'sso', 'entra', 'azure ad', 'breach', 'exfil', 'cloud compromise', 'cloud exposure', 'cloud breach', 'misconfig', 'vulnerability', 'privileged'] },
     { key: 'third-party', title: 'Third-party dependency or supplier failure', category: 'Third-Party', regulations: ['ISO 27036', 'ISO 28000'], terms: ['vendor', 'supplier', 'third-party', 'third party', 'outsourc', 'dependency', 'subprocessor', 'partner'] },
     { key: 'regulatory', title: 'Regulatory or licensing exposure', category: 'Regulatory', regulations: ['BIS Export Controls', 'OFAC Sanctions'], terms: ['regulator', 'regulatory', 'licence', 'license', 'supervisory', 'filing', 'notification', 'sanction', 'export control'] },
     { key: 'financial', title: 'Financial loss, fraud, or capital exposure', category: 'Financial', regulations: ['UAE AML/CFT', 'PCI-DSS 4.0'], terms: ['fraud', 'payment', 'invoice', 'treasury', 'liquidity', 'cash', 'capital', 'financial reporting', 'misstatement', 'bankruptcy', 'insolvency', 'receivable', 'bad debt', 'write-off', 'counterparty', 'customer default', 'client default', 'collections', 'working capital', 'provisioning'] },
@@ -5649,6 +5649,16 @@ function composeGuidedNarrative(guidedInput = {}, { lensLabel = '', lensKey = ''
         driver: 'weak substitution planning, concentrated spend, or late detection of supplier stress',
         impact: 'delivery pressure, continuity strain, and stronger commercial leverage for the supplier',
         followOn: 'Once a critical category becomes concentrated, continuity, pricing power, and contract performance usually deteriorate together.'
+      };
+    }
+    if (/(downtime|outage|service disruption|operational disruption|availability|unavailable|aging infrastructure|ageing infrastructure|legacy infrastructure|human error|manual error|platform instability|system instability)/.test(text)
+      && !/(ransom|malware|phish|identity|credential|breach|exfil|misconfigur|privileged|compromise)/.test(text)) {
+      return {
+        positioning: 'This points to an operational resilience issue in a technology-dependent service, not automatically a cyber event.',
+        affected: 'the service availability, recovery, and incident-management path around the affected system or platform',
+        driver: 'aging infrastructure, fragile platform dependencies, or human error during support or change activity',
+        impact: 'customer disruption, operational backlog, recovery cost, and reputational strain',
+        followOn: 'Once downtime becomes visible, management usually has to stabilise the service, manage customer impact, and decide whether deeper resilience or infrastructure remediation is needed.'
       };
     }
     if (/geopolitical|market access|sanctions|export control|entity list|sovereign|cross-border restriction|tariff/.test(text)) {

@@ -222,7 +222,10 @@ function normaliseRuntimeMode(value) {
 }
 
 function normaliseFeedbackTarget(value) {
-  return toSafeString(value, 40).toLowerCase() === 'shortlist' ? 'shortlist' : 'draft';
+  const raw = toSafeString(value, 40).toLowerCase();
+  if (raw === 'shortlist') return 'shortlist';
+  if (raw === 'risk' || raw === 'risk-card' || raw === 'risk_card') return 'risk';
+  return 'draft';
 }
 
 function normaliseTitleList(list, limit = 10, max = 160) {
@@ -259,6 +262,11 @@ function normaliseFeedbackEvent(event = {}, session = {}) {
     reasons: Array.from(new Set((Array.isArray(event.reasons) ? event.reasons : []).map(normaliseReasonTag).filter(Boolean))).slice(0, 6),
     scenarioFingerprint: toSafeString(event.scenarioFingerprint, 260),
     outputFingerprint: toSafeString(event.outputFingerprint, 260),
+    riskId: toSafeString(event.riskId, 120),
+    riskTitle: toSafeString(event.riskTitle, 180),
+    riskCategory: toSafeString(event.riskCategory, 90),
+    riskSource: toSafeString(event.riskSource, 40),
+    selectedInAssessment: event.selectedInAssessment === true ? true : event.selectedInAssessment === false ? false : null,
     shownRiskTitles: normaliseTitleList(event.shownRiskTitles, 10),
     keptRiskTitles: normaliseTitleList(event.keptRiskTitles, 10),
     removedRiskTitles: normaliseTitleList(event.removedRiskTitles, 10),

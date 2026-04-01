@@ -12,6 +12,8 @@
 const LLMService = (() => {
   const AI_MAX_RETRIES = 2;
   const AI_TIMEOUT_MS = 30000;
+  const AI_QUALITY_GATE_MAX_PROMPT_CHARS = 22000;
+  const AI_QUALITY_GATE_MAX_COMPLETION_TOKENS = 2200;
 
   function _guardrails() {
     return typeof AIGuardrails === 'object' && AIGuardrails ? AIGuardrails : null;
@@ -352,6 +354,54 @@ Repair the response into the required JSON schema. Preserve scenario-specific me
       } catch {}
       throw parseError;
     }
+  }
+
+  function _canUseLiveAi() {
+    return !!_compassApiKey || !_isDirectCompassUrl(_compassApiUrl);
+  }
+
+  async function _runStructuredQualityGate({
+    taskName = 'structuredQualityGate',
+    schemaHint = '',
+    originalContext = '',
+    checklist = [],
+    candidatePayload = null,
+    traceLabel = '',
+    traceSources = []
+  } = {}) {
+    if (!_canUseLiveAi() || !candidatePayload || !schemaHint) return null;
+    const items = (Array.isArray(checklist) ? checklist : []).map((item) => String(item || '').trim()).filter(Boolean);
+    const systemPrompt = `You are the final quality gate for an enterprise risk AI workflow.
+
+Review the candidate JSON for logic, lens fidelity, shortlist relevance, and business framing.
+- preserve good scenario-specific content
+- repair weak or misaligned content
+- keep the user's described event path primary
+- do not let generic cloud, IT, infrastructure, or compliance language override the real event
+- if the affected asset is technical but the event is outage, fragility, aging infrastructure, or human error, do not force cyber without explicit compromise or security evidence
+- return ONLY valid JSON that matches the schema exactly`;
+    const userPrompt = `Original task context:
+${String(originalContext || '').trim() || '(none)'}
+
+Validation checklist:
+${items.length ? items.map((item, index) => `${index + 1}. ${item}`).join('\n') : '1. Keep the output logically aligned to the original task.'}
+
+Candidate JSON:
+${JSON.stringify(candidatePayload, null, 2)}
+
+Return corrected JSON only.`;
+    const raw = await _callLLM(systemPrompt, userPrompt, {
+      taskName,
+      temperature: 0,
+      maxCompletionTokens: AI_QUALITY_GATE_MAX_COMPLETION_TOKENS,
+      maxPromptChars: AI_QUALITY_GATE_MAX_PROMPT_CHARS,
+      traceLabel: traceLabel || 'AI quality gate',
+      traceSources
+    });
+    if (!raw) return null;
+    return _parseOrRepairStructuredJson(raw, schemaHint, {
+      taskName: `${taskName}Repair`
+    });
   }
 
   function _getSessionToken() {
@@ -893,8 +943,8 @@ Repair the response into the required JSON schema. Preserve scenario-specific me
       { key: 'ai-model-risk', title: 'AI model governance or responsible-AI failure', category: 'AI / Model Risk', regulations: ['ISO/IEC 42001', 'NIST AI RMF', 'EU AI Act'], terms: ['ai', 'model risk', 'responsible ai', 'model drift', 'hallucination', 'bias', 'algorithm', 'llm', 'training data', 'ai act'] },
       { key: 'data-governance', title: 'Data-governance or privacy-control breakdown', category: 'Data Governance', regulations: ['ISO 27701', 'GDPR', 'UAE PDPL'], terms: ['data governance', 'data quality', 'data lineage', 'retention', 'purpose limitation', 'privacy', 'personal data', 'consent', 'data residency', 'master data'] },
       { key: 'strategic', title: 'Strategic execution or market-position risk', category: 'Strategic', regulations: ['ISO 31000', 'COSO ERM'], terms: ['strategy', 'strategic', 'expansion', 'transformation', 'market', 'competitive', 'portfolio', 'investment'] },
-      { key: 'operational', title: 'Operational breakdown affecting core services', category: 'Operational', regulations: ['ISO 31000', 'ISO 22301'], terms: ['outage', 'availability', 'disruption', 'failure', 'breakdown', 'backlog', 'capacity', 'process failure'] },
-      { key: 'cyber', title: 'Cyber compromise of critical platforms or data', category: 'Cyber', regulations: ['UAE PDPL', 'UAE NESA IAS', 'ISO 27001'], terms: ['ransom', 'phish', 'malware', 'identity', 'credential', 'sso', 'entra', 'azure ad', 'breach', 'exfil', 'cloud', 'misconfig', 'vulnerability', 'privileged'] },
+      { key: 'operational', title: 'Operational breakdown affecting core services', category: 'Operational', regulations: ['ISO 31000', 'ISO 22301'], terms: ['outage', 'downtime', 'availability', 'service disruption', 'operational disruption', 'failure', 'breakdown', 'backlog', 'capacity', 'process failure', 'human error', 'manual error', 'aging infrastructure', 'ageing infrastructure', 'legacy infrastructure', 'platform instability', 'system instability'] },
+      { key: 'cyber', title: 'Cyber compromise of critical platforms or data', category: 'Cyber', regulations: ['UAE PDPL', 'UAE NESA IAS', 'ISO 27001'], terms: ['ransom', 'phish', 'malware', 'identity', 'credential', 'sso', 'entra', 'azure ad', 'breach', 'exfil', 'cloud compromise', 'cloud exposure', 'cloud breach', 'misconfig', 'vulnerability', 'privileged'] },
       { key: 'third-party', title: 'Third-party dependency or supplier failure', category: 'Third-Party', regulations: ['ISO 27036', 'ISO 28000'], terms: ['supplier', 'vendor', 'third party', 'third-party', 'outsourc', 'dependency', 'subprocessor', 'partner'] },
       { key: 'regulatory', title: 'Regulatory or licensing exposure', category: 'Regulatory', regulations: ['BIS Export Controls', 'OFAC Sanctions', 'UAE PDPL'], terms: ['regulator', 'regulatory', 'licence', 'license', 'filing', 'notification', 'sanction', 'export control'] },
       { key: 'financial', title: 'Financial loss, fraud, or capital exposure', category: 'Financial', regulations: ['UAE AML/CFT', 'PCI-DSS 4.0'], terms: ['fraud', 'payment', 'invoice', 'treasury', 'liquidity', 'cash', 'capital', 'misstatement', 'bankruptcy', 'insolvency', 'receivable', 'bad debt', 'write-off', 'counterparty', 'customer default', 'client default', 'collections', 'working capital', 'provisioning'] },
@@ -2009,6 +2059,21 @@ ${businessUnit.selectedDepartmentContext}` : ''
     return secondary.slice(0, 3);
   }
 
+  function _hasOperationalOutageSignals(text = '') {
+    return /(downtime|outage|service disruption|operational disruption|critical operational disruption|availability|unavailable|degrad|aging infrastructure|ageing infrastructure|legacy infrastructure|human error|manual error|platform instability|system instability|service failure|process failure|recovery effort|recovery strain|core service)/.test(String(text || '').toLowerCase());
+  }
+
+  function _hasExplicitCyberCompromiseSignals(text = '') {
+    return /(cyber|security|identity|credential|ransom|malware|phish|breach|exfil|privileged|unauthori[sz]ed|misconfig|vulnerability|token theft|session hijack|attacker|threat actor|compromise|account takeover|tenant change|public exposure|storage exposure|data exposure)/.test(String(text || '').toLowerCase());
+  }
+
+  function _extractExplicitScenarioLeadLens(value = '') {
+    const text = String(value || '').trim();
+    if (!text) return '';
+    const match = text.match(/^(?:[a-z-]+-urgency\s+)?([a-z0-9 /-]+?)\s+(?:risk\s+)?scenario:/i);
+    return match?.[1] ? _normaliseScenarioHintKey(match[1]) : '';
+  }
+
   function _classifyScenario(narrative = '', options = {}) {
     const guidedText = [
       options.guidedInput?.event,
@@ -2024,6 +2089,9 @@ ${businessUnit.selectedDepartmentContext}` : ''
     const directScenarioText = [narrative, guidedText].filter(Boolean).join(' ').trim();
     const n = String(directScenarioText || businessContext || '').toLowerCase();
     const hintKey = _normaliseScenarioHintKey(options.scenarioLensHint);
+    const hasOperationalOutageSignals = _hasOperationalOutageSignals(n);
+    const hasExplicitCyberCompromiseSignals = _hasExplicitCyberCompromiseSignals(n);
+    const mentionsCloudPlatform = n.includes('cloud') || n.includes('azure') || n.includes('aws') || n.includes('gcp') || n.includes('infrastructure') || n.includes('platform');
 
     const isRansomware = n.includes('ransomware') || n.includes('encrypt') || n.includes('ransom');
     const isIdentity = n.includes('azure ad') || n.includes('active directory') || n.includes('entra') || n.includes('identity') || n.includes('sso') || n.includes('directory service');
@@ -2036,11 +2104,18 @@ ${businessUnit.selectedDepartmentContext}` : ''
     );
     const isDataBreach = n.includes('breach') || n.includes('data theft') || n.includes('exfil') || n.includes('data exposure');
     const isInsider = n.includes('insider') || n.includes('employee misuse') || n.includes('malicious insider') || n.includes('privilege abuse');
-    const isCloud = !isIdentity && (n.includes('cloud') || n.includes('misconfigur') || n.includes('s3') || n.includes('bucket') || n.includes('storage exposure') || n.includes('public exposure') || n.includes('azure'));
+    const isCloud = !isIdentity && (
+      n.includes('misconfigur')
+      || n.includes('s3')
+      || n.includes('bucket')
+      || n.includes('storage exposure')
+      || n.includes('public exposure')
+      || (mentionsCloudPlatform && hasExplicitCyberCompromiseSignals && !hasOperationalOutageSignals)
+    );
     const isAiModel = n.includes('responsible ai') || n.includes('model risk') || n.includes('model drift') || n.includes('hallucination') || n.includes('algorithmic bias') || n.includes('training data') || /\bai\b/.test(n);
     const isDataGovernance = n.includes('data governance') || n.includes('data quality') || n.includes('data lineage') || n.includes('retention') || n.includes('purpose limitation') || n.includes('consent') || n.includes('data residency') || n.includes('master data') || (n.includes('privacy') && !n.includes('breach') && !n.includes('exfil'));
     const isStrategic = n.includes('strategy') || n.includes('strategic') || n.includes('market') || n.includes('competitive') || n.includes('transformation') || n.includes('portfolio') || n.includes('investment') || n.includes('operating model') || n.includes('programme');
-    const isOperational = n.includes('operational') || n.includes('process failure') || n.includes('breakdown') || n.includes('capacity') || n.includes('service failure') || n.includes('backlog');
+    const isOperational = hasOperationalOutageSignals || n.includes('operational') || n.includes('process failure') || n.includes('breakdown') || n.includes('capacity') || n.includes('service failure') || n.includes('backlog');
     const isRegulatory = n.includes('regulator') || n.includes('regulatory') || n.includes('licen') || n.includes('sanction') || n.includes('export control') || n.includes('filing');
     const isCounterpartyCredit = n.includes('bankrupt') || n.includes('bankruptcy') || n.includes('insolv') || n.includes('receivable') || n.includes('bad debt') || n.includes('write-off') || n.includes('write off') || n.includes('counterparty') || n.includes('customer default') || n.includes('client default') || n.includes('credit loss') || n.includes('credit exposure') || n.includes('collections') || n.includes('provisioning') || n.includes('working capital');
     const isFinancial = isCounterpartyCredit || n.includes('fraud') || n.includes('payment') || n.includes('invoice') || n.includes('treasury') || n.includes('liquidity') || n.includes('capital') || n.includes('financial');
@@ -2673,6 +2748,7 @@ ${businessUnit.selectedDepartmentContext}` : ''
     scenarioLensHint = '',
     businessUnit = null
   } = {}) {
+    const explicitLeadLens = _extractExplicitScenarioLeadLens(candidate);
     const cleanedCandidate = _cleanUserFacingText(_stripScenarioLeadIns(candidate || ''), { maxSentences: 6 });
     if (!cleanedCandidate) {
       return { accepted: false, reason: 'empty', narrative: '' };
@@ -2680,14 +2756,17 @@ ${businessUnit.selectedDepartmentContext}` : ''
     if (_looksGenericRiskContextCopy(cleanedCandidate)) {
       return { accepted: false, reason: 'generic', narrative: cleanedCandidate };
     }
+    const expectedLens = _normaliseScenarioHintKey(scenarioLensHint)
+      || _classifyScenario(seedNarrative, { guidedInput, businessUnit, scenarioLensHint }).key;
+    if (explicitLeadLens && !_isCompatibleScenarioLens(expectedLens, explicitLeadLens)) {
+      return { accepted: false, reason: 'explicit-lens-drift', narrative: cleanedCandidate };
+    }
     const anchors = _extractGuidedDraftAnchors({ guidedInput }, seedNarrative);
     const overlap = anchors.filter(token => cleanedCandidate.toLowerCase().includes(token));
     const minOverlap = anchors.length >= 5 ? 2 : anchors.length ? 1 : 0;
     if (overlap.length < minOverlap) {
       return { accepted: false, reason: 'low-overlap', narrative: cleanedCandidate };
     }
-    const expectedLens = _normaliseScenarioHintKey(scenarioLensHint)
-      || _classifyScenario(seedNarrative, { guidedInput, businessUnit, scenarioLensHint }).key;
     const actualLens = _classifyScenario(cleanedCandidate, { guidedInput, businessUnit, scenarioLensHint: expectedLens }).key;
     if (!_isCompatibleScenarioLens(expectedLens, actualLens)) {
       return { accepted: false, reason: 'lens-drift', narrative: cleanedCandidate };
@@ -3525,6 +3604,113 @@ Return only the refined scenario narrative text.`;
     };
   }
 
+  function _normaliseRiskBuilderCandidate(parsed = {}, input = {}, {
+    classification = {},
+    contextResolution = null,
+    fallbackScenarioExpansion = {}
+  } = {}) {
+    return {
+      ...parsed,
+      scenarioLens: _normaliseScenarioLens(parsed.scenarioLens, _buildScenarioLens(classification)),
+      draftNarrative: _cleanUserFacingText(parsed.draftNarrative || '', { maxSentences: 4 }),
+      enhancedStatement: _buildEnhancedNarrative(input, parsed.enhancedStatement),
+      summary: _cleanUserFacingText(
+        _looksGenericRiskContextCopy(parsed.summary) ? fallbackScenarioExpansion.summary : (parsed.summary || fallbackScenarioExpansion.summary),
+        { maxSentences: 3 }
+      ),
+      linkAnalysis: _cleanUserFacingText(
+        _looksGenericRiskContextCopy(parsed.linkAnalysis)
+          ? _buildRiskContextLinkAnalysis({ classification, riskTitles: fallbackScenarioExpansion.riskTitles })
+          : (parsed.linkAnalysis || _buildRiskContextLinkAnalysis({ classification, riskTitles: fallbackScenarioExpansion.riskTitles })),
+        { maxSentences: 3 }
+      ),
+      workflowGuidance: _normaliseGuidance(parsed.workflowGuidance),
+      benchmarkBasis: _normaliseBenchmarkBasis(parsed.benchmarkBasis || 'Use FAIR-aligned assumptions, test them against control evidence, and prefer local regulatory or operational comparators where credible before falling back to mature global incident patterns.'),
+      risks: _filterScenarioRelevantRisks(
+        Array.isArray(parsed.risks) && parsed.risks.length ? parsed.risks : fallbackScenarioExpansion.riskTitles,
+        {
+          seedNarrative: input.riskStatement || input.registerText || '',
+          guidedInput: input.guidedInput,
+          classification,
+          fallbackRisks: fallbackScenarioExpansion.riskTitles
+        }
+      ),
+      regulations: Array.from(new Set((parsed.regulations || []).map(String).filter(Boolean))),
+      citations: input.citations || [],
+      contextResolution
+    };
+  }
+
+  function _toRiskBuilderQualityCandidate(candidate = {}) {
+    return {
+      draftNarrative: candidate.draftNarrative || '',
+      enhancedStatement: candidate.enhancedStatement || '',
+      summary: candidate.summary || '',
+      linkAnalysis: candidate.linkAnalysis || '',
+      scenarioLens: candidate.scenarioLens || {},
+      workflowGuidance: Array.isArray(candidate.workflowGuidance) ? candidate.workflowGuidance : [],
+      benchmarkBasis: candidate.benchmarkBasis || '',
+      risks: Array.isArray(candidate.risks) ? candidate.risks.map((risk) => ({
+        title: risk.title || '',
+        category: risk.category || '',
+        description: risk.description || '',
+        confidence: risk.confidence || 'medium',
+        regulations: Array.isArray(risk.regulations) ? risk.regulations : []
+      })) : [],
+      regulations: Array.isArray(candidate.regulations) ? candidate.regulations : []
+    };
+  }
+
+  function _buildRiskBuilderQualityContext(input = {}, {
+    classification = {},
+    contextResolution = null
+  } = {}) {
+    return [
+      `Risk statement: ${input.riskStatement || '(none)'}`,
+      `Register text: ${input.registerText || '(none)'}`,
+      `Guided input: ${JSON.stringify(input.guidedInput || {})}`,
+      `Business unit: ${input.businessUnit?.name || 'Unknown'}`,
+      `Geography: ${input.geography || 'Unknown'}`,
+      `Applicable regulations: ${(input.applicableRegulations || []).join(', ') || '(none)'}`,
+      `Primary classification: ${classification?.key || 'general'} / ${classification?.scenarioType || 'General Enterprise Risk Scenario'}`,
+      `Context resolution: ${_buildContextResolutionPromptBlock(contextResolution)}`
+    ].join('\n');
+  }
+
+  function _normaliseRegisterAnalysisCandidate(parsed = {}) {
+    return {
+      summary: _cleanUserFacingText(parsed.summary || '', { maxSentences: 3 }),
+      linkAnalysis: _cleanUserFacingText(parsed.linkAnalysis || '', { maxSentences: 3 }),
+      workflowGuidance: _normaliseGuidance(parsed.workflowGuidance),
+      benchmarkBasis: _normaliseBenchmarkBasis(parsed.benchmarkBasis || ''),
+      risks: _normaliseRiskCards(parsed.risks).map((risk, idx) => ({
+        id: risk.id || `register-risk-${idx + 1}`,
+        title: risk.title,
+        category: risk.category || 'Register',
+        description: risk.description || 'Imported from the uploaded register for review.',
+        confidence: risk.confidence || 'medium',
+        source: risk.source || 'register',
+        regulations: risk.regulations || []
+      }))
+    };
+  }
+
+  function _toRegisterAnalysisQualityCandidate(candidate = {}) {
+    return {
+      summary: candidate.summary || '',
+      linkAnalysis: candidate.linkAnalysis || '',
+      workflowGuidance: Array.isArray(candidate.workflowGuidance) ? candidate.workflowGuidance : [],
+      benchmarkBasis: candidate.benchmarkBasis || '',
+      risks: Array.isArray(candidate.risks) ? candidate.risks.map((risk) => ({
+        title: risk.title || '',
+        category: risk.category || '',
+        description: risk.description || '',
+        confidence: risk.confidence || 'medium',
+        regulations: Array.isArray(risk.regulations) ? risk.regulations : []
+      })) : []
+    };
+  }
+
   async function enhanceRiskContext(input) {
     const aiUnavailable = isUsingStub();
     const priorPatterns = _getContextResolverPriorPatterns(input.businessUnit?.id || '');
@@ -3630,36 +3816,40 @@ Treat the primary lens hint as the leading domain for this scenario unless the n
           const parsed = await _parseOrRepairStructuredJson(raw, outputSchema, {
             taskName: 'repairEnhanceRiskContext'
           }) || {};
-          const candidateResult = {
-            ...parsed,
-            scenarioLens: _normaliseScenarioLens(parsed.scenarioLens, _buildScenarioLens(classification)),
-            draftNarrative: _cleanUserFacingText(parsed.draftNarrative || '', { maxSentences: 4 }),
-            enhancedStatement: _buildEnhancedNarrative(input, parsed.enhancedStatement),
-            summary: _cleanUserFacingText(
-              _looksGenericRiskContextCopy(parsed.summary) ? fallbackScenarioExpansion.summary : (parsed.summary || fallbackScenarioExpansion.summary),
-              { maxSentences: 3 }
-            ),
-            linkAnalysis: _cleanUserFacingText(
-              _looksGenericRiskContextCopy(parsed.linkAnalysis)
-                ? _buildRiskContextLinkAnalysis({ classification, riskTitles: fallbackScenarioExpansion.riskTitles })
-                : (parsed.linkAnalysis || _buildRiskContextLinkAnalysis({ classification, riskTitles: fallbackScenarioExpansion.riskTitles })),
-              { maxSentences: 3 }
-            ),
-            workflowGuidance: _normaliseGuidance(parsed.workflowGuidance),
-            benchmarkBasis: _normaliseBenchmarkBasis(parsed.benchmarkBasis || 'Use FAIR-aligned assumptions, test them against control evidence, and prefer local regulatory or operational comparators where credible before falling back to mature global incident patterns.'),
-            risks: _filterScenarioRelevantRisks(
-              Array.isArray(parsed.risks) && parsed.risks.length ? parsed.risks : fallbackScenarioExpansion.riskTitles,
-              {
-                seedNarrative: input.riskStatement || input.registerText || '',
-                guidedInput: input.guidedInput,
+          let candidateResult = _normaliseRiskBuilderCandidate(parsed, input, {
+            classification,
+            contextResolution,
+            fallbackScenarioExpansion
+          });
+          let usedAiQualityGate = false;
+          try {
+            const qualityChecked = await _runStructuredQualityGate({
+              taskName: 'enhanceRiskContextQualityGate',
+              schemaHint: outputSchema,
+              originalContext: _buildRiskBuilderQualityContext(input, { classification, contextResolution }),
+              checklist: [
+                'Keep the primary lens faithful to the user event path, not generic cloud, IT, compliance, or regulatory wording.',
+                'If the scenario is outage, downtime, aging infrastructure, fragility, or human error, keep it operational or continuity-led unless there is explicit cyber compromise evidence.',
+                'Keep only risks that belong to the same event tree and management discussion.',
+                'Remove generic or off-domain risks that do not align strongly with the described event.',
+                'Make the draft narrative concrete, concise, and directly tied to event, affected area, cause, and main consequence.'
+              ],
+              candidatePayload: _toRiskBuilderQualityCandidate(candidateResult),
+              traceLabel: `${input.traceLabel || 'Step 1 scenario assist'} quality gate`,
+              traceSources: input.citations || []
+            });
+            if (qualityChecked) {
+              candidateResult = _normaliseRiskBuilderCandidate(qualityChecked, input, {
                 classification,
-                fallbackRisks: fallbackScenarioExpansion.riskTitles
-              }
-            ),
-            regulations: Array.from(new Set((parsed.regulations || []).map(String).filter(Boolean))),
-            citations: input.citations || [],
-            contextResolution
-          };
+                contextResolution,
+                fallbackScenarioExpansion
+              });
+              usedAiQualityGate = true;
+            }
+          } catch (qualityGateError) {
+            await _auditAiFallback('enhanceRiskContextQualityGate', qualityGateError);
+            console.warn('enhanceRiskContext quality gate fallback:', qualityGateError.message);
+          }
           const candidateAlignment = _buildAiAlignment(input, candidateResult, {
             classification,
             seedNarrative: input.riskStatement || input.registerText || '',
@@ -3680,7 +3870,9 @@ Treat the primary lens hint as the leading domain for this scenario unless the n
               check?.status !== 'ok'
               && ['Primary lens', 'Scenario draft', 'Shortlist fit'].includes(String(check?.label || ''))
             ));
-          const coherenceFallback = candidateAlignment.score < 65 || hasCriticalAlignmentIssue || !summaryCoherent || !linkAnalysisCoherent;
+          const coherenceFallback = usedAiQualityGate
+            ? false
+            : (candidateAlignment.score < 65 || hasCriticalAlignmentIssue || !summaryCoherent || !linkAnalysisCoherent);
           const coherentRiskTitles = _rerankRisksWithFeedback(_filterScenarioRelevantRisks(candidateResult.risks, {
             seedNarrative: input.riskStatement || input.registerText || '',
             guidedInput: input.guidedInput,
@@ -3716,6 +3908,7 @@ Treat the primary lens hint as the leading domain for this scenario unless the n
                 linkAnalysis: coherentLinkAnalysis,
                 risks: coherentRiskTitles
               };
+          finalResult.aiValidationMode = usedAiQualityGate ? 'live_quality_gate' : (coherenceFallback ? 'local_fallback' : 'local_checks');
           finalResult.aiAlignment = _buildAiAlignment(input, finalResult, {
             classification,
             seedNarrative: input.riskStatement || input.registerText || '',
@@ -3852,21 +4045,41 @@ ${_truncateText(evidenceMeta.promptBlock || '', 240)}`;
           const parsed = await _parseOrRepairStructuredJson(raw, outputSchema, {
             taskName: 'repairAnalyseRiskRegister'
           }) || {};
-          return _decorateAiResult(_withEvidenceMeta({
-            summary: _cleanUserFacingText(parsed.summary || '', { maxSentences: 3 }),
-            linkAnalysis: _cleanUserFacingText(parsed.linkAnalysis || '', { maxSentences: 3 }),
-            workflowGuidance: _normaliseGuidance(parsed.workflowGuidance),
-            benchmarkBasis: _normaliseBenchmarkBasis(parsed.benchmarkBasis || ''),
-            risks: _normaliseRiskCards(parsed.risks).map((risk, idx) => ({
-              id: risk.id || `register-risk-${idx + 1}`,
-              title: risk.title,
-              category: risk.category || 'Register',
-              description: risk.description || 'Imported from the uploaded register for review.',
-              confidence: risk.confidence || 'medium',
-              source: risk.source || 'register',
-              regulations: risk.regulations || []
-            }))
-          }, evidenceMeta), evidenceMeta, {
+          let candidateResult = _normaliseRegisterAnalysisCandidate(parsed);
+          try {
+            const qualityChecked = await _runStructuredQualityGate({
+              taskName: 'analyseRiskRegisterQualityGate',
+              schemaHint: outputSchema,
+              originalContext: [
+                `Business unit: ${input.businessUnit?.name || 'Unknown'}`,
+                `Geography: ${input.geography || 'Unknown'}`,
+                `Register metadata: ${input.registerMeta ? JSON.stringify({
+                  type: input.registerMeta.type,
+                  extension: input.registerMeta.extension,
+                  sheetSelectionMode: input.registerMeta.sheetSelectionMode,
+                  sheets: input.registerMeta.sheets
+                }) : '(none)'}`,
+                `Register text: ${compactRegisterText || '(none)'}`
+              ].join('\n'),
+              checklist: [
+                'Keep the shortlist grounded in the uploaded register rows, sheet names, and column headers.',
+                'Do not invent risks that are not supported by the uploaded material.',
+                'Remove template or instructional noise.',
+                'Keep risk titles concise and selection-card friendly.',
+                'Keep the summary and workflow guidance coherent with the extracted shortlist.'
+              ],
+              candidatePayload: _toRegisterAnalysisQualityCandidate(candidateResult),
+              traceLabel: `${input.traceLabel || 'Step 1 register analysis'} quality gate`,
+              traceSources: input.citations || []
+            });
+            if (qualityChecked) {
+              candidateResult = _normaliseRegisterAnalysisCandidate(qualityChecked);
+            }
+          } catch (qualityGateError) {
+            await _auditAiFallback('analyseRiskRegisterQualityGate', qualityGateError);
+            console.warn('analyseRiskRegister quality gate fallback:', qualityGateError.message);
+          }
+          return _decorateAiResult(_withEvidenceMeta(candidateResult, evidenceMeta), evidenceMeta, {
             contentFields: ['summary', 'linkAnalysis', 'benchmarkBasis'],
             fallbackUsed: false
           });

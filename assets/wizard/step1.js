@@ -338,13 +338,18 @@ function createStep1DryRunScenario(input = {}) {
 function inferStep1FunctionKeyFromText(text = '') {
   const haystack = String(text || '').toLowerCase();
   if (!haystack.trim()) return 'general';
+  const hasOperationalOutageSignal = /(downtime|outage|service disruption|operational disruption|critical operational disruption|availability|unavailable|degrad|continuity|resilience|recovery|backlog|capacity|human error|manual error|aging infrastructure|ageing infrastructure|legacy infrastructure|platform instability|system instability|service failure|process failure)/.test(haystack);
+  const hasAiModelSignal = /ai\b|model risk|responsible ai|machine learning|llm|algorithm/.test(haystack);
+  const hasExplicitCyberSignal = /(cyber|security|identity|credential|ransom|malware|phish|breach|exfil|privileged|unauthori[sz]ed|misconfig|vulnerability|token theft|session hijack|compromise)/.test(haystack);
+  const hasTechnologyScopeSignal = /(technology|cloud|infrastructure|it\b|digital|platform|system|application|network|ot\b|ics|scada|site systems)/.test(haystack);
   if (/(bankrupt|bankruptcy|insolv|insolven|receivable|bad debt|write[- ]?off|counterparty|credit loss|credit exposure|customer default|client default|collectability|collections|cashflow|working capital|provisioning|provision)/.test(haystack)) return 'finance';
   if (/procurement|sourcing|vendor|supplier|purchase|third[- ]party|supply chain|supplier assurance|supplier due diligence/.test(haystack)) return 'procurement';
   if (/finance|treasury|accounting|financial|cash|payment|payroll|credit|collections|ledger|fraud|aml|financial crime|integrity/.test(haystack)) return 'finance';
   if (/compliance|regulatory|legal|privacy|data governance|policy|governance|controls|audit|contract|litigation|ip\b|intellectual property/.test(haystack)) return 'compliance';
   if (/hse|ehs|health|safety|environment|workplace safety|incident response|worker welfare|labou?r/.test(haystack)) return 'hse';
   if (/strategy|strategic|enterprise|portfolio|market|growth|investment|merger|acquisition|joint venture|jv|integration|geopolitical|sanctions|market access|sovereign|transformation delivery/.test(haystack)) return 'strategic';
-  if (/technology|cyber|security|identity|cloud|infrastructure|it\b|digital|ai\b|model risk|responsible ai|machine learning|llm|algorithm|ot\b|ics|scada|site systems/.test(haystack)) return 'technology';
+  if (hasOperationalOutageSignal && (!hasExplicitCyberSignal || hasTechnologyScopeSignal)) return 'operations';
+  if (hasAiModelSignal || hasExplicitCyberSignal || hasTechnologyScopeSignal) return 'technology';
   if (/operations|resilience|continuity|service delivery|manufacturing|logistics|facilities|workforce|physical security|executive protection|industrial control|plant network/.test(haystack)) return 'operations';
   return 'general';
 }
@@ -454,12 +459,29 @@ function buildStep1GuidedPromptSuggestions(draft = AppState.draft || {}, example
     );
   }
 
-  if (/(major client|key client|single client|single customer|customer concentration|client concentration|customer default|client default|customer failure|client failure)/.test(haystack)
-    || ((/client|customer|buyer|counterparty/.test(haystack)) && /major|critical|material|single/.test(haystack))) {
+  if (/(major client|key client|single client|single customer|customer concentration|client concentration|customer default|client default|customer failure|client failure|counterparty exposure)/.test(haystack)
+    || ((/client|customer|buyer|counterparty/.test(haystack)) && /(default|insolv|bankrupt|receivable|write[- ]?off|collect|concentration)/.test(haystack))) {
     pushSuggestion(
       'Customer concentration exposure',
       'One major client failure cascades into concentration exposure, delayed collections, and a broader commercial recovery problem.'
     );
+  }
+
+  if (/(downtime|outage|service disruption|operational disruption|availability|unavailable|degrad|aging infrastructure|ageing infrastructure|legacy infrastructure|human error|manual error|platform instability|system instability)/.test(haystack)) {
+    pushSuggestion(
+      'Operational outage from aging infrastructure',
+      'Aging infrastructure or platform fragility causes an unplanned service outage that disrupts critical operations and customer-facing commitments.'
+    );
+    pushSuggestion(
+      'Human-error service disruption',
+      'A routine human error during support or change activity causes downtime in a critical service and triggers customer and reputational impact.'
+    );
+    if (/(cloud|platform|system|application|infrastructure|it\b)/.test(haystack)) {
+      pushSuggestion(
+        'Critical service outage',
+        'A core technology service becomes unavailable, creating operational disruption, backlog growth, and pressure on recovery and continuity plans.'
+      );
+    }
   }
 
   if (/(cashflow|liquidity|working capital|collections|collect|recover|financial impact|provision|provisioning|treasury)/.test(haystack)) {
@@ -888,6 +910,18 @@ function getStep1AiFeedbackTargetState(target = 'draft', draft = AppState.draft)
   return feedback[target] && typeof feedback[target] === 'object' ? feedback[target] : null;
 }
 
+function isStep1GeneratedRiskFeedbackEligible(risk) {
+  const source = String(risk?.source || '').trim().toLowerCase();
+  return !!String(risk?.id || '').trim() && !['manual', 'dry-run'].includes(source);
+}
+
+function getStep1AiRiskFeedbackState(riskId = '', draft = AppState.draft) {
+  const feedback = draft?.aiFeedback && typeof draft.aiFeedback === 'object' ? draft.aiFeedback : {};
+  const riskMap = feedback.risks && typeof feedback.risks === 'object' ? feedback.risks : {};
+  const key = String(riskId || '').trim();
+  return key && riskMap[key] && typeof riskMap[key] === 'object' ? riskMap[key] : null;
+}
+
 function buildStep1AiFeedbackScenarioFingerprint(draft = AppState.draft) {
   return [
     String(draft?.buId || '').trim(),
@@ -907,6 +941,14 @@ function buildStep1ShortlistFeedbackOutputFingerprint(riskCandidates = [], selec
   const shown = (Array.isArray(riskCandidates) ? riskCandidates : []).map(risk => String(risk?.title || '').trim()).filter(Boolean).slice(0, 10);
   const kept = (Array.isArray(selectedRisks) ? selectedRisks : []).map(risk => String(risk?.title || '').trim()).filter(Boolean).slice(0, 10);
   return [`shown:${shown.join(', ')}`, `kept:${kept.join(', ')}`].join(' | ').slice(0, 260);
+}
+
+function buildStep1RiskFeedbackOutputFingerprint(risk = {}) {
+  return [
+    String(risk?.title || '').trim(),
+    String(risk?.category || '').trim(),
+    String(risk?.description || '').trim()
+  ].filter(Boolean).join(' | ').slice(0, 260);
 }
 
 function getStep1AiFeedbackReasons(target = 'draft') {
@@ -960,6 +1002,40 @@ function renderStep1AiFeedbackCard(target = 'draft', draft = AppState.draft, ris
       <button class="btn btn--secondary btn--sm btn-save-ai-feedback" data-feedback-target="${escapeHtml(target)}" type="button">Save feedback</button>
       <span class="form-help" id="ai-feedback-status-${escapeHtml(target)}">${escapeHtml(savedLabel)} · ${escapeHtml(String(model.runtimeMode === 'live_ai' ? 'Live AI' : model.runtimeMode === 'fallback' ? 'Fallback guidance' : 'Local guidance'))}</span>
     </div>
+  </div>`;
+}
+
+function buildStep1AiRiskFeedbackModel(risk, draft = AppState.draft) {
+  if (!isStep1GeneratedRiskFeedbackEligible(risk)) return { visible: false };
+  const saved = getStep1AiRiskFeedbackState(risk?.id, draft);
+  return {
+    visible: true,
+    riskId: String(risk?.id || '').trim(),
+    score: Number(saved?.score || 0),
+    savedAt: Number(saved?.savedAt || 0),
+    runtimeMode: String(saved?.runtimeMode || getStep1AiRuntimeMode(draft)).trim()
+  };
+}
+
+function renderStep1AiRiskFeedback(risk, draft = AppState.draft) {
+  const model = buildStep1AiRiskFeedbackModel(risk, draft);
+  if (!model.visible) return '';
+  const currentScore = Math.max(0, Math.min(5, Math.round(Number(model.score || 0))));
+  const savedLabel = model.savedAt
+    ? `Saved ${new Date(model.savedAt).toLocaleString([], { hour: 'numeric', minute: '2-digit', month: 'short', day: 'numeric' })}`
+    : 'Not yet rated';
+  const runtimeLabel = String(model.runtimeMode === 'live_ai' ? 'Live AI' : model.runtimeMode === 'fallback' ? 'Fallback guidance' : 'Local guidance');
+  return `<div class="step1-risk-feedback" data-risk-feedback-id="${escapeHtml(model.riskId)}">
+    <div class="step1-risk-feedback__row">
+      <span class="step1-risk-feedback__label">Rate this suggestion</span>
+      <div class="step1-risk-feedback__stars" role="radiogroup" aria-label="Rate ${escapeHtml(String(risk?.title || 'this risk suggestion'))} from 1 to 5 stars">
+        ${[1, 2, 3, 4, 5].map((score) => {
+          const active = score <= currentScore;
+          return `<button class="step1-risk-feedback__star ${active ? 'is-active' : ''}" data-risk-feedback-id="${escapeHtml(model.riskId)}" data-risk-feedback-score="${score}" type="button" role="radio" aria-checked="${currentScore === score ? 'true' : 'false'}" aria-label="Rate ${score} star${score === 1 ? '' : 's'}">&#9733;</button>`;
+        }).join('')}
+      </div>
+    </div>
+    <div class="step1-risk-feedback__status" id="risk-feedback-status-${escapeHtml(model.riskId)}">${escapeHtml(savedLabel)} · ${escapeHtml(runtimeLabel)}</div>
   </div>`;
 }
 
@@ -3640,7 +3716,7 @@ function renderRiskSelectionSection(title, subtitle, risks, selectedIds, regulat
   return `<div class="${escapeHtml(String(sectionClass))}" style="display:flex;flex-direction:column;gap:var(--sp-4)"><div><div class="context-panel-title">${escapeHtml(String(title))}</div><div class="context-panel-copy" style="margin-top:6px">${escapeHtml(String(subtitle))}</div></div><div class="risk-selection-grid">${risks.map(({ risk, match }) => {
     const needsReview = match?.fit === 'selected-review';
     const retainedReason = explainSelectedReviewRisk(risk, match);
-    return `<div class="risk-pick-card ${needsReview ? 'risk-pick-card--review' : ''}"><div class="risk-pick-head" style="align-items:flex-start"><label style="display:flex;gap:12px;align-items:flex-start;flex:1;cursor:pointer"><input type="checkbox" class="risk-select-checkbox" data-risk-id="${escapeHtml(String(risk.id || ''))}" ${selectedIds.has(risk.id) ? 'checked' : ''} style="margin-top:4px"><div><div class="risk-pick-title">${escapeHtml(String(risk.title || 'Untitled risk'))}${renderConfidenceBadge(risk)}</div><div class="risk-pick-badges"><span class="risk-pick-badge ${needsReview ? 'risk-pick-badge--review' : ''}">${escapeHtml(String(risk.category || 'Uncategorized'))}</span><span class="risk-pick-badge risk-pick-badge--source">${escapeHtml(String(sourceLabel(risk)))}</span>${needsReview ? '<span class="risk-pick-badge risk-pick-badge--review">Needs review</span>' : ''}</div></div></label><button class="btn btn--ghost btn--sm btn-remove-risk" data-risk-id="${escapeHtml(String(risk.id || ''))}" type="button">Remove</button></div>${risk.description ? `<p class="risk-pick-desc">${escapeHtml(String(risk.description))}</p>` : ''}${retainedReason ? `<div class="risk-pick-review-note">${escapeHtml(retainedReason)}</div>` : ''}<div class="form-help" style="margin-bottom:10px">${escapeHtml(String(explainRiskFit(match, selectedIds.has(risk.id))))}</div><div class="citation-chips">${(risk.regulations || []).length ? risk.regulations.slice(0, 4).map(tag => `<span class="badge badge--neutral">${escapeHtml(String(tag))}</span>`).join('') : regulations.slice(0, 2).map(tag => `<span class="badge badge--neutral">${escapeHtml(String(tag))}</span>`).join('')}</div></div>`;
+    return `<div class="risk-pick-card ${needsReview ? 'risk-pick-card--review' : ''}"><div class="risk-pick-head" style="align-items:flex-start"><label style="display:flex;gap:12px;align-items:flex-start;flex:1;cursor:pointer"><input type="checkbox" class="risk-select-checkbox" data-risk-id="${escapeHtml(String(risk.id || ''))}" ${selectedIds.has(risk.id) ? 'checked' : ''} style="margin-top:4px"><div><div class="risk-pick-title">${escapeHtml(String(risk.title || 'Untitled risk'))}${renderConfidenceBadge(risk)}</div><div class="risk-pick-badges"><span class="risk-pick-badge ${needsReview ? 'risk-pick-badge--review' : ''}">${escapeHtml(String(risk.category || 'Uncategorized'))}</span><span class="risk-pick-badge risk-pick-badge--source">${escapeHtml(String(sourceLabel(risk)))}</span>${needsReview ? '<span class="risk-pick-badge risk-pick-badge--review">Needs review</span>' : ''}</div></div></label><button class="btn btn--ghost btn--sm btn-remove-risk" data-risk-id="${escapeHtml(String(risk.id || ''))}" type="button">Remove</button></div>${risk.description ? `<p class="risk-pick-desc">${escapeHtml(String(risk.description))}</p>` : ''}${retainedReason ? `<div class="risk-pick-review-note">${escapeHtml(retainedReason)}</div>` : ''}${renderStep1AiRiskFeedback(risk)}<div class="form-help" style="margin-bottom:10px">${escapeHtml(String(explainRiskFit(match, selectedIds.has(risk.id))))}</div><div class="citation-chips">${(risk.regulations || []).length ? risk.regulations.slice(0, 4).map(tag => `<span class="badge badge--neutral">${escapeHtml(String(tag))}</span>`).join('') : regulations.slice(0, 2).map(tag => `<span class="badge badge--neutral">${escapeHtml(String(tag))}</span>`).join('')}</div></div>`;
   }).join('')}</div></div>`;
 }
 
@@ -3804,17 +3880,7 @@ async function saveStep1AiFeedback(target = 'draft', { buList = getBUList() } = 
     citations: Array.isArray(AppState.draft?.citations) ? AppState.draft.citations : [],
     submittedBy: username
   };
-  if (username && typeof LearningStore !== 'undefined' && typeof LearningStore.recordAiFeedback === 'function') {
-    const localEvent = LearningStore.recordAiFeedback(username, payload);
-    if (localEvent && typeof patchLearningStore === 'function' && typeof LearningStore.getLearningStore === 'function') {
-      patchLearningStore({ aiFeedback: LearningStore.getLearningStore(username).aiFeedback });
-    }
-  }
-  if (typeof OrgIntelligenceService !== 'undefined' && typeof OrgIntelligenceService.recordAiFeedback === 'function') {
-    try {
-      await OrgIntelligenceService.recordAiFeedback(payload);
-    } catch {}
-  }
+  await persistStep1AiFeedbackPayload(username, payload);
   AppState.draft.aiFeedback = {
     ...(AppState.draft.aiFeedback && typeof AppState.draft.aiFeedback === 'object' ? AppState.draft.aiFeedback : {}),
     [target]: {
@@ -3827,6 +3893,85 @@ async function saveStep1AiFeedback(target = 'draft', { buList = getBUList() } = 
   saveDraft();
   UI.toast(target === 'draft' ? 'Saved scenario-draft feedback.' : 'Saved shortlist feedback.', 'success');
   persistAndRenderStep1({ buList, scenarioGeographies: getScenarioGeographies(), refreshRegulations: false, preserveScroll: true });
+}
+
+async function persistStep1AiFeedbackPayload(username = '', payload = {}) {
+  if (username && typeof LearningStore !== 'undefined' && typeof LearningStore.recordAiFeedback === 'function') {
+    const localEvent = LearningStore.recordAiFeedback(username, payload);
+    if (localEvent && typeof patchLearningStore === 'function' && typeof LearningStore.getLearningStore === 'function') {
+      patchLearningStore({ aiFeedback: LearningStore.getLearningStore(username).aiFeedback });
+    }
+  }
+  if (typeof OrgIntelligenceService !== 'undefined' && typeof OrgIntelligenceService.recordAiFeedback === 'function') {
+    try {
+      await OrgIntelligenceService.recordAiFeedback(payload);
+    } catch {}
+  }
+}
+
+function updateStep1RiskFeedbackUi(riskId = '', score = 0, savedAt = 0, runtimeMode = 'local') {
+  const safeRiskId = String(riskId || '').trim();
+  if (!safeRiskId) return;
+  const safeScore = Math.max(0, Math.min(5, Math.round(Number(score || 0))));
+  Array.from(document.querySelectorAll('.step1-risk-feedback__star'))
+    .filter((button) => String(button.dataset.riskFeedbackId || '').trim() === safeRiskId)
+    .forEach((button) => {
+      const buttonScore = Number(button.dataset.riskFeedbackScore || 0);
+      button.classList.toggle('is-active', buttonScore <= safeScore);
+      button.setAttribute('aria-checked', buttonScore === safeScore ? 'true' : 'false');
+    });
+  const statusEl = document.getElementById(`risk-feedback-status-${safeRiskId}`);
+  if (statusEl) {
+    const savedLabel = savedAt
+      ? `Saved ${new Date(savedAt).toLocaleString([], { hour: 'numeric', minute: '2-digit', month: 'short', day: 'numeric' })}`
+      : 'Not yet rated';
+    const runtimeLabel = runtimeMode === 'live_ai' ? 'Live AI' : runtimeMode === 'fallback' ? 'Fallback guidance' : 'Local guidance';
+    statusEl.textContent = `${savedLabel} · ${runtimeLabel}`;
+  }
+}
+
+async function saveStep1AiRiskFeedback(riskId = '', score = 0, { buList = getBUList() } = {}) {
+  const safeRiskId = String(riskId || '').trim();
+  const risk = getRiskCandidates().find((item) => String(item?.id || '').trim() === safeRiskId);
+  if (!risk || !isStep1GeneratedRiskFeedbackEligible(risk)) return;
+  const safeScore = Math.max(1, Math.min(5, Math.round(Number(score || 0))));
+  const username = AuthService.getCurrentUser()?.username || '';
+  const runtimeMode = getStep1AiRuntimeMode(AppState.draft);
+  const selectedRiskIds = new Set(Array.isArray(AppState.draft?.selectedRiskIds) ? AppState.draft.selectedRiskIds : []);
+  const bu = (Array.isArray(buList) ? buList : []).find(item => item?.id === AppState.draft?.buId) || null;
+  const payload = {
+    target: 'risk',
+    score: safeScore,
+    reasons: [],
+    runtimeMode,
+    buId: AppState.draft?.buId || '',
+    buName: bu?.name || AppState.draft?.buName || '',
+    functionKey: AppState.draft?.scenarioLens?.functionKey || '',
+    lensKey: AppState.draft?.scenarioLens?.key || '',
+    scenarioFingerprint: buildStep1AiFeedbackScenarioFingerprint(AppState.draft),
+    outputFingerprint: buildStep1RiskFeedbackOutputFingerprint(risk),
+    riskId: safeRiskId,
+    riskTitle: risk?.title || '',
+    riskCategory: risk?.category || '',
+    riskSource: risk?.source || '',
+    selectedInAssessment: selectedRiskIds.has(safeRiskId),
+    submittedBy: username
+  };
+  await persistStep1AiFeedbackPayload(username, payload);
+  const savedAt = Date.now();
+  AppState.draft.aiFeedback = {
+    ...(AppState.draft.aiFeedback && typeof AppState.draft.aiFeedback === 'object' ? AppState.draft.aiFeedback : {}),
+    risks: {
+      ...((AppState.draft.aiFeedback && typeof AppState.draft.aiFeedback.risks === 'object') ? AppState.draft.aiFeedback.risks : {}),
+      [safeRiskId]: {
+        score: safeScore,
+        runtimeMode,
+        savedAt
+      }
+    }
+  };
+  saveDraft();
+  updateStep1RiskFeedbackUi(safeRiskId, safeScore, savedAt, runtimeMode);
 }
 
 function bindStep1AiFeedbackActions({ buList = getBUList() } = {}) {
@@ -3847,6 +3992,15 @@ function bindStep1AiFeedbackActions({ buList = getBUList() } = {}) {
   document.querySelectorAll('.btn-save-ai-feedback').forEach((button) => {
     button.addEventListener('click', async () => {
       await saveStep1AiFeedback(button.dataset.feedbackTarget || 'draft', { buList });
+    });
+  });
+  document.querySelectorAll('.step1-risk-feedback__star').forEach((button) => {
+    button.addEventListener('click', async () => {
+      await saveStep1AiRiskFeedback(
+        button.dataset.riskFeedbackId || '',
+        button.dataset.riskFeedbackScore || 0,
+        { buList }
+      );
     });
   });
 }

@@ -115,3 +115,43 @@ test('org intelligence stores and returns AI feedback events', async () => {
   assert.equal(getRes.payload.feedback.events.length, 1);
   assert.equal(getRes.payload.feedback.events[0].lensKey, 'financial');
 });
+
+test('org intelligence stores per-risk AI feedback events with the explicit risk context', async () => {
+  const token = buildSessionToken({
+    username: 'alex',
+    role: 'user',
+    exp: Date.now() + 60_000
+  });
+
+  const postRes = createRes();
+  await handler({
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-session-token': token
+    },
+    body: {
+      type: 'record_feedback',
+      feedback: {
+        target: 'risk',
+        score: 5,
+        runtimeMode: 'live_ai',
+        buId: 'corp-ops',
+        functionKey: 'operations',
+        lensKey: 'operational',
+        riskId: 'risk-ops-1',
+        riskTitle: 'Business continuity and recovery failure',
+        riskCategory: 'Business Continuity',
+        riskSource: 'ai',
+        selectedInAssessment: true
+      }
+    }
+  }, postRes);
+
+  assert.equal(postRes.statusCode, 200);
+  assert.equal(postRes.payload.ok, true);
+  assert.equal(postRes.payload.feedback.events.length, 1);
+  assert.equal(postRes.payload.feedback.events[0].target, 'risk');
+  assert.equal(postRes.payload.feedback.events[0].riskTitle, 'Business continuity and recovery failure');
+  assert.equal(postRes.payload.feedback.events[0].selectedInAssessment, true);
+});

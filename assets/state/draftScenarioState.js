@@ -423,7 +423,10 @@
   } = {}) {
     const resolvedNarrative = nextNarrative || result.enhancedStatement || narrative;
     const suggestedRiskSource = AppState.draft.registerFindings ? 'ai+register' : 'ai';
-    const alignedRisks = getAlignedRiskSeed(result.risks, resolvedNarrative || narrative, AppState.draft.scenarioLens, {
+    const nextScenarioLens = result?.scenarioLens && typeof result.scenarioLens === 'object'
+      ? { ...result.scenarioLens }
+      : (AppState.draft.scenarioLens || null);
+    const alignedRisks = getAlignedRiskSeed(result.risks, resolvedNarrative || narrative, nextScenarioLens, {
       riskSource: suggestedRiskSource
     });
     AppState.draft.llmAssisted = true;
@@ -434,9 +437,7 @@
     AppState.draft.intakeSummary = result.summary || AppState.draft.intakeSummary || '';
     AppState.draft.linkAnalysis = result.linkAnalysis || AppState.draft.linkAnalysis || '';
     // Keep one canonical scenario lens on the draft so Step 3, learning, and benchmarking stop re-inferring the scenario in different ways.
-    AppState.draft.scenarioLens = result?.scenarioLens && typeof result.scenarioLens === 'object'
-      ? { ...result.scenarioLens }
-      : (AppState.draft.scenarioLens || null);
+    AppState.draft.scenarioLens = nextScenarioLens;
     AppState.draft.workflowGuidance = Array.isArray(result.workflowGuidance) ? result.workflowGuidance : AppState.draft.workflowGuidance;
     AppState.draft.benchmarkBasis = result.benchmarkBasis || AppState.draft.benchmarkBasis;
     AppState.draft.aiAlignment = result?.aiAlignment && typeof result.aiAlignment === 'object'

@@ -83,3 +83,47 @@ test('recordAiFeedback stores bounded structured events and builds a profile fro
   assert.ok(profile.topNegativeRisks.some(item => item.title === 'Privileged account takeover'));
   assert.ok(profile.topPositiveDocs.some(item => item.docId === 'doc-fin-1'));
 });
+
+test('recordAiFeedback captures per-risk star ratings and feeds explicit risk weights', () => {
+  LearningStore.recordAiFeedback('alex', {
+    target: 'risk',
+    score: 5,
+    runtimeMode: 'live_ai',
+    buId: 'corp-ops',
+    functionKey: 'operations',
+    lensKey: 'operational',
+    riskId: 'risk-ops-1',
+    riskTitle: 'Business continuity and recovery failure',
+    riskCategory: 'Business Continuity',
+    riskSource: 'ai',
+    selectedInAssessment: true,
+    submittedBy: 'alex'
+  });
+  LearningStore.recordAiFeedback('alex', {
+    target: 'risk',
+    score: 1,
+    runtimeMode: 'live_ai',
+    buId: 'corp-ops',
+    functionKey: 'operations',
+    lensKey: 'operational',
+    riskId: 'risk-ops-2',
+    riskTitle: 'Cyber compromise of critical platforms or data',
+    riskCategory: 'Cyber',
+    riskSource: 'ai',
+    selectedInAssessment: false,
+    submittedBy: 'alex'
+  });
+
+  const profile = LearningStore.getAiFeedbackProfile('alex', {
+    buId: 'corp-ops',
+    functionKey: 'operations',
+    lensKey: 'operational'
+  });
+
+  assert.equal(profile.totalEvents, 2);
+  assert.equal(profile.liveAiEvents, 2);
+  assert.equal(profile.risk.count, 2);
+  assert.equal(profile.risk.averageScore, 3);
+  assert.ok(profile.topPositiveRisks.some(item => item.title === 'Business continuity and recovery failure'));
+  assert.ok(profile.topNegativeRisks.some(item => item.title === 'Cyber compromise of critical platforms or data'));
+});

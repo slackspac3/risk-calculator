@@ -73,7 +73,8 @@ function loadDraftScenarioStateRuntime() {
 
   return {
     api: context.window.DraftScenarioState,
-    appState: context.AppState
+    appState: context.AppState,
+    context
   };
 }
 
@@ -179,4 +180,46 @@ test('applyRegisterAnalysisResultToDraft stamps live analysed upload risks as ai
   assert.equal(extracted[0].source, 'ai+register');
   assert.equal(appState.draft.riskCandidates[0].source, 'ai+register');
   assert.equal(appState.draft.selectedRisks[0].title, 'Supplier concentration exposure');
+});
+
+test('applyScenarioAssistResultToDraft aligns hinted risks against the new scenario lens rather than the previous draft lens', () => {
+  const { api, appState, context } = loadDraftScenarioStateRuntime();
+  context.guessRisksFromText = (narrative = '', { lensHint } = {}) => (
+    String(lensHint?.key || lensHint || '').toLowerCase().includes('operational')
+      ? [{
+          title: 'Operational breakdown affecting core services',
+          category: 'Operational',
+          description: `Aligned to: ${narrative}`
+        }]
+      : [{
+          title: 'Cyber compromise of critical platforms or data',
+          category: 'Cyber',
+          description: `Aligned to: ${narrative}`
+        }]
+  );
+
+  appState.draft = {
+    riskCandidates: [],
+    selectedRiskIds: [],
+    selectedRisks: [],
+    scenarioLens: { key: 'cyber', label: 'Cyber' },
+    applicableRegulations: [],
+    registerFindings: ''
+  };
+
+  api.applyScenarioAssistResultToDraft({
+    risks: [],
+    scenarioLens: { key: 'operational', label: 'Operational' },
+    regulations: ['ISO 22301']
+  }, {
+    narrative: 'Unscheduled IT system downtime due to aging infrastructure may cause critical operational disruption.',
+    assistSeed: 'Unscheduled IT system downtime due to aging infrastructure may cause critical operational disruption.',
+    nextNarrative: 'Unscheduled IT system downtime due to aging infrastructure may cause critical operational disruption.'
+  });
+
+  assert.equal(appState.draft.scenarioLens?.key, 'operational');
+  assert.deepEqual(
+    Array.from(appState.draft.riskCandidates, (risk) => risk.title),
+    ['Operational breakdown affecting core services']
+  );
 });
