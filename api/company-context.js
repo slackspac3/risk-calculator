@@ -334,8 +334,9 @@ function parseRssItems(xml) {
     const link = decodeXml((block.match(/<link>([\s\S]*?)<\/link>/i) || [])[1] || '').trim();
     const description = stripHtml(decodeXml((block.match(/<description>([\s\S]*?)<\/description>/i) || [])[1] || '')).trim();
     const pubDate = decodeXml((block.match(/<pubDate>([\s\S]*?)<\/pubDate>/i) || [])[1] || '').trim();
+    const sourceName = stripHtml(decodeXml((block.match(/<source[^>]*>([\s\S]*?)<\/source>/i) || [])[1] || '')).trim();
     if (title && link) {
-      items.push({ title, link, description, pubDate });
+      items.push({ title, link, description, pubDate, sourceName });
     }
   });
   return items;
@@ -350,9 +351,12 @@ function isDirectlyRelevantNews(item, aliases = []) {
 
 function selectNewsCoverage(items = [], aliases = []) {
   const caps = {
-    'Local UAE/GCC business news': 5,
+    'Local UAE/GCC business news': 6,
     'Regional technology and policy news': 5,
-    'Strategy and regulatory news': 5,
+    'Global tier-1 business and finance news': 6,
+    'Global technology and infrastructure news': 5,
+    'International policy and regulatory news': 5,
+    'Strategy, investment, and partnership news': 5,
     'Leadership and governance news': 4,
     'Global business news': 5,
     'Risk and incident news': 4
@@ -366,66 +370,125 @@ function selectNewsCoverage(items = [], aliases = []) {
   const orderedFeeds = [
     'Local UAE/GCC business news',
     'Regional technology and policy news',
-    'Strategy and regulatory news',
+    'Global tier-1 business and finance news',
+    'Global technology and infrastructure news',
+    'International policy and regulatory news',
+    'Strategy, investment, and partnership news',
     'Leadership and governance news',
     'Global business news',
     'Risk and incident news'
   ];
   const selected = [];
-  const domainCounts = new Map();
+  const outletCounts = new Map();
   orderedFeeds.forEach(feed => {
     const feedItems = (grouped.get(feed) || []).filter(item => feed !== 'Risk and incident news' || isDirectlyRelevantNews(item, aliases));
     feedItems.forEach((item) => {
-      if (selected.length >= 28) return;
-      const domain = hostnameOf(item.link);
-      const current = domainCounts.get(domain) || 0;
-      if (domain && current >= 2) return;
+      if (selected.length >= 32) return;
+      const outlet = String(item.sourceName || hostnameOf(item.link) || '').trim().toLowerCase();
+      const current = outletCounts.get(outlet) || 0;
+      if (outlet && current >= 2) return;
       if ((selected.filter(existing => existing.feed === feed).length) >= (caps[feed] || 4)) return;
       selected.push(item);
-      if (domain) domainCounts.set(domain, current + 1);
+      if (outlet) outletCounts.set(outlet, current + 1);
     });
   });
-  return selected.slice(0, 28);
+  return selected.slice(0, 32);
+}
+
+function buildGoogleNewsRssUrl(query, {
+  hl = 'en-US',
+  gl = 'US',
+  ceid = 'US:en'
+} = {}) {
+  return `https://news.google.com/rss/search?q=${encodeURIComponent(String(query || '').trim())}&hl=${encodeURIComponent(hl)}&gl=${encodeURIComponent(gl)}&ceid=${encodeURIComponent(ceid)}`;
+}
+
+function buildNewsFeeds(canonicalUrl, rootHtml = '') {
+  const aliases = extractCompanyAliases(canonicalUrl, rootHtml);
+  const primaryAlias = aliases[0] || extractCompanySearchTerm(canonicalUrl);
+  const quotedAlias = `"${primaryAlias}"`;
+  const aliasQuery = aliases
+    .map(alias => String(alias || '').trim())
+    .filter(Boolean)
+    .map(alias => `"${alias}"`)
+    .join(' OR ');
+  return [
+    {
+      label: 'Local UAE/GCC business news',
+      url: buildGoogleNewsRssUrl(
+        `${aliasQuery} (site:thenationalnews.com OR site:gulfnews.com OR site:khaleejtimes.com OR site:zawya.com OR site:arabianbusiness.com OR site:gulfbusiness.com OR site:economymiddleeast.com OR site:meed.com OR site:tradearabia.com OR site:arabnews.com)`,
+        { hl: 'en-AE', gl: 'AE', ceid: 'AE:en' }
+      )
+    },
+    {
+      label: 'Regional technology and policy news',
+      url: buildGoogleNewsRssUrl(
+        `${aliasQuery} (AI OR "data centre" OR sovereign OR cloud OR government OR semiconductor OR compute) (site:thenationalnews.com OR site:zawya.com OR site:restofworld.org OR site:techcrunch.com OR site:semafor.com OR site:theregister.com)`,
+        { hl: 'en-AE', gl: 'AE', ceid: 'AE:en' }
+      )
+    },
+    {
+      label: 'Global tier-1 business and finance news',
+      url: buildGoogleNewsRssUrl(
+        `${aliasQuery} (site:reuters.com OR site:bloomberg.com OR site:ft.com OR site:wsj.com OR site:cnbc.com OR site:apnews.com OR site:nikkei.com OR site:fortune.com OR site:forbes.com)`,
+        { hl: 'en-US', gl: 'US', ceid: 'US:en' }
+      )
+    },
+    {
+      label: 'Global technology and infrastructure news',
+      url: buildGoogleNewsRssUrl(
+        `${aliasQuery} (technology OR cloud OR infrastructure OR compute OR AI OR data centre OR platform) (site:techcrunch.com OR site:theverge.com OR site:wired.com OR site:venturebeat.com OR site:theregister.com OR site:datacenterdynamics.com OR site:siliconangle.com)`,
+        { hl: 'en-US', gl: 'US', ceid: 'US:en' }
+      )
+    },
+    {
+      label: 'International policy and regulatory news',
+      url: buildGoogleNewsRssUrl(
+        `${quotedAlias} (regulation OR compliance OR licence OR policy OR sanctions OR export controls OR privacy OR antitrust) (site:reuters.com OR site:ft.com OR site:apnews.com OR site:politico.com OR site:bloomberg.com OR site:wsj.com OR site:bbc.com)`,
+        { hl: 'en-US', gl: 'US', ceid: 'US:en' }
+      )
+    },
+    {
+      label: 'Strategy, investment, and partnership news',
+      url: buildGoogleNewsRssUrl(
+        `${quotedAlias} (partnership OR acquisition OR investment OR expansion OR "joint venture" OR funding OR strategy OR collaboration) (site:reuters.com OR site:bloomberg.com OR site:ft.com OR site:wsj.com OR site:cnbc.com OR site:forbes.com OR site:fortune.com)`,
+        { hl: 'en-US', gl: 'US', ceid: 'US:en' }
+      )
+    },
+    {
+      label: 'Leadership and governance news',
+      url: buildGoogleNewsRssUrl(
+        `${quotedAlias} (board OR chairman OR CEO OR governance OR "responsible AI" OR ethics OR oversight)`,
+        { hl: 'en-US', gl: 'US', ceid: 'US:en' }
+      )
+    },
+    {
+      label: 'Global business news',
+      url: buildGoogleNewsRssUrl(
+        `${quotedAlias} (company OR business OR strategy OR operations OR partnership OR expansion)`,
+        { hl: 'en-US', gl: 'US', ceid: 'US:en' }
+      )
+    },
+    {
+      label: 'Risk and incident news',
+      url: buildGoogleNewsRssUrl(
+        `${quotedAlias} (cyber OR breach OR outage OR incident OR fine OR sanctions OR attack OR ransomware OR disruption)`,
+        { hl: 'en-US', gl: 'US', ceid: 'US:en' }
+      )
+    }
+  ];
 }
 
 async function fetchNewsContext(canonicalUrl, rootHtml = '') {
   const aliases = extractCompanyAliases(canonicalUrl, rootHtml);
-  const quotedAlias = encodeURIComponent(`"${aliases[0] || extractCompanySearchTerm(canonicalUrl)}"`);
-  const aliasQuery = aliases.map(alias => `"${alias}"`).join(' OR ');
-  const encodedAliasQuery = encodeURIComponent(aliasQuery);
-  const feeds = [
-    {
-      label: 'Local UAE/GCC business news',
-      url: `https://news.google.com/rss/search?q=${encodedAliasQuery}%20(site%3Athenationalnews.com%20OR%20site%3Agulfnews.com%20OR%20site%3Akhaleejtimes.com%20OR%20site%3Azawya.com%20OR%20site%3Aarabianbusiness.com%20OR%20site%3Agulfbusiness.com%20OR%20site%3Aeconomymiddleeast.com)&hl=en-AE&gl=AE&ceid=AE:en`
-    },
-    {
-      label: 'Regional technology and policy news',
-      url: `https://news.google.com/rss/search?q=${encodedAliasQuery}%20(site%3Athenationalnews.com%20OR%20site%3Azawya.com%20OR%20site%3Arestofworld.org%20OR%20site%3Atechcrunch.com)%20(AI%20OR%20data%20centre%20OR%20sovereign%20OR%20cloud%20OR%20government)&hl=en-AE&gl=AE&ceid=AE:en`
-    },
-    {
-      label: 'Global business news',
-      url: `https://news.google.com/rss/search?q=${encodedAliasQuery}%20(site%3Areuters.com%20OR%20site%3Abloomberg.com%20OR%20site%3Acnbc.com%20OR%20site%3Aft.com%20OR%20site%3Awsj.com%20OR%20site%3Aforbes.com)%20(AI%20OR%20cloud%20OR%20technology%20OR%20partnership)&hl=en-US&gl=US&ceid=US:en`
-    },
-    {
-      label: 'Risk and incident news',
-      url: `https://news.google.com/rss/search?q=${quotedAlias}%20(cyber%20OR%20breach%20OR%20outage%20OR%20incident%20OR%20fine%20OR%20sanctions%20OR%20attack%20OR%20ransomware)&hl=en-US&gl=US&ceid=US:en`
-    },
-    {
-      label: 'Strategy and regulatory news',
-      url: `https://news.google.com/rss/search?q=${quotedAlias}%20(regulation%20OR%20compliance%20OR%20licence%20OR%20partnership%20OR%20acquisition%20OR%20expansion%20OR%20investment%20OR%20joint%20venture)&hl=en-US&gl=US&ceid=US:en`
-    },
-    {
-      label: 'Leadership and governance news',
-      url: `https://news.google.com/rss/search?q=${quotedAlias}%20(board%20OR%20chairman%20OR%20CEO%20OR%20governance%20OR%20responsible%20AI%20OR%20ethics)&hl=en-US&gl=US&ceid=US:en`
-    }
-  ];
+  const feeds = buildNewsFeeds(canonicalUrl, rootHtml);
   const feedResults = await Promise.allSettled(
     feeds.map(feed => fetchText(feed.url, 6000).then(xml => ({ feed, xml })))
   );
   const results = [];
   feedResults.forEach(result => {
     if (result.status !== 'fulfilled') return;
-    const items = parseRssItems(result.value.xml).slice(0, 8).map(item => ({
+    const items = parseRssItems(result.value.xml).slice(0, 10).map(item => ({
       ...item,
       feed: result.value.feed.label
     }));
@@ -451,7 +514,10 @@ function buildFallbackProfile(canonicalUrl, pages, newsItems = []) {
     suggestedGeography: '',
     sources: [
       ...pages.map(page => ({ url: page.url, note: page.note || 'Official company website page fetched for context building.' })),
-      ...newsItems.map(item => ({ url: item.link, note: `${item.feed}: ${item.title}` }))
+      ...newsItems.map(item => ({
+        url: item.link,
+        note: `${item.feed}: ${item.sourceName ? `${item.sourceName} - ` : ''}${item.title}`
+      }))
     ]
   };
 }
@@ -691,7 +757,7 @@ Known company aliases:
 ${aliases.join(', ')}
 
 Public news context:
-${newsItems.length ? newsItems.map((item, idx) => `News ${idx + 1}: ${item.feed} | ${item.title} | ${item.pubDate}\n${item.description}\n${item.link}`).join('\n\n') : '(no public news items were retrieved)'}
+${newsItems.length ? newsItems.map((item, idx) => `News ${idx + 1}: ${item.feed} | ${item.sourceName || 'Unknown outlet'} | ${item.title} | ${item.pubDate}\n${item.description}\n${item.link}`).join('\n\n') : '(no public news items were retrieved)'}
 
 Instructions:
 - infer the company's business model, operating profile, technology reliance, public commitments, likely obligations, data exposure, and likely regulatory posture
@@ -756,3 +822,7 @@ Instructions:
     });
   }
 };
+
+module.exports.parseRssItems = parseRssItems;
+module.exports.selectNewsCoverage = selectNewsCoverage;
+module.exports.buildNewsFeeds = buildNewsFeeds;
