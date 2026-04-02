@@ -553,6 +553,17 @@ function renderStep1GuidedPromptIdeaChips(promptSuggestions = []) {
     .join('');
 }
 
+function getStep1AiTuningSettings() {
+  return typeof getAiFeedbackTuningSettings === 'function'
+    ? getAiFeedbackTuningSettings()
+    : {
+        alignmentPriority: 'strict',
+        draftStyle: 'executive-brief',
+        shortlistDiscipline: 'strict',
+        learningSensitivity: 'balanced'
+      };
+}
+
 function getStep1LearnedExampleSummary(pattern = {}) {
   const parts = [
     pattern.geography ? `Completed in ${pattern.geography}` : '',
@@ -777,6 +788,7 @@ function isStep1AiDraftMateriallyReshaped(draft = {}) {
 }
 
 function buildStep1AiQualityModel(draft = {}) {
+  const tuning = getStep1AiTuningSettings();
   const citations = Array.isArray(draft.citations) ? draft.citations.filter(Boolean) : [];
   const primaryGrounding = Array.isArray(draft.primaryGrounding) ? draft.primaryGrounding.filter(Boolean) : [];
   const supportingReferences = Array.isArray(draft.supportingReferences) ? draft.supportingReferences.filter(Boolean) : [];
@@ -786,6 +798,7 @@ function buildStep1AiQualityModel(draft = {}) {
     ...supportingReferences.map(item => item?.docId || item?.title || item?.sourceTitle || item?.label || JSON.stringify(item))
   ].filter(Boolean)).size;
   const source = String(draft.aiQualityState || draft.guidedDraftSource || (draft.llmAssisted ? 'ai' : 'local')).trim() || 'local';
+  const validationMode = String(draft.aiValidationMode || '').trim() || 'local_checks';
   const confidence = String(draft.confidenceLabel || '').trim() || 'Moderate confidence';
   const evidenceQuality = String(draft.evidenceQuality || '').trim() || 'Evidence quality not yet stated';
   const alignmentChecks = Array.isArray(draft.aiAlignment?.checks) ? draft.aiAlignment.checks.filter(Boolean) : [];
@@ -817,6 +830,12 @@ function buildStep1AiQualityModel(draft = {}) {
     tone = 'quiet';
     title = 'Locally structured';
     copy = 'This draft is currently shaped from your inputs and saved context. Run the AI build when you want a stronger structured rewrite and refreshed shortlist.';
+  } else if (validationMode === 'live_quality_gate' && !needsReview) {
+    tone = 'success';
+    title = 'Live-AI validated';
+    copy = tuning.alignmentPriority === 'strict'
+      ? 'The draft and shortlist passed a second live AI logic and framing check before they were shown, with strict event-path alignment active.'
+      : 'The draft and shortlist passed a second live AI logic and framing check before they were shown.';
   } else if (!needsReview && (/high/i.test(confidence) || /strong/i.test(evidenceQuality)) && evidenceCount >= 2) {
     tone = 'success';
     title = 'Strongly grounded';
@@ -833,8 +852,8 @@ function buildStep1AiQualityModel(draft = {}) {
     copy,
     facts: [
       { label: 'Draft source', value: source === 'ai' ? 'Live AI rewrite' : source === 'fallback' ? 'Fallback guidance' : source === 'analyst-reshaped' ? 'Analyst reshaped' : 'Local composition' },
+      { label: 'Validation', value: validationMode === 'live_quality_gate' ? 'Live AI quality gate' : validationMode === 'local_fallback' ? 'Local fallback checks' : 'Local logic checks' },
       { label: 'Evidence', value: `${evidenceCount} support item${evidenceCount === 1 ? '' : 's'}` },
-      { label: 'Confidence', value: confidence },
       { label: 'Lens fit', value: `${draft.aiAlignment?.label || (needsReview ? 'Review suggested' : 'Working alignment')}${secondaryLensLabels.length ? ` · also ${secondaryLensLabels.join(' / ')}` : ''}` }
     ]
   };
@@ -3582,6 +3601,7 @@ function lookupStep1FeedbackRiskWeight(feedbackProfile = null, riskTitle = '') {
 }
 
 function scoreRiskForCurrentAssessment(risk, assessmentSignals, selectedIds, feedbackSummary = null, feedbackProfile = null) {
+  const tuning = getStep1AiTuningSettings();
   let score = 0;
   const reasons = [];
   const haystack = getRiskAssessmentHaystack(risk);
@@ -3632,6 +3652,13 @@ function scoreRiskForCurrentAssessment(risk, assessmentSignals, selectedIds, fee
   if (narrativeMatches >= 2) {
     score += 2;
     reasons.push('Shares the same event wording as the current scenario draft.');
+  }
+  if (tuning.shortlistDiscipline === 'strict' && !selectedIds.has(risk.id) && !hasLensMatch) {
+    score -= 2;
+  }
+  if (tuning.alignmentPriority === 'strict' && !selectedIds.has(risk.id) && !hasLensMatch && (causeMatches + impactMatches + narrativeMatches) === 0) {
+    score -= 1.5;
+    reasons.push('Strict alignment is pushing off-path risks out of the recommended set.');
   }
 
   const riskKey = normaliseLearningRiskKey(risk.title);
@@ -3739,7 +3766,9 @@ function renderSelectedRiskCards(riskCandidates, selectedRisks, regulations) {
     })
     .sort((a, b) => b.score - a.score || String(a.risk.title || '').localeCompare(String(b.risk.title || '')));
   const selectedReviewCount = ranked.filter(item => selectedIds.has(item.risk.id) && item.match.fit === 'selected-review').length;
-  const recommended = ranked.filter(item => selectedIds.has(item.risk.id) || item.match.fit === 'strong' || item.score >= 4);
+  const tuning = getStep1AiTuningSettings();
+  const recommendationThreshold = tuning.shortlistDiscipline === 'strict' ? 5 : 4;
+  const recommended = ranked.filter(item => selectedIds.has(item.risk.id) || item.match.fit === 'strong' || item.score >= recommendationThreshold);
   const extras = ranked.filter(item => !recommended.includes(item));
   const selectedCount = selectedRisks.length;
   const scopeHint = selectedCount > 4

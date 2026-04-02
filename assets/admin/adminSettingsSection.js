@@ -6,6 +6,7 @@
     company: { title: 'AI Company Context Builder', description: 'Build public company context and place it into the organisation structure.' },
     defaults: { title: 'Platform Defaults', description: 'Manage thresholds, escalation posture, geography, and global linked-risk fallback.' },
     governance: { title: 'Governance Inputs', description: 'Manage regulations, AI guidance, typical departments, and scoped governance overrides.' },
+    feedback: { title: 'AI Feedback & Tuning', description: 'Monitor draft, shortlist, and per-risk feedback; then tune alignment, writing style, shortlist discipline, and learning sensitivity.' },
     access: { title: 'System Access', description: 'Configure the Compass proxy, model, and session-level access controls.' },
     users: { title: 'User Account Control', description: 'Manage shared users, roles, BU assignments, and issued passwords.' },
     audit: { title: 'Audit Log', description: 'Review short-retention PoC audit events and sign-in statistics.' }
@@ -20,6 +21,8 @@
           ? 'Set global thresholds and fallback posture here. Governance inputs and scoped overrides live separately to reduce cognitive load.'
           : currentSettingsSection === 'governance'
             ? 'Use this screen for regulations, AI guidance, and scoped defaults. Financial thresholds remain on Platform Defaults.'
+            : currentSettingsSection === 'feedback'
+              ? 'Review the live feedback signal first, then tune only one behaviour at a time so you can see the downstream effect on alignment, writing quality, and shared learning.'
             : currentSettingsSection === 'company'
               ? 'Generate first, refine second. Keep the main company-context draft simple before opening advanced AI refinement.'
               : currentSettingsSection === 'access'
@@ -36,6 +39,8 @@
           ? 'Thresholds first'
           : currentSettingsSection === 'governance'
             ? 'Guidance first'
+            : currentSettingsSection === 'feedback'
+              ? 'Signal first'
             : currentSettingsSection === 'company'
               ? 'Build first'
               : 'One intentional change at a time';

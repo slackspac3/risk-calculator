@@ -4882,14 +4882,14 @@ const ADMIN_SECTION_STORAGE_KEY = 'rq_admin_active_section';
 function getPreferredAdminSection() {
   try {
     const value = String(localStorage.getItem(ADMIN_SECTION_STORAGE_KEY) || '').trim();
-    return ['org', 'company', 'defaults', 'governance', 'access', 'users', 'audit'].includes(value) ? value : 'org';
+    return ['org', 'company', 'defaults', 'governance', 'feedback', 'access', 'users', 'audit'].includes(value) ? value : 'org';
   } catch {
     return 'org';
   }
 }
 
 function setPreferredAdminSection(section) {
-  const value = ['org', 'company', 'defaults', 'governance', 'access', 'users', 'audit'].includes(section) ? section : 'org';
+  const value = ['org', 'company', 'defaults', 'governance', 'feedback', 'access', 'users', 'audit'].includes(section) ? section : 'org';
   try {
     localStorage.setItem(ADMIN_SECTION_STORAGE_KEY, value);
   } catch {}

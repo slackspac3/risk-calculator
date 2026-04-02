@@ -8,7 +8,7 @@
 const TOLERANCE_THRESHOLD = 5_000_000;
 const DEFAULT_FX_RATE = 3.6725;
 const DEFAULT_COMPASS_PROXY_URL = resolveCompassProxyUrl();
-const APP_ASSET_VERSION = '20260329v1';
+const APP_ASSET_VERSION = '20260402v1';
 const APP_RELEASE = Object.freeze((typeof window !== 'undefined' && window.__RISK_CALCULATOR_RELEASE__) || {
   version: '0.10.0-pilot.1',
   channel: 'pilot',
@@ -44,6 +44,12 @@ const DEFAULT_TYPICAL_DEPARTMENTS = [
   'Commercial',
   'Shared Services'
 ];
+const DEFAULT_AI_FEEDBACK_TUNING = Object.freeze({
+  alignmentPriority: 'strict',
+  draftStyle: 'executive-brief',
+  shortlistDiscipline: 'strict',
+  learningSensitivity: 'balanced'
+});
 
 const DEFAULT_ADMIN_SETTINGS = {
   geography: 'United Arab Emirates',
@@ -64,6 +70,7 @@ const DEFAULT_ADMIN_SETTINGS = {
   adminContextVisibleToUsers: true,
   escalationGuidance: 'Escalate to leadership when the scenario is above tolerance, close to tolerance, or materially affects regulated services.',
   typicalDepartments: [...DEFAULT_TYPICAL_DEPARTMENTS],
+  aiFeedbackTuning: { ...DEFAULT_AI_FEEDBACK_TUNING },
   valueBenchmarkSettings: typeof window !== 'undefined' && window.ValueQuantService
     ? window.ValueQuantService.getDefaultBenchmarkSettings()
     : { internalHourlyRatesUsd: {}, externalDayRatesUsd: {} }
@@ -212,6 +219,29 @@ function renderPilotWarningBanner(kind = 'poc', {
   return `<div class="banner banner--${resolved.tone}${compact ? '' : ' mt-4'}"><span class="banner-icon">${resolved.icon}</span><span class="banner-text"><strong>${escapeHtml(resolved.title)}:</strong> ${escapeHtml(resolved.text)}</span></div>`;
 }
 
+function normaliseAiFeedbackTuning(value = {}) {
+  const source = value && typeof value === 'object' ? value : {};
+  const pick = (input, allowed, fallback) => {
+    const safe = String(input || '').trim().toLowerCase();
+    return allowed.includes(safe) ? safe : fallback;
+  };
+  return {
+    alignmentPriority: pick(source.alignmentPriority, ['strict', 'balanced'], DEFAULT_AI_FEEDBACK_TUNING.alignmentPriority),
+    draftStyle: pick(source.draftStyle, ['executive-brief', 'balanced'], DEFAULT_AI_FEEDBACK_TUNING.draftStyle),
+    shortlistDiscipline: pick(source.shortlistDiscipline, ['strict', 'balanced'], DEFAULT_AI_FEEDBACK_TUNING.shortlistDiscipline),
+    learningSensitivity: pick(source.learningSensitivity, ['conservative', 'balanced', 'accelerated'], DEFAULT_AI_FEEDBACK_TUNING.learningSensitivity)
+  };
+}
+
+function getAiFeedbackTuningSettings(settings = null) {
+  const resolvedSettings = settings && typeof settings === 'object'
+    ? settings
+    : (typeof getEffectiveSettings === 'function'
+        ? getEffectiveSettings()
+        : getAdminSettings());
+  return normaliseAiFeedbackTuning(resolvedSettings?.aiFeedbackTuning || DEFAULT_AI_FEEDBACK_TUNING);
+}
+
 function normaliseAdminSettings(settings = {}) {
   const mergedRegulations = Array.from(new Set([
     ...DEFAULT_ADMIN_SETTINGS.applicableRegulations,
@@ -226,6 +256,7 @@ function normaliseAdminSettings(settings = {}) {
     entityContextLayers: Array.isArray(settings.entityContextLayers) ? settings.entityContextLayers : [],
     buOverrides: Array.isArray(settings.buOverrides) ? settings.buOverrides : [],
     docOverrides: Array.isArray(settings.docOverrides) ? settings.docOverrides : [],
+    aiFeedbackTuning: normaliseAiFeedbackTuning(settings.aiFeedbackTuning),
     typicalDepartments: Array.isArray(settings.typicalDepartments) && settings.typicalDepartments.length
       ? mergeTypicalDepartmentList(settings.typicalDepartments)
       : [...(DEFAULT_ADMIN_SETTINGS.typicalDepartments || [])],
@@ -7837,6 +7868,7 @@ function adminLayout(active, content, activeSettingsSection = 'org') {
       <a href="#/admin/settings/company" data-admin-route="/admin/settings/company" class="admin-nav-link ${active==='settings' && activeSettingsSection==='company' ? 'active' : ''}">AI Company Builder</a>
       <a href="#/admin/settings/defaults" data-admin-route="/admin/settings/defaults" class="admin-nav-link ${active==='settings' && activeSettingsSection==='defaults' ? 'active' : ''}">Platform Defaults</a>
       <a href="#/admin/settings/governance" data-admin-route="/admin/settings/governance" class="admin-nav-link ${active==='settings' && activeSettingsSection==='governance' ? 'active' : ''}">Governance Inputs</a>
+      <a href="#/admin/settings/feedback" data-admin-route="/admin/settings/feedback" class="admin-nav-link ${active==='settings' && activeSettingsSection==='feedback' ? 'active' : ''}">AI Feedback &amp; Tuning</a>
       <a href="#/admin/settings/access" data-admin-route="/admin/settings/access" class="admin-nav-link ${active==='settings' && activeSettingsSection==='access' ? 'active' : ''}">System Access</a>
       <a href="#/admin/settings/users" data-admin-route="/admin/settings/users" class="admin-nav-link ${active==='settings' && activeSettingsSection==='users' ? 'active' : ''}">User Accounts</a>
       <a href="#/admin/settings/audit" data-admin-route="/admin/settings/audit" class="admin-nav-link ${active==='settings' && activeSettingsSection==='audit' ? 'active' : ''}">Audit Log</a>
@@ -8020,12 +8052,12 @@ function getHelpAudienceModel({
       roleMode,
       roleSummary: roleSummary || 'Global admin',
       navCopy: 'Use this guide as a platform-workbench reference: keep organisation structure, defaults, access, documents, and AI readiness aligned for everyone else.',
-      heroCopy: 'This guide is tailored to the global admin workbench. It focuses on the controls you can actually use: keep the platform baseline current, verify pilot AI readiness, and maintain the context and documents that shape downstream drafting and review.',
+      heroCopy: 'This guide is tailored to the global admin workbench. It focuses on the controls you can actually use: keep the platform baseline current, verify pilot AI readiness, monitor AI feedback quality, and maintain the context and documents that shape downstream drafting and review.',
       overviewAudienceCopy: 'This workspace is for the people shaping how the platform behaves for everyone else, not just for drafting one assessment at a time.',
       overviewUseCase: 'A global admin needs to verify pilot AI readiness, update the document library, and adjust shared context before BU teams start a new round of assessments.',
       contextExample: 'If the global baseline says the organisation runs regulated digital services in the UAE, that governed context can shape downstream drafting and evidence priorities before a BU adds its own overlay.',
       pilotReadinessBody: 'Use Admin > System Access to verify the live path before demos, pilot reviews, or sign-off sessions where AI quality matters. If the current session is in local fallback, treat it as continuity support and not as pilot-quality AI.',
-      feedbackChangeBody: 'Repeated live-AI feedback can eventually influence the global baseline, but only after enough corroborating signals and review. The global layer should stay conservative because it affects every user.',
+      feedbackChangeBody: 'Repeated live-AI feedback can eventually influence the global baseline, but only after enough corroborating signals and review. Use AI Feedback & Tuning to watch the signal quality before you let it affect everyone else.',
       dashboardPurpose: 'Use Platform Home as the admin front door, then move into the admin console only when you need to change structure, defaults, access, or AI readiness.',
       dashboardBestUse: 'Open the next admin workbench that needs attention, or preview the user workspace only when you need to understand the downstream impact of an admin change.',
       stepChips: ['Platform Home', 'Step 1', 'Step 2', 'Step 3', 'Review & Run', 'Results', 'Admin'],
@@ -8033,6 +8065,7 @@ function getHelpAudienceModel({
         { title: 'Review & Run', body: 'Use this to challenge assumptions before a scenario becomes a shared reference point.' },
         { title: 'Results', body: 'Read the executive story first, then validate the technical detail and evidence layers if you need to defend the result.' },
         { title: 'Admin Console', body: 'Keep organisation structure, platform defaults, governance inputs, and the document library current because they shape what everyone else sees.' },
+        { title: 'AI Feedback & Tuning', body: 'Use the feedback dashboard to monitor draft, shortlist, and per-risk ratings before you tune alignment, writing style, or shared-learning sensitivity.' },
         { title: 'Pilot AI Readiness', body: 'Verify the live AI path before sessions where AI quality matters. Local fallback should remain honest and calm, but not mistaken for pilot sign-off quality.' }
       ],
       shortcutCards: [
@@ -8049,6 +8082,15 @@ function getHelpAudienceModel({
           title: 'Your global admin view',
           summary: 'Use admin space as the governed workbench for everyone else.',
           body: `<p class="help-body-copy">Keep organisation structure, company context, platform defaults, governance inputs, access, and the document library current. These settings shape how the AI drafts, how grounded the output can become, and what downstream users inherit.</p>`
+        },
+        {
+          title: 'A good operating rhythm for this role',
+          summary: 'Verify the live path, review shared signal quality, then tune carefully.',
+          body: `<div class="help-mini-grid">
+            <div class="help-mini-card"><strong>Before demos or sign-off</strong><p>Open System Access first and confirm the live AI path in the current browser session. If the platform says local fallback is active, treat the output as continuity support rather than pilot-quality AI.</p></div>
+            <div class="help-mini-card"><strong>Before changing shared tuning</strong><p>Open AI Feedback &amp; Tuning and check whether the weak pattern is repeated, live-AI based, and broad enough to justify a shared change. Tune one parameter at a time.</p></div>
+            <div class="help-mini-card"><strong>Before blaming the model</strong><p>Check document coverage, company context, platform defaults, and user access. Weak outputs can come from thin grounding or stale shared context as much as from prompt quality.</p></div>
+          </div>`
         },
         {
           title: 'What to avoid in this role',
@@ -8855,6 +8897,15 @@ function renderAdminSettings(activeSection = 'org') {
   const companyBuilderSection = window.AdminSettingsSection.renderCompanyBuilderSection({ settings, companyContextSections });
   const platformDefaultsSection = AdminPlatformDefaultsSection.renderSection({ settings, mode: 'defaults' });
   const governanceSection = AdminPlatformDefaultsSection.renderSection({ settings, mode: 'governance' });
+  const feedbackSection = typeof AdminAiFeedbackSection !== 'undefined' && AdminAiFeedbackSection && typeof AdminAiFeedbackSection.renderSection === 'function'
+    ? AdminAiFeedbackSection.renderSection({ settings })
+    : renderSettingsSection({
+        title: 'AI Feedback & Tuning',
+        scope: 'admin-settings',
+        description: 'The AI feedback workbench is temporarily unavailable.',
+        meta: 'Unavailable',
+        body: '<div class="form-help">Reload the page to restore the feedback workbench.</div>'
+      });
   const systemAccessSection = AdminSystemAccessSection.renderSection({
     directCompass,
     sessionLLM,
@@ -8875,6 +8926,7 @@ function renderAdminSettings(activeSection = 'org') {
     company: companyBuilderSection,
     defaults: platformDefaultsSection,
     governance: governanceSection,
+    feedback: feedbackSection,
     access: systemAccessSection,
     users: userControlsSection,
     audit: auditLogSection
@@ -9008,6 +9060,12 @@ function renderAdminSettings(activeSection = 'org') {
         typicalDepartments: typicalDepartmentsInput?.getTags ? typicalDepartmentsInput.getTags() : getTypicalDepartments(currentSettings),
         aiInstructions: getInputValue('admin-ai-instructions', currentSettings.aiInstructions || ''),
         benchmarkStrategy: getInputValue('admin-benchmark-strategy', currentSettings.benchmarkStrategy || DEFAULT_ADMIN_SETTINGS.benchmarkStrategy) || DEFAULT_ADMIN_SETTINGS.benchmarkStrategy,
+        aiFeedbackTuning: normaliseAiFeedbackTuning({
+          alignmentPriority: getInputValue('admin-ai-alignment-priority', currentSettings.aiFeedbackTuning?.alignmentPriority || DEFAULT_AI_FEEDBACK_TUNING.alignmentPriority),
+          draftStyle: getInputValue('admin-ai-draft-style', currentSettings.aiFeedbackTuning?.draftStyle || DEFAULT_AI_FEEDBACK_TUNING.draftStyle),
+          shortlistDiscipline: getInputValue('admin-ai-shortlist-discipline', currentSettings.aiFeedbackTuning?.shortlistDiscipline || DEFAULT_AI_FEEDBACK_TUNING.shortlistDiscipline),
+          learningSensitivity: getInputValue('admin-ai-learning-sensitivity', currentSettings.aiFeedbackTuning?.learningSensitivity || DEFAULT_AI_FEEDBACK_TUNING.learningSensitivity)
+        }),
         adminContextSummary: getInputValue('admin-context-summary', currentSettings.adminContextSummary || DEFAULT_ADMIN_SETTINGS.adminContextSummary) || DEFAULT_ADMIN_SETTINGS.adminContextSummary,
         adminContextVisibleToUsers: document.getElementById('admin-context-visible-users') ? document.getElementById('admin-context-visible-users').checked : currentSettings.adminContextVisibleToUsers !== false,
         escalationGuidance: getInputValue('admin-escalation-guidance', currentSettings.escalationGuidance || DEFAULT_ADMIN_SETTINGS.escalationGuidance) || DEFAULT_ADMIN_SETTINGS.escalationGuidance,
@@ -9098,6 +9156,10 @@ ${topItems}${impactAssessment.impacts.length > 3 ? `\n- +${impactAssessment.impa
   }
   if (currentSettingsSection === 'access') {
     AdminSystemAccessSection.bind({ rerenderCurrentAdminSection });
+  }
+
+  if (currentSettingsSection === 'feedback' && typeof AdminAiFeedbackSection !== 'undefined' && AdminAiFeedbackSection && typeof AdminAiFeedbackSection.bind === 'function') {
+    AdminAiFeedbackSection.bind({ settings, rerenderCurrentAdminSection });
   }
 
 

@@ -360,6 +360,55 @@ Repair the response into the required JSON schema. Preserve scenario-specific me
     return !!_compassApiKey || !_isDirectCompassUrl(_compassApiUrl);
   }
 
+  function _getAiFeedbackTuning() {
+    const defaults = {
+      alignmentPriority: 'strict',
+      draftStyle: 'executive-brief',
+      shortlistDiscipline: 'strict',
+      learningSensitivity: 'balanced'
+    };
+    const sourceSettings = typeof getEffectiveSettings === 'function'
+      ? getEffectiveSettings()
+      : (typeof getAdminSettings === 'function' ? getAdminSettings() : null);
+    const tuning = sourceSettings?.aiFeedbackTuning && typeof sourceSettings.aiFeedbackTuning === 'object'
+      ? sourceSettings.aiFeedbackTuning
+      : {};
+    const pick = (value, allowed, fallback) => {
+      const safe = String(value || '').trim().toLowerCase();
+      return allowed.includes(safe) ? safe : fallback;
+    };
+    return {
+      alignmentPriority: pick(tuning.alignmentPriority, ['strict', 'balanced'], defaults.alignmentPriority),
+      draftStyle: pick(tuning.draftStyle, ['executive-brief', 'balanced'], defaults.draftStyle),
+      shortlistDiscipline: pick(tuning.shortlistDiscipline, ['strict', 'balanced'], defaults.shortlistDiscipline),
+      learningSensitivity: pick(tuning.learningSensitivity, ['conservative', 'balanced', 'accelerated'], defaults.learningSensitivity)
+    };
+  }
+
+  function _buildAiTuningPromptBlock(tuning = _getAiFeedbackTuning()) {
+    return [
+      'Admin tuning policy:',
+      tuning.alignmentPriority === 'strict'
+        ? '- Treat event-path fidelity as a hard rule. The user event wins over generic cloud, IT, infrastructure, profile, or compliance wording.'
+        : '- Keep event-path fidelity primary, but you may preserve slightly broader adjacent framing when it clearly helps understanding.',
+      tuning.draftStyle === 'executive-brief'
+        ? '- Draft like a concise management briefing in 2-3 sentences. Cover event, exposed area, primary driver, and main business consequence without taxonomy lead-ins.'
+        : '- Draft with concise business language, but a little more explanatory framing is acceptable when it sharpens the scenario.',
+      tuning.shortlistDiscipline === 'strict'
+        ? '- Keep the shortlist tight. Include only risks that clearly sit in the same event tree and management discussion.'
+        : '- Keep the shortlist relevant, but adjacent risks can remain if they are clearly plausible and still useful to review.',
+      tuning.learningSensitivity === 'accelerated'
+        ? '- Repeated live-AI feedback priors should influence ranking more quickly, but they must still not override explicit scenario facts.'
+        : tuning.learningSensitivity === 'conservative'
+          ? '- Keep repeated feedback priors lighter than explicit scenario facts until corroboration is stronger.'
+          : '- Use repeated live-AI feedback priors to refine ranking and wording, but never let them override explicit scenario facts.'
+    ].join('\n');
+  }
+
+  function _getRiskBuilderDraftSentenceLimit() {
+    return _getAiFeedbackTuning().draftStyle === 'executive-brief' ? 3 : 4;
+  }
+
   async function _runStructuredQualityGate({
     taskName = 'structuredQualityGate',
     schemaHint = '',
@@ -371,6 +420,7 @@ Repair the response into the required JSON schema. Preserve scenario-specific me
   } = {}) {
     if (!_canUseLiveAi() || !candidatePayload || !schemaHint) return null;
     const items = (Array.isArray(checklist) ? checklist : []).map((item) => String(item || '').trim()).filter(Boolean);
+    const tuningBlock = _buildAiTuningPromptBlock(_getAiFeedbackTuning());
     const systemPrompt = `You are the final quality gate for an enterprise risk AI workflow.
 
 Review the candidate JSON for logic, lens fidelity, shortlist relevance, and business framing.
@@ -382,6 +432,8 @@ Review the candidate JSON for logic, lens fidelity, shortlist relevance, and bus
 - return ONLY valid JSON that matches the schema exactly`;
     const userPrompt = `Original task context:
 ${String(originalContext || '').trim() || '(none)'}
+
+${tuningBlock}
 
 Validation checklist:
 ${items.length ? items.map((item, index) => `${index + 1}. ${item}`).join('\n') : '1. Keep the output logically aligned to the original task.'}
@@ -1270,6 +1322,8 @@ Return corrected JSON only.`;
     let text = String(value || '').replace(/\s+/g, ' ').trim();
     if (!text) return '';
     text = text
+      .replace(/^(?:critical|high|medium|low)-urgency\s+[a-z/& -]+ scenario:\s*/i, '')
+      .replace(/^(?:strategic|operational|cyber|compliance|regulatory|financial|fraud|legal(?: \/ contract)?|business continuity|continuity|third-party|supply chain|procurement|esg|hse|people(?: and workforce)?|physical security|ot resilience|ai(?: \/ model)? risk|data governance(?: \/ privacy)?|geopolitical|investment(?: \/ jv)?|transformation delivery) scenario:\s*/i, '')
       .replace(/^in [^.]+?,\s*[^.]+? faces a material [^.]+? scenario in which\s*/i, '')
       .replace(/^in [^.]+?,\s*[^.]+? faces a material risk scenario in which\s*/i, '')
       .replace(/^a risk scenario is being assessed where\s*/i, '')
@@ -3609,10 +3663,11 @@ Return only the refined scenario narrative text.`;
     contextResolution = null,
     fallbackScenarioExpansion = {}
   } = {}) {
+    const draftSentenceLimit = _getRiskBuilderDraftSentenceLimit();
     return {
       ...parsed,
       scenarioLens: _normaliseScenarioLens(parsed.scenarioLens, _buildScenarioLens(classification)),
-      draftNarrative: _cleanUserFacingText(parsed.draftNarrative || '', { maxSentences: 4 }),
+      draftNarrative: _cleanUserFacingText(parsed.draftNarrative || '', { maxSentences: draftSentenceLimit }),
       enhancedStatement: _buildEnhancedNarrative(input, parsed.enhancedStatement),
       summary: _cleanUserFacingText(
         _looksGenericRiskContextCopy(parsed.summary) ? fallbackScenarioExpansion.summary : (parsed.summary || fallbackScenarioExpansion.summary),
@@ -3673,7 +3728,8 @@ Return only the refined scenario narrative text.`;
       `Geography: ${input.geography || 'Unknown'}`,
       `Applicable regulations: ${(input.applicableRegulations || []).join(', ') || '(none)'}`,
       `Primary classification: ${classification?.key || 'general'} / ${classification?.scenarioType || 'General Enterprise Risk Scenario'}`,
-      `Context resolution: ${_buildContextResolutionPromptBlock(contextResolution)}`
+      `Context resolution: ${_buildContextResolutionPromptBlock(contextResolution)}`,
+      _buildAiTuningPromptBlock(_getAiFeedbackTuning())
     ].join('\n');
   }
 
@@ -3736,6 +3792,13 @@ Return only the refined scenario narrative text.`;
     }
     if (_compassApiKey || !_isDirectCompassUrl(_compassApiUrl)) {
       try {
+        const tuning = _getAiFeedbackTuning();
+        const draftInstruction = tuning.draftStyle === 'executive-brief'
+          ? '- write draftNarrative as a 2-3 sentence management briefing that stays close to the user event wording while making the scenario sharper, more specific, and easier to assess'
+          : '- write draftNarrative as a 2-4 sentence scenario constructor that stays close to the user event wording while making the scenario sharper, more specific, and easier to assess';
+        const shortlistInstruction = tuning.shortlistDiscipline === 'strict'
+          ? '- keep the shortlist tight: include only risks that clearly belong in the same event tree and management discussion'
+          : '- produce concise but concrete candidate risks that a user can choose from';
         const outputSchema = `{
   "draftNarrative": "string",
   "enhancedStatement": "string",
@@ -3766,7 +3829,7 @@ Return JSON only with this schema:
 ${outputSchema}`;
         const evidenceMeta = _buildEvidenceMeta({ citations: input.citations || [], businessUnit: input.businessUnit, geography: input.geography, applicableRegulations: input.applicableRegulations, uploadedText: input.registerText, registerText: input.registerText, userProfile: input.adminSettings?.userProfileSummary, organisationContext: input.adminSettings?.companyStructureContext, adminSettings: input.adminSettings });
         const userPrompt = `Instructions:
-- write draftNarrative as a 2-4 sentence scenario constructor that stays close to the user's event wording while making the scenario sharper, more specific, and easier to assess
+${draftInstruction}
 - make draftNarrative explicitly cover the event, the affected area, the primary driver, and the main business consequence without drifting into a different scenario
 - make the enhancedStatement read like a realistic scenario narrative, not a polished restatement
 - explain the most likely progression of the event and the common secondary effects
@@ -3774,6 +3837,7 @@ ${outputSchema}`;
 - reflect the stated urgency where provided
 - if the scenario involves identity, directory, SSO, or Azure AD/Entra compromise, include plausible knock-on effects such as mailbox compromise, privileged misuse, tenant changes, service disruption, fraud, and data exposure where relevant
 - produce concise but concrete candidate risks that a user can choose from
+${tuning.shortlistDiscipline === 'strict' ? shortlistInstruction : ''}
 - For each risk, include a "confidence" field: "high", "medium", or "low". High = directly evidenced by the scenario description and retrieved docs. Medium = reasonably inferred from the scenario context. Low = potentially relevant but speculative given the current information.
 - classify the scenario using credible enterprise risk taxonomy across strategic, operational, cyber, AI/model risk, data governance/privacy, third-party, regulatory, financial, fraud/integrity, ESG, compliance, legal/contract, geopolitical, supply chain, procurement, business continuity, physical security, OT resilience, people/workforce, investment/JV, transformation delivery, and HSE lenses; do not force a scenario into cyber if the primary driver is strategic, operational, governance, people, or market-related
 - the user's described event path wins over business-unit profile text, regulatory tags, and generic compliance language; do not recast a financial, supplier, continuity, or operational event as compliance unless the event itself is a compliance breach
@@ -3789,6 +3853,7 @@ Benchmark strategy: ${input.adminSettings?.benchmarkStrategy || ''}
 Context applicability resolution:
 ${_buildContextResolutionPromptBlock(contextResolution)}
 ${_buildFeedbackLearningPromptBlock(feedbackProfile)}
+${_buildAiTuningPromptBlock(tuning)}
 Register metadata: ${input.registerMeta ? JSON.stringify(input.registerMeta) : '(none)'}
 
 Risk statement:
@@ -3832,7 +3897,9 @@ Treat the primary lens hint as the leading domain for this scenario unless the n
                 'If the scenario is outage, downtime, aging infrastructure, fragility, or human error, keep it operational or continuity-led unless there is explicit cyber compromise evidence.',
                 'Keep only risks that belong to the same event tree and management discussion.',
                 'Remove generic or off-domain risks that do not align strongly with the described event.',
-                'Make the draft narrative concrete, concise, and directly tied to event, affected area, cause, and main consequence.'
+                tuning.draftStyle === 'executive-brief'
+                  ? 'Make the draft narrative read like a short management briefing with no taxonomy lead-in and no filler.'
+                  : 'Make the draft narrative concrete, concise, and directly tied to event, affected area, cause, and main consequence.'
               ],
               candidatePayload: _toRiskBuilderQualityCandidate(candidateResult),
               traceLabel: `${input.traceLabel || 'Step 1 scenario assist'} quality gate`,

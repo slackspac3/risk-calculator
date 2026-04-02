@@ -67,6 +67,7 @@ expect(appJs.includes(`const APP_ASSET_VERSION = '${versions[0] || ''}'`), 'app.
 expect(indexHtml.includes('assets/services/reportPresentation.js'), 'index.html is missing reportPresentation.js');
 expect(indexHtml.includes('assets/services/benchmarkService.js'), 'index.html is missing benchmarkService.js');
 expect(indexHtml.includes('assets/admin/documentLibrarySection.js'), 'index.html is missing documentLibrarySection.js');
+expect(indexHtml.includes('assets/admin/aiFeedbackSection.js'), 'index.html is missing aiFeedbackSection.js');
 expect(indexHtml.indexOf('assets/services/reportPresentation.js') < indexHtml.indexOf('assets/services/exportService.js'), 'reportPresentation.js must load before exportService.js');
 expect(indexHtml.indexOf('assets/services/reportPresentation.js') < indexHtml.indexOf('assets/app.js'), 'reportPresentation.js must load before app.js');
 expect(indexHtml.includes('assets/state/workspaceStateModel.js'), 'index.html is missing workspaceStateModel.js');
@@ -76,7 +77,9 @@ expect(indexHtml.includes('assets/state/assessmentLifecycle.js'), 'index.html is
 expect(appJs.includes('function safeRenderAdminSettings('), 'safeRenderAdminSettings helper missing');
 expect(appJs.includes('function rerenderCurrentAdminSection()'), 'rerenderCurrentAdminSection helper missing from admin renderer');
 expect(appJs.includes('function normaliseAdminSettings('), 'frontend normaliseAdminSettings helper missing');
+expect(appJs.includes('function getAiFeedbackTuningSettings('), 'frontend AI feedback tuning helper missing');
 expect(appRoutesJs.includes("fallbackRoute === '/admin/home'"), 'appRoutes not-found handling is missing the admin-safe recovery target');
+expect(appRoutesJs.includes("'/admin/settings/feedback'"), 'appRoutes is missing the admin feedback settings route');
 expect(settingsApi.includes('function normaliseSettings('), 'backend normaliseSettings helper missing');
 expect(appStateStoreJs.includes('function dispatchDraftAction('), 'appStateStore is missing draft action dispatch support');
 expect(appStateStoreJs.includes('function dispatchSimulationAction('), 'appStateStore is missing simulation action dispatch support');
@@ -149,6 +152,7 @@ expect(e2eSmokeSpecJs.includes('/#/results/example-assessment'), 'Playwright smo
 expect(e2eSmokeSpecJs.includes('pressing Enter signs in and opens the personal workspace'), 'Playwright smoke suite is missing Enter-to-login coverage');
 expect(e2eSmokeSpecJs.includes('business-unit oversight dashboard prioritises review and context actions'), 'Playwright smoke suite is missing BU oversight dashboard coverage');
 expect(e2eSmokeSpecJs.includes('authenticated admin shell renders without crashing'), 'Playwright smoke suite is missing authenticated admin coverage');
+expect(e2eSmokeSpecJs.includes('admin AI feedback and tuning dashboard renders the signal view and tuning controls'), 'Playwright smoke suite is missing admin feedback dashboard coverage');
 expect(e2eSmokeSpecJs.includes('authenticated admin document library renders without crashing'), 'Playwright smoke suite is missing admin document-library coverage');
 expect(e2eSmokeSpecJs.includes('dashboard archive helpers move the assessment into archived items after the confirm modal opens'), 'Playwright smoke suite is missing dashboard archive state coverage');
 expect(e2eSmokeSpecJs.includes('first-run onboarding can launch the sample assessment path'), 'Playwright smoke suite is missing first-run onboarding sample-path coverage');

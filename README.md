@@ -245,6 +245,20 @@ Practical implication:
 - better-quality repeated feedback should make similar scenarios land more cleanly for the same user first
 - then for the wider function, BU, and platform once the signal is strong enough
 
+## Global Admin Guide
+
+Global admins now have a dedicated operating guide:
+- [docs/global-admin-guide.md](./docs/global-admin-guide.md)
+
+Use it alongside the role-aware in-product help on `#/help`.
+
+Current global-admin priorities:
+- use `#/admin/home` as the front door for platform work
+- verify pilot AI readiness in `Admin > System Access` before demos, reviews, or sign-off sessions where AI quality matters
+- review `Admin > AI Feedback & Tuning` before changing shared AI alignment, draft style, shortlist discipline, or learning sensitivity
+- keep company context, document library coverage, defaults, and access current before assuming a weak output is only a model problem
+- treat platform-wide tuning as a governed change, not as an ad hoc reaction to one noisy session
+
 ## Product Quality Highlights
 
 Current productization work now includes:

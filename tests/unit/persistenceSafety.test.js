@@ -127,3 +127,23 @@ test('writeSettings rejects stale revisions and preserves the latest settings', 
   assert.equal(stale.settings.geography, 'United Arab Emirates');
   assert.equal(stale.settings._meta.revision, 1);
 });
+
+test('writeSettings normalises and persists AI feedback tuning controls', async () => {
+  const saved = await writeSettings({
+    geography: 'United Arab Emirates',
+    aiFeedbackTuning: {
+      alignmentPriority: 'BALANCED',
+      draftStyle: 'executive-brief',
+      shortlistDiscipline: 'strict',
+      learningSensitivity: 'accelerated'
+    }
+  }, { revision: 0 });
+
+  assert.equal(saved.ok, true);
+  assert.deepEqual(saved.settings.aiFeedbackTuning, {
+    alignmentPriority: 'balanced',
+    draftStyle: 'executive-brief',
+    shortlistDiscipline: 'strict',
+    learningSensitivity: 'accelerated'
+  });
+});

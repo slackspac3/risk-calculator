@@ -2,6 +2,12 @@
 
 const OrgIntelligenceService = (() => {
   const CACHE_KEY = 'rq_org_intelligence_cache';
+  const DEFAULT_AI_FEEDBACK_TUNING = Object.freeze({
+    alignmentPriority: 'strict',
+    draftStyle: 'executive-brief',
+    shortlistDiscipline: 'strict',
+    learningSensitivity: 'balanced'
+  });
   const DEFAULT_STATE = Object.freeze({
     patterns: [],
     calibration: { updatedAt: 0, scenarioTypes: {} },
@@ -153,6 +159,29 @@ const OrgIntelligenceService = (() => {
     if (raw === 'shortlist') return 'shortlist';
     if (raw === 'risk' || raw === 'risk-card' || raw === 'risk_card') return 'risk';
     return 'draft';
+  }
+
+  function _normaliseAiFeedbackTuning(value = {}) {
+    const source = value && typeof value === 'object' ? value : {};
+    const pick = (input, allowed, fallback) => {
+      const safe = _safeText(input, 40).toLowerCase();
+      return allowed.includes(safe) ? safe : fallback;
+    };
+    return {
+      alignmentPriority: pick(source.alignmentPriority, ['strict', 'balanced'], DEFAULT_AI_FEEDBACK_TUNING.alignmentPriority),
+      draftStyle: pick(source.draftStyle, ['executive-brief', 'balanced'], DEFAULT_AI_FEEDBACK_TUNING.draftStyle),
+      shortlistDiscipline: pick(source.shortlistDiscipline, ['strict', 'balanced'], DEFAULT_AI_FEEDBACK_TUNING.shortlistDiscipline),
+      learningSensitivity: pick(source.learningSensitivity, ['conservative', 'balanced', 'accelerated'], DEFAULT_AI_FEEDBACK_TUNING.learningSensitivity)
+    };
+  }
+
+  function _getActiveAiFeedbackTuning(settings = null) {
+    const resolvedSettings = settings && typeof settings === 'object'
+      ? settings
+      : (typeof getEffectiveSettings === 'function'
+          ? getEffectiveSettings()
+          : (typeof getAdminSettings === 'function' ? getAdminSettings() : null));
+    return _normaliseAiFeedbackTuning(resolvedSettings?.aiFeedbackTuning || DEFAULT_AI_FEEDBACK_TUNING);
   }
 
   function _normaliseFeedbackTitleList(list = [], limit = 10, max = 160) {
@@ -810,6 +839,87 @@ const OrgIntelligenceService = (() => {
     return (cached.feedback?.events || []).filter(event => _feedbackMatches(event, filters));
   }
 
+  function getFeedbackTierThresholds(settings = null) {
+    const tuning = _getActiveAiFeedbackTuning(settings);
+    if (tuning.learningSensitivity === 'accelerated') {
+      return {
+        learningSensitivity: tuning.learningSensitivity,
+        function: { minEvents: 2, minUsers: 2 },
+        businessUnit: { minEvents: 3, minUsers: 2 },
+        global: { minEvents: 6, minUsers: 3 }
+      };
+    }
+    if (tuning.learningSensitivity === 'conservative') {
+      return {
+        learningSensitivity: tuning.learningSensitivity,
+        function: { minEvents: 4, minUsers: 2 },
+        businessUnit: { minEvents: 6, minUsers: 3 },
+        global: { minEvents: 10, minUsers: 5 }
+      };
+    }
+    return {
+      learningSensitivity: tuning.learningSensitivity,
+      function: { minEvents: 3, minUsers: 2 },
+      businessUnit: { minEvents: 4, minUsers: 2 },
+      global: { minEvents: 8, minUsers: 4 }
+    };
+  }
+
+  function buildFeedbackDashboardModel(filters = {}, settings = null) {
+    const events = getFeedbackEvents(filters);
+    const profile = _buildFeedbackProfile(events);
+    const thresholds = getFeedbackTierThresholds(settings);
+    const tallyBreakdown = (keySelector, formatter = (key) => key) => {
+      const breakdown = new Map();
+      events.forEach((event) => {
+        const key = _safeText(keySelector(event), 120);
+        if (!key) return;
+        const current = breakdown.get(key) || { key, label: formatter(key, event), count: 0, totalScore: 0 };
+        current.count += 1;
+        current.totalScore += Number(event.score || 0);
+        breakdown.set(key, current);
+      });
+      return Array.from(breakdown.values())
+        .map((entry) => ({
+          ...entry,
+          averageScore: entry.count ? Number((entry.totalScore / entry.count).toFixed(2)) : 0
+        }))
+        .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label))
+        .slice(0, 6);
+    };
+    const reasonWeights = {};
+    events.forEach((event) => {
+      (Array.isArray(event.reasons) ? event.reasons : []).forEach((reason) => {
+        _incrementWeightedMapValue(reasonWeights, reason, 1, 80);
+      });
+    });
+    const runtimeBreakdown = Object.entries(profile.runtimeCounts || {})
+      .map(([key, count]) => ({ key, label: key === 'live_ai' ? 'Live AI' : key === 'fallback' ? 'Fallback' : 'Local', count: Number(count || 0) }))
+      .filter((entry) => entry.count > 0)
+      .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label));
+    return {
+      totalEvents: profile.totalEvents,
+      liveAiEvents: profile.liveAiEvents,
+      liveSharePct: profile.totalEvents ? Number(((profile.liveAiEvents / profile.totalEvents) * 100).toFixed(1)) : 0,
+      distinctUsers: profile.distinctUsers,
+      latestAt: profile.latestAt,
+      profile,
+      thresholds,
+      runtimeBreakdown,
+      lensBreakdown: tallyBreakdown((event) => event.lensKey, (key) => String(key || 'general').replace(/-/g, ' ')),
+      functionBreakdown: tallyBreakdown((event) => event.functionKey, (key) => key || 'general'),
+      businessUnitBreakdown: tallyBreakdown((event) => event.buName || event.buId, (key) => key || 'Unscoped'),
+      topIssues: Object.entries(reasonWeights)
+        .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+        .slice(0, 6)
+        .map(([reason, count]) => ({
+          reason,
+          label: String(reason || '').replace(/-/g, ' '),
+          count: Number(count || 0)
+        }))
+    };
+  }
+
   function getHierarchicalFeedbackProfile(context = {}) {
     const username = typeof AuthService !== 'undefined' && typeof AuthService.getCurrentUser === 'function'
       ? AuthService.getCurrentUser()?.username || ''
@@ -819,6 +929,7 @@ const OrgIntelligenceService = (() => {
       functionKey: context.functionKey || context.scenarioLens?.functionKey || '',
       scenarioLensKey: context.scenarioLensKey || context.scenarioLens?.key || context.lensKey || ''
     };
+    const thresholds = getFeedbackTierThresholds(context.settings || null);
     const orgEvents = getFeedbackEvents({ scenarioLensKey: filters.scenarioLensKey });
     const userProfile = username
       && typeof LearningStore !== 'undefined'
@@ -834,21 +945,21 @@ const OrgIntelligenceService = (() => {
     const functionProfile = filters.functionKey
       ? _buildTierProfile(orgEvents.filter(event => _feedbackMatches(event, { ...filters, buId: '', functionKey: filters.functionKey })), {
           label: 'function',
-          minEvents: 3,
-          minUsers: 2
+          minEvents: thresholds.function.minEvents,
+          minUsers: thresholds.function.minUsers
         })
       : _buildInactiveFeedbackProfile('function');
     const businessUnitProfile = filters.buId
       ? _buildTierProfile(orgEvents.filter(event => _feedbackMatches(event, { ...filters, buId: filters.buId, functionKey: '' })), {
           label: 'business-unit',
-          minEvents: 4,
-          minUsers: 2
+          minEvents: thresholds.businessUnit.minEvents,
+          minUsers: thresholds.businessUnit.minUsers
         })
       : _buildInactiveFeedbackProfile('business-unit');
     const globalProfile = _buildTierProfile(orgEvents.filter(event => _feedbackMatches(event, { scenarioLensKey: filters.scenarioLensKey })), {
       label: 'global',
-      minEvents: 8,
-      minUsers: 4
+      minEvents: thresholds.global.minEvents,
+      minUsers: thresholds.global.minUsers
     });
     const combined = _finaliseCombinedFeedback([
       { profile: globalProfile.profile, active: globalProfile.active, label: 'global', weight: 1 },
@@ -873,6 +984,7 @@ const OrgIntelligenceService = (() => {
       function: functionProfile,
       businessUnit: businessUnitProfile,
       global: globalProfile,
+      thresholds,
       combined
     };
   }
@@ -1203,6 +1315,8 @@ const OrgIntelligenceService = (() => {
     recordAiFeedback,
     getMergedScenarioPatterns,
     getFeedbackEvents,
+    getFeedbackTierThresholds,
+    buildFeedbackDashboardModel,
     getHierarchicalFeedbackProfile,
     buildGhostDraftSuggestion,
     applyGhostDraftToDraft,

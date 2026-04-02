@@ -19,6 +19,12 @@ const DEFAULT_TYPICAL_DEPARTMENTS = [
   'Commercial',
   'Shared Services'
 ];
+const DEFAULT_AI_FEEDBACK_TUNING = Object.freeze({
+  alignmentPriority: 'strict',
+  draftStyle: 'executive-brief',
+  shortlistDiscipline: 'strict',
+  learningSensitivity: 'balanced'
+});
 const ADMIN_API_SECRET = process.env.ADMIN_API_SECRET || '';
 
 function hasWritableKv() {
@@ -51,10 +57,25 @@ function getDefaultSettings() {
     adminContextSummary: 'Use this workspace to maintain geography, regulations, thresholds, and AI guidance for the platform.',
     escalationGuidance: 'Escalate to leadership when the scenario is above tolerance, close to tolerance, or materially affects regulated services.',
     typicalDepartments: [...DEFAULT_TYPICAL_DEPARTMENTS],
+    aiFeedbackTuning: { ...DEFAULT_AI_FEEDBACK_TUNING },
     _meta: {
       revision: 0,
       updatedAt: 0
     }
+  };
+}
+
+function normaliseAiFeedbackTuning(value = {}) {
+  const source = value && typeof value === 'object' ? value : {};
+  const pick = (input, allowed, fallback) => {
+    const safe = String(input || '').trim().toLowerCase();
+    return allowed.includes(safe) ? safe : fallback;
+  };
+  return {
+    alignmentPriority: pick(source.alignmentPriority, ['strict', 'balanced'], DEFAULT_AI_FEEDBACK_TUNING.alignmentPriority),
+    draftStyle: pick(source.draftStyle, ['executive-brief', 'balanced'], DEFAULT_AI_FEEDBACK_TUNING.draftStyle),
+    shortlistDiscipline: pick(source.shortlistDiscipline, ['strict', 'balanced'], DEFAULT_AI_FEEDBACK_TUNING.shortlistDiscipline),
+    learningSensitivity: pick(source.learningSensitivity, ['conservative', 'balanced', 'accelerated'], DEFAULT_AI_FEEDBACK_TUNING.learningSensitivity)
   };
 }
 
@@ -73,6 +94,7 @@ function normaliseSettings(settings = {}) {
     entityContextLayers: Array.isArray(settings.entityContextLayers) ? settings.entityContextLayers : [],
     buOverrides: Array.isArray(settings.buOverrides) ? settings.buOverrides : [],
     docOverrides: Array.isArray(settings.docOverrides) ? settings.docOverrides : [],
+    aiFeedbackTuning: normaliseAiFeedbackTuning(settings.aiFeedbackTuning),
     typicalDepartments: Array.isArray(settings.typicalDepartments) && settings.typicalDepartments.length
       ? settings.typicalDepartments.map(name => String(name || '').trim()).filter(Boolean)
       : [...defaults.typicalDepartments],
@@ -195,6 +217,7 @@ function canBuAdminWriteSettings(currentSettings, proposedSettings, session) {
     'annualReviewThresholdUsd',
     'adminContextSummary',
     'escalationGuidance',
+    'aiFeedbackTuning',
     'typicalDepartments'
   ];
 

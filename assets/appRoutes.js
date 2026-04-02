@@ -29,6 +29,7 @@
         .on('/admin/settings/company', withAdmin(() => safeRenderAdminSettings('company')))
         .on('/admin/settings/defaults', withAdmin(() => safeRenderAdminSettings('defaults')))
         .on('/admin/settings/governance', withAdmin(() => safeRenderAdminSettings('governance')))
+        .on('/admin/settings/feedback', withAdmin(() => safeRenderAdminSettings('feedback')))
         .on('/admin/settings/access', withAdmin(() => safeRenderAdminSettings('access')))
         .on('/admin/settings/users', withAdmin(() => safeRenderAdminSettings('users')))
         .on('/admin/settings/audit', withAdmin(() => safeRenderAdminSettings('audit')))

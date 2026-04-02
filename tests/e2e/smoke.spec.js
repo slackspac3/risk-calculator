@@ -1038,6 +1038,114 @@ test('admin system access warns calmly when pilot is using local fallback AI', a
   });
 });
 
+test('admin AI feedback and tuning dashboard renders the signal view and tuning controls', async ({ page }) => {
+  await seedAuthenticatedUser(page, {
+    username: 'admin',
+    displayName: 'Global Admin',
+    role: 'admin',
+    adminSettings: {
+      geography: 'United Arab Emirates',
+      companyStructure: [],
+      entityContextLayers: [],
+      applicableRegulations: ['UAE PDPL'],
+      aiInstructions: 'Use British English.',
+      benchmarkStrategy: 'Prefer GCC and UAE benchmark references.',
+      typicalDepartments: ['Security'],
+      aiFeedbackTuning: {
+        alignmentPriority: 'strict',
+        draftStyle: 'executive-brief',
+        shortlistDiscipline: 'strict',
+        learningSensitivity: 'balanced'
+      }
+    },
+    preferredAdminSection: 'feedback'
+  });
+  await mockSharedApis(page, {
+    settings: {
+      geography: 'United Arab Emirates',
+      companyStructure: [],
+      entityContextLayers: [],
+      applicableRegulations: ['UAE PDPL'],
+      aiInstructions: 'Use British English.',
+      benchmarkStrategy: 'Prefer GCC and UAE benchmark references.',
+      typicalDepartments: ['Security'],
+      aiFeedbackTuning: {
+        alignmentPriority: 'strict',
+        draftStyle: 'executive-brief',
+        shortlistDiscipline: 'strict',
+        learningSensitivity: 'balanced'
+      }
+    }
+  });
+  await page.route('**/api/org-intelligence', async route => {
+    const request = route.request();
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(request.method() === 'GET'
+        ? {
+            patterns: [],
+            calibration: { updatedAt: 0, scenarioTypes: {} },
+            decisions: [],
+            coverageMap: { updatedAt: 0, scenarioTypes: {} },
+            feedback: {
+              updatedAt: Date.now(),
+              events: [
+                {
+                  id: 'fb-1',
+                  target: 'draft',
+                  score: 2,
+                  runtimeMode: 'live_ai',
+                  buId: 'corp-ops',
+                  buName: 'Operations',
+                  functionKey: 'operations',
+                  lensKey: 'operational',
+                  reasons: ['wrong-domain', 'too-generic'],
+                  submittedBy: 'alex'
+                },
+                {
+                  id: 'fb-2',
+                  target: 'shortlist',
+                  score: 5,
+                  runtimeMode: 'live_ai',
+                  buId: 'corp-ops',
+                  buName: 'Operations',
+                  functionKey: 'operations',
+                  lensKey: 'operational',
+                  reasons: ['useful-with-edits'],
+                  shownRiskTitles: ['Business continuity and recovery failure'],
+                  keptRiskTitles: ['Business continuity and recovery failure'],
+                  citations: [{ docId: 'doc-ops-1', title: 'Ops runbook' }],
+                  submittedBy: 'maya'
+                },
+                {
+                  id: 'fb-3',
+                  target: 'risk',
+                  score: 1,
+                  runtimeMode: 'live_ai',
+                  buId: 'corp-ops',
+                  buName: 'Operations',
+                  functionKey: 'operations',
+                  lensKey: 'operational',
+                  riskId: 'risk-cy-1',
+                  riskTitle: 'Cyber compromise of critical platforms or data',
+                  selectedInAssessment: false,
+                  submittedBy: 'alex'
+                }
+              ]
+            }
+          }
+        : { ok: true })
+    });
+  });
+
+  await expectNoClientCrashOnRoute(page, '/#/admin/settings/feedback', async () => {
+    await expect(page.getByRole('heading', { name: /ai feedback & tuning/i })).toBeVisible();
+    await expect(page.locator('#admin-ai-alignment-priority')).toHaveValue('strict');
+    await expect(page.locator('#admin-ai-learning-sensitivity')).toHaveValue('balanced');
+  });
+});
+
 test('unknown admin routes recover to platform home instead of the user dashboard', async ({ page }) => {
   await seedAuthenticatedUser(page, {
     username: 'admin',
