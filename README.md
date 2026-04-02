@@ -100,10 +100,12 @@ The product is assistant-driven, not chat-first. AI is used to:
 - build evidence-backed interpretation
 
 Current AI behavior:
-- wizard steps can carry short-term LLM context memory across the draft flow
+- the browser is now a thin client for the key AI workflows rather than the authoritative orchestration layer
+- server routes own prompt construction, structured-output repair, quality gates, readiness evaluation, and fallback policy for the main guided, register, treatment, and reviewer/challenge flows
+- wizard steps can still carry short-term runtime context memory across the draft flow
 - bounded AI rewriting is used where draft quality matters
 - explicit fallback and unavailable states are surfaced instead of silently masquerading as live AI
-- retrieval uses a stronger local hybrid scorer with lens-aware and concept-aware matching
+- retrieval uses a stronger local hybrid scorer with lens-aware and concept-aware matching, but browser-local learning weights no longer authoritatively shape inference quality
 - supporting documents and standards are cited into the workflow and results
 
 The product is grounded by a growing enterprise corpus that includes ISO, NIST, COSO, IFRS/ESRS, OECD, UNGP, sector guidance, and UAE/GCC-relevant references.
@@ -113,26 +115,27 @@ The product is grounded by a growing enterprise corpus that includes ISO, NIST, 
 Pilot and staging environments should be treated as live-AI-required when AI quality matters.
 
 Current policy:
-- safe local fallback remains available so the workflow does not hard-stop
-- local fallback is not equivalent to pilot-quality live AI
-- if pilot or staging users are relying on AI quality for sign-off, the active AI path should be verified in the current browser session first
-- the preferred path is the hosted proxy
-- direct browser keys are for temporary testing only
+- live-vs-degraded status is determined server-side
+- deterministic fallback is continuity support, not pilot-quality live AI
+- the hosted proxy is the normal path for pilot and production
+- browser-direct keys and runtime overrides are localhost-only debugging controls
+- if pilot or staging users are relying on AI quality for sign-off, check the server-reported mode in `Admin > System Access`
 
 Current product behavior:
 - `Admin > System Access` now shows a `Pilot AI readiness` card
 - that card distinguishes:
-  - `Live AI verified`
-  - `Not yet verified`
-  - `Local fallback active`
-- `Test Connection` records browser-session verification state for the current runtime path
-- if an admin puts the current session into local fallback during `pilot` or `staging`, the app shows a one-time calm warning toast
-- Step 1, Step 2, and Step 3 now say `Live AI is not configured for this session. Local fallback guidance is active.` when the runtime is in config-driven local fallback
+  - `Live`
+  - `Degraded`
+  - `Deterministic fallback`
+  - `Manual only`
+- `Refresh server status` triggers a new server-side health check
+- localhost can still expose debugging overrides, but those do not replace the server-reported mode used for pilot/prod trust decisions
+- migrated workflows now label deterministic fallback and manual states explicitly instead of presenting them as equivalent to live AI quality
 
 Operational expectation:
 - do not treat fallback-generated AI guidance as pilot-quality AI output
-- verify the live path in `System Access` before AI-dependent review, demo, or sign-off activity
-- if the platform is intentionally being exercised in stub/fallback mode, be explicit about that in the session context
+- verify the server-reported mode in `System Access` before AI-dependent review, demo, or sign-off activity
+- if the platform is intentionally being exercised in deterministic fallback or manual mode, be explicit about that in the session context
 
 ## Results And Exports
 
@@ -215,35 +218,29 @@ Current behavior:
   - `local`
 
 How that feedback improves the platform:
-- individual user signals apply first and immediately
+- feedback is still captured in the browser and shared to the server-backed org intelligence store
+- authoritative learning-profile resolution now happens server-side
 - repeated live-AI signals can then shape:
+  - user-level server user-state priors
   - function-level priors
   - BU-level priors
   - global shared priors
-- those priors are used to improve:
-  - Step 1 shortlist ordering
-  - RAG document weighting
-  - prompt/context priors in `LLMService`
+- for the currently migrated Step 1 workflows, those priors are now applied server-side to prompt/context guidance and risk ordering
 
 Important guardrails:
 - fallback feedback is tracked separately from live-AI feedback
-- local fallback continuity does not automatically become shared pilot-quality learning
+- deterministic fallback continuity does not automatically become shared pilot-quality learning
 - repeated shared patterns are promoted upward only after enough corroborating live-AI signals
 - this is not direct online model retraining
-- the current system improves retrieval, ranking, and prompt assembly first; curated offline review is still the path for benchmark and model-training updates
+- raw production clicks are not direct model training; curated offline review is still the path for benchmark and model-training updates
 
 Plain-language boundary:
 - the base LLM is not being re-trained each time a user moves a slider or saves a rating
-- instead, the platform gets better at:
-  - choosing better grounding documents
-  - ranking better-matching risks higher
-  - suppressing repeatedly weak or off-path risks
-  - assembling stronger prompt/context instructions for similar future scenarios
+- instead, the platform can use reviewed live-AI feedback signals to improve server-side ranking and prompt/context guidance where that path has been migrated
 - if the organisation later wants true model training, that should come from reviewed and curated feedback data, not raw production clicks
 
 Practical implication:
-- better-quality repeated feedback should make similar scenarios land more cleanly for the same user first
-- then for the wider function, BU, and platform once the signal is strong enough
+- better-quality repeated feedback can improve similar scenarios first at the governed server user tier, then for the wider function, BU, and platform once the signal is strong enough
 
 ## Global Admin Guide
 
@@ -264,7 +261,7 @@ Current global-admin priorities:
 Current productization work now includes:
 - premium UI polish across dashboard, wizard, results, settings, admin, and document library
 - committed Step 1 start modes for guided, draft, and import/example paths instead of a single long scroll
-- scenario memory, overlap checks, and learnt starting points in Step 1 so new assessments can reuse prior organisational precedent
+- scenario memory and overlap checks in Step 1 without letting browser-local precedent silently steer inference quality
 - stronger AI quality and coherence signaling
 - role-aware examples and focus areas
 - broader enterprise taxonomy and standards coverage
@@ -277,7 +274,7 @@ Current productization work now includes:
 - streaming AI narrative refinement in Step 2
 - portfolio heat map on the dashboard
 - persisted session preferences for results tabs and boardroom mode
-- synced learning-store state across browser cache and shared user-state storage
+- server-authoritative AI status, orchestration, fallback, and learning-profile application
 - KV-backed API rate limiting and login throttling for the shared pilot environment
 
 ## Architecture
@@ -308,6 +305,9 @@ Important runtime seams:
 - dashboard rendering: [assets/dashboard/userDashboard.js](./assets/dashboard/userDashboard.js)
 - wizard steps: [assets/wizard/step1.js](./assets/wizard/step1.js), [assets/wizard/step2.js](./assets/wizard/step2.js), [assets/wizard/step3.js](./assets/wizard/step3.js)
 - LLM integration: [assets/services/llmService.js](./assets/services/llmService.js)
+- workflow transport: [assets/services/aiWorkflowClient.js](./assets/services/aiWorkflowClient.js)
+- server-status client: [assets/services/aiStatusClient.js](./assets/services/aiStatusClient.js)
+- runtime trace store: [assets/services/aiTraceRuntime.js](./assets/services/aiTraceRuntime.js)
 - export generation: [assets/services/exportService.js](./assets/services/exportService.js)
 - quant engine: [assets/engine/riskEngine.js](./assets/engine/riskEngine.js)
 - worker simulation path: [assets/engine/riskEngineWorker.js](./assets/engine/riskEngineWorker.js)
@@ -318,6 +318,16 @@ Serverless API routes hosted on Vercel.
 
 Primary routes:
 - [api/compass.js](./api/compass.js)
+- [api/ai/status.js](./api/ai/status.js)
+- [api/ai/scenario-draft.js](./api/ai/scenario-draft.js)
+- [api/ai/register-analysis.js](./api/ai/register-analysis.js)
+- [api/ai/treatment-suggestion.js](./api/ai/treatment-suggestion.js)
+- [api/ai/reviewer-brief.js](./api/ai/reviewer-brief.js)
+- [api/ai/challenge-assessment.js](./api/ai/challenge-assessment.js)
+- [api/ai/parameter-challenge.js](./api/ai/parameter-challenge.js)
+- [api/ai/challenge-synthesis.js](./api/ai/challenge-synthesis.js)
+- [api/ai/consensus-recommendation.js](./api/ai/consensus-recommendation.js)
+- [api/ai/review-mediation.js](./api/ai/review-mediation.js)
 - [api/company-context.js](./api/company-context.js)
 - [api/users.js](./api/users.js)
 - [api/settings.js](./api/settings.js)
@@ -329,6 +339,9 @@ Shared backend helper:
 - [api/_kvStore.js](./api/_kvStore.js)
 - [api/_apiAuth.js](./api/_apiAuth.js)
 - [api/_audit.js](./api/_audit.js)
+- [api/_aiRuntime.js](./api/_aiRuntime.js)
+- [api/_aiOrchestrator.js](./api/_aiOrchestrator.js)
+- [api/_learningAuthority.js](./api/_learningAuthority.js)
 - [api/_request.js](./api/_request.js)
 - [api/_rateLimit.js](./api/_rateLimit.js)
 - [api/_passwordPolicy.js](./api/_passwordPolicy.js)
@@ -341,8 +354,8 @@ Current persistence spans:
 - personal user state
 - shared admin settings
 - organisation structure and scoped defaults
-- learning patterns / templates
-- AI interaction memory and acceptance signals
+- feedback capture, templates, and local history caches
+- server-applied learning profiles and shared AI feedback state
 - review queue items
 - audit events
 - local pilot notifications
@@ -393,8 +406,8 @@ That file covers the expected configuration for:
 AI environment notes:
 - server-side pilot environments should provide real `COMPASS_API_KEY`, `COMPASS_API_URL`, and `COMPASS_MODEL` values
 - the frontend defaults to the hosted proxy path and should normally run keyless in the browser
-- direct `api.core42.ai` browser usage without a key drops into local fallback mode
-- use `Admin > System Access > Test Connection` to confirm the live path in the current browser session before relying on AI quality
+- pilot and production should rely on the hosted proxy plus the server-reported mode in `Admin > System Access`
+- localhost-only overrides exist for debugging, but they do not replace the server-reported mode used for operational trust
 
 ## Deployment
 
