@@ -4,47 +4,18 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const vm = require('node:vm');
 
-function loadStep3Context() {
+function loadStep3Source() {
   const filePath = path.resolve(__dirname, '../../assets/wizard/step3.js');
-  const source = fs.readFileSync(filePath, 'utf8');
-  let smartPrefillCalls = 0;
-  const context = {
-    console,
-    Date,
-    JSON,
-    Math,
-    URL,
-    AppState: { draft: {} },
-    renderWizard3() {},
-    LLMService: {
-      async suggestSmartParamPrefill() {
-        smartPrefillCalls += 1;
-        return null;
-      }
-    }
-  };
-  vm.createContext(context);
-  vm.runInContext(source, context, { filename: 'step3.js' });
-  return {
-    context,
-    getSmartPrefillCalls: () => smartPrefillCalls
-  };
+  return fs.readFileSync(filePath, 'utf8');
 }
 
-test('step3 smart prefill band is disabled for browser-local learning suggestions', () => {
-  const { context } = loadStep3Context();
-  assert.equal(context.renderSmartPrefillBand({ fairParams: {} }, false), '');
-});
+test('step3 no longer ships browser-side smart prefill helper logic', () => {
+  const source = loadStep3Source();
 
-test('step3 smart prefill request no longer calls browser-side AI suggestion flow', async () => {
-  const { context, getSmartPrefillCalls } = loadStep3Context();
-  const draft = { fairParams: {} };
-
-  const result = await context.requestStep3SmartPrefillIfNeeded(draft, false);
-
-  assert.equal(result, null);
-  assert.equal(getSmartPrefillCalls(), 0);
-  assert.equal(draft.smartPrefillState.status, 'empty');
+  assert.equal(source.includes('function renderSmartPrefillBand('), false);
+  assert.equal(source.includes('function requestStep3SmartPrefillIfNeeded('), false);
+  assert.equal(source.includes('function applyStep3SmartPrefillField('), false);
+  assert.equal(source.includes('data-smart-prefill-field'), false);
+  assert.equal(source.includes('btn-smart-prefill-apply-all'), false);
 });

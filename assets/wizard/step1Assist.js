@@ -465,7 +465,7 @@
       if (result.aiUnavailable) {
         _renderStep1AiUnavailableBanner('intake-output', runIntakeAssist);
       }
-      UI.toast(result.usedFallback ? 'Suggested draft loaded with fallback guidance. Review before continuing.' : 'Suggested draft intake completed.', result.usedFallback ? 'warning' : 'success', 5000);
+      UI.toast(result.usedFallback ? 'Suggested draft loaded with deterministic fallback support. Review before continuing.' : 'Suggested draft intake completed.', result.usedFallback ? 'warning' : 'success', 5000);
     } catch (error) {
       console.error('runIntakeAssist failed:', error);
       if (error?.code === 'LLM_UNAVAILABLE') {
@@ -533,7 +533,7 @@
       if (result.aiUnavailable) {
         _renderStep1AiUnavailableBanner('intake-output', enhanceNarrativeWithAI);
       }
-      UI.toast(result.usedFallback ? 'Suggested draft enhancement loaded with fallback guidance. Review before continuing.' : 'Suggested draft enhancement loaded.', result.usedFallback ? 'warning' : 'success', 5000);
+      UI.toast(result.usedFallback ? 'Suggested draft enhancement loaded with deterministic fallback support. Review before continuing.' : 'Suggested draft enhancement loaded.', result.usedFallback ? 'warning' : 'success', 5000);
     } catch (error) {
       if (error?.code === 'LLM_UNAVAILABLE') {
         _renderStep1AiUnavailableBanner(output, enhanceNarrativeWithAI, error);

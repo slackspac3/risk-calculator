@@ -28,383 +28,6 @@ function ensureFairRationaleStyles() {
   document.head.appendChild(style);
 }
 
-function ensureSmartPrefillStyles() {
-  if (document.getElementById('smart-prefill-styles')) return;
-  const style = document.createElement('style');
-  style.id = 'smart-prefill-styles';
-  style.textContent = `
-    .smart-prefill-band { display:flex; flex-direction:column; gap:var(--sp-3); }
-    .smart-prefill-head { display:flex; align-items:flex-start; justify-content:space-between; gap:var(--sp-3); flex-wrap:wrap; }
-    .smart-prefill-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-    .smart-prefill-chip-list { display:flex; flex-direction:column; gap:8px; }
-    .smart-prefill-chip {
-      width:100%;
-      text-align:left;
-      display:flex;
-      flex-direction:column;
-      align-items:flex-start;
-      gap:4px;
-      padding:10px 12px;
-      border-radius:var(--radius-lg);
-      border:1px solid var(--border);
-      background:var(--bg-elevated);
-      cursor:pointer;
-    }
-    .smart-prefill-chip strong { font-size:.85rem; color:var(--text-primary); }
-    .smart-prefill-chip span { font-size:.76rem; color:var(--text-secondary); line-height:1.45; }
-  `;
-  document.head.appendChild(style);
-}
-
-function getSmartPrefillHistoryKey() {
-  const username = String(AuthService.getCurrentUser()?.username || '').trim().toLowerCase();
-  return username ? `rip_param_history_${username}` : 'rip_param_history';
-}
-
-function getSmartPrefillLearnKey() {
-  const username = String(AuthService.getCurrentUser()?.username || '').trim().toLowerCase();
-  return username ? `rip_learn_applied_${username}` : 'rip_learn_applied';
-}
-
-function migrateStep3LegacyLocalKey(baseKey, scopedKey) {
-  if (!scopedKey || scopedKey === baseKey) return;
-  try {
-    if (localStorage.getItem(scopedKey) != null) return;
-    const legacy = localStorage.getItem(baseKey);
-    if (!legacy) return;
-    localStorage.setItem(scopedKey, legacy);
-  } catch {}
-}
-
-function readStep3LocalArray(key) {
-  const safeKey = String(key || '').trim();
-  if (safeKey.startsWith('rip_param_history_')) migrateStep3LegacyLocalKey('rip_param_history', safeKey);
-  if (safeKey.startsWith('rip_learn_applied_')) migrateStep3LegacyLocalKey('rip_learn_applied', safeKey);
-  try {
-    const parsed = JSON.parse(localStorage.getItem(safeKey) || '[]');
-    return Array.isArray(parsed) ? parsed.filter(item => item && typeof item === 'object') : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeStep3LocalArray(key, items) {
-  try {
-    localStorage.setItem(key, JSON.stringify(Array.isArray(items) ? items : []));
-  } catch {}
-}
-
-function getStep3SmartPrefillState(draft) {
-  if (!draft || typeof draft !== 'object') return null;
-  if (!draft.smartPrefillState || typeof draft.smartPrefillState !== 'object') {
-    draft.smartPrefillState = {
-      scenarioType: '',
-      historyCount: 0,
-      status: 'idle',
-      dismissed: false,
-      collapsed: false,
-      suggestion: null,
-      appliedSignals: {}
-    };
-  }
-  return draft.smartPrefillState;
-}
-
-function resetStep3SmartPrefillState(state, scenarioType = '') {
-  if (!state || typeof state !== 'object') return;
-  state.scenarioType = String(scenarioType || '').trim().toLowerCase();
-  state.historyCount = 0;
-  state.status = 'idle';
-  state.dismissed = false;
-  state.collapsed = false;
-  state.suggestion = null;
-  state.appliedSignals = {};
-}
-
-function getStep3SmartPrefillScenarioType(draft) {
-  if (typeof normaliseSmartParamScenarioType === 'function') {
-    return String(normaliseSmartParamScenarioType(draft) || '').trim().toLowerCase() || 'general';
-  }
-  return String(draft?.scenarioLens?.key || 'general').trim().toLowerCase() || 'general';
-}
-
-function buildStep3SmartPrefillScenarioSummary(draft) {
-  if (typeof buildSmartParamScenarioSummary === 'function') {
-    return buildSmartParamScenarioSummary(draft);
-  }
-  return [
-    draft?.scenarioTitle,
-    draft?.enhancedNarrative,
-    draft?.narrative,
-    getStructuredScenarioField(draft?.structuredScenario, 'eventPath'),
-    getStructuredScenarioField(draft?.structuredScenario, 'primaryDriver'),
-    getStructuredScenarioField(draft?.structuredScenario, 'effect')
-  ].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim().slice(0, 900);
-}
-
-function getStep3SmartPrefillHistory() {
-  const key = getSmartPrefillHistoryKey();
-  const existing = readStep3LocalArray(key);
-  if (existing.length) return existing;
-  try {
-    const assessments = typeof getAssessments === 'function' ? getAssessments() : [];
-    const backfilled = assessments
-      .map(item => (typeof buildSmartParamHistoryRecord === 'function' ? buildSmartParamHistoryRecord(item) : null))
-      .filter(item => item?.scenarioType)
-      .slice(0, 80);
-    if (backfilled.length) writeStep3LocalArray(key, backfilled);
-    return backfilled;
-  } catch {
-    return [];
-  }
-}
-
-function getStep3MatchingSmartPrefillHistory(draft) {
-  const scenarioType = getStep3SmartPrefillScenarioType(draft);
-  return getStep3SmartPrefillHistory()
-    .filter(item => String(item?.scenarioType || '').trim().toLowerCase() === scenarioType)
-    .slice(0, 8);
-}
-
-function getStep3VisibleSmartPrefillFields(draft, isAdv) {
-  return ['tef', (isAdv && draft?.fairParams?.vulnDirect) ? 'vulnerability' : 'controls', 'lossMagnitude'];
-}
-
-function hasStep3UserEditedCoreFields(draft) {
-  const origins = draft?.fairParamOrigins && typeof draft.fairParamOrigins === 'object'
-    ? draft.fairParamOrigins
-    : {};
-  return Object.entries(origins).some(([key, value]) => /^(tef|vuln|threatCap|controlStr|ir|bi|db|rl|tp|rc)/.test(String(key || '')) && value === 'user');
-}
-
-function getStep3CurrentSmartPrefillValue(field) {
-  const p = AppState?.draft?.fairParams || {};
-  if (field === 'tef') {
-    return { min: Number(p.tefMin || 0), likely: Number(p.tefLikely || 0), max: Number(p.tefMax || 0) };
-  }
-  if (field === 'controls') {
-    return { min: Number(p.controlStrMin || 0), likely: Number(p.controlStrLikely || 0), max: Number(p.controlStrMax || 0) };
-  }
-  if (field === 'vulnerability') {
-    if (typeof deriveSmartPrefillVulnerabilityRange === 'function') {
-      return deriveSmartPrefillVulnerabilityRange(p);
-    }
-    return null;
-  }
-  if (field === 'lossMagnitude') {
-    const total = suffix => ['ir', 'bi', 'db', 'rl', 'tp', 'rc'].reduce((sum, prefix) => sum + Number(p?.[`${prefix}${suffix}`] || 0), 0);
-    return {
-      low: Math.round(total('Min')),
-      likely: Math.round(total('Likely')),
-      high: Math.round(total('Max'))
-    };
-  }
-  return null;
-}
-
-function recordStep3SmartPrefillSignal(field, aiValue) {
-  const signals = readStep3LocalArray(getSmartPrefillLearnKey());
-  const entry = {
-    timestamp: Date.now(),
-    field,
-    aiValue,
-    finalValue: aiValue
-  };
-  signals.unshift(entry);
-  writeStep3LocalArray(getSmartPrefillLearnKey(), signals.slice(0, 120));
-  const state = getStep3SmartPrefillState(AppState.draft);
-  state.appliedSignals = {
-    ...(state.appliedSignals || {}),
-    [field]: entry.timestamp
-  };
-}
-
-function valuesCloseEnough(a, b, tolerance = 0.15) {
-  const left = Number(a);
-  const right = Number(b);
-  if (!Number.isFinite(left) || !Number.isFinite(right)) return false;
-  const scale = Math.max(1, Math.abs(left), Math.abs(right));
-  return Math.abs(left - right) / scale <= tolerance;
-}
-
-function isStep3SmartPrefillAccepted(field, aiValue, finalValue) {
-  if (!aiValue || !finalValue) return false;
-  if (field === 'controls' || field === 'vulnerability') {
-    return ['min', 'likely', 'max'].every(key => valuesCloseEnough(aiValue[key], finalValue[key], 0.12));
-  }
-  if (field === 'tef') {
-    return ['min', 'likely', 'max'].every(key => valuesCloseEnough(aiValue[key], finalValue[key], 0.2));
-  }
-  if (field === 'lossMagnitude') {
-    return ['low', 'likely', 'high'].every(key => valuesCloseEnough(aiValue[key], finalValue[key], 0.2));
-  }
-  return false;
-}
-
-function getStep3SmartPrefillAcceptanceMeta(field) {
-  const entries = readStep3LocalArray(getSmartPrefillLearnKey()).filter(item => String(item?.field || '') === String(field || ''));
-  if (!entries.length) return { label: 'AI Suggestion', rate: 0, sampleCount: 0 };
-  const accepted = entries.filter(item => isStep3SmartPrefillAccepted(field, item.aiValue, item.finalValue)).length;
-  const rate = accepted / entries.length;
-  return {
-    label: entries.length >= 3 && rate > 0.7 ? 'Based on your past decisions' : 'AI Suggestion',
-    rate,
-    sampleCount: entries.length
-  };
-}
-
-function syncStep3SmartPrefillSignalsFromDraft() {
-  const state = getStep3SmartPrefillState(AppState.draft);
-  const appliedSignals = state?.appliedSignals && typeof state.appliedSignals === 'object'
-    ? state.appliedSignals
-    : {};
-  const signalEntries = Object.entries(appliedSignals);
-  if (!signalEntries.length) return;
-  const signals = readStep3LocalArray(getSmartPrefillLearnKey());
-  let changed = false;
-  signalEntries.forEach(([field, timestamp]) => {
-    const index = signals.findIndex(item => Number(item?.timestamp || 0) === Number(timestamp) && String(item?.field || '') === field);
-    if (index < 0) return;
-    const currentValue = getStep3CurrentSmartPrefillValue(field);
-    if (!currentValue) return;
-    signals[index] = {
-      ...signals[index],
-      finalValue: currentValue
-    };
-    changed = true;
-  });
-  if (changed) writeStep3LocalArray(getSmartPrefillLearnKey(), signals.slice(0, 120));
-}
-
-function applyStep3Range(prefix, range, sourceKind = 'smart-prefill') {
-  const p = AppState.draft.fairParams || (AppState.draft.fairParams = {});
-  if (Number.isFinite(Number(range?.min))) {
-    p[`${prefix}Min`] = Number(Number(range.min).toFixed(2));
-    markFairInputSource(`${prefix}Min`, sourceKind);
-  }
-  if (Number.isFinite(Number(range?.likely))) {
-    p[`${prefix}Likely`] = Number(Number(range.likely).toFixed(2));
-    markFairInputSource(`${prefix}Likely`, sourceKind);
-  }
-  if (Number.isFinite(Number(range?.max))) {
-    p[`${prefix}Max`] = Number(Number(range.max).toFixed(2));
-    markFairInputSource(`${prefix}Max`, sourceKind);
-  }
-}
-
-function applyStep3LossMagnitudeRange(range, sourceKind = 'smart-prefill') {
-  const p = AppState.draft.fairParams || (AppState.draft.fairParams = {});
-  const weights = { ir: 0.18, bi: 0.36, db: 0.08, rl: 0.12, tp: 0.08, rc: 0.18 };
-  const keys = Object.keys(weights);
-  const applySuffix = (suffix, target) => {
-    const currentTotal = keys.reduce((sum, key) => sum + Number(p?.[`${key}${suffix}`] || 0), 0);
-    if (!(Number.isFinite(target) && target >= 0)) return;
-    keys.forEach(key => {
-      const currentValue = Number(p?.[`${key}${suffix}`] || 0);
-      const basis = currentTotal > 0 ? (currentValue / currentTotal) : weights[key];
-      p[`${key}${suffix}`] = Math.max(0, Math.round(target * basis));
-      markFairInputSource(`${key}${suffix}`, sourceKind);
-    });
-  };
-  applySuffix('Min', Number(range?.low));
-  applySuffix('Likely', Number(range?.likely));
-  applySuffix('Max', Number(range?.high));
-}
-
-function getStep3SmartPrefillDisplayValue(field, suggestion) {
-  if (field === 'tef') {
-    return `${suggestion.tef.min}-${suggestion.tef.likely}-${suggestion.tef.max}/yr`;
-  }
-  if (field === 'controls') {
-    return `${Math.round(suggestion.controlStrength.likely * 100)}% control strength`;
-  }
-  if (field === 'vulnerability') {
-    return `${Math.round(suggestion.vulnerability.likely * 100)}% event success likelihood`;
-  }
-  if (field === 'lossMagnitude') {
-    return `${formatPlainCurrency(suggestion.lossMagnitude.low)} to ${formatPlainCurrency(suggestion.lossMagnitude.high)}`;
-  }
-  return '';
-}
-
-function renderStep3SmartPrefillChip(field, suggestion, historyCount) {
-  const acceptance = getStep3SmartPrefillAcceptanceMeta(field);
-  const label = field === 'tef'
-    ? 'TEF'
-    : field === 'controls'
-      ? 'Control strength'
-      : field === 'vulnerability'
-        ? 'Vulnerability'
-        : 'Loss magnitude';
-  const rationale = field === 'tef'
-    ? suggestion.tef?.rationale
-    : field === 'controls'
-      ? suggestion.controlStrength?.rationale
-      : field === 'vulnerability'
-        ? suggestion.vulnerability?.rationale
-        : suggestion.lossMagnitude?.rationale;
-  return `<button type="button" class="smart-prefill-chip" data-smart-prefill-field="${field}">
-    <strong>${escapeHtml(label)}: ${escapeHtml(getStep3SmartPrefillDisplayValue(field, suggestion))}</strong>
-    <span>${escapeHtml(acceptance.label)} · similar to your ${historyCount} past ${String(AppState?.draft?.scenarioLens?.label || getStep3SmartPrefillScenarioType(AppState?.draft)).toLowerCase()} scenarios · Apply</span>
-    <span>${escapeHtml(rationale || 'Prepared from your past estimates for similar scenarios.')}</span>
-  </button>`;
-}
-
-function renderSmartPrefillBand(draft, isAdv) {
-  return '';
-}
-
-function applyStep3SmartPrefillField(field, suggestion, draft, isAdv) {
-  if (!suggestion || typeof suggestion !== 'object') return false;
-  if (field === 'tef' && suggestion.tef) {
-    applyStep3Range('tef', suggestion.tef);
-    recordStep3SmartPrefillSignal('tef', {
-      min: suggestion.tef.min,
-      likely: suggestion.tef.likely,
-      max: suggestion.tef.max
-    });
-    return true;
-  }
-  if (field === 'controls' && suggestion.controlStrength) {
-    applyStep3Range('controlStr', suggestion.controlStrength);
-    recordStep3SmartPrefillSignal('controls', {
-      min: suggestion.controlStrength.min,
-      likely: suggestion.controlStrength.likely,
-      max: suggestion.controlStrength.max
-    });
-    return true;
-  }
-  if (field === 'vulnerability' && isAdv && draft?.fairParams?.vulnDirect && suggestion.vulnerability) {
-    applyStep3Range('vuln', suggestion.vulnerability);
-    recordStep3SmartPrefillSignal('vulnerability', {
-      min: suggestion.vulnerability.min,
-      likely: suggestion.vulnerability.likely,
-      max: suggestion.vulnerability.max
-    });
-    return true;
-  }
-  if (field === 'lossMagnitude' && suggestion.lossMagnitude) {
-    applyStep3LossMagnitudeRange(suggestion.lossMagnitude);
-    recordStep3SmartPrefillSignal('lossMagnitude', {
-      low: suggestion.lossMagnitude.low,
-      likely: suggestion.lossMagnitude.likely,
-      high: suggestion.lossMagnitude.high
-    });
-    return true;
-  }
-  return false;
-}
-
-async function requestStep3SmartPrefillIfNeeded(draft, isAdv) {
-  const state = getStep3SmartPrefillState(draft);
-  const scenarioType = getStep3SmartPrefillScenarioType(draft);
-  resetStep3SmartPrefillState(state, scenarioType);
-  state.status = 'empty';
-  state.suggestion = null;
-  state.historyCount = 0;
-  return null;
-}
-
 function getStep3FieldRationaleMap(draft) {
   const explicit = draft?.fairParams?.fieldRationale && typeof draft.fairParams.fieldRationale === 'object'
     ? draft.fairParams.fieldRationale
@@ -670,7 +293,7 @@ function bindFairRationaleChips() {
     const rationaleId = `rationale-${fieldName}`;
     const existing = document.getElementById(rationaleId);
     if (existing) existing.remove();
-    formGroup.insertAdjacentHTML('beforeend', `<div class="fair-rationale" id="${rationaleId}"><span class="fair-rationale__icon">ℹ</span><span class="fair-rationale__text">${escapeHtml(rationaleText)}${calibratedFields.has(fieldName) ? ' <span class="badge badge--neutral" style="margin-left:6px">Org-calibrated</span>' : ''}</span><button type="button" class="fair-rationale__action" data-rationale-field="${escapeHtml(fieldName)}" aria-expanded="false">Explain</button></div>`);
+    formGroup.insertAdjacentHTML('beforeend', `<div class="fair-rationale" id="${rationaleId}"><span class="fair-rationale__icon">ℹ</span><span class="fair-rationale__text">${escapeHtml(rationaleText)}${calibratedFields.has(fieldName) ? ' <span class="badge badge--neutral" style="margin-left:6px">Legacy calibration</span>' : ''}</span><button type="button" class="fair-rationale__action" data-rationale-field="${escapeHtml(fieldName)}" aria-expanded="false">Explain</button></div>`);
     const rationale = document.getElementById(rationaleId);
     const explainButton = rationale?.querySelector('.fair-rationale__action');
     explainButton?.addEventListener('click', () => {
@@ -701,9 +324,9 @@ function renderOrgCalibrationBand(draft) {
   if (!info || !Array.isArray(info.appliedFields) || !info.appliedFields.length) return '';
   return `<div class="wizard-summary-band wizard-summary-band--quiet anim-fade-in">
     <div>
-      <div class="wizard-summary-band__label">Organisation calibration</div>
-      <strong>${info.appliedFields.length} starting field${info.appliedFields.length === 1 ? '' : 's'} adjusted from organisation history</strong>
-      <div class="wizard-summary-band__copy">The platform used prior completed assessments in this scenario family to nudge the starting point before you review it. You can still override any field manually.</div>
+      <div class="wizard-summary-band__label">Legacy calibration markers</div>
+      <strong>${info.appliedFields.length} field${info.appliedFields.length === 1 ? '' : 's'} still carry earlier organisation-calibration metadata</strong>
+      <div class="wizard-summary-band__copy">This information is retained for older drafts only. Review each field manually before relying on it.</div>
     </div>
     <div class="wizard-summary-band__meta">
       ${info.appliedFields.slice(0, 3).map(item => `<span class="badge badge--neutral">${escapeHtml(OrgIntelligenceService?.getFieldLabel?.(item.fieldName) || item.fieldName)}</span>`).join('')}
@@ -1943,13 +1566,6 @@ function renderAdvancedTuningWorkspace(p, sym) {
 function renderWizard3() {
   const draft = AppState.draft;
   _ensureDraftFairParamsSeeded(draft);
-  const smartPrefillState = getStep3SmartPrefillState(draft);
-  const smartPrefillScenarioType = getStep3SmartPrefillScenarioType(draft);
-  if (smartPrefillState.scenarioType && smartPrefillState.scenarioType !== smartPrefillScenarioType) {
-    resetStep3SmartPrefillState(smartPrefillState, smartPrefillScenarioType);
-  } else {
-    smartPrefillState.scenarioType = smartPrefillScenarioType;
-  }
   const p = draft.fairParams || {};
   const bu = getBUList().find(b => b.id === draft.buId);
   const da = bu?.defaultAssumptions || {};
@@ -2003,8 +1619,6 @@ function renderWizard3() {
           ${renderEstimateScopeSummaryBand(draft)}
           ${renderQuantReadinessScoreCard(draft, validation)}
           ${baselineAssessment ? `<div class="card card--elevated anim-fade-in"><div class="wizard-premium-head"><div><div class="context-panel-title">Current assessment baseline</div><p class="context-panel-copy">You are working from <strong>${escapeHtml(baselineTitle || 'the original assessment')}</strong>. Adjust the assumptions below to reflect stronger prevention, faster response, or lower disruption impact, then rerun to compare the new result against the current baseline.</p></div><span class="badge badge--gold">Treatment lane</span></div><div class="form-help" style="margin-top:10px">Baseline completed on ${new Date(baselineAssessment.completedAt || baselineAssessment.createdAt || Date.now()).toLocaleDateString('en-AE', { year: 'numeric', month: 'long', day: 'numeric' })}.</div><div class="citation-chips" style="margin-top:12px"><button type="button" class="chip treatment-prompt-chip" data-treatment-prompt="control-strength">Try stronger controls</button><button type="button" class="chip treatment-prompt-chip" data-treatment-prompt="detection-response">Try faster detection</button><button type="button" class="chip treatment-prompt-chip" data-treatment-prompt="resilience">Try lower disruption impact</button></div><div class="form-group" style="margin-top:16px"><label class="form-label" for="treatment-improvement-request">Describe the better outcome you want to test</label><textarea class="form-textarea" id="treatment-improvement-request" rows="3" placeholder="e.g. stronger privileged-access controls, faster containment, better resilience, lower business disruption">${draft.treatmentImprovementRequest || ''}</textarea><span class="form-help">Describe the improvement in plain language and let AI adjust the copied baseline values before you simulate the new case.</span></div><div class="flex items-center gap-3" style="margin-top:12px;flex-wrap:wrap"><button class="btn btn--secondary" id="btn-treatment-ai-assist" type="button">AI Assist This Better Outcome</button><span class="form-help" id="treatment-improvement-status">${escapeHtml(getStep3TreatmentAssistStatusCopy(draft))}</span></div></div>` : ''}
-          ${renderSmartPrefillBand(draft, isAdv)}
-
           <section class="wizard-ia-section anim-fade-in">
             <div class="results-section-heading">Enter the core estimate</div>
             <div class="form-help" style="margin-top:8px">Work through frequency, exposure, and cost in that order. Open advanced sections only when they materially improve the model.</div>
@@ -2122,38 +1736,6 @@ function renderWizard3() {
   });
   attachFormattedMoneyInputs();
   bindFairRationaleChips();
-  document.getElementById('btn-smart-prefill-dismiss')?.addEventListener('click', () => {
-    const state = getStep3SmartPrefillState(AppState.draft);
-    state.dismissed = true;
-    saveDraft();
-    renderWizard3();
-  });
-  document.getElementById('btn-smart-prefill-collapse')?.addEventListener('click', () => {
-    const state = getStep3SmartPrefillState(AppState.draft);
-    state.collapsed = !state.collapsed;
-    renderWizard3();
-  });
-  document.getElementById('btn-smart-prefill-apply-all')?.addEventListener('click', () => {
-    const state = getStep3SmartPrefillState(AppState.draft);
-    const visibleFields = getStep3VisibleSmartPrefillFields(AppState.draft, AppState.mode === 'advanced');
-    const applied = visibleFields
-      .map(field => applyStep3SmartPrefillField(field, state.suggestion, AppState.draft, AppState.mode === 'advanced'))
-      .filter(Boolean).length;
-    if (!applied) return;
-    saveDraft();
-    renderWizard3();
-    UI.toast('Suggested starting values were applied. Review anything you want to challenge.', 'success');
-  });
-  document.querySelectorAll('[data-smart-prefill-field]').forEach(button => {
-    button.addEventListener('click', () => {
-      const state = getStep3SmartPrefillState(AppState.draft);
-      const field = button.dataset.smartPrefillField || '';
-      if (!applyStep3SmartPrefillField(field, state.suggestion, AppState.draft, AppState.mode === 'advanced')) return;
-      saveDraft();
-      renderWizard3();
-      UI.toast('Suggestion applied to the estimate. Review and adjust it if needed.', 'success');
-    });
-  });
   document.querySelectorAll('.fair-input, #adv-dist, #adv-iter, #adv-seed, #corr-bi-ir, #corr-rl-rc, #treatment-improvement-request').forEach(input => {
     const eventName = input.tagName === 'SELECT' ? 'change' : 'input';
     input.addEventListener(eventName, () => {
@@ -2166,7 +1748,6 @@ function renderWizard3() {
       scheduleDraftAutosave();
     });
   });
-  void requestStep3SmartPrefillIfNeeded(draft, isAdv);
   function applySuggestedTreatmentInputs(suggestedInputs = {}) {
     const p = AppState.draft.fairParams || (AppState.draft.fairParams = {});
     const applyRange = (prefix, range) => {
@@ -2378,5 +1959,4 @@ function collectFairParams() {
   }
   p.secondaryEnabled = document.getElementById('secondary-toggle')?.checked || false;
   p.distType = p.distType || 'triangular';
-  syncStep3SmartPrefillSignalsFromDraft();
 }

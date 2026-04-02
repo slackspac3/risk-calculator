@@ -5790,7 +5790,7 @@ function getAiUnavailableMessage() {
           && LLMService.isUsingStub()
       };
   if (runtimeStatus.usingStub) {
-    return 'Live AI is not configured for this session. Local fallback guidance is active.';
+    return 'Live AI is not configured for this session. Deterministic fallback or manual handling is active.';
   }
   return 'AI assistance is temporarily unavailable.';
 }
@@ -9073,7 +9073,7 @@ function getHelpAudienceModel({
       overviewAudienceCopy: `This workspace is for people who need both a business-unit view and a function-level view, so the guidance should help you move between oversight and owned execution without losing focus.`,
       overviewUseCase: `A leader needs to understand whether a service disruption affects ${businessUnitName} broadly, what it means for ${functionName} directly, and whether the current controls or response need escalation now.`,
       contextExample: `Because both ${businessUnitName} and ${functionName} context are retained, the app can surface the operating assumptions, regulations, and control patterns that matter across both layers earlier in the draft.`,
-      pilotReadinessBody: 'Global admins check the server-reported AI mode in Admin > System Access. If a step says fallback guidance is active, treat it as continuity support and not as sign-off-quality AI for your oversight decisions.',
+      pilotReadinessBody: 'Global admins check the server-reported AI mode in Admin > System Access. If a step is running in deterministic fallback or manual mode, treat it as continuity support and not as sign-off-quality AI for your oversight decisions.',
       feedbackChangeBody: 'Your repeated feedback improves your own workflow first. When similar live-AI patterns repeat across other users, the same signal can later influence your function, your business unit, and the wider platform.',
       dashboardPurpose: `Use the active queue as an oversight lane for ${businessUnitName} first, then keep the owned function context for ${functionName} current before new work starts.`,
       dashboardBestUse: `Open the next item that needs review, revisit the reassessment lane when assumptions drift, and start new work only when a fresh issue clearly belongs in your owned scope.`,
@@ -9116,7 +9116,7 @@ function getHelpAudienceModel({
       overviewAudienceCopy: `This workspace is for people responsible for the quality of context and decision support across ${businessUnitName}, not just for drafting one scenario at a time.`,
       overviewUseCase: `A BU owner wants to understand whether a supplier or resilience issue is becoming material for ${businessUnitName}, which assumptions matter most, and whether the next step is treatment, escalation, or a scheduled reassessment.`,
       contextExample: `Because ${businessUnitName} context is retained, the app can surface the operating assumptions, geography, regulations, and control themes that matter to that business unit earlier in the draft and results.`,
-      pilotReadinessBody: 'Global admins check the server-reported AI mode in Admin > System Access. If your current step says fallback guidance is active, treat it as continuity support and not as pilot-quality AI for BU sign-off.',
+      pilotReadinessBody: 'Global admins check the server-reported AI mode in Admin > System Access. If your current step is running in deterministic fallback or manual mode, treat it as continuity support and not as pilot-quality AI for BU sign-off.',
       feedbackChangeBody: 'Your repeated feedback improves your own workflow first. When similar live-AI patterns repeat across other users, the same signal can later influence your business unit and the wider platform.',
       dashboardPurpose: `Use the active queue as the primary review lane for ${businessUnitName}, then keep the business-unit and function context aligned before new work starts.`,
       dashboardBestUse: 'Open the next item that needs review, use the watchlist and reassessment lane to keep important scenarios current, and start a new assessment only when a new issue clearly needs its own decision path.',
@@ -9159,7 +9159,7 @@ function getHelpAudienceModel({
       overviewAudienceCopy: `This workspace is for people who own a function or department context and need to keep assessments credible for ${functionName}.`,
       overviewUseCase: `A function owner wants to understand whether a control or resilience issue could push ${functionName} outside tolerance, what assumptions are carrying the result, and what the function should do next.`,
       contextExample: `Because ${functionName} context is retained, the app can surface the controls, operating assumptions, and regulations most relevant to that function earlier in the draft and results.`,
-      pilotReadinessBody: 'Global admins check the server-reported AI mode in Admin > System Access. If your current step says fallback guidance is active, treat it as continuity support and not as sign-off-quality AI for function-level review.',
+      pilotReadinessBody: 'Global admins check the server-reported AI mode in Admin > System Access. If your current step is running in deterministic fallback or manual mode, treat it as continuity support and not as sign-off-quality AI for function-level review.',
       feedbackChangeBody: 'Your repeated feedback improves your own workflow first. When similar live-AI patterns repeat across other users, the same signal can later influence your function, your business unit, and the wider platform.',
       dashboardPurpose: `Use the active queue as the primary review lane for ${functionName}, then keep the owned function context current before new work starts.`,
       dashboardBestUse: 'Open the next function-level item that needs review, revisit the reassessment lane when assumptions drift, and start a new assessment only when a fresh issue clearly belongs to the function you own.',
@@ -9201,7 +9201,7 @@ function getHelpAudienceModel({
     overviewAudienceCopy: 'This workspace is for people drafting, refining, and explaining a scenario they directly support.',
     overviewUseCase: 'A risk analyst wants to understand whether a supplier insolvency could create a material exposure, what assumptions are carrying the estimate, and whether the escalation case is strong enough to share.',
     contextExample: 'If your saved context says you support regulated digital services in the UAE, the app will surface geography, regulatory, resilience, and customer-impact considerations earlier than it would for a non-regulated internal-only service.',
-    pilotReadinessBody: 'Admins check the server-reported AI mode in Admin > System Access. If your current step says fallback guidance is active, treat it as continuity support and ask for a live server mode when AI quality matters.',
+    pilotReadinessBody: 'Admins check the server-reported AI mode in Admin > System Access. If your current step is running in deterministic fallback or manual mode, treat it as continuity support and ask for a live server mode when AI quality matters.',
     feedbackChangeBody: 'Your repeated feedback shapes your own guidance first. When similar live-AI patterns repeat across other users, the same signal can later influence function, BU, and wider platform behaviour.',
     dashboardPurpose: 'Know what to do next. Resume your draft or open the latest result that needs your attention before starting something new.',
     dashboardBestUse: 'Resume your current draft, reopen a result that needs explanation, or start a new assessment when you have one real scenario to work through.',

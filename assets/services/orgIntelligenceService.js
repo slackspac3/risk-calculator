@@ -17,7 +17,6 @@ const OrgIntelligenceService = (() => {
     feedback: { updatedAt: 0, events: [] },
     updatedAt: 0
   });
-  const RANGE_PREFIXES = ['tef', 'threatCap', 'controlStr', 'ir', 'bi', 'db', 'rl', 'tp', 'rc', 'vuln'];
   const RATIO_BOUNDED_FIELDS = new Set([
     'tefMin', 'tefLikely', 'tefMax',
     'threatCapMin', 'threatCapLikely', 'threatCapMax',
@@ -1044,164 +1043,6 @@ const OrgIntelligenceService = (() => {
       .map(item => item.pattern);
   }
 
-  function buildGhostDraftSuggestion(context = {}) {
-    const patterns = getMergedScenarioPatterns(context, 8);
-    if (!patterns.length) return null;
-    const primary = patterns[0];
-    const sourcePatternIds = patterns.slice(0, 4).map(item => item.assessmentId || item.id).filter(Boolean);
-    const riskFrequency = {};
-    const regulationFrequency = {};
-    patterns.slice(0, 4).forEach(pattern => {
-      (pattern.selectedRiskTitles || []).forEach(title => {
-        const safe = _safeText(title, 160);
-        if (!safe) return;
-        riskFrequency[safe] = Number(riskFrequency[safe] || 0) + 1;
-      });
-      (pattern.applicableRegulations || []).forEach(tag => {
-        const safe = _safeText(tag, 120);
-        if (!safe) return;
-        regulationFrequency[safe] = Number(regulationFrequency[safe] || 0) + 1;
-      });
-    });
-    const selectedRiskTitles = Object.entries(riskFrequency)
-      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-      .slice(0, 4)
-      .map(([title]) => title);
-    const regulations = Object.entries(regulationFrequency)
-      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-      .slice(0, 6)
-      .map(([tag]) => tag);
-    const narrative = _safeText(
-      primary.narrative
-      || (typeof composeGuidedNarrative === 'function'
-        ? composeGuidedNarrative(primary.guidedInput || {}, {
-            lensKey: primary.scenarioLens?.key || '',
-            lensLabel: primary.scenarioLens?.label || ''
-          })
-        : ''),
-      800
-    );
-    const riskCandidates = selectedRiskTitles.map((title, index) => ({
-      id: `ghost_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 6)}`,
-      title,
-      category: 'Learned pattern',
-      source: 'ghost-drafter',
-      description: 'Suggested from similar completed assessments already seen in this organisation.'
-    }));
-    const scenarioTitle = primary.title || primary.scenarioType || 'Suggested starting point';
-    return {
-      patternCount: patterns.length,
-      patternTitles: patterns.slice(0, 3).map(item => item.title || item.scenarioType).filter(Boolean),
-      sourcePatternIds,
-      draftPatch: {
-        scenarioLens: primary.scenarioLens ? { ...primary.scenarioLens } : null,
-        scenarioTitle,
-        narrative,
-        enhancedNarrative: narrative,
-        sourceNarrative: narrative,
-        guidedInput: primary.guidedInput && typeof primary.guidedInput === 'object'
-          ? { ...primary.guidedInput }
-          : {},
-        riskCandidates,
-        selectedRiskIds: riskCandidates.map(item => item.id),
-        selectedRisks: riskCandidates.map(item => ({ ...item })),
-        applicableRegulations: regulations.length
-          ? regulations
-          : (Array.isArray(context.applicableRegulations) ? context.applicableRegulations.slice(0, 6) : []),
-        ghostDraftMeta: {
-          appliedAt: Date.now(),
-          patternCount: patterns.length,
-          sourcePatternIds,
-          sourcePatternTitles: patterns.slice(0, 3).map(item => item.title || item.scenarioType).filter(Boolean),
-          sourceType: patterns.some(item => item.submittedBy && item.submittedBy !== (typeof AuthService !== 'undefined' ? AuthService.getCurrentUser()?.username || '' : ''))
-            ? 'organisation'
-            : 'personal'
-        },
-        guidedDraftSource: 'ghost-drafter',
-        guidedDraftStatus: 'Pre-loaded from similar completed assessments.'
-      }
-    };
-  }
-
-  function applyGhostDraftToDraft(draft = {}, context = {}) {
-    if (!draft || typeof draft !== 'object') return null;
-    const suggestion = buildGhostDraftSuggestion({
-      buId: draft.buId || context.buId,
-      scenarioLens: draft.scenarioLens || context.scenarioLens,
-      scenarioLensKey: draft.scenarioLens?.key || context.scenarioLensKey,
-      functionKey: draft.scenarioLens?.functionKey || context.functionKey,
-      applicableRegulations: draft.applicableRegulations || context.applicableRegulations || [],
-      selectedRiskTitles: [],
-      narrative: '',
-      guidedInput: draft.guidedInput || {}
-    });
-    if (!suggestion) return null;
-    Object.assign(draft, suggestion.draftPatch);
-    return suggestion;
-  }
-
-  function getCalibrationProfile(source = {}) {
-    const cached = getCachedState();
-    const scenarioKey = _scenarioKeyFromSource(source);
-    return cached.calibration?.scenarioTypes?.[scenarioKey] || null;
-  }
-
-  function _clampFieldValue(fieldName, value) {
-    if (!Number.isFinite(value)) return value;
-    if (RATIO_BOUNDED_FIELDS.has(fieldName)) {
-      return Math.max(0.01, Math.min(0.99, value));
-    }
-    return Math.max(0, value);
-  }
-
-  function _sortRange(prefix, fairParams) {
-    const minKey = `${prefix}Min`;
-    const likelyKey = `${prefix}Likely`;
-    const maxKey = `${prefix}Max`;
-    const values = [fairParams[minKey], fairParams[likelyKey], fairParams[maxKey]].map(value => Number(value));
-    if (!values.every(Number.isFinite)) return;
-    values.sort((a, b) => a - b);
-    fairParams[minKey] = values[0];
-    fairParams[likelyKey] = values[1];
-    fairParams[maxKey] = values[2];
-  }
-
-  function applyCalibrationToDraft(draft = {}) {
-    if (!draft || typeof draft !== 'object') return null;
-    if (draft.orgCalibrationApplied) return draft.orgCalibrationInfo || null;
-    const fairParams = draft.fairParams;
-    if (!fairParams || typeof fairParams !== 'object') return null;
-    const profile = getCalibrationProfile(draft);
-    if (!profile?.fields || typeof profile.fields !== 'object') return null;
-    const appliedFields = [];
-    Object.entries(profile.fields).forEach(([fieldName, fieldProfile]) => {
-      if (Number(fieldProfile?.sampleCount || 0) < 5) return;
-      const currentValue = _toNumber(fairParams[fieldName]);
-      if (!Number.isFinite(currentValue)) return;
-      const adjusted = Math.abs(currentValue) > 0.0001
-        ? currentValue * (1 + Number(fieldProfile.avgRatioDelta || 0))
-        : currentValue + Number(fieldProfile.avgAbsoluteDelta || 0);
-      const nextValue = _clampFieldValue(fieldName, adjusted);
-      if (!Number.isFinite(nextValue) || Math.abs(nextValue - currentValue) < 0.0001) return;
-      fairParams[fieldName] = Number(nextValue.toFixed(RATIO_BOUNDED_FIELDS.has(fieldName) ? 2 : 0));
-      appliedFields.push({
-        fieldName,
-        sampleCount: Number(fieldProfile.sampleCount || 0),
-        avgRatioDelta: Number(fieldProfile.avgRatioDelta || 0)
-      });
-    });
-    if (!appliedFields.length) return null;
-    RANGE_PREFIXES.forEach(prefix => _sortRange(prefix, fairParams));
-    draft.orgCalibrationApplied = true;
-    draft.orgCalibrationInfo = {
-      scenarioKey: _scenarioKeyFromSource(draft),
-      scenarioLabel: _scenarioLabelFromSource(draft),
-      appliedAt: Date.now(),
-      appliedFields
-    };
-    return draft.orgCalibrationInfo;
-  }
-
   function buildDecisionPattern(assessment = {}) {
     const cached = getCachedState();
     const scenarioLensKey = _scenarioKeyFromSource(assessment);
@@ -1308,10 +1149,6 @@ const OrgIntelligenceService = (() => {
     getFeedbackTierThresholds,
     buildFeedbackDashboardModel,
     getHierarchicalFeedbackProfile,
-    buildGhostDraftSuggestion,
-    applyGhostDraftToDraft,
-    getCalibrationProfile,
-    applyCalibrationToDraft,
     buildDecisionPattern,
     buildDriftAlerts,
     getFieldLabel

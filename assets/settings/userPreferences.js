@@ -926,7 +926,7 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
       if (result.aiInstructions && !document.getElementById('user-ai-instructions').value.trim()) {
         document.getElementById('user-ai-instructions').value = result.aiInstructions;
       }
-      UI.toast(result.usedFallback ? 'Suggested role-context draft loaded with fallback guidance.' : 'Suggested role-context draft loaded.', result.usedFallback ? 'warning' : 'success', 5000);
+      UI.toast(result.usedFallback ? 'Suggested role-context draft loaded with deterministic fallback support.' : 'Suggested role-context draft loaded.', result.usedFallback ? 'warning' : 'success', 5000);
     } catch (error) {
       UI.toast('AI assist failed. Try again in a moment.', 'danger', 6000);
     } finally {
@@ -950,7 +950,7 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
       const result = await LLMService.buildUserPreferenceAssist(buildUserAssistInput(sourceText));
       document.getElementById('user-context-summary').value = result.adminContextSummary || document.getElementById('user-context-summary').value;
       document.getElementById('user-ai-instructions').value = result.aiInstructions || document.getElementById('user-ai-instructions').value;
-      UI.toast(result.usedFallback ? 'Suggested personal-defaults draft loaded with fallback guidance.' : 'Suggested personal-defaults draft loaded.', result.usedFallback ? 'warning' : 'success', 5000);
+      UI.toast(result.usedFallback ? 'Suggested personal-defaults draft loaded with deterministic fallback support.' : 'Suggested personal-defaults draft loaded.', result.usedFallback ? 'warning' : 'success', 5000);
     } catch (error) {
       UI.toast('AI assist failed. Try again in a moment.', 'danger', 6000);
     } finally {

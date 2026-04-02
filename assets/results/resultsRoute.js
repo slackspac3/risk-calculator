@@ -881,7 +881,7 @@ function buildAssessmentAiQualitySignal(assessment = {}) {
     return {
       tone: 'warning',
       label: 'Fallback-generated',
-      summary: 'The platform used fallback guidance instead of a clean live AI result. Review the evidence and challenge layers before relying on the output.'
+      summary: 'The platform used deterministic fallback output instead of a clean live AI result. Review the evidence and challenge layers before relying on the output.'
     };
   }
   if (assessment?.llmAssisted && !/thin|weak|incomplete|low/i.test(`${confidence} ${evidenceQuality}`) && totalSupport >= 2) {
@@ -3392,7 +3392,7 @@ function buildReviewerWorkflowSuccessToast(result = {}, {
   if (modeMeta.mode === 'deterministic_fallback') {
     return {
       tone: 'warning',
-      copy: deterministicFallback || 'Deterministic fallback guidance loaded. Review before using it.'
+      copy: deterministicFallback || 'Deterministic fallback output loaded. Review before using it.'
     };
   }
   if (modeMeta.mode === 'manual') {
