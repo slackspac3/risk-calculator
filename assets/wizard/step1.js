@@ -342,8 +342,13 @@ function inferStep1FunctionKeyFromText(text = '') {
   const hasAiModelSignal = /ai\b|model risk|responsible ai|machine learning|llm|algorithm/.test(haystack);
   const hasExplicitCyberSignal = /(cyber|security|identity|credential|ransom|malware|phish|breach|exfil|privileged|unauthori[sz]ed|misconfig|vulnerability|token theft|session hijack|compromise|account takeover|account hijack|hijack(?:ed|ing)?|mailbox|email compromise|email account|business email compromise|\bbec\b|dark ?web|credential dump|credential leak|leaked credential|stolen credential|admin account|tenant admin|azure admin|executive mailbox|ceo fraud)/.test(haystack);
   const hasTechnologyScopeSignal = /(technology|cloud|infrastructure|it\b|digital|platform|system|application|network|ot\b|ics|scada|site systems)/.test(haystack);
+  const hasSupplierDependencySignal = /(supplier|vendor|third[- ]party|third party|supply chain|delivery commitment|delivery date|shipment|logistics|fallback|substitute)/.test(haystack);
+  const hasProcurementGovernanceSignal = /(procurement|sourcing|purchase|supplier assurance|supplier due diligence|tender|bid|contract award|vendor selection|critical spend|commercial category|pricing|award decision|spend category)/.test(haystack);
+  const hasSupplierDelayProgrammeSignal = hasSupplierDependencySignal
+    && /(miss(?:es|ed)?|delay(?:ed|ing)?|slip(?:ped|page)?|late|delivery date|delivery commitment|deployment|go-live|rollout|milestone|dependent business project|dependent project|programme|program|project)/.test(haystack);
   if (/(bankrupt|bankruptcy|insolv|insolven|receivable|bad debt|write[- ]?off|counterparty|credit loss|credit exposure|customer default|client default|collectability|collections|cashflow|working capital|provisioning|provision)/.test(haystack)) return 'finance';
-  if (/procurement|sourcing|vendor|supplier|purchase|third[- ]party|supply chain|supplier assurance|supplier due diligence/.test(haystack)) return 'procurement';
+  if (hasSupplierDelayProgrammeSignal && !hasProcurementGovernanceSignal && !/single[- ]source|sole source|supplier concentration|concentrated spend|critical spend/.test(haystack)) return 'operations';
+  if (hasProcurementGovernanceSignal || /single[- ]source|sole source|supplier concentration|concentrated spend/.test(haystack)) return 'procurement';
   if (/finance|treasury|accounting|financial|cash|payment|payroll|credit|collections|ledger|fraud|aml|financial crime|integrity/.test(haystack)) return 'finance';
   if (hasOperationalOutageSignal && (!hasExplicitCyberSignal || hasTechnologyScopeSignal)) return 'operations';
   if (hasAiModelSignal || (hasExplicitCyberSignal && !/compliance|regulatory|legal|privacy|data governance|policy|governance|controls|audit|contract|litigation|intellectual property/.test(haystack)) || (hasTechnologyScopeSignal && hasExplicitCyberSignal)) return 'technology';
@@ -358,16 +363,25 @@ function inferStep1FunctionKeyFromText(text = '') {
 function inferStep1FunctionKey(settings = getEffectiveSettings(), draft = AppState.draft || {}) {
   const profile = normaliseUserProfile(settings?.userProfile, AuthService.getCurrentUser());
   const guidedInput = draft?.guidedInput || {};
-  const scenarioSignals = [
-    draft?.__step1NarrativeOverride,
-    draft?.narrative,
-    draft?.sourceNarrative,
-    draft?.enhancedNarrative,
-    guidedInput.event,
-    guidedInput.asset,
-    guidedInput.cause,
-    guidedInput.impact
-  ].filter(Boolean).join(' ');
+  const isGuidedPath = String(draft?.step1Path || '').trim() === 'guided';
+  const scenarioSignals = isGuidedPath
+    ? [
+        draft?.__step1NarrativeOverride,
+        guidedInput.event,
+        guidedInput.asset,
+        guidedInput.cause,
+        guidedInput.impact
+      ].filter(Boolean).join(' ')
+    : [
+        draft?.__step1NarrativeOverride,
+        draft?.narrative,
+        draft?.sourceNarrative,
+        draft?.enhancedNarrative,
+        guidedInput.event,
+        guidedInput.asset,
+        guidedInput.cause,
+        guidedInput.impact
+      ].filter(Boolean).join(' ');
   const scenarioMatch = inferStep1FunctionKeyFromText(scenarioSignals);
   if (scenarioMatch !== 'general') return scenarioMatch;
   const profileHaystack = [
@@ -427,15 +441,23 @@ function composeStep1GuidedNarrative(guidedInput = (AppState.draft?.guidedInput 
 
 function buildStep1GuidedPromptSuggestions(draft = AppState.draft || {}, exampleModel = null) {
   const guidedInput = draft?.guidedInput || {};
-  const sourceText = [
-    guidedInput.event,
-    guidedInput.impact,
-    guidedInput.cause,
-    guidedInput.asset,
-    draft?.narrative,
-    draft?.enhancedNarrative,
-    draft?.sourceNarrative
-  ].filter(Boolean).join(' ');
+  const isGuidedPath = String(draft?.step1Path || '').trim() === 'guided';
+  const sourceText = isGuidedPath
+    ? [
+        guidedInput.event,
+        guidedInput.impact,
+        guidedInput.cause,
+        guidedInput.asset
+      ].filter(Boolean).join(' ')
+    : [
+        guidedInput.event,
+        guidedInput.impact,
+        guidedInput.cause,
+        guidedInput.asset,
+        draft?.narrative,
+        draft?.enhancedNarrative,
+        draft?.sourceNarrative
+      ].filter(Boolean).join(' ');
   const haystack = ` ${String(sourceText || '').toLowerCase()} `;
   const suggestions = [];
   const seen = new Set();
@@ -492,7 +514,19 @@ function buildStep1GuidedPromptSuggestions(draft = AppState.draft || {}, example
     );
   }
 
-  if (/(supplier|vendor|third party|single[- ]source|sole source|concentration|procurement|delivery commitment|fallback|substitute)/.test(haystack)) {
+  if (/(supplier|vendor|third party|third-party|delivery date|delivery commitment|delay|deployment|go-live|milestone|dependent business project|dependent project)/.test(haystack)
+    && !/(procurement|sourcing|tender|bid|contract award|vendor selection|critical spend|award decision|single[- ]source|sole source|concentration|fallback|substitute)/.test(haystack)) {
+    pushSuggestion(
+      'Critical supplier delivery delay',
+      'A key supplier misses a committed delivery and starts delaying infrastructure, programme, or service changes that depend on it.'
+    );
+    pushSuggestion(
+      'Deployment dependency slippage',
+      'A delivery-critical supplier delay pushes back a planned deployment and creates knock-on slippage across dependent projects or business milestones.'
+    );
+  }
+
+  if (/(single[- ]source|sole source|concentration|procurement|sourcing|tender|bid|contract award|critical spend|fallback|substitute|supplier assurance|supplier due diligence)/.test(haystack)) {
     pushSuggestion(
       'Single-source shortfall',
       'A critical supplier cannot meet a key delivery commitment and no ready substitute is available in the current sourcing plan.'
@@ -777,16 +811,26 @@ function scheduleStep1LivePreviewRefresh({ immediate = false, force = false } = 
 
 function getStep1GuidedPromptIdeaSourceText(draft = AppState.draft || {}) {
   const guidedInput = draft?.guidedInput || {};
-  return [
-    guidedInput.event,
-    guidedInput.impact,
-    guidedInput.cause,
-    guidedInput.asset,
-    guidedInput.urgency,
-    draft?.narrative,
-    draft?.enhancedNarrative,
-    draft?.sourceNarrative
-  ].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+  const isGuidedPath = String(draft?.step1Path || '').trim() === 'guided';
+  const sourceText = isGuidedPath
+    ? [
+        guidedInput.event,
+        guidedInput.impact,
+        guidedInput.cause,
+        guidedInput.asset,
+        guidedInput.urgency
+      ]
+    : [
+        guidedInput.event,
+        guidedInput.impact,
+        guidedInput.cause,
+        guidedInput.asset,
+        guidedInput.urgency,
+        draft?.narrative,
+        draft?.enhancedNarrative,
+        draft?.sourceNarrative
+      ];
+  return sourceText.filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
 }
 
 function getStep1GuidedPromptIdeaSignature(draft = AppState.draft || {}) {
@@ -3300,6 +3344,16 @@ function clearStep1StaleAssistState(nextNarrative, { clearGeneratedRisks = false
   ].map(normaliseScenarioSeedText).filter(Boolean);
   if (currentSeeds.some(seed => seed === nextSeed)) return;
   // Once the underlying scenario changes, stale AI summaries and generated cards become misleading against the visible draft.
+  if (String(AppState.draft?.step1Path || '').trim() === 'guided') {
+    AppState.draft.narrative = '';
+    AppState.draft.sourceNarrative = '';
+    AppState.draft.enhancedNarrative = '';
+    if (typeof dispatchDraftAction === 'function') {
+      dispatchDraftAction('CLEAR_LLM_CONTEXT', {});
+    } else if (Array.isArray(AppState.draft?.llmContext)) {
+      AppState.draft.llmContext = [];
+    }
+  }
   AppState.draft.guidedDraftPreview = '';
   AppState.draft.guidedDraftSource = '';
   AppState.draft.guidedDraftStatus = '';
@@ -4295,7 +4349,7 @@ async function saveStep1AiFeedback(target = 'draft', { buList = getBUList() } = 
     citations: Array.isArray(AppState.draft?.citations) ? AppState.draft.citations : [],
     submittedBy: username
   };
-  await persistStep1AiFeedbackPayload(username, payload);
+  const feedbackSync = await persistStep1AiFeedbackPayload(username, payload);
   AppState.draft.aiFeedback = {
     ...(AppState.draft.aiFeedback && typeof AppState.draft.aiFeedback === 'object' ? AppState.draft.aiFeedback : {}),
     [target]: {
@@ -4306,22 +4360,33 @@ async function saveStep1AiFeedback(target = 'draft', { buList = getBUList() } = 
     }
   };
   saveDraft();
-  UI.toast(target === 'draft' ? 'Saved scenario-draft feedback.' : 'Saved shortlist feedback.', 'success');
+  if (feedbackSync.shared === false) {
+    UI.toast(target === 'draft'
+      ? 'Saved scenario-draft feedback locally. Shared learning sync is unavailable right now.'
+      : 'Saved shortlist feedback locally. Shared learning sync is unavailable right now.', 'warning', 5000);
+  } else {
+    UI.toast(target === 'draft' ? 'Saved scenario-draft feedback.' : 'Saved shortlist feedback.', 'success');
+  }
   persistAndRenderStep1({ buList, scenarioGeographies: getScenarioGeographies(), refreshRegulations: false, preserveScroll: true });
 }
 
 async function persistStep1AiFeedbackPayload(username = '', payload = {}) {
+  const result = { local: false, shared: null };
   if (username && typeof LearningStore !== 'undefined' && typeof LearningStore.recordAiFeedback === 'function') {
     const localEvent = LearningStore.recordAiFeedback(username, payload);
     if (localEvent && typeof patchLearningStore === 'function' && typeof LearningStore.getLearningStore === 'function') {
       patchLearningStore({ aiFeedback: LearningStore.getLearningStore(username).aiFeedback });
     }
+    result.local = !!localEvent;
   }
   if (typeof OrgIntelligenceService !== 'undefined' && typeof OrgIntelligenceService.recordAiFeedback === 'function') {
     try {
-      await OrgIntelligenceService.recordAiFeedback(payload);
-    } catch {}
+      result.shared = !!(await OrgIntelligenceService.recordAiFeedback(payload));
+    } catch {
+      result.shared = false;
+    }
   }
+  return result;
 }
 
 function updateStep1RiskFeedbackUi(riskId = '', score = 0, savedAt = 0, runtimeMode = 'local') {
@@ -4372,7 +4437,7 @@ async function saveStep1AiRiskFeedback(riskId = '', score = 0, { buList = getBUL
     selectedInAssessment: selectedRiskIds.has(safeRiskId),
     submittedBy: username
   };
-  await persistStep1AiFeedbackPayload(username, payload);
+  const feedbackSync = await persistStep1AiFeedbackPayload(username, payload);
   const savedAt = Date.now();
   AppState.draft.aiFeedback = {
     ...(AppState.draft.aiFeedback && typeof AppState.draft.aiFeedback === 'object' ? AppState.draft.aiFeedback : {}),
@@ -4387,6 +4452,9 @@ async function saveStep1AiRiskFeedback(riskId = '', score = 0, { buList = getBUL
   };
   saveDraft();
   updateStep1RiskFeedbackUi(safeRiskId, safeScore, savedAt, runtimeMode);
+  if (feedbackSync.shared === false) {
+    UI.toast('Saved risk feedback locally. Shared learning sync is unavailable right now.', 'warning', 5000);
+  }
 }
 
 function bindStep1AiFeedbackActions({ buList = getBUList() } = {}) {

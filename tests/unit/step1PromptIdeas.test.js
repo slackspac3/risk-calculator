@@ -135,6 +135,67 @@ test('dark-web Azure global admin credential misuse stays in the technology/cybe
   assert.equal(lens.functionKey, 'technology');
 });
 
+test('guided prompt ideas and lens ignore stale prior outage narratives', () => {
+  const internals = loadStep1Internals();
+  const event = 'Azure global admin credentials found on darkweb';
+  const draft = {
+    step1Path: 'guided',
+    guidedInput: {
+      event,
+      asset: '',
+      cause: '',
+      impact: '',
+      urgency: 'high'
+    },
+    narrative: 'Unscheduled IT system downtime due to aging infrastructure may cause critical operational disruption.',
+    sourceNarrative: 'Unscheduled IT system downtime due to aging infrastructure may cause critical operational disruption.',
+    enhancedNarrative: 'High-urgency Financial scenario: A payment-control failure creates direct monetary loss.'
+  };
+
+  const suggestions = internals.buildStep1GuidedPromptSuggestions(draft, {
+    recommendedExamples: [
+      { promptLabel: 'Operational outage from aging infrastructure', event: 'Aging infrastructure causes a critical service outage.', functionKey: 'operations' },
+      { promptLabel: 'Human-error service disruption', event: 'Human error causes downtime in a critical service.', functionKey: 'operations' }
+    ]
+  });
+
+  const labels = suggestions.map(item => item.label);
+  assert.ok(labels.includes('Privileged credential exposure'));
+  assert.ok(labels.includes('Data or identity exposure') || labels.includes('Admin account takeover'));
+  assert.equal(labels.includes('Operational outage from aging infrastructure'), false);
+  assert.equal(labels.includes('Human-error service disruption'), false);
+
+  const lens = internals.getStep1PreferredScenarioLens({}, draft, event);
+  assert.equal(lens.key, 'cyber');
+  assert.equal(lens.functionKey, 'technology');
+});
+
+test('supplier delivery slippage for infrastructure deployment stays out of procurement prompt ideas', () => {
+  const internals = loadStep1Internals();
+  const event = 'A key server supplier misses a committed delivery date, delaying planned infrastructure deployment and dependent business projects.';
+  assert.equal(internals.inferStep1FunctionKeyFromText(event), 'operations');
+
+  const suggestions = internals.buildStep1GuidedPromptSuggestions({
+    guidedInput: {
+      event,
+      asset: '',
+      cause: '',
+      impact: ''
+    }
+  }, {
+    recommendedExamples: [
+      { promptLabel: 'Single-source shortfall', event: 'A critical supplier fails without substitute cover.', functionKey: 'procurement' },
+      { promptLabel: 'Contract cover gap', event: 'A contract gap emerges.', functionKey: 'procurement' }
+    ]
+  });
+
+  const labels = suggestions.map(item => item.label);
+  assert.ok(labels.includes('Critical supplier delivery delay'));
+  assert.ok(labels.includes('Deployment dependency slippage'));
+  assert.equal(labels.includes('Single-source shortfall'), false);
+  assert.equal(labels.includes('Contract cover gap'), false);
+});
+
 test('displayed guided preview prefers the live AI-checked preview for the current signature', () => {
   const internals = loadStep1Internals();
   const draft = {

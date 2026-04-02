@@ -266,7 +266,6 @@
         applicableRegulations: deriveApplicableRegulations(aiContext.businessUnit || bu, getSelectedRisks(), getScenarioGeographies()),
         citations,
         adminSettings: aiContext.adminSettings,
-        priorMessages: _getStep1PriorMessages(),
         traceLabel: STEP1_TRACE_LABELS.guidedDraft
       });
       const result = _ensureRiskConfidence(rawResult);
@@ -367,7 +366,6 @@
         applicableRegulations: deriveApplicableRegulations(aiContext.businessUnit || bu, getSelectedRisks(), getScenarioGeographies()),
         citations,
         adminSettings: aiContext.adminSettings,
-        priorMessages: _getStep1PriorMessages(),
         traceLabel: `${STEP1_TRACE_LABELS.guidedDraft} preview`
       });
       const result = _ensureRiskConfidence(rawResult);
@@ -400,7 +398,6 @@
         fallbackSuggestions: Array.isArray(input?.fallbackSuggestions) ? input.fallbackSuggestions : [],
         businessUnit: aiContext.businessUnit || bu,
         adminSettings: aiContext.adminSettings,
-        priorMessages: _getStep1PriorMessages(),
         traceLabel: STEP1_TRACE_LABELS.promptIdeas
       });
     } catch (error) {
