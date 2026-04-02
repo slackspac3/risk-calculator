@@ -337,6 +337,55 @@
     }
   }
 
+  async function previewGuidedScenarioDraft(input = {}) {
+    if (!LLMService || typeof LLMService.buildGuidedScenarioDraft !== 'function') return null;
+    const settings = getEffectiveSettings();
+    const guidedInput = input?.guidedInput && typeof input.guidedInput === 'object'
+      ? { ...input.guidedInput }
+      : { ...(AppState.draft.guidedInput || {}) };
+    const localDraft = String(input?.riskStatement || '').trim()
+      || composeStep1GuidedNarrative(guidedInput, settings, AppState.draft);
+    if (!localDraft) return null;
+    const bu = getBUList().find(b => b.id === (input?.buId || AppState.draft.buId)) || null;
+    try {
+      const preferredLens = input?.scenarioLensHint || getStep1PreferredScenarioLens(settings, AppState.draft, localDraft);
+      const aiContext = buildCurrentAIAssistContext({ buId: bu?.id || AppState.draft.buId });
+      _warnIfRagNotReady();
+      const citations = await RAGService.retrieveRelevantDocs(bu?.id, buildAssessmentRetrievalQuery({
+        narrative: localDraft,
+        guidedInput,
+        scenarioLens: preferredLens,
+        applicableRegulations: deriveApplicableRegulations(aiContext.businessUnit || bu, getSelectedRisks(), getScenarioGeographies()),
+        businessUnitName: aiContext.businessUnit?.name || bu?.name || AppState.draft.buName || ''
+      }), 5);
+      const rawResult = await LLMService.buildGuidedScenarioDraft({
+        riskStatement: localDraft,
+        guidedInput,
+        scenarioLensHint: preferredLens,
+        businessUnit: aiContext.businessUnit || bu,
+        geography: formatScenarioGeographies(getScenarioGeographies()),
+        applicableRegulations: deriveApplicableRegulations(aiContext.businessUnit || bu, getSelectedRisks(), getScenarioGeographies()),
+        citations,
+        adminSettings: aiContext.adminSettings,
+        priorMessages: _getStep1PriorMessages(),
+        traceLabel: `${STEP1_TRACE_LABELS.guidedDraft} preview`
+      });
+      const result = _ensureRiskConfidence(rawResult);
+      const preview = String(result.draftNarrative || result.enhancedStatement || localDraft).trim() || localDraft;
+      const source = String(result.draftNarrativeSource || (result.usedFallback ? 'fallback' : 'ai')).trim() || 'local';
+      return {
+        preview,
+        source,
+        status: _buildGuidedDraftStatusCopy(source),
+        aiUnavailable: !!result.aiUnavailable,
+        usedFallback: !!result.usedFallback
+      };
+    } catch (error) {
+      console.warn('previewGuidedScenarioDraft failed:', error);
+      return null;
+    }
+  }
+
   async function suggestGuidedPromptIdeas(input = {}) {
     if (!LLMService || typeof LLMService.suggestGuidedPromptIdeas !== 'function') return null;
     const bu = getBUList().find(b => b.id === (input?.buId || AppState.draft.buId)) || null;
@@ -552,6 +601,7 @@
 
   global.Step1Assist = {
     buildGuidedScenarioDraft,
+    previewGuidedScenarioDraft,
     suggestGuidedPromptIdeas,
     runIntakeAssist,
     enhanceNarrativeWithAI,

@@ -345,11 +345,12 @@ function inferStep1FunctionKeyFromText(text = '') {
   if (/(bankrupt|bankruptcy|insolv|insolven|receivable|bad debt|write[- ]?off|counterparty|credit loss|credit exposure|customer default|client default|collectability|collections|cashflow|working capital|provisioning|provision)/.test(haystack)) return 'finance';
   if (/procurement|sourcing|vendor|supplier|purchase|third[- ]party|supply chain|supplier assurance|supplier due diligence/.test(haystack)) return 'procurement';
   if (/finance|treasury|accounting|financial|cash|payment|payroll|credit|collections|ledger|fraud|aml|financial crime|integrity/.test(haystack)) return 'finance';
-  if (/compliance|regulatory|legal|privacy|data governance|policy|governance|controls|audit|contract|litigation|ip\b|intellectual property/.test(haystack)) return 'compliance';
-  if (/hse|ehs|health|safety|environment|workplace safety|incident response|worker welfare|labou?r/.test(haystack)) return 'hse';
-  if (/strategy|strategic|enterprise|portfolio|market|growth|investment|merger|acquisition|joint venture|jv|integration|geopolitical|sanctions|market access|sovereign|transformation delivery/.test(haystack)) return 'strategic';
   if (hasOperationalOutageSignal && (!hasExplicitCyberSignal || hasTechnologyScopeSignal)) return 'operations';
-  if (hasAiModelSignal || hasExplicitCyberSignal || hasTechnologyScopeSignal) return 'technology';
+  if (hasAiModelSignal || (hasExplicitCyberSignal && !/compliance|regulatory|legal|privacy|data governance|policy|governance|controls|audit|contract|litigation|intellectual property/.test(haystack)) || (hasTechnologyScopeSignal && hasExplicitCyberSignal)) return 'technology';
+  if (/compliance|regulatory|legal|privacy|data governance|policy|governance|controls|audit|contract|litigation|ip\b|intellectual property/.test(haystack)) return 'compliance';
+  if (/hse|ehs|health|safety|environmental|workplace safety|incident response|worker welfare|labou?r/.test(haystack)) return 'hse';
+  if (/strategy|strategic|enterprise|portfolio|market|growth|investment|merger|acquisition|joint venture|jv|integration|geopolitical|sanctions|market access|sovereign|transformation delivery/.test(haystack)) return 'strategic';
+  if (hasTechnologyScopeSignal) return 'technology';
   if (/operations|resilience|continuity|service delivery|manufacturing|logistics|facilities|workforce|physical security|executive protection|industrial control|plant network/.test(haystack)) return 'operations';
   return 'general';
 }
@@ -587,6 +588,9 @@ function renderStep1GuidedPromptIdeaChips(promptSuggestions = []) {
 const STEP1_LIVE_PROMPT_IDEA_DEBOUNCE_MS = 900;
 const STEP1_LIVE_PROMPT_IDEA_MIN_TOKENS = 3;
 const STEP1_LIVE_PROMPT_IDEA_CACHE_LIMIT = 24;
+const STEP1_LIVE_PREVIEW_DEBOUNCE_MS = 1100;
+const STEP1_LIVE_PREVIEW_MIN_TOKENS = 4;
+const STEP1_LIVE_PREVIEW_CACHE_LIMIT = 24;
 let _step1LivePromptIdeaDebounce = null;
 let _step1LivePromptIdeaRequestId = 0;
 let _step1LivePromptIdeaState = {
@@ -596,6 +600,16 @@ let _step1LivePromptIdeaState = {
   source: ''
 };
 const _step1LivePromptIdeaCache = new Map();
+let _step1LivePreviewDebounce = null;
+let _step1LivePreviewRequestId = 0;
+let _step1LivePreviewState = {
+  signature: '',
+  preview: '',
+  status: '',
+  source: '',
+  loadingSignature: ''
+};
+const _step1LivePreviewCache = new Map();
 
 function normaliseStep1PromptIdeaSuggestions(suggestions = []) {
   const seen = new Set();
@@ -612,6 +626,153 @@ function normaliseStep1PromptIdeaSuggestions(suggestions = []) {
       return true;
     })
     .slice(0, 3);
+}
+
+function getStep1LivePreviewStatusCopy(source = '') {
+  const safeSource = String(source || '').trim().toLowerCase();
+  if (safeSource === 'ai') return 'AI-checked preview using the current function context, geography, regulations, and retrieved references.';
+  if (safeSource === 'fallback') return 'Preview kept close to your wording because the live AI rewrite drifted too far from the event you described.';
+  return '';
+}
+
+function getStep1GuidedPreviewText(draft = AppState.draft || {}) {
+  return composeStep1GuidedNarrative(draft?.guidedInput || {}, getEffectiveSettings(), draft);
+}
+
+function getStep1GuidedPreviewSignature(draft = AppState.draft || {}) {
+  const guidedInput = draft?.guidedInput || {};
+  return [
+    String(draft?.step1Path || '').trim(),
+    String(draft?.buId || '').trim(),
+    String(draft?.scenarioLens?.key || draft?.scenarioLens || '').trim(),
+    String(guidedInput.event || '').trim(),
+    String(guidedInput.impact || '').trim(),
+    String(guidedInput.cause || '').trim(),
+    String(guidedInput.asset || '').trim(),
+    String(guidedInput.urgency || '').trim()
+  ].join('||');
+}
+
+function shouldUseStep1LivePreview(draft = AppState.draft || {}) {
+  if (String(draft?.step1Path || '').trim() !== 'guided') return false;
+  if (String(draft?.guidedDraftSource || '').trim()) return false;
+  if (!window.Step1Assist || typeof window.Step1Assist.previewGuidedScenarioDraft !== 'function') return false;
+  return normaliseAssessmentTokens(getStep1GuidedPreviewText(draft)).length >= STEP1_LIVE_PREVIEW_MIN_TOKENS;
+}
+
+function rememberStep1LivePreview(signature, preview = '', status = '', source = 'ai') {
+  const safeSignature = String(signature || '').trim();
+  const safePreview = String(preview || '').trim();
+  if (!safeSignature || !safePreview) return;
+  const safeStatus = String(status || '').trim();
+  const safeSource = String(source || '').trim() || 'ai';
+  _step1LivePreviewState = {
+    signature: safeSignature,
+    preview: safePreview,
+    status: safeStatus,
+    source: safeSource,
+    loadingSignature: ''
+  };
+  _step1LivePreviewCache.delete(safeSignature);
+  _step1LivePreviewCache.set(safeSignature, {
+    preview: safePreview,
+    status: safeStatus,
+    source: safeSource
+  });
+  while (_step1LivePreviewCache.size > STEP1_LIVE_PREVIEW_CACHE_LIMIT) {
+    const oldestKey = _step1LivePreviewCache.keys().next().value;
+    _step1LivePreviewCache.delete(oldestKey);
+  }
+}
+
+function getStep1DisplayedGuidedPreviewModel(draft = AppState.draft || {}) {
+  const builtPreview = String(draft?.guidedDraftPreview || '').trim();
+  const builtStatus = String(draft?.guidedDraftStatus || '').trim();
+  const builtSource = String(draft?.guidedDraftSource || '').trim();
+  if (builtPreview) {
+    return {
+      preview: builtPreview,
+      status: builtStatus,
+      source: builtSource
+    };
+  }
+  const signature = getStep1GuidedPreviewSignature(draft);
+  if (signature && _step1LivePreviewState.signature === signature && _step1LivePreviewState.preview) {
+    return {
+      preview: _step1LivePreviewState.preview,
+      status: _step1LivePreviewState.status,
+      source: _step1LivePreviewState.source
+    };
+  }
+  const cached = signature ? _step1LivePreviewCache.get(signature) : null;
+  if (cached?.preview) {
+    return {
+      preview: cached.preview,
+      status: cached.status || '',
+      source: cached.source || ''
+    };
+  }
+  return {
+    preview: getStep1GuidedPreviewText(draft),
+    status: '',
+    source: ''
+  };
+}
+
+async function refreshStep1LivePreview({ force = false } = {}) {
+  const draft = AppState.draft || {};
+  const signature = getStep1GuidedPreviewSignature(draft);
+  if (!shouldUseStep1LivePreview(draft) || !signature) {
+    _step1LivePreviewState = {
+      ..._step1LivePreviewState,
+      loadingSignature: ''
+    };
+    return;
+  }
+  if (!force && _step1LivePreviewState.signature === signature && _step1LivePreviewState.preview) return;
+  if (!force && _step1LivePreviewState.loadingSignature === signature) return;
+  const cached = !force ? _step1LivePreviewCache.get(signature) : null;
+  if (cached?.preview) {
+    rememberStep1LivePreview(signature, cached.preview, cached.status || '', cached.source || 'ai');
+    updateStep1GuidedPreview();
+    return;
+  }
+  const localPreview = getStep1GuidedPreviewText(draft);
+  const settings = getEffectiveSettings();
+  const preferredLens = getStep1PreferredScenarioLens(settings, draft, localPreview);
+  const requestId = ++_step1LivePreviewRequestId;
+  _step1LivePreviewState = {
+    ..._step1LivePreviewState,
+    loadingSignature: signature
+  };
+  const result = await window.Step1Assist?.previewGuidedScenarioDraft?.({
+    buId: draft?.buId,
+    riskStatement: localPreview,
+    guidedInput: { ...(draft?.guidedInput || {}) },
+    scenarioLensHint: preferredLens
+  });
+  if (requestId !== _step1LivePreviewRequestId) return;
+  if (getStep1GuidedPreviewSignature(AppState.draft || {}) !== signature) return;
+  _step1LivePreviewState = {
+    ..._step1LivePreviewState,
+    loadingSignature: ''
+  };
+  if (!result || result.aiUnavailable) return;
+  const preview = String(result.preview || '').trim();
+  if (!preview) return;
+  rememberStep1LivePreview(signature, preview, getStep1LivePreviewStatusCopy(result.source || 'ai'), result.source || 'ai');
+  updateStep1GuidedPreview();
+}
+
+function scheduleStep1LivePreviewRefresh({ immediate = false, force = false } = {}) {
+  window.clearTimeout(_step1LivePreviewDebounce);
+  if (immediate) {
+    refreshStep1LivePreview({ force });
+    return;
+  }
+  _step1LivePreviewDebounce = window.setTimeout(() => {
+    refreshStep1LivePreview({ force });
+  }, STEP1_LIVE_PREVIEW_DEBOUNCE_MS);
 }
 
 function getStep1GuidedPromptIdeaSourceText(draft = AppState.draft || {}) {
@@ -1552,9 +1713,10 @@ function renderStep1ScenarioCrossReferenceBand(draft = AppState.draft, context =
 }
 
 function renderStep1GuidedBuilderCard(draft, recommendation, functionLabel = 'your role', promptSuggestions = []) {
-  const draftPreview = String(draft.guidedDraftPreview || '').trim() || composeStep1GuidedNarrative(draft.guidedInput, getEffectiveSettings(), draft);
-  const draftPreviewStatus = String(draft.guidedDraftStatus || '').trim();
-  const draftPreviewSource = String(draft.guidedDraftSource || '').trim();
+  const previewModel = getStep1DisplayedGuidedPreviewModel(draft);
+  const draftPreview = String(previewModel.preview || '').trim();
+  const draftPreviewStatus = String(previewModel.status || '').trim();
+  const draftPreviewSource = String(previewModel.source || '').trim();
   const draftSourceBanner = draftPreviewSource === 'fallback' && typeof renderAIStatusBanner === 'function'
     ? renderAIStatusBanner()
     : '';
@@ -1624,7 +1786,7 @@ function renderStep1GuidedBuilderCard(draft, recommendation, functionLabel = 'yo
     </div>
     ${draftPreview ? `${renderStep1AiQualityStrip(draft)}<div class="card mt-4 wizard-draft-preview" style="padding:var(--sp-4);background:var(--bg-elevated)">
       <div class="context-panel-title">Draft preview</div>
-      ${draftPreviewStatus ? `<div class="form-help" style="margin-top:4px">${draftPreviewSource === 'ai' ? 'AI-built draft' : draftPreviewSource === 'fallback' ? 'Context-kept draft' : 'Local draft'} · ${escapeHtml(draftPreviewStatus)}</div>` : ''}
+      <div class="form-help" id="guided-preview-status" style="margin-top:4px;${draftPreviewStatus ? '' : 'display:none'}">${draftPreviewStatus ? `${draftPreviewSource === 'ai' ? 'AI-built draft' : draftPreviewSource === 'fallback' ? 'Context-kept draft' : draftPreviewSource === 'local' ? 'Local draft' : 'AI-checked preview'} · ${escapeHtml(draftPreviewStatus)}` : ''}</div>
       <p class="context-panel-copy" id="guided-preview">${escapeHtml(String(draftPreview))}</p>
     </div>${renderStep1AiFeedbackCard('draft', draft)}` : '<div class="form-help wizard-preview-placeholder" id="guided-preview">Answer the prompts and build the draft. The platform will create a clean starting statement for you.</div>'}
   </div>`;
@@ -3110,6 +3272,12 @@ function persistAndRenderStep1({
 }
 
 function clearStep1StaleAssistState(nextNarrative, { clearGeneratedRisks = false } = {}) {
+  window.clearTimeout(_step1LivePreviewDebounce);
+  _step1LivePreviewRequestId += 1;
+  _step1LivePreviewState = {
+    ..._step1LivePreviewState,
+    loadingSignature: ''
+  };
   window.clearTimeout(_step1LivePromptIdeaDebounce);
   _step1LivePromptIdeaRequestId += 1;
   _step1LivePromptIdeaState = {
@@ -3142,10 +3310,19 @@ function clearStep1StaleAssistState(nextNarrative, { clearGeneratedRisks = false
 
 function updateStep1GuidedPreview() {
   const preview = document.getElementById('guided-preview');
+  const previewStatus = document.getElementById('guided-preview-status');
+  const previewModel = getStep1DisplayedGuidedPreviewModel(AppState.draft);
   if (preview) {
-    preview.textContent = String(AppState.draft.guidedDraftPreview || '').trim()
-      || composeStep1GuidedNarrative(AppState.draft.guidedInput, getEffectiveSettings(), AppState.draft)
+    preview.textContent = String(previewModel.preview || '').trim()
       || 'Complete the guided questions and click “Build Scenario Draft”.';
+  }
+  if (previewStatus) {
+    const source = String(previewModel.source || '').trim().toLowerCase();
+    const status = String(previewModel.status || '').trim();
+    previewStatus.textContent = status
+      ? `${source === 'ai' ? 'AI-built draft' : source === 'fallback' ? 'Context-kept draft' : source === 'local' ? 'Local draft' : 'AI-checked preview'} · ${status}`
+      : '';
+    previewStatus.style.display = status ? '' : 'none';
   }
   const promptIdeasHost = document.getElementById('guided-prompt-ideas');
   if (promptIdeasHost) {
@@ -3399,6 +3576,7 @@ function bindStep1PrimaryInputs({ buList, wizardGeographyInput }) {
       AppState.draft.scenarioLens = getStep1PreferredScenarioLens(getEffectiveSettings(), AppState.draft, composed);
       if (hadGuidedAiDraft) AppState.draft.aiQualityState = 'analyst-reshaped';
       updateStep1GuidedPreview();
+      scheduleStep1LivePreviewRefresh();
       scheduleStep1LivePromptIdeaRefresh();
       markDraftDirty();
       scheduleDraftAutosave();
@@ -3406,6 +3584,7 @@ function bindStep1PrimaryInputs({ buList, wizardGeographyInput }) {
       scheduleStep1ScenarioCrossReferenceRefresh();
     });
     document.getElementById(`guided-${key}`)?.addEventListener('blur', () => {
+      scheduleStep1LivePreviewRefresh({ immediate: true });
       scheduleStep1LivePromptIdeaRefresh({ immediate: true });
       scheduleStep1ScenarioMemoryRefresh({ immediate: true });
       scheduleStep1ScenarioCrossReferenceRefresh({ immediate: true });
@@ -3421,6 +3600,7 @@ function bindStep1PrimaryInputs({ buList, wizardGeographyInput }) {
     AppState.draft.scenarioLens = getStep1PreferredScenarioLens(getEffectiveSettings(), AppState.draft, composed);
     if (hadGuidedAiDraft) AppState.draft.aiQualityState = 'analyst-reshaped';
     updateStep1GuidedPreview();
+    scheduleStep1LivePreviewRefresh();
     scheduleStep1LivePromptIdeaRefresh();
     markDraftDirty();
     scheduleDraftAutosave();
@@ -3428,6 +3608,7 @@ function bindStep1PrimaryInputs({ buList, wizardGeographyInput }) {
     scheduleStep1ScenarioCrossReferenceRefresh();
   });
   document.getElementById('guided-urgency')?.addEventListener('blur', () => {
+    scheduleStep1LivePreviewRefresh({ immediate: true });
     scheduleStep1LivePromptIdeaRefresh({ immediate: true });
     scheduleStep1ScenarioMemoryRefresh({ immediate: true });
     scheduleStep1ScenarioCrossReferenceRefresh({ immediate: true });
@@ -3686,6 +3867,9 @@ function renderWizard1() {
   bindStep1AiFeedbackActions({ buList });
   bindStep1ScenarioCrossReferenceActions();
   bindStep1ScenarioMemoryActions();
+  if (shouldUseStep1LivePreview(draft)) {
+    scheduleStep1LivePreviewRefresh();
+  }
   if (shouldUseStep1LivePromptIdeas(draft)) {
     scheduleStep1LivePromptIdeaRefresh();
   }
