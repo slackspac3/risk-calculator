@@ -438,10 +438,25 @@ function loadDraft() {
     lifecycleStatus: deriveAssessmentLifecycleStatus(draft || {})
   });
   const cache = ensureUserStateCache();
-  const candidates = [];
-  const cachedDraft = cache.draftWorkspace?.draft && typeof cache.draftWorkspace.draft === 'object'
+  const sharedWorkspaceDraft = cache.draftWorkspace?.draft && typeof cache.draftWorkspace.draft === 'object'
     ? cache.draftWorkspace.draft
-    : cache.draft;
+    : null;
+  if (sharedWorkspaceDraft) {
+    dispatchDraftAction('SET_DRAFT', {
+      draft: {
+        ...(AppState.draft || {}),
+        ...withDraftIdentity(sharedWorkspaceDraft)
+      }
+    });
+    if (typeof clearDraftRecoverySnapshot === 'function') {
+      clearDraftRecoverySnapshot();
+    }
+    return;
+  }
+  const candidates = [];
+  const cachedDraft = cache.draft && typeof cache.draft === 'object'
+    ? cache.draft
+    : null;
   if (cachedDraft && typeof cachedDraft === 'object') {
     candidates.push({
       source: 'cache',
@@ -494,6 +509,19 @@ function loadDraft() {
     }
   });
   if (chosen.source === 'recovery') {
+    try {
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.setItem(
+          buildUserStorageKey(DRAFT_STORAGE_PREFIX),
+          JSON.stringify(buildSessionDraftPayload(chosen.draft, chosen.savedAt || Date.now()))
+        );
+      }
+    } catch (error) {
+      warnAssessmentPersistenceOnce('draft-session-write', 'loadDraft session write failed:', error);
+    }
+    if (typeof clearDraftRecoverySnapshot === 'function') {
+      clearDraftRecoverySnapshot();
+    }
     if (typeof updateWizardSaveState === 'function') updateWizardSaveState();
     if (typeof UI?.toast === 'function') {
       UI.toast('Recovered your latest draft from this browser.', 'info', 4500);

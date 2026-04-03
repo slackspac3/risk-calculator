@@ -28,6 +28,8 @@ function loadAssessmentStateRuntime() {
   );
 
   const localStorage = createStorage();
+  const sessionStorage = createStorage();
+  const toasts = [];
   const cache = {
     username: 'alex.trafton',
     assessments: [],
@@ -59,6 +61,7 @@ function loadAssessmentStateRuntime() {
     clearTimeout,
     window: {},
     localStorage,
+    sessionStorage,
     AppState: appState,
     ASSESSMENT_LIFECYCLE_STATUS: {
       DRAFT: 'draft',
@@ -116,6 +119,8 @@ function loadAssessmentStateRuntime() {
     },
     ASSESSMENTS_STORAGE_PREFIX: 'rq_assessments',
     LEARNING_STORAGE_PREFIX: 'rq_learning_store',
+    DRAFT_STORAGE_PREFIX: 'rq_draft',
+    DRAFT_RECOVERY_STORAGE_PREFIX: 'rq_draft_recovery',
     queueSharedUserStateSync() {},
     prepareAssessmentForSave(assessment, options = {}) {
       const next = { ...assessment };
@@ -160,14 +165,29 @@ function loadAssessmentStateRuntime() {
         appState.draft = payload.draft;
       }
     },
+    readDraftRecoverySnapshot(username = 'alex.trafton') {
+      try {
+        const raw = localStorage.getItem(`rq_draft_recovery__${username}`);
+        return raw ? JSON.parse(raw) : null;
+      } catch {
+        return null;
+      }
+    },
+    clearDraftRecoverySnapshot(username = 'alex.trafton') {
+      localStorage.removeItem(`rq_draft_recovery__${username}`);
+    },
     saveDraft() {},
-    UI: { toast() {} }
+    UI: {
+      toast(message, tone, duration) {
+        toasts.push({ message, tone, duration });
+      }
+    }
   };
 
   vm.createContext(context);
   vm.runInContext(source, context, { filename: 'assessmentState.js' });
 
-  return { api: context.window, cache, appState, localStorage };
+  return { api: context.window, cache, appState, localStorage, sessionStorage, toasts };
 }
 
 test('archiveAssessment marks the saved assessment as archived', () => {
@@ -211,4 +231,61 @@ test('duplicateAssessmentToDraft creates a new draft copy with draft lifecycle s
   assert.equal(duplicated.lifecycleStatus, 'draft');
   assert.equal(duplicated.results, null);
   assert.equal(appState.draft.lifecycleStatus, 'draft');
+});
+
+test('loadDraft prefers shared workspace draft over recovery and session state', () => {
+  const { api, cache, appState, localStorage, sessionStorage, toasts } = loadAssessmentStateRuntime();
+  cache.draftWorkspace = {
+    draft: {
+      id: 'server-draft',
+      scenarioTitle: 'Server copy',
+      lifecycleStatus: 'draft'
+    },
+    lastSavedAt: Date.now() - 10_000
+  };
+  localStorage.setItem('rq_draft_recovery__alex.trafton', JSON.stringify({
+    savedAt: Date.now(),
+    draft: {
+      id: 'recovery-draft',
+      scenarioTitle: 'Recovery copy',
+      lifecycleStatus: 'draft'
+    }
+  }));
+  sessionStorage.setItem('rq_draft__alex.trafton', JSON.stringify({
+    savedAt: Date.now(),
+    draft: {
+      id: 'session-draft',
+      scenarioTitle: 'Session copy',
+      lifecycleStatus: 'draft'
+    }
+  }));
+
+  api.loadDraft();
+
+  assert.equal(appState.draft.id, 'server-draft');
+  assert.equal(appState.draft.scenarioTitle, 'Server copy');
+  assert.equal(localStorage.getItem('rq_draft_recovery__alex.trafton'), null);
+  assert.equal(toasts.length, 0);
+});
+
+test('loadDraft promotes recovery draft into session storage and clears the recovery snapshot', () => {
+  const { api, appState, localStorage, sessionStorage, toasts } = loadAssessmentStateRuntime();
+  localStorage.setItem('rq_draft_recovery__alex.trafton', JSON.stringify({
+    savedAt: 123456,
+    draft: {
+      id: 'recovery-draft',
+      scenarioTitle: 'Recovered pilot draft',
+      lifecycleStatus: 'draft'
+    }
+  }));
+
+  api.loadDraft();
+
+  assert.equal(appState.draft.id, 'recovery-draft');
+  assert.equal(localStorage.getItem('rq_draft_recovery__alex.trafton'), null);
+  const restoredSession = JSON.parse(sessionStorage.getItem('rq_draft__alex.trafton'));
+  assert.equal(restoredSession.savedAt, 123456);
+  assert.equal(restoredSession.draft.scenarioTitle, 'Recovered pilot draft');
+  assert.equal(toasts.length, 1);
+  assert.match(toasts[0].message, /recovered your latest draft from this browser/i);
 });
