@@ -200,11 +200,64 @@ test('scenario-draft route keeps no-DR Outlook continuity scenarios out of cyber
   assert.equal(res.statusCode, 200);
   assert.equal(res.payload.mode, 'deterministic_fallback');
   assert.equal(res.payload.scenarioLens?.key, 'business-continuity');
+  assert.equal(res.payload.aiAlignment?.taxonomy?.primaryFamilyKey, 'dr_gap');
   assert.match(String(res.payload.draftNarrative || ''), /email|communications|recovery/i);
   assert.doesNotMatch(String(res.payload.draftNarrative || ''), /responsible ai|model|fraud|data exposure/i);
   const titles = (Array.isArray(res.payload.risks) ? res.payload.risks : []).map((risk) => String(risk?.title || '')).join(' | ');
   assert.match(titles, /business continuity|email outage|recovery/i);
   assert.doesNotMatch(titles, /responsible ai|fraud|data exposure/i);
+});
+
+test('scenario-draft route keeps website traffic-flood attacks in a cyber availability lane without AI or compliance leakage', async () => {
+  process.env.ALLOWED_ORIGIN = 'https://slackspac3.github.io';
+  process.env.SESSION_SIGNING_SECRET = 'test-signing-secret';
+  process.env.KV_REST_API_URL = 'https://example.test/kv';
+  process.env.KV_REST_API_TOKEN = 'test-token';
+  global.fetch = async (url) => {
+    if (String(url).includes('/kv')) {
+      return {
+        ok: true,
+        json: async () => ({ result: null })
+      };
+    }
+    throw new Error(`Unexpected fetch in availability-attack fallback scenario-draft test: ${url}`);
+  };
+
+  const handler = loadFresh('../../api/ai/scenario-draft');
+  const token = buildSessionToken({
+    username: 'analyst',
+    role: 'user',
+    exp: Date.now() + 60_000
+  });
+  const res = createRes();
+
+  await handler({
+    method: 'POST',
+    body: JSON.stringify({
+      riskStatement: 'Malicious actors flood a company’s website or online services with traffic, causing them to slow down or crash.',
+      guidedInput: {
+        event: 'Malicious actors flood a company’s website or online services with traffic, causing them to slow down or crash.',
+        asset: 'Company website and online services',
+        cause: 'Hostile traffic flooding',
+        impact: 'Customer-facing slowdown and outage'
+      }
+    }),
+    headers: {
+      origin: 'https://slackspac3.github.io',
+      'x-session-token': token
+    },
+    socket: { remoteAddress: '127.0.0.1' }
+  }, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.payload.mode, 'deterministic_fallback');
+  assert.equal(res.payload.scenarioLens?.key, 'cyber');
+  assert.equal(res.payload.aiAlignment?.taxonomy?.primaryFamilyKey, 'availability_attack');
+  assert.match(String(res.payload.draftNarrative || ''), /traffic|website|online service|availability|outage/i);
+  assert.doesNotMatch(String(res.payload.draftNarrative || ''), /responsible ai|policy breakdown|compliance control/i);
+  const titles = (Array.isArray(res.payload.risks) ? res.payload.risks : []).map((risk) => String(risk?.title || '')).join(' | ');
+  assert.match(titles, /traffic flooding|service outage|availability|website/i);
+  assert.doesNotMatch(titles, /responsible ai|compliance control|policy breakdown/i);
 });
 
 test('scenario-draft route keeps counterparty default fallback in the credit-loss lane instead of payment-fraud drift', async () => {
@@ -499,7 +552,7 @@ test('scenario-draft route rejects a finance-led rewrite when the guided event i
   assert.equal(res.statusCode, 200);
   assert.equal(res.payload.mode, 'deterministic_fallback');
   assert.equal(res.payload.usedFallback, true);
-  assert.equal(String(res.payload.scenarioLens?.key || ''), 'identity');
+  assert.equal(String(res.payload.scenarioLens?.key || ''), 'cyber');
   assert.match(String(res.payload.draftNarrative || ''), /identity compromise/i);
 });
 

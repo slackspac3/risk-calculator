@@ -4,6 +4,7 @@ const { getCompassProviderConfig } = require('./_aiRuntime');
 const { buildTraceEntry, callAi, parseOrRepairStructuredJson, runStructuredQualityGate, sanitizeAiText } = require('./_aiOrchestrator');
 const { buildDeterministicFallbackResult, buildFallbackFromError, buildManualModeResult, buildWorkflowTimeoutProfile } = require('./_aiWorkflowSupport');
 const { buildFeedbackLearningPromptBlock, resolveHierarchicalFeedbackProfile, rerankRiskCardsWithFeedback } = require('./_learningAuthority');
+const ScenarioClassification = require('./_scenarioClassification');
 
 function normaliseSentenceKey(sentence = '') {
   return String(sentence || '')
@@ -287,80 +288,7 @@ function normaliseGuidedScenarioDraftInput(input = {}) {
 }
 
 function normaliseScenarioHintKey(value) {
-  const rawValues = value && typeof value === 'object'
-    ? [value.key, value.label, value.functionKey, value.estimatePresetKey]
-    : [value];
-  const aliasMap = {
-    ransomware: 'ransomware',
-    identity: 'identity',
-    phishing: 'phishing',
-    insider: 'insider',
-    cloud: 'cloud',
-    'data breach': 'data-breach',
-    'data-breach': 'data-breach',
-    technology: 'cyber',
-    'cyber risk': 'cyber',
-    cyber: 'cyber',
-    ai: 'ai-model-risk',
-    'ai risk': 'ai-model-risk',
-    'ai-model-risk': 'ai-model-risk',
-    'model risk': 'ai-model-risk',
-    'responsible ai': 'ai-model-risk',
-    'data governance': 'data-governance',
-    'data-governance': 'data-governance',
-    privacy: 'data-governance',
-    'data governance / privacy': 'data-governance',
-    'fraud-integrity': 'fraud-integrity',
-    'fraud / integrity': 'fraud-integrity',
-    fraud: 'fraud-integrity',
-    integrity: 'fraud-integrity',
-    'financial crime': 'fraud-integrity',
-    legal: 'legal-contract',
-    contract: 'legal-contract',
-    litigation: 'legal-contract',
-    'legal-contract': 'legal-contract',
-    geopolitical: 'geopolitical',
-    sanctions: 'geopolitical',
-    'market access': 'geopolitical',
-    'physical security': 'physical-security',
-    'physical-security': 'physical-security',
-    ot: 'ot-resilience',
-    'ot resilience': 'ot-resilience',
-    'ot-resilience': 'ot-resilience',
-    people: 'people-workforce',
-    workforce: 'people-workforce',
-    labour: 'people-workforce',
-    labor: 'people-workforce',
-    investment: 'investment-jv',
-    'joint venture': 'investment-jv',
-    'investment-jv': 'investment-jv',
-    'transformation delivery': 'transformation-delivery',
-    'transformation-delivery': 'transformation-delivery',
-    'third party': 'third-party',
-    'third-party': 'third-party',
-    procurement: 'procurement',
-    'supply chain': 'supply-chain',
-    'supply-chain': 'supply-chain',
-    strategic: 'strategic',
-    operations: 'operational',
-    operational: 'operational',
-    regulatory: 'regulatory',
-    finance: 'financial',
-    financial: 'financial',
-    esg: 'esg',
-    compliance: 'compliance',
-    continuity: 'business-continuity',
-    'business continuity': 'business-continuity',
-    'business-continuity': 'business-continuity',
-    hse: 'hse',
-    general: 'general'
-  };
-  for (const raw of rawValues) {
-    const key = String(raw || '').trim().toLowerCase();
-    if (!key) continue;
-    if (aliasMap[key]) return aliasMap[key];
-  }
-  return '';
+  return ScenarioClassification.normaliseScenarioHintKey(value);
 }
 
 function scenarioClassificationByKey(key = 'general', extra = {}) {
@@ -396,6 +324,14 @@ function scenarioClassificationByKey(key = 'general', extra = {}) {
       primaryDriver: 'Cloud control weakness or compromised access',
       eventPath: 'Cloud misuse, exposure, or compromised administrative control',
       effect: 'Service disruption, data exposure, and recovery effort'
+    },
+    'availability-attack': {
+      key: 'availability-attack',
+      label: 'Cyber',
+      scenarioType: 'Availability Attack Scenario',
+      primaryDriver: 'Hostile traffic flooding or denial-of-service actors',
+      eventPath: 'Internet-facing service disruption through malicious traffic saturation',
+      effect: 'Customer-facing outage, recovery strain, and incident-response pressure'
     },
     'data-breach': {
       key: 'data-breach',
@@ -600,6 +536,15 @@ function hasCriticalMessagingServiceSignals(text = '') {
   return /(outlook(?: online)?|exchange(?: online)?|email system|mail system|mail service|messaging service|critical email|critical communication service|microsoft 365|office 365|email platform|messaging platform)/.test(String(text || '').toLowerCase());
 }
 
+function hasAvailabilityAttackSignals(text = '') {
+  const value = String(text || '').toLowerCase();
+  return /(ddos|d[\s-]*dos|denial[- ]of[- ]service|denial of service|traffic flood|flood(?:ed|ing)?.*traffic|botnet|volumetric|application[- ]layer attack|syn flood)/.test(value)
+    || ((/malicious actors?|threat actors?|attackers?/.test(value))
+      && /(website|web site|online services?|internet-facing|public-facing|customer portal|portal|site|online platform)/.test(value)
+      && /traffic/.test(value)
+      && /(slow(?:ing|ed)? down|slow to|crash|degrad|unavailable|availability|disrupt)/.test(value));
+}
+
 function hasExplicitCyberCompromiseSignals(text = '') {
   return /(cyber|security|identity|credential|ransom|malware|phish|breach|exfil|privileged|unauthori[sz]ed|misconfig|vulnerability|token theft|session hijack|attacker|threat actor|compromise|account takeover|tenant change|public exposure|storage exposure|data exposure)/.test(String(text || '').toLowerCase());
 }
@@ -633,177 +578,15 @@ function collectScenarioSecondaryKeys({
 }
 
 function classifyScenario(narrative = '', options = {}) {
-  const guidedText = [
-    options.guidedInput?.event,
-    options.guidedInput?.asset,
-    options.guidedInput?.cause,
-    options.guidedInput?.impact
-  ].filter(Boolean).join(' ');
-  const businessContext = [
-    options.businessUnit?.name,
-    options.businessUnit?.contextSummary,
-    options.businessUnit?.notes
-  ].filter(Boolean).join(' ');
-  const directScenarioText = [narrative, guidedText].filter(Boolean).join(' ').trim();
-  const n = String(directScenarioText || businessContext || '').toLowerCase();
-  const hintKey = normaliseScenarioHintKey(options.scenarioLensHint);
-  const outageSignals = hasOperationalOutageSignals(n);
-  const continuityGapSignals = hasContinuityGapSignals(n);
-  const criticalMessagingServiceSignals = hasCriticalMessagingServiceSignals(n);
-  const cyberSignals = hasExplicitCyberCompromiseSignals(n);
-  const counterpartyCreditSignals = hasCounterpartyCreditSignals(n);
-  const supplierLabourSignals = hasSupplierLabourSignals(n);
-  const esgDisclosureSignals = hasEsgDisclosureSignals(n);
-  const mentionsCloudPlatform = n.includes('cloud') || n.includes('azure') || n.includes('aws') || n.includes('gcp') || n.includes('infrastructure') || n.includes('platform');
-  const emailCompromiseSignals = /(mailbox|email account|email compromise|business email compromise|\bbec\b)/.test(n);
-
-  const isIdentity = /(azure ad|active directory|entra|identity|sso|directory service|account takeover|account hijack|\bhijack(?:ed|ing)?\b|credential|password|dark web|darkweb|admin account|azure admin|tenant admin|privileged account|session hijack)/.test(n)
-    || emailCompromiseSignals;
-  const isPhishing = !isIdentity && /(phish|\bbec\b|business email compromise|email compromise|spoof)/.test(n);
-  const isRansomware = /(ransomware|encrypt|ransom)/.test(n);
-  const isDataBreach = /(breach|data theft|exfil|data exposure)/.test(n);
-  const isCloud = !isIdentity && (/(misconfigur|s3|bucket|storage exposure|public exposure)/.test(n) || (mentionsCloudPlatform && cyberSignals && !outageSignals));
-  const isAiModel = /(responsible ai|model risk|model drift|hallucination|algorithmic bias|training data|\bai\b|\bllm\b)/.test(n);
-  const isDataGovernance = /(data governance|data quality|data lineage|retention|purpose limitation|consent|data residency|master data)/.test(n) || (n.includes('privacy') && !n.includes('breach') && !n.includes('exfil'));
-  const hasSupplierDependency = /(supplier|vendor|third-party|third party|outsourc)/.test(n);
-  const hasDeliveryProgrammeDelay = /delivery date|delivery commitment|delay(?:ed|ing)?|deployment|go-live|rollout|milestone|dependent business project|dependent project|programme delay|program delay|project delay|dependency slip/.test(n);
-  const isProcurement = /(procurement|sourcing|tender|bid|contract award|vendor selection|critical spend|spend category|commercial category)/.test(n);
-  const isSupplyChain = /(supply chain|logistics|shipment|inventory|single source|single-source|upstream|shortfall)/.test(n) || (hasSupplierDependency && /delivery date|delivery commitment|shipment|logistics/.test(n));
-  const isTransformationDelivery = /(transformation delivery|programme delivery|program delivery|project delivery|go-live|milestone|benefit realisation|benefit realization|deployment)/.test(n) || (hasSupplierDependency && hasDeliveryProgrammeDelay);
-  const isThirdParty = hasSupplierDependency;
-  const isOperational = outageSignals || continuityGapSignals || /(operational|process failure|breakdown|capacity|service failure|backlog)/.test(n);
-  const isContinuity = /(business continuity|disaster recovery|\bcontinuity\b|\brto\b|\brpo\b|crisis management|recovery objective|failover)/.test(n)
-    || continuityGapSignals
-    || (criticalMessagingServiceSignals && (continuityGapSignals || outageSignals || /critical|recover|failover|availability|unavailable/.test(n)));
-  const isFinancial = counterpartyCreditSignals || /(fraud|payment|invoice|treasury|liquidity|capital|financial)/.test(n);
-  const isFraudIntegrity = /(invoice fraud|payment fraud|false invoice|fake invoice|financial crime|money laundering|bribery|corruption|kickback|embezzlement|\bfraud\b)/.test(n) || (n.includes('integrity') && !n.includes('data integrity'));
-  const isRegulatory = /(regulator|regulatory|licen|sanction|export control|filing)/.test(n);
-  const isCompliance = /(compliance|non-compliance|policy breach|conduct|ethics|assurance)/.test(n);
-  const isLegalContract = /(contract|indemnity|litigation|licensing dispute|intellectual property|\bip\b)/.test(n);
-  const isGeopolitical = /(geopolitical|market access|sovereign|tariff|entity list|cross-border restriction)/.test(n);
-  const isPhysicalSecurity = /(physical security|badge control|visitor management|perimeter|executive protection|site intrusion|facility breach)/.test(n);
-  const isOtResilience = /\bot\b/.test(n) || /(operational technology|industrial control|ics|scada|plant network|site systems|control room)/.test(n);
-  const isPeopleWorkforce = /(workforce|attrition|fatigue|staffing|worker welfare|labou?r|strike)/.test(n) && !supplierLabourSignals;
-  const isHse = /(hse|health and safety|safety|injury|environmental|spill|worker)/.test(n);
-  const isEsg = /(esg|sustainability|climate|emission|carbon|greenwashing)/.test(n) || supplierLabourSignals || esgDisclosureSignals;
-  const isStrategic = /(strategy|strategic|market|competitive|transformation|portfolio|investment|operating model|programme)/.test(n);
-  const isInvestmentJv = /(merger|acquisition|m&a|joint venture|\bjv\b|integration thesis|synergy)/.test(n);
-
-  const orderedSignals = [
-    ['ransomware', isRansomware],
-    ['identity', isIdentity],
-    ['data-breach', isDataBreach],
-    ['cloud', isCloud],
-    ['phishing', isPhishing],
-    ['ai-model-risk', isAiModel],
-    ['data-governance', isDataGovernance],
-    ['fraud-integrity', isFraudIntegrity],
-    ['legal-contract', isLegalContract],
-    ['geopolitical', isGeopolitical],
-    ['physical-security', isPhysicalSecurity],
-    ['ot-resilience', isOtResilience],
-    ['people-workforce', isPeopleWorkforce],
-    ['investment-jv', isInvestmentJv],
-    ['transformation-delivery', isTransformationDelivery],
-    ['strategic', isStrategic],
-    ['business-continuity', isContinuity],
-    ['operational', isOperational || isContinuity],
-    ['regulatory', isRegulatory],
-    ['financial', isFinancial],
-    ['esg', isEsg],
-    ['compliance', isCompliance],
-    ['procurement', isProcurement],
-    ['supply-chain', isSupplyChain],
-    ['hse', isHse],
-    ['third-party', isThirdParty]
-  ];
-  const explicitPrimary = orderedSignals.find(([, active]) => !!active)?.[0] || '';
-  const primaryKey = explicitPrimary || hintKey || 'general';
-  const activeKeys = orderedSignals.filter(([, active]) => !!active).map(([key]) => key);
-  return scenarioClassificationByKey(primaryKey, {
-    secondaryKeys: collectScenarioSecondaryKeys({
-      primaryKey,
-      hintKey,
-      activeKeys
-    })
-  });
+  return ScenarioClassification.classifyScenario(narrative, options);
 }
 
 function buildScenarioLens(classification = {}) {
-  const key = String(classification?.key || 'general').trim() || 'general';
-  const map = {
-    ransomware: { label: 'Cyber', functionKey: 'technology', estimatePresetKey: 'ransomware' },
-    identity: { label: 'Cyber', functionKey: 'technology', estimatePresetKey: 'identity' },
-    phishing: { label: 'Cyber', functionKey: 'technology', estimatePresetKey: 'phishing' },
-    cloud: { label: 'Cyber', functionKey: 'technology', estimatePresetKey: 'cloud' },
-    'data-breach': { label: 'Cyber', functionKey: 'technology', estimatePresetKey: 'dataBreach' },
-    'ai-model-risk': { label: 'AI / model risk', functionKey: 'technology', estimatePresetKey: 'aiModelRisk' },
-    'data-governance': { label: 'Data governance / privacy', functionKey: 'compliance', estimatePresetKey: 'dataGovernance' },
-    operational: { label: 'Operational', functionKey: 'operations', estimatePresetKey: 'operational' },
-    regulatory: { label: 'Regulatory', functionKey: 'compliance', estimatePresetKey: 'regulatory' },
-    financial: { label: 'Financial', functionKey: 'finance', estimatePresetKey: 'financial' },
-    'fraud-integrity': { label: 'Fraud / integrity', functionKey: 'finance', estimatePresetKey: 'fraudIntegrity' },
-    compliance: { label: 'Compliance', functionKey: 'compliance', estimatePresetKey: 'compliance' },
-    'legal-contract': { label: 'Legal / contract', functionKey: 'compliance', estimatePresetKey: 'legalContract' },
-    geopolitical: { label: 'Geopolitical / market access', functionKey: 'strategic', estimatePresetKey: 'geopolitical' },
-    procurement: { label: 'Procurement', functionKey: 'procurement', estimatePresetKey: 'procurement' },
-    'supply-chain': { label: 'Supply chain', functionKey: 'procurement', estimatePresetKey: 'supplyChain' },
-    'third-party': { label: 'Third-party', functionKey: 'procurement', estimatePresetKey: 'thirdParty' },
-    'business-continuity': { label: 'Business continuity', functionKey: 'operations', estimatePresetKey: 'businessContinuity' },
-    'physical-security': { label: 'Physical security', functionKey: 'operations', estimatePresetKey: 'physicalSecurity' },
-    'ot-resilience': { label: 'OT / site resilience', functionKey: 'operations', estimatePresetKey: 'otResilience' },
-    'people-workforce': { label: 'People / workforce', functionKey: 'hse', estimatePresetKey: 'peopleWorkforce' },
-    hse: { label: 'HSE', functionKey: 'hse', estimatePresetKey: 'hse' },
-    esg: { label: 'ESG', functionKey: 'strategic', estimatePresetKey: 'esg' },
-    strategic: { label: 'Strategic', functionKey: 'strategic', estimatePresetKey: 'strategic' },
-    'investment-jv': { label: 'Investment / JV', functionKey: 'strategic', estimatePresetKey: 'investmentJv' },
-    'transformation-delivery': { label: 'Transformation delivery', functionKey: 'strategic', estimatePresetKey: 'transformationDelivery' },
-    general: { label: 'General enterprise risk', functionKey: 'general', estimatePresetKey: 'general' }
-  };
-  const profile = map[key] || map.general;
-  return {
-    key,
-    label: profile.label,
-    functionKey: profile.functionKey,
-    estimatePresetKey: profile.estimatePresetKey,
-    secondaryKeys: Array.isArray(classification?.secondaryKeys)
-      ? classification.secondaryKeys
-          .map((item) => normaliseScenarioHintKey(item))
-          .filter((item, index, list) => item && item !== key && list.indexOf(item) === index)
-      : []
-  };
+  return ScenarioClassification.buildScenarioLens(classification);
 }
 
 function isCompatibleScenarioLens(expected = '', actual = '') {
-  const expectedKey = normaliseScenarioHintKey(expected);
-  const actualKey = normaliseScenarioHintKey(actual);
-  if (!expectedKey || expectedKey === 'general' || !actualKey) return true;
-  if (expectedKey === actualKey) return true;
-  const compatibility = {
-    'ai-model-risk': ['data-governance', 'compliance', 'cyber'],
-    'data-governance': ['ai-model-risk', 'compliance', 'regulatory', 'cyber'],
-    procurement: ['supply-chain', 'third-party', 'compliance', 'esg'],
-    'supply-chain': ['procurement', 'third-party', 'business-continuity', 'operational'],
-    'third-party': ['procurement', 'supply-chain', 'business-continuity', 'operational'],
-    compliance: ['regulatory', 'procurement', 'financial', 'esg'],
-    regulatory: ['compliance', 'financial'],
-    financial: ['compliance', 'regulatory'],
-    'fraud-integrity': ['financial', 'compliance', 'regulatory'],
-    'legal-contract': ['compliance', 'regulatory', 'procurement', 'strategic'],
-    geopolitical: ['strategic', 'regulatory', 'supply-chain'],
-    'physical-security': ['operational', 'business-continuity', 'hse'],
-    'ot-resilience': ['operational', 'business-continuity', 'cyber', 'hse'],
-    'people-workforce': ['hse', 'operational', 'esg', 'compliance'],
-    'investment-jv': ['strategic', 'financial', 'transformation-delivery'],
-    'transformation-delivery': ['strategic', 'operational', 'investment-jv'],
-    esg: ['procurement', 'compliance', 'hse', 'strategic', 'supply-chain'],
-    hse: ['operational', 'business-continuity', 'esg'],
-    operational: ['business-continuity', 'supply-chain', 'hse'],
-    'business-continuity': ['operational', 'supply-chain', 'hse'],
-    strategic: ['operational', 'financial', 'esg'],
-    cyber: ['identity', 'ransomware', 'cloud', 'data-breach', 'phishing']
-  };
-  return (compatibility[expectedKey] || []).includes(actualKey);
+  return ScenarioClassification.isCompatibleScenarioLens(expected, actual);
 }
 
 function extractGuidedDraftAnchors(input = {}, seedNarrative = '') {
@@ -824,10 +607,7 @@ function countScenarioAnchorOverlap(text = '', anchors = []) {
 }
 
 function extractExplicitScenarioLeadLens(value = '') {
-  const text = String(value || '').trim();
-  if (!text) return '';
-  const match = text.match(/^(?:[a-z-]+-urgency\s+)?([a-z0-9 /-]+?)\s+(?:risk\s+)?scenario:/i);
-  return match?.[1] ? normaliseScenarioHintKey(match[1]) : '';
+  return ScenarioClassification.extractExplicitScenarioLeadLens(value);
 }
 
 function buildScenarioLead({ geography = '', businessUnit = '', asset = '', cause = '', impact = '', scenarioLabel = 'risk scenario' } = {}) {
@@ -852,7 +632,13 @@ function buildRiskContextSummary({ classification, asset = '', impact = '', risk
 
 function buildRiskContextLinkAnalysis({ classification, riskTitles = [] } = {}) {
   const key = String(classification?.key || 'general').trim();
-  if (key === 'identity') return 'The main chain is identity compromise, privilege misuse, and downstream fraud, disruption, or data exposure. Keep only the risks that share that path.';
+  const primaryFamilyKey = String(classification?.primaryFamily?.key || '').trim();
+  if (primaryFamilyKey === 'identity_compromise') return 'The main chain is identity compromise, privileged access abuse, and downstream control disruption, fraud, or data exposure. Keep only the risks that share that same event path.';
+  if (primaryFamilyKey === 'availability_attack') return 'The main chain is hostile traffic saturation of an internet-facing service, followed by customer-facing slowdown or outage. Keep only the risks that share that same event path and recovery burden.';
+  if (primaryFamilyKey === 'payment_control_failure') return 'The main chain is payment-control weakness, an approval or release failure, and direct monetary loss. Keep only the risks that share that same control-failure path.';
+  if (primaryFamilyKey === 'delivery_slippage' || primaryFamilyKey === 'programme_delivery_slippage') return 'The main chain is supplier or dependency slippage delaying delivery, deployment, or dependent work. Keep only the risks that share that same delivery path.';
+  if (primaryFamilyKey === 'privacy_non_compliance') return 'The main chain is a privacy or data-protection obligation failure, the resulting control challenge, and likely regulatory or legal follow-up. Keep only the risks that share that event path.';
+  if (primaryFamilyKey === 'forced_labour_modern_slavery') return 'The main chain is a human-rights issue in a supplier or workforce context, followed by remediation, scrutiny, and governance challenge. Keep only the risks that share that path.';
   if (key === 'operational' || key === 'business-continuity') return 'The main chain is process or service disruption, recovery pressure, and wider operational consequences. Keep only the risks that share that path.';
   if (key === 'transformation-delivery') return 'The main chain is dependency slippage, delayed delivery, and wider execution pressure. Keep only the risks that share that path.';
   if (key === 'procurement') return 'The main chain is sourcing or supplier-governance weakness, commercial downside, and assurance pressure. Keep only the risks that share that path.';
@@ -873,6 +659,45 @@ function buildFallbackRiskCards(classification = {}, input = {}) {
     input.guidedInput?.cause,
     input.guidedInput?.impact
   ].filter(Boolean).join(' ').toLowerCase();
+  const primaryFamilyKey = String(classification?.primaryFamily?.key || '').trim();
+  if (primaryFamilyKey === 'identity_compromise') {
+    return [
+      { title: 'Privileged account takeover through identity compromise', category: 'Identity & Access', description: 'Compromised administrator or federated credentials could allow account takeover, privilege escalation, and control disruption across the tenant.' },
+      { title: 'Unauthorized configuration changes after privileged access abuse', category: 'Cyber', description: 'An attacker with elevated access could change identity, tenant, or security controls and destabilise normal operating access.' },
+      { title: 'Data exposure or downstream control escalation after identity takeover', category: 'Cyber', description: 'Once the identity path is compromised, the same foothold can support mailbox misuse, unauthorised workflow manipulation, or explicit data extraction.' }
+    ];
+  }
+  if (primaryFamilyKey === 'availability_attack') {
+    return [
+      { title: 'Website service outage from traffic flooding', category: 'Cyber', description: 'Malicious traffic or botnet activity can overwhelm a public-facing website or online service until legitimate users are locked out or severely slowed down.' },
+      { title: 'Customer-facing availability disruption during hostile traffic saturation', category: 'Operational Resilience', description: 'A sustained denial-of-service event can degrade core digital journeys, trigger support pressure, and disrupt normal service commitments.' },
+      { title: 'Recovery strain and backlog growth after service saturation', category: 'Business Continuity', description: 'Once services are slowed or unavailable, mitigation, customer backlog, and recovery pressure can grow faster than teams can absorb.' }
+    ];
+  }
+  if (primaryFamilyKey === 'payment_control_failure') {
+    return [
+      { title: 'Unauthorized funds transfer through payment-control weakness', category: 'Financial', description: 'Weak payment approval or release controls can allow an unauthorized transfer, direct loss, and a broader control challenge.' },
+      { title: 'Control-breakdown exposure in the payment approval path', category: 'Compliance', description: 'Once the payment failure is visible, management may face scrutiny over segregation, approval evidence, and the wider control environment.' }
+    ];
+  }
+  if (primaryFamilyKey === 'privacy_non_compliance') {
+    return [
+      { title: 'Privacy obligation failure in processing or retention controls', category: 'Compliance', description: 'A breach of privacy or data-protection obligations can create immediate remediation pressure over how data was processed, retained, or governed.' },
+      { title: 'Regulatory or legal exposure after privacy non-compliance', category: 'Regulatory', description: 'Once the issue is visible, regulators or counsel may challenge the control basis, notifications, and evidence of lawful processing.' }
+    ];
+  }
+  if (primaryFamilyKey === 'delivery_slippage' || primaryFamilyKey === 'programme_delivery_slippage') {
+    return [
+      { title: 'Supplier delivery slippage delaying dependent deployment', category: 'Supply Chain', description: 'A committed supplier miss can push back deployment activity, dependent milestones, and business readiness across the wider programme.' },
+      { title: 'Backlog and execution pressure from delayed delivery dependencies', category: 'Transformation Delivery', description: 'Once a key dependency slips, downstream workarounds, re-sequencing, and backlog pressure can grow across dependent projects.' }
+    ];
+  }
+  if (primaryFamilyKey === 'forced_labour_modern_slavery') {
+    return [
+      { title: 'Human-rights and supplier-remediation pressure after labour abuse findings', category: 'ESG', description: 'Forced-labour or modern-slavery findings can trigger urgent remediation, board attention, and challenge over supplier governance.' },
+      { title: 'Third-party governance failure exposing the supply base', category: 'Third-party', description: 'The same event can expose a wider supplier-control weakness if due diligence, oversight, or escalation did not surface the issue sooner.' }
+    ];
+  }
   const byKey = {
     identity: [
       { title: 'Privileged account takeover through identity platform compromise', category: 'Identity & Access', description: 'Compromised administrator or federated credentials could allow account takeover, privilege escalation, and control disruption.' },
@@ -886,6 +711,11 @@ function buildFallbackRiskCards(classification = {}, input = {}) {
     cloud: [
       { title: 'Cloud control weakness leading to exposure or misuse', category: 'Cyber', description: 'Weak cloud administration or access controls could enable unauthorised changes, exposure, or misuse of the hosted service.' },
       { title: 'Service disruption during cloud recovery or control reset', category: 'Operational', description: 'Recovery from a cloud control event can create disruption while administrators restore trust in the environment.' }
+    ],
+    'availability-attack': [
+      { title: 'Internet-facing service outage from traffic flooding', category: 'Cyber', description: 'Malicious traffic or botnet activity can overwhelm a public-facing website or online service until legitimate users are locked out or severely slowed down.' },
+      { title: 'Customer-facing disruption during availability attack', category: 'Operational Resilience', description: 'A sustained denial-of-service event can degrade core digital journeys, trigger support pressure, and disrupt normal service commitments.' },
+      { title: 'Recovery strain and backlog growth after service saturation', category: 'Business Continuity', description: 'Once services are slowed or unavailable, incident response, mitigation, and customer backlog can grow faster than the team can recover them.' }
     ],
     operational: [
       { title: 'Operational disruption across the affected service path', category: 'Operational', description: 'A breakdown in the current operating path could create service instability, manual workarounds, and management escalation.' },
@@ -994,10 +824,11 @@ function buildScenarioExpansion(input = {}, classification = classifyScenario(in
   const impact = cleanUserFacingText(String(input.guidedInput?.impact || '').trim(), { maxSentences: 1, stripTrailingPeriod: true });
   const urgency = String(input.guidedInput?.urgency || 'medium').trim().toLowerCase();
   const intakeText = [statement, asset, cause, impact].filter(Boolean).join(' ').toLowerCase();
+  const primaryFamilyKey = String(classification?.primaryFamily?.key || '').trim();
 
   let scenarioExpansion = ensureSentence(statement) || buildScenarioLead({ geography, businessUnit });
 
-  if (classification.key === 'identity') {
+  if (primaryFamilyKey === 'identity_compromise') {
     scenarioExpansion = [
       buildScenarioLead({
         geography,
@@ -1011,6 +842,19 @@ function buildScenarioExpansion(input = {}, classification = classifyScenario(in
       ['high', 'critical'].includes(urgency)
         ? 'This should be treated as an active material scenario requiring rapid containment, privileged-account review, and assessment of downstream operational and financial exposure.'
         : 'This should be assessed as a gateway scenario that can trigger fraud, service disruption, data exposure, and regulatory consequences across connected services.'
+    ].join(' ');
+  } else if (primaryFamilyKey === 'availability_attack') {
+    scenarioExpansion = [
+      buildScenarioLead({
+        geography,
+        businessUnit,
+        asset: asset || 'the public website or online service',
+        cause: cause || 'hostile traffic flooding or denial-of-service activity',
+        impact: impact || 'customer-facing slowdown, outage, and recovery strain',
+        scenarioLabel: 'cyber availability attack scenario'
+      }),
+      'The most likely progression is malicious traffic saturating internet-facing services until legitimate users experience severe slowdown, service failure, or full unavailability.',
+      'This should be assessed for customer-facing outage, mitigation and response strain, backlog growth, and whether recovery controls can restore availability before wider business disruption escalates.'
     ].join(' ');
   } else if (classification.key === 'business-continuity') {
     if (hasCriticalMessagingServiceSignals(intakeText) && !hasExplicitCyberCompromiseSignals(intakeText)) {
@@ -1038,6 +882,24 @@ function buildScenarioExpansion(input = {}, classification = classifyScenario(in
       buildScenarioLead({ geography, businessUnit, asset: asset || 'the affected operating process or service', cause: cause || 'process breakdown or control failure', impact: impact || 'service degradation and execution strain', scenarioLabel: 'operational risk scenario' }),
       'The most likely progression is control weakness, workflow failure, or backlog growth driving service deterioration, manual workarounds, increased error rates, and management escalation.',
       'This should be assessed for direct disruption, recovery effort, customer or internal stakeholder impact, and the risk of secondary compliance or continuity consequences.'
+    ].join(' ');
+  } else if (primaryFamilyKey === 'delivery_slippage') {
+    scenarioExpansion = [
+      buildScenarioLead({ geography, businessUnit, asset: asset || 'the supplier delivery path or deployment dependency in scope', cause: cause || 'supplier delivery slippage against a committed date or milestone', impact: impact || 'delayed deployment, dependent project slippage, and operational knock-on pressure', scenarioLabel: 'supply-chain delivery scenario' }),
+      'The most likely progression is a supplier miss delaying deployment activity, dependent projects, sequencing decisions, and business readiness while management searches for workarounds or substitute delivery paths.',
+      'This should be assessed for milestone impact, backlog growth, third-party dependency, and whether the delay is now becoming a broader execution issue.'
+    ].join(' ');
+  } else if (primaryFamilyKey === 'payment_control_failure') {
+    scenarioExpansion = [
+      buildScenarioLead({ geography, businessUnit, asset: asset || 'the payment approval and release path in scope', cause: cause || 'weak approval, segregation, or payment-release controls', impact: impact || 'unauthorised funds transfer and direct monetary loss', scenarioLabel: 'payment-control failure scenario' }),
+      'The most likely progression is a payment or treasury control weakness allowing funds to be released incorrectly, followed by delayed detection, investigation, and challenge over the wider control environment.',
+      'This should be assessed for direct loss, control breakdown, recoverability, and whether the issue could escalate into regulatory, legal, or fraud-related follow-up.'
+    ].join(' ');
+  } else if (primaryFamilyKey === 'privacy_non_compliance' || primaryFamilyKey === 'records_retention_non_compliance' || primaryFamilyKey === 'cross_border_transfer_non_compliance') {
+    scenarioExpansion = [
+      buildScenarioLead({ geography, businessUnit, asset: asset || 'the personal-data process or governed records path in scope', cause: cause || 'privacy or data-protection obligation failure', impact: impact || 'regulatory scrutiny, remediation burden, and legal exposure', scenarioLabel: 'privacy compliance scenario' }),
+      'The most likely progression is an obligation or governance failure in how data is processed, retained, transferred, or controlled, followed by remediation work, assurance pressure, and legal or supervisory challenge.',
+      'This should be assessed for the strength of the legal basis, evidence of control, scope of affected processing, and whether explicit data exposure also occurred.'
     ].join(' ');
   } else if (classification.key === 'transformation-delivery') {
     if (/(supplier|vendor|third party|third-party)/.test(intakeText)
@@ -1450,7 +1312,17 @@ function buildAiAlignment(input = {}, result = {}, {
     label: score >= 85 ? 'Aligned and grounded' : score >= 65 ? 'Mostly aligned' : 'Needs review',
     score,
     summary: `AI kept the draft in the ${resolvedLens.label.toLowerCase()} lens and aligned ${alignedRiskCount} of ${Math.max(risks.length, 1)} suggested risks.`,
-    checks
+    checks,
+    taxonomy: {
+      version: String(classification?.taxonomyVersion || '').trim(),
+      domain: String(classification?.domain || '').trim(),
+      primaryFamilyKey: String(classification?.primaryFamily?.key || '').trim(),
+      secondaryFamilyKeys: Array.isArray(classification?.secondaryFamilies) ? classification.secondaryFamilies.map((family) => family?.key).filter(Boolean) : [],
+      overlays: Array.isArray(classification?.overlays) ? classification.overlays.map((overlay) => overlay?.key).filter(Boolean) : [],
+      mechanisms: Array.isArray(classification?.mechanisms) ? classification.mechanisms.map((mechanism) => mechanism?.key).filter(Boolean) : [],
+      reasonCodes: Array.isArray(classification?.reasonCodes) ? classification.reasonCodes.slice(0, 8) : [],
+      ambiguityFlags: Array.isArray(classification?.ambiguityFlags) ? classification.ambiguityFlags.slice(0, 6) : []
+    }
   };
 }
 
