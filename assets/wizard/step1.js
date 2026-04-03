@@ -3967,7 +3967,7 @@ function bindStep1ScenarioActions({ buList, settings, exampleModel }) {
   document.getElementById('risk-register-file')?.addEventListener('change', handleRegisterUpload);
   document.getElementById('btn-enhance-risk-statement')?.addEventListener('click', enhanceNarrativeWithAI);
 
-  document.getElementById('btn-generate-risks-from-draft')?.addEventListener('click', () => {
+  document.getElementById('btn-generate-risks-from-draft')?.addEventListener('click', async (event) => {
     const narrative = document.getElementById('intake-risk-statement')?.value.trim() || AppState.draft.narrative || '';
     if (!narrative) {
       UI.toast('Enter or build a scenario draft first.', 'warning');
@@ -3977,12 +3977,12 @@ function bindStep1ScenarioActions({ buList, settings, exampleModel }) {
       UI.toast('The current shortlist already reflects the latest AI-built draft. Change the draft first if you want a different shortlist.', 'info', 5000);
       return;
     }
-    clearStep1StaleAssistState(narrative, { clearGeneratedRisks: true });
-    const seededCount = seedRisksFromScenarioDraft(narrative, { force: true, replaceGenerated: true });
-    AppState.draft.narrative = narrative;
-    AppState.draft.sourceNarrative = AppState.draft.sourceNarrative || narrative;
-    persistAndRenderStep1();
-    UI.toast(seededCount ? `Added ${seededCount} risk${seededCount === 1 ? '' : 's'} from the scenario draft.` : 'No additional risks were generated from that draft.', seededCount ? 'success' : 'warning');
+    await generateShortlistFromDraftWithAI({
+      narrative,
+      button: event?.currentTarget || document.getElementById('btn-generate-risks-from-draft'),
+      replaceGenerated: true,
+      preserveScroll: true
+    });
   });
 
   document.getElementById('btn-register-analyse')?.addEventListener('click', analyseUploadedRegister);
@@ -4014,7 +4014,7 @@ function bindStep1PromptIdeaChips(root = document, settings = getEffectiveSettin
 }
 
 function bindStep1NavigationActions({ buList, settings, wizardGeographyInput }) {
-  document.getElementById('btn-next-1').addEventListener('click', () => {
+  document.getElementById('btn-next-1').addEventListener('click', async (event) => {
     const buId = document.getElementById('wizard-bu').value;
     let narrative = document.getElementById('intake-risk-statement').value.trim();
     let selected = getSelectedRisks();
@@ -4036,7 +4036,12 @@ function bindStep1NavigationActions({ buList, settings, wizardGeographyInput }) 
       }
     }
     if (narrative && !selected.length && !getRiskCandidates().length) {
-      seedRisksFromScenarioDraft(narrative, { force: true });
+      await generateShortlistFromDraftWithAI({
+        narrative,
+        button: event?.currentTarget || document.getElementById('btn-next-1'),
+        replaceGenerated: true,
+        suppressToast: true
+      });
       selected = getSelectedRisks();
     }
     if (!narrative && selected.length) {
@@ -4568,11 +4573,14 @@ function renderSelectedRiskCards(riskCandidates, selectedRisks, regulations) {
 let _coachDebounce = null;
 
 function bindRiskCardActions({ buList = getBUList() } = {}) {
-  document.getElementById('btn-generate-risks-empty-state')?.addEventListener('click', () => {
+  document.getElementById('btn-generate-risks-empty-state')?.addEventListener('click', async (event) => {
     const narrative = AppState.draft.enhancedNarrative || AppState.draft.narrative || AppState.draft.sourceNarrative || composeStep1GuidedNarrative(AppState.draft.guidedInput, getEffectiveSettings(), AppState.draft) || '';
-    const seededCount = seedRisksFromScenarioDraft(narrative, { force: true });
-    persistAndRenderStep1();
-    UI.toast(seededCount ? `Added ${seededCount} risk${seededCount === 1 ? '' : 's'} from the current draft.` : 'No additional risks were generated from that draft.', seededCount ? 'success' : 'warning');
+    await generateShortlistFromDraftWithAI({
+      narrative,
+      button: event?.currentTarget || document.getElementById('btn-generate-risks-empty-state'),
+      replaceGenerated: true,
+      preserveScroll: true
+    });
   });
   document.querySelectorAll('.risk-select-checkbox').forEach(box => {
     box.addEventListener('change', () => {
@@ -4882,6 +4890,10 @@ async function runIntakeAssist() {
 
 async function enhanceNarrativeWithAI() {
   return window.Step1Assist.enhanceNarrativeWithAI();
+}
+
+async function generateShortlistFromDraftWithAI(options = {}) {
+  return window.Step1Assist.generateShortlistFromDraft(options);
 }
 
 async function analyseUploadedRegister() {

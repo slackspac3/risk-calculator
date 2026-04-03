@@ -216,6 +216,40 @@
     );
   }
 
+  function _buildManualStep1RequestPayload({
+    narrative = '',
+    registerText = '',
+    registerMeta = null,
+    bu = null,
+    aiContext = null,
+    preferredLens = null,
+    citations = [],
+    traceLabel = ''
+  } = {}) {
+    return {
+      riskStatement: String(narrative || '').trim(),
+      registerText: String(registerText || '').trim(),
+      registerMeta: registerMeta && typeof registerMeta === 'object' ? registerMeta : null,
+      scenarioLensHint: preferredLens,
+      businessUnit: aiContext?.businessUnit || bu,
+      geography: formatScenarioGeographies(getScenarioGeographies()),
+      applicableRegulations: deriveApplicableRegulations(aiContext?.businessUnit || bu, getSelectedRisks(), getScenarioGeographies()),
+      guidedInput: { ...AppState.draft.guidedInput },
+      citations: Array.isArray(citations) ? citations : [],
+      adminSettings: aiContext?.adminSettings || {},
+      priorMessages: _getStep1PriorMessages(),
+      traceLabel
+    };
+  }
+
+  function _renderStep1PostApply({ preserveScroll = false } = {}) {
+    const scrollY = preserveScroll ? (window.scrollY || window.pageYOffset || 0) : 0;
+    saveDraft();
+    renderWizard1();
+    if (!preserveScroll) return;
+    window.requestAnimationFrame(() => window.scrollTo({ top: scrollY, left: 0, behavior: 'auto' }));
+  }
+
   function mountAiTraceLinks() {
     document.querySelectorAll('.js-ai-trace-link').forEach((node) => node.remove());
     if (!UI || typeof UI.openAiTraceModal !== 'function') return;
@@ -443,20 +477,16 @@
         applicableRegulations: deriveApplicableRegulations(aiContext.businessUnit || bu, getSelectedRisks(), getScenarioGeographies()),
         businessUnitName: aiContext.businessUnit?.name || bu?.name || AppState.draft.buName || ''
       }), 5);
-      const rawResult = await LLMService.enhanceRiskContext({
-        riskStatement: assistSeed || narrative,
+      const rawResult = await LLMService.buildManualIntakeAssist(_buildManualStep1RequestPayload({
+        narrative: assistSeed || narrative,
         registerText: AppState.draft.registerFindings,
         registerMeta: AppState.draft.registerMeta,
-        scenarioLensHint: preferredLens,
-        businessUnit: aiContext.businessUnit || bu,
-        geography: formatScenarioGeographies(getScenarioGeographies()),
-        applicableRegulations: deriveApplicableRegulations(aiContext.businessUnit || bu, getSelectedRisks(), getScenarioGeographies()),
-        guidedInput: { ...AppState.draft.guidedInput },
+        bu,
+        aiContext,
+        preferredLens,
         citations,
-        adminSettings: aiContext.adminSettings,
-        priorMessages: _getStep1PriorMessages(),
         traceLabel: STEP1_TRACE_LABELS.intakeAssist
-      });
+      }));
       const result = _ensureRiskConfidence(rawResult);
       draftScenarioState.applyScenarioAssistResultToDraft(result, {
         narrative,
@@ -500,22 +530,16 @@
     const preferredLens = typeof getStep1ManualPreferredScenarioLens === 'function'
       ? getStep1ManualPreferredScenarioLens(getEffectiveSettings(), AppState.draft, assistSeed || narrative)
       : getStep1PreferredScenarioLens(getEffectiveSettings(), AppState.draft, assistSeed || narrative);
-    const requestPayload = {
-      riskStatement: assistSeed || narrative,
-      registerText: '',
-      registerMeta: null,
-      scenarioLensHint: preferredLens,
-      businessUnit: aiContext.businessUnit || bu,
-      geography: formatScenarioGeographies(getScenarioGeographies()),
-      applicableRegulations: deriveApplicableRegulations(aiContext.businessUnit || bu, getSelectedRisks(), getScenarioGeographies()),
-      guidedInput: { ...AppState.draft.guidedInput },
-      adminSettings: aiContext.adminSettings,
-      priorMessages: _getStep1PriorMessages(),
+    const requestPayload = _buildManualStep1RequestPayload({
+      narrative: assistSeed || narrative,
+      bu,
+      aiContext,
+      preferredLens,
       traceLabel: STEP1_TRACE_LABELS.narrativeRefinement
-    };
+    });
     if (_guardStep1AiActionCooldown({
       button,
-      endpoint: '/api/compass',
+      endpoint: '/api/ai/manual-draft-refinement',
       payload: requestPayload,
       scope: 'step1-enhance-draft',
       cooldownLabel: 'Enhanced just now',
@@ -534,12 +558,12 @@
         applicableRegulations: deriveApplicableRegulations(aiContext.businessUnit || bu, getSelectedRisks(), getScenarioGeographies()),
         businessUnitName: aiContext.businessUnit?.name || bu?.name || AppState.draft.buName || ''
       }), 5);
-      const rawResult = await LLMService.enhanceRiskContext({
+      const rawResult = await LLMService.buildManualDraftRefinement({
         ...requestPayload,
         citations
       });
       const result = _ensureRiskConfidence(rawResult);
-      _markStep1AiActionCooldown('/api/compass', requestPayload, 'step1-enhance-draft');
+      _markStep1AiActionCooldown('/api/ai/manual-draft-refinement', requestPayload, 'step1-enhance-draft');
       draftScenarioState.applyScenarioAssistResultToDraft(result, {
         narrative,
         assistSeed,
@@ -563,6 +587,99 @@
         return;
       }
       if (output) output.innerHTML = `<div class="banner banner--danger"><span class="banner-icon">⚠</span><span class="banner-text">AI enhancement is unavailable right now. Try again in a moment.</span></div>`;
+    } finally {
+      resetButton();
+    }
+  }
+
+  async function generateShortlistFromDraft({
+    narrative = '',
+    button = null,
+    replaceGenerated = true,
+    preserveScroll = false,
+    suppressToast = false
+  } = {}) {
+    _clearStep1AiUnavailableBanners();
+    const draftNarrative = String(narrative || document.getElementById('intake-risk-statement')?.value || AppState.draft.narrative || '').trim();
+    if (!draftNarrative) {
+      if (!suppressToast) UI.toast('Enter or build a scenario draft first.', 'warning');
+      return { generatedCount: 0, mode: 'manual' };
+    }
+    const bu = getBUList().find(b => b.id === (document.getElementById('wizard-bu')?.value || AppState.draft.buId));
+    const aiContext = buildCurrentAIAssistContext({ buId: bu?.id || AppState.draft.buId });
+    const preferredLens = typeof getStep1ManualPreferredScenarioLens === 'function'
+      ? getStep1ManualPreferredScenarioLens(getEffectiveSettings(), AppState.draft, draftNarrative)
+      : getStep1PreferredScenarioLens(getEffectiveSettings(), AppState.draft, draftNarrative);
+    const requestPayload = _buildManualStep1RequestPayload({
+      narrative: draftNarrative,
+      bu,
+      aiContext,
+      preferredLens,
+      citations: Array.isArray(AppState.draft.citations) ? AppState.draft.citations : [],
+      traceLabel: 'Step 1 manual shortlist'
+    });
+    if (_guardStep1AiActionCooldown({
+      button,
+      endpoint: '/api/ai/manual-shortlist',
+      payload: requestPayload,
+      scope: 'step1-manual-shortlist',
+      cooldownLabel: 'Loaded just now',
+      message: 'This shortlist already reflects the current draft. Review it or change the scenario before rerunning.'
+    })) return {
+      generatedCount: getSelectedRisks().length,
+      mode: AppState.draft.aiQualityState === 'fallback' ? 'deterministic_fallback' : 'live',
+      reused: true
+    };
+    const resetButton = _setStep1ButtonBusy(button, button?.id === 'btn-next-1' ? 'Generating shortlist…' : 'Generating shortlist…');
+    try {
+      const rawResult = await LLMService.buildManualShortlist(requestPayload);
+      const result = _ensureRiskConfidence(rawResult);
+      _markStep1AiActionCooldown('/api/ai/manual-shortlist', requestPayload, 'step1-manual-shortlist');
+      const appliedRisks = draftScenarioState.applyScenarioShortlistResultToDraft(result, {
+        narrative: draftNarrative,
+        bu,
+        citations: requestPayload.citations
+      });
+      _syncRiskConfidenceToDraft(result.risks);
+      _renderStep1PostApply({ preserveScroll });
+      mountAiTraceLinks();
+      if (result.aiUnavailable) {
+        _renderStep1AiUnavailableBanner('intake-output', () => generateShortlistFromDraft({
+          narrative: draftNarrative,
+          replaceGenerated,
+          preserveScroll,
+          suppressToast
+        }));
+      }
+      const generatedCount = Array.isArray(appliedRisks) ? appliedRisks.length : 0;
+      if (!suppressToast) {
+        const tone = result.mode === 'manual' || result.usedFallback ? 'warning' : 'success';
+        const message = generatedCount
+          ? `Loaded ${generatedCount} risk${generatedCount === 1 ? '' : 's'} from the current draft.`
+          : 'The current draft is still too weak or ambiguous to build a shortlist reliably. Tighten the draft and try again.';
+        UI.toast(message, tone, 5000);
+      }
+      return {
+        generatedCount,
+        mode: result.mode,
+        result
+      };
+    } catch (error) {
+      console.error('generateShortlistFromDraft failed:', error);
+      if (error?.code === 'LLM_UNAVAILABLE') {
+        _renderStep1AiUnavailableBanner('intake-output', () => generateShortlistFromDraft({
+          narrative: draftNarrative,
+          replaceGenerated,
+          preserveScroll,
+          suppressToast
+        }), error);
+        if (!suppressToast) {
+          UI.toast('Shortlist generation is unavailable right now. Your current draft stays intact.', 'warning', 5000);
+        }
+        return { generatedCount: 0, mode: 'manual', unavailable: true };
+      }
+      if (!suppressToast) UI.toast('Shortlist generation is unavailable right now. Try again in a moment.', 'danger');
+      return { generatedCount: 0, mode: 'manual', error };
     } finally {
       resetButton();
     }
@@ -639,6 +756,7 @@
     suggestGuidedPromptIdeas,
     runIntakeAssist,
     enhanceNarrativeWithAI,
+    generateShortlistFromDraft,
     analyseUploadedRegister,
     generateScenarioMemoryPrecedent,
     compareScenarioMemory,

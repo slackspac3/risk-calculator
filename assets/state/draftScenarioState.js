@@ -474,6 +474,58 @@
       : (String(result?.scenarioTitle || '').trim() || getSelectedRisks()[0]?.title || AppState.draft.scenarioTitle || '');
   }
 
+  function applyScenarioShortlistResultToDraft(result, {
+    narrative = '',
+    bu = null,
+    citations = []
+  } = {}) {
+    const resolvedNarrative = String(narrative || AppState.draft.enhancedNarrative || AppState.draft.narrative || AppState.draft.sourceNarrative || '').trim();
+    const suggestedRiskSource = AppState.draft.registerFindings ? 'ai+register' : 'ai';
+    const nextScenarioLens = result?.scenarioLens && typeof result.scenarioLens === 'object'
+      ? { ...result.scenarioLens }
+      : (AppState.draft.scenarioLens || null);
+    const alignedRisks = getAlignedRiskSeed(result.risks, resolvedNarrative, nextScenarioLens, {
+      riskSource: suggestedRiskSource
+    });
+    AppState.draft.llmAssisted = true;
+    AppState.draft.intakeSummary = result.summary || AppState.draft.intakeSummary || '';
+    AppState.draft.linkAnalysis = result.linkAnalysis || AppState.draft.linkAnalysis || '';
+    AppState.draft.scenarioLens = nextScenarioLens;
+    AppState.draft.workflowGuidance = Array.isArray(result.workflowGuidance) ? result.workflowGuidance : AppState.draft.workflowGuidance;
+    AppState.draft.benchmarkBasis = result.benchmarkBasis || AppState.draft.benchmarkBasis;
+    AppState.draft.aiAlignment = result?.aiAlignment && typeof result.aiAlignment === 'object'
+      ? { ...result.aiAlignment }
+      : (AppState.draft.aiAlignment || null);
+    AppState.draft.structuredScenario = normaliseStructuredScenario(result?.structuredScenario || AppState.draft.structuredScenario, {
+      preserveUnknown: true
+    });
+    AppState.draft.aiQualityState = result.usedFallback ? 'fallback' : (result.mode === 'manual' ? '' : 'ai');
+    AppState.draft.confidenceLabel = result.confidenceLabel || AppState.draft.confidenceLabel || '';
+    AppState.draft.evidenceQuality = result.evidenceQuality || AppState.draft.evidenceQuality || '';
+    AppState.draft.evidenceSummary = result.evidenceSummary || AppState.draft.evidenceSummary || '';
+    AppState.draft.primaryGrounding = Array.isArray(result.primaryGrounding) ? result.primaryGrounding : (AppState.draft.primaryGrounding || []);
+    AppState.draft.supportingReferences = Array.isArray(result.supportingReferences) ? result.supportingReferences : (AppState.draft.supportingReferences || []);
+    AppState.draft.inferredAssumptions = Array.isArray(result.inferredAssumptions) ? result.inferredAssumptions : (AppState.draft.inferredAssumptions || []);
+    AppState.draft.missingInformation = Array.isArray(result.missingInformation) ? result.missingInformation : (AppState.draft.missingInformation || []);
+    replaceSuggestedRiskCandidates(alignedRisks, { selectNew: true });
+    AppState.draft.applicableRegulations = Array.from(new Set([
+      ...(deriveApplicableRegulations(bu, getSelectedRisks(), getScenarioGeographies()) || []),
+      ...(result.regulations || [])
+    ]));
+    AppState.draft.citations = normaliseCitations(result.citations || citations || AppState.draft.citations || []);
+    AppState.draft.scenarioTitle = typeof resolveScenarioDisplayTitle === 'function'
+      ? resolveScenarioDisplayTitle({
+          ...AppState.draft,
+          scenarioTitle: String(result?.scenarioTitle || AppState.draft.scenarioTitle || '').trim(),
+          narrative: resolvedNarrative || AppState.draft.narrative,
+          sourceNarrative: resolvedNarrative || AppState.draft.sourceNarrative,
+          enhancedNarrative: AppState.draft.enhancedNarrative,
+          selectedRisks: getSelectedRisks()
+        })
+      : (String(result?.scenarioTitle || '').trim() || getSelectedRisks()[0]?.title || AppState.draft.scenarioTitle || '');
+    return alignedRisks;
+  }
+
   function applyRegisterAnalysisResultToDraft(result, { parsedFallback = [] } = {}) {
     const defaultRegisterRiskSource = result?.usedFallback ? 'register' : 'ai+register';
     const extractedRisks = (Array.isArray(result?.risks) && result.risks.length ? result.risks : parsedFallback)
@@ -523,6 +575,7 @@
     getIntakeAssistSeedNarrative,
     buildScenarioNarrative,
     applyScenarioAssistResultToDraft,
+    applyScenarioShortlistResultToDraft,
     applyRegisterAnalysisResultToDraft
   };
 

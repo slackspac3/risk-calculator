@@ -198,6 +198,35 @@ const AiWorkflowClient = (() => {
     });
   }
 
+  function normaliseScenarioLensHint(value = '') {
+    if (isPlainObject(value)) {
+      return compactValue({
+        key: normaliseInlineText(value.key || ''),
+        label: normaliseInlineText(value.label || ''),
+        functionKey: normaliseInlineText(value.functionKey || ''),
+        estimatePresetKey: normaliseInlineText(value.estimatePresetKey || ''),
+        secondaryKeys: normaliseStringList(value.secondaryKeys, { maxItems: 4 })
+      });
+    }
+    return normaliseInlineText(value || '');
+  }
+
+  function normaliseManualStep1Payload(source = {}) {
+    return compactValue({
+      riskStatement: normaliseBlockText(source.riskStatement || ''),
+      registerText: normaliseBlockText(source.registerText || ''),
+      registerMeta: normaliseRegisterMeta(source.registerMeta),
+      scenarioLensHint: normaliseScenarioLensHint(source.scenarioLensHint),
+      businessUnit: normaliseBusinessUnit(source.businessUnit),
+      geography: normaliseInlineText(source.geography || ''),
+      applicableRegulations: normaliseStringList(source.applicableRegulations, { maxItems: 12 }),
+      citations: normaliseCitations(source.citations),
+      adminSettings: normaliseAdminSettings(source.adminSettings),
+      traceLabel: normaliseInlineText(source.traceLabel || ''),
+      priorMessages: normalisePriorMessages(source.priorMessages)
+    }) || {};
+  }
+
   function normaliseFairParams(value = {}) {
     if (!isPlainObject(value)) return undefined;
     const next = {};
@@ -358,6 +387,10 @@ const AiWorkflowClient = (() => {
           traceLabel: normaliseInlineText(source.traceLabel || ''),
           priorMessages: normalisePriorMessages(source.priorMessages)
         }) || {};
+      case '/api/ai/manual-intake-assist':
+      case '/api/ai/manual-draft-refinement':
+      case '/api/ai/manual-shortlist':
+        return normaliseManualStep1Payload(source);
       case '/api/ai/register-analysis':
         return compactValue({
           registerText: normaliseBlockText(source.registerText || ''),
@@ -684,6 +717,15 @@ const AiWorkflowClient = (() => {
       },
       getScenarioDraftUrl() {
         return buildUrl('/api/ai/scenario-draft');
+      },
+      getManualIntakeAssistUrl() {
+        return buildUrl('/api/ai/manual-intake-assist');
+      },
+      getManualDraftRefinementUrl() {
+        return buildUrl('/api/ai/manual-draft-refinement');
+      },
+      getManualShortlistUrl() {
+        return buildUrl('/api/ai/manual-shortlist');
       },
       getRegisterAnalysisUrl() {
         return buildUrl('/api/ai/register-analysis');

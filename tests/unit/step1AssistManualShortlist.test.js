@@ -6,20 +6,12 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-function loadStep1AssistNarrativeHarness() {
+function loadStep1AssistShortlistHarness() {
   const filePath = path.resolve(__dirname, '../../assets/wizard/step1Assist.js');
   const source = fs.readFileSync(filePath, 'utf8');
 
   const capturedRequests = [];
   const output = { innerHTML: '' };
-  const enhanceButton = {
-    dataset: {},
-    textContent: 'Use AI to refine this draft',
-    disabled: false,
-    isConnected: true,
-    setAttribute() {},
-    removeAttribute() {}
-  };
   const narrativeInput = {
     value: 'Azure global admin credentials discovered on the dark web are used to access the tenant and modify critical configurations.'
   };
@@ -39,7 +31,8 @@ function loadStep1AssistNarrativeHarness() {
         enhancedNarrative: '',
         scenarioLens: { key: 'financial', label: 'Financial', functionKey: 'finance' },
         guidedInput: {},
-        llmContext: []
+        llmContext: [],
+        citations: []
       }
     },
     document: {
@@ -48,27 +41,25 @@ function loadStep1AssistNarrativeHarness() {
       },
       getElementById(id) {
         if (id === 'intake-risk-statement') return narrativeInput;
-        if (id === 'btn-enhance-risk-statement') return enhanceButton;
         if (id === 'intake-output') return output;
         return null;
       }
     },
     window: {
       DraftScenarioState: {
-        getIntakeAssistSeedNarrative(value) {
-          return value;
-        },
-        applyScenarioAssistResultToDraft() {}
+        applyScenarioShortlistResultToDraft() {
+          return [{ title: 'Privileged account takeover through identity compromise' }];
+        }
       },
-      scheduleStep1ScenarioCrossReferenceRefresh() {},
+      requestAnimationFrame(callback) {
+        callback();
+      },
+      scrollTo() {},
       setTimeout,
       clearTimeout
     },
     UI: {
-      toast() {},
-      wizardAssistSkeleton() {
-        return '<div>loading</div>';
-      }
+      toast() {}
     },
     AuthService: {
       getCurrentUser() {
@@ -77,18 +68,17 @@ function loadStep1AssistNarrativeHarness() {
     },
     AiWorkflowClient: null,
     LLMService: {
-      async buildManualDraftRefinement(payload) {
+      async buildManualShortlist(payload) {
         capturedRequests.push(payload);
         return {
-          enhancedStatement: payload.riskStatement,
-          draftNarrative: payload.riskStatement,
-          risks: []
+          mode: 'live',
+          scenarioLens: { key: 'cyber', label: 'Cyber', functionKey: 'technology' },
+          risks: [{ title: 'Privileged account takeover through identity compromise', confidence: 'high' }]
         };
       }
     },
     RAGService: {
-      isReady: () => true,
-      retrieveRelevantDocs: async () => []
+      isReady: () => true
     },
     escapeHtml: (value) => String(value || ''),
     getAiUnavailableMessage: () => 'AI assistance is temporarily unavailable.',
@@ -98,7 +88,6 @@ function loadStep1AssistNarrativeHarness() {
     getStep1PreferredScenarioLens: () => ({ key: 'financial', label: 'Financial', functionKey: 'finance' }),
     getStep1ManualPreferredScenarioLens: () => ({ key: 'cyber', label: 'Cyber', functionKey: 'technology' }),
     buildCurrentAIAssistContext: () => ({ businessUnit: null, adminSettings: {} }),
-    buildAssessmentRetrievalQuery: () => 'query',
     deriveApplicableRegulations: () => [],
     getSelectedRisks: () => [],
     getScenarioGeographies: () => [],
@@ -113,15 +102,17 @@ function loadStep1AssistNarrativeHarness() {
   vm.runInContext(source, context, { filename: 'step1Assist.js' });
 
   return {
-    enhanceNarrativeWithAI: context.window.Step1Assist.enhanceNarrativeWithAI,
+    generateShortlistFromDraft: context.window.Step1Assist.generateShortlistFromDraft,
     capturedRequests
   };
 }
 
-test('narrative refinement sends the fresh manual lens hint instead of stale stored lens state', async () => {
-  const harness = loadStep1AssistNarrativeHarness();
+test('manual shortlist generation sends the fresh manual lens hint instead of stale stored lens state', async () => {
+  const harness = loadStep1AssistShortlistHarness();
 
-  await harness.enhanceNarrativeWithAI();
+  await harness.generateShortlistFromDraft({
+    narrative: 'Azure global admin credentials discovered on the dark web are used to access the tenant and modify critical configurations.'
+  });
 
   assert.equal(harness.capturedRequests.length, 1);
   assert.equal(harness.capturedRequests[0].scenarioLensHint?.key, 'cyber');

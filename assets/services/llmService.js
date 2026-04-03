@@ -170,6 +170,18 @@ const LLMService = (() => {
     return _workflowClient ? _workflowClient.getScenarioDraftUrl() : '';
   }
 
+  function _getManualIntakeAssistUrl() {
+    return _workflowClient ? _workflowClient.getManualIntakeAssistUrl() : '';
+  }
+
+  function _getManualDraftRefinementUrl() {
+    return _workflowClient ? _workflowClient.getManualDraftRefinementUrl() : '';
+  }
+
+  function _getManualShortlistUrl() {
+    return _workflowClient ? _workflowClient.getManualShortlistUrl() : '';
+  }
+
   function _getRegisterAnalysisUrl() {
     return _workflowClient ? _workflowClient.getRegisterAnalysisUrl() : '';
   }
@@ -3178,6 +3190,34 @@ ${businessUnit.selectedDepartmentContext}` : ''
     });
   }
 
+  function _buildManualStep1Payload(input = {}) {
+    return {
+      riskStatement: typeof input.riskStatement === 'string' ? input.riskStatement : '',
+      registerText: typeof input.registerText === 'string' ? input.registerText : '',
+      registerMeta: input?.registerMeta && typeof input.registerMeta === 'object' ? input.registerMeta : null,
+      scenarioLensHint: input.scenarioLensHint,
+      businessUnit: input?.businessUnit && typeof input.businessUnit === 'object' ? input.businessUnit : null,
+      geography: typeof input.geography === 'string' ? input.geography : '',
+      applicableRegulations: Array.isArray(input.applicableRegulations) ? input.applicableRegulations : [],
+      citations: Array.isArray(input.citations) ? input.citations : [],
+      adminSettings: input?.adminSettings && typeof input.adminSettings === 'object' ? input.adminSettings : {},
+      traceLabel: typeof input.traceLabel === 'string' ? input.traceLabel : '',
+      priorMessages: Array.isArray(input.priorMessages) ? input.priorMessages : []
+    };
+  }
+
+  async function buildManualIntakeAssist(input = {}) {
+    return _postServerAiWorkflow(_getManualIntakeAssistUrl(), _buildManualStep1Payload(input));
+  }
+
+  async function buildManualDraftRefinement(input = {}) {
+    return _postServerAiWorkflow(_getManualDraftRefinementUrl(), _buildManualStep1Payload(input));
+  }
+
+  async function buildManualShortlist(input = {}) {
+    return _postServerAiWorkflow(_getManualShortlistUrl(), _buildManualStep1Payload(input));
+  }
+
   // Assistive-only browser helpers remain below for low-cost UX convenience.
   // They can help users explore, compare, or draft, but they are not part of
   // the server-trusted assessment, fallback, review, or learning-authority path.
@@ -5539,6 +5579,9 @@ Keep the numbers realistic, internally ordered, and anchored to the user's own h
 
   return {
     buildGuidedScenarioDraft,
+    buildManualIntakeAssist,
+    buildManualDraftRefinement,
+    buildManualShortlist,
     suggestGuidedPromptIdeas,
     generateScenarioAndInputs,
     streamNarrativeRefinement,
