@@ -2,7 +2,6 @@
 
 const OrgIntelligenceService = (() => {
   const CACHE_KEY = 'rq_org_intelligence_cache';
-  const DEFAULT_ORG_INTELLIGENCE_API_URL = resolveOrgIntelligenceApiUrl('/api/org-intelligence');
   const DEFAULT_AI_FEEDBACK_TUNING = Object.freeze({
     alignmentPriority: 'strict',
     draftStyle: 'executive-brief',
@@ -27,9 +26,12 @@ const OrgIntelligenceService = (() => {
   let _refreshPromise = null;
 
   function resolveOrgIntelligenceApiUrl(path) {
-    const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    if (origin && origin.includes('vercel.app')) return `${origin}${path}`;
-    return `https://risk-calculator-eight.vercel.app${path}`;
+    const resolver = (typeof window !== 'undefined' && window?.ApiOriginResolver)
+      || globalThis?.ApiOriginResolver
+      || null;
+    return resolver && typeof resolver.resolveApiUrl === 'function'
+      ? resolver.resolveApiUrl(path)
+      : '';
   }
 
   function _clone(value, fallback = null) {
@@ -286,7 +288,7 @@ const OrgIntelligenceService = (() => {
   }
 
   function _getApiUrl() {
-    return DEFAULT_ORG_INTELLIGENCE_API_URL;
+    return resolveOrgIntelligenceApiUrl('/api/org-intelligence');
   }
 
   async function refresh(force = false) {
@@ -930,6 +932,8 @@ const OrgIntelligenceService = (() => {
     };
   }
 
+  // Browser-shared feedback state remains useful for admin visibility and bounded
+  // assistive UX, but it is not an authoritative inference input for server-owned flows.
   function getHierarchicalFeedbackProfile(context = {}) {
     const filters = {
       buId: context.buId || context.businessUnitId || '',
@@ -986,10 +990,6 @@ const OrgIntelligenceService = (() => {
     };
   }
 
-  function _getLocalPatterns(limit = 20, buId = '') {
-    return [];
-  }
-
   function _patternTokens(pattern = {}) {
     return Array.from(new Set([
       pattern.title,
@@ -1008,8 +1008,7 @@ const OrgIntelligenceService = (() => {
     const buId = _safeText(context.buId || context.businessUnitId, 80);
     const scenarioLensKey = _normaliseScenarioKey(context.scenarioLensKey || context.scenarioLens?.key || '');
     const functionKey = _safeText(context.functionKey || context.scenarioLens?.functionKey || '', 80).toLowerCase();
-    const local = _getLocalPatterns(Math.max(limit * 2, 12), buId);
-    const combined = [...local, ...(Array.isArray(cached.patterns) ? cached.patterns : [])]
+    const combined = [...(Array.isArray(cached.patterns) ? cached.patterns : [])]
       .map(_normalisePattern)
       .filter(item => item.assessmentId)
       .reduce((acc, item) => {

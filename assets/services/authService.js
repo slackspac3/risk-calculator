@@ -19,9 +19,12 @@ const AuthService = (() => {
   const warnedAuthIssues = new Set();
 
 function resolveApiUrl(path) {
-  const origin = typeof window !== 'undefined' ? window.location.origin : '';
-  if (origin && origin.includes('vercel.app')) return `${origin}${path}`;
-  return `https://risk-calculator-eight.vercel.app${path}`;
+  const resolver = (typeof window !== 'undefined' && window?.ApiOriginResolver)
+    || globalThis?.ApiOriginResolver
+    || null;
+  return resolver && typeof resolver.resolveApiUrl === 'function'
+    ? resolver.resolveApiUrl(path)
+    : '';
 }
 
   function warnAuthIssueOnce(key, message, error = null) {

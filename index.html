@@ -263,11 +263,13 @@
     version: '0.10.0-pilot.1',
     channel: 'pilot',
     build: '2026-03-29-roi1',
-    assetVersion: '20260402v1'
+    assetVersion: '20260402v1',
+    apiOrigin: 'https://risk-calculator-eight.vercel.app'
   });
 </script>
 
 <!-- ── Service Layer ────────────────────────────────────────── -->
+<script src="assets/services/apiOriginResolver.js?v=20260402v1"></script>
 <script src="assets/services/authService.js?v=20260402v1"></script>
 <script src="assets/services/notificationService.js?v=20260402v1"></script>
 <script src="assets/services/authGuards.js?v=20260402v1"></script>
@@ -338,12 +340,12 @@
 <!-- ── Compass API Setup (Optional) ─────────────────────────── -->
 <!--
   Default hosted Compass proxy:
-  https://risk-calculator-eight.vercel.app/api/compass
+  window.__RISK_CALCULATOR_RELEASE__.apiOrigin + '/api/compass'
 
   Local testing only, in browser console:
   LLMService.setCompassConfig({
     apiKey: 'your-core42-key',
-    apiUrl: 'https://risk-calculator-eight.vercel.app/api/compass',
+    apiUrl: window.ApiOriginResolver.resolveApiUrl('/api/compass'),
     model: 'gpt-5.1'
   });
 

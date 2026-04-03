@@ -1,8 +1,8 @@
 /**
  * llmService.js — LLM service (Core42 Compass + local stub)
  *
- * Compass API (proxied through Vercel by default):
- *   POST https://risk-calculator-eight.vercel.app/api/compass
+ * Compass API (proxied through the configured hosted backend by default):
+ *   POST <configured-api-origin>/api/compass
  *   Authorization: Bearer <COMPASS_API_KEY>
  *
  * Do not hard-code real keys in this file.
@@ -115,9 +115,12 @@ const LLMService = (() => {
   }
 
   function resolveCompassApiUrl() {
-    const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    if (origin && origin.includes('vercel.app')) return `${origin}/api/compass`;
-    return 'https://risk-calculator-eight.vercel.app/api/compass';
+    const resolver = (typeof window !== 'undefined' && window?.ApiOriginResolver)
+      || globalThis?.ApiOriginResolver
+      || null;
+    return resolver && typeof resolver.resolveApiUrl === 'function'
+      ? resolver.resolveApiUrl('/api/compass')
+      : '';
   }
 
   function _isLocalDevRuntimeConfigAllowed() {
@@ -2054,8 +2057,8 @@ ${businessUnit.selectedDepartmentContext}` : ''
   }
 
   function _getAiFeedbackLearningProfile({ buId = '', functionKey = '', scenarioLensKey = '' } = {}) {
-    // Server-owned workflows resolve learning profiles server-side. The browser no longer
-    // computes or applies authoritative feedback priors for inference quality.
+    // Neutralized compatibility shim: browser-side assistive helpers may still call this,
+    // but authoritative workflow learning resolution is server-owned and must stay there.
     void buId;
     void functionKey;
     void scenarioLensKey;
@@ -2142,6 +2145,10 @@ ${businessUnit.selectedDepartmentContext}` : ''
     void feedbackProfile;
     return Array.isArray(risks) ? risks : [];
   }
+
+  // The helpers below remain browser-side on purpose for bounded UX assistance only.
+  // They are not part of the trusted server-owned assessment, review, fallback, or
+  // learning-authority path, and they must never override authoritative workflow output.
 
   function _isScenarioTextCoherent(text = '', {
     seedNarrative = '',
@@ -3112,6 +3119,9 @@ ${businessUnit.selectedDepartmentContext}` : ''
     });
   }
 
+  // Assistive-only browser helpers remain below for low-cost UX convenience.
+  // They can help users explore, compare, or draft, but they are not part of
+  // the server-trusted assessment, fallback, review, or learning-authority path.
   async function suggestGuidedPromptIdeas(input = {}) {
     const guidedInput = input?.guidedInput && typeof input.guidedInput === 'object'
       ? input.guidedInput

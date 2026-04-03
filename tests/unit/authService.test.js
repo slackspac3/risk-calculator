@@ -35,6 +35,12 @@ function loadAuthService({ sessionSeed = {}, localSeed = {}, fetchImpl = null } 
   const source = `${fs.readFileSync(filePath, 'utf8')}\nmodule.exports = AuthService;\n`;
   const sessionStorage = createMemoryStorage(sessionSeed);
   const localStorage = createMemoryStorage(localSeed);
+  const apiOriginResolver = {
+    DEFAULT_API_ORIGIN: 'https://risk-calculator-eight.vercel.app',
+    resolveApiUrl(path = '') {
+      return `https://risk-calculator-eight.vercel.app${String(path || '').trim()}`;
+    }
+  };
   const context = {
     module: { exports: {} },
     exports: {},
@@ -47,14 +53,20 @@ function loadAuthService({ sessionSeed = {}, localSeed = {}, fetchImpl = null } 
     window: {
       location: {
         origin: 'http://127.0.0.1:8080'
-      }
+      },
+      __RISK_CALCULATOR_RELEASE__: {
+        apiOrigin: 'https://risk-calculator-eight.vercel.app'
+      },
+      ApiOriginResolver: apiOriginResolver
     },
     sessionStorage,
-    localStorage
+    localStorage,
+    ApiOriginResolver: apiOriginResolver
   };
   context.global = context;
   context.globalThis = context;
-  vm.runInNewContext(source, context, { filename: filePath });
+  vm.createContext(context);
+  vm.runInContext(source, context, { filename: filePath });
   return {
     AuthService: context.module.exports,
     sessionStorage,

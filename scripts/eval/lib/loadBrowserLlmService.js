@@ -97,6 +97,7 @@ function buildTimer(fastTimers = true) {
 
 function loadBrowserLlmService(options = {}) {
   const servicePaths = [
+    path.resolve(__dirname, '../../../assets/services/apiOriginResolver.js'),
     path.resolve(__dirname, '../../../assets/services/aiTraceRuntime.js'),
     path.resolve(__dirname, '../../../assets/services/aiStatusClient.js'),
     path.resolve(__dirname, '../../../assets/services/aiWorkflowClient.js'),
@@ -133,8 +134,11 @@ function loadBrowserLlmService(options = {}) {
     process,
     window: {
       location: {
-        origin: options.origin || 'https://risk-calculator-eight.vercel.app',
-        hostname: new URL(options.origin || 'https://risk-calculator-eight.vercel.app').hostname
+        origin: options.origin || 'https://slackspac3.github.io',
+        hostname: new URL(options.origin || 'https://slackspac3.github.io').hostname
+      },
+      __RISK_CALCULATOR_RELEASE__: {
+        apiOrigin: options.apiOrigin || 'https://risk-calculator-eight.vercel.app'
       },
       _lastRagSources: []
     },

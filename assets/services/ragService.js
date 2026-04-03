@@ -5,6 +5,10 @@
  * matching, and TF-IDF-style semantic weighting rather than literal
  * keyword hits alone.
  *
+ * This browser retriever is assistive only. Server-owned assessment workflows
+ * decide authoritative learning influence separately, so browser-local feedback
+ * weights must stay neutralized here.
+ *
  * Production can still replace this with native vector retrieval,
  * but the current scorer already behaves as a local hybrid retriever.
  * [RAG-INTEGRATION] marks integration points.
@@ -653,6 +657,8 @@ const RAGService = (() => {
   }
 
   function _getFeedbackRetrievalProfile(buId, queryInfo = {}) {
+    // Neutralized compatibility shim: do not reintroduce browser-authoritative
+    // feedback weighting into retrieval for server-owned workflows.
     void buId;
     void queryInfo;
     return null;

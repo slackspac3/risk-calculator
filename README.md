@@ -102,6 +102,7 @@ The product is assistant-driven, not chat-first. AI is used to:
 Current AI behavior:
 - the browser is now a thin client for the key AI workflows rather than the authoritative orchestration layer
 - server routes own prompt construction, structured-output repair, quality gates, readiness evaluation, and fallback policy for the main guided, register, treatment, and reviewer/challenge flows
+- browser API base-URL resolution is now config-driven: Vercel-hosted fronts stay same-origin, while static fronts use the configured hosted API origin without extra discovery requests
 - client workflow requests are normalized before transport so semantically identical inputs produce a stable request shape
 - duplicate suppression now happens on both sides:
   - the browser suppresses same-input repeat clicks and very recent identical reruns
@@ -111,6 +112,7 @@ Current AI behavior:
 - bounded AI rewriting is used where draft quality matters
 - explicit fallback and unavailable states are surfaced instead of silently masquerading as live AI
 - retrieval uses a stronger local hybrid scorer with lens-aware and concept-aware matching, but browser-local learning weights no longer authoritatively shape inference quality
+- remaining browser-side helper AI stays assistive-only for optional UX features such as prompt ideas, company-context drafting, and scenario memory; it is not part of the trusted assessment or review path
 - supporting documents and standards are cited into the workflow and results
 
 The product is grounded by a growing enterprise corpus that includes ISO, NIST, COSO, IFRS/ESRS, OECD, UNGP, sector guidance, and UAE/GCC-relevant references.

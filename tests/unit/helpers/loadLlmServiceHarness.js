@@ -5,6 +5,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const SERVICE_FILES = [
+  '../../../assets/services/apiOriginResolver.js',
   '../../../assets/services/aiTraceRuntime.js',
   '../../../assets/services/aiStatusClient.js',
   '../../../assets/services/aiWorkflowClient.js',
@@ -21,6 +22,7 @@ function createNoopStorage() {
 
 function buildBaseContext({
   origin = 'https://slackspac3.github.io',
+  apiOrigin = 'https://risk-calculator-eight.vercel.app',
   fetchImpl,
   sessionStorage = createNoopStorage(),
   localStorage = createNoopStorage(),
@@ -39,6 +41,7 @@ function buildBaseContext({
     localStorage,
     window: {
       location: { origin, hostname: new URL(origin).hostname },
+      __RISK_CALCULATOR_RELEASE__: { apiOrigin },
       _lastRagSources: []
     },
     fetch: fetchImpl,
@@ -56,6 +59,7 @@ function buildBaseContext({
 
 function loadLlmServiceContext({
   origin = 'https://slackspac3.github.io',
+  apiOrigin = 'https://risk-calculator-eight.vercel.app',
   fetchImpl,
   sessionStorage,
   localStorage,
@@ -65,6 +69,7 @@ function loadLlmServiceContext({
 } = {}) {
   const context = buildBaseContext({
     origin,
+    apiOrigin,
     fetchImpl,
     sessionStorage,
     localStorage,

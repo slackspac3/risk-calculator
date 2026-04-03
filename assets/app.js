@@ -13,7 +13,8 @@ const APP_RELEASE = Object.freeze((typeof window !== 'undefined' && window.__RIS
   version: '0.10.0-pilot.1',
   channel: 'pilot',
   build: '2026-03-29-roi1',
-  assetVersion: APP_ASSET_VERSION
+  assetVersion: APP_ASSET_VERSION,
+  apiOrigin: globalThis?.ApiOriginResolver ? globalThis.ApiOriginResolver.DEFAULT_API_ORIGIN : ''
 });
 const GLOBAL_ADMIN_STORAGE_KEY = 'rq_admin_settings';
 const USER_SETTINGS_STORAGE_PREFIX = 'rq_user_settings';
@@ -446,10 +447,17 @@ function normaliseAdminSettings(settings = {}) {
   };
 }
 
+function resolveHostedApiUrl(path = '') {
+  const resolver = (typeof window !== 'undefined' && window?.ApiOriginResolver)
+    || globalThis?.ApiOriginResolver
+    || null;
+  return resolver && typeof resolver.resolveApiUrl === 'function'
+    ? resolver.resolveApiUrl(path)
+    : '';
+}
+
 function resolveCompassProxyUrl() {
-  const origin = typeof window !== 'undefined' ? window.location.origin : '';
-  if (origin && origin.includes('vercel.app')) return `${origin}/api/compass`;
-  return 'https://risk-calculator-eight.vercel.app/api/compass';
+  return resolveHostedApiUrl('/api/compass');
 }
 
 const AppState = {
@@ -652,9 +660,7 @@ function buildAssessmentVersionNarrationInput(previousVersion = {}, currentAsses
 
 
 function getSettingsApiUrl() {
-  const origin = typeof window !== 'undefined' ? window.location.origin : '';
-  if (origin && origin.includes('vercel.app')) return `${origin}/api/settings`;
-  return 'https://risk-calculator-eight.vercel.app/api/settings';
+  return resolveHostedApiUrl('/api/settings');
 }
 
 async function requestSharedSettings(method = 'GET', payload, { includeAdminSecret = false } = {}) {
@@ -2223,9 +2229,7 @@ if (typeof document !== 'undefined' && !document.__rqDesktopShortcutsInstalled) 
 }
 
 function getAuditApiUrl() {
-  const origin = typeof window !== 'undefined' ? window.location.origin : '';
-  if (origin && origin.includes('vercel.app')) return `${origin}/api/audit-log`;
-  return 'https://risk-calculator-eight.vercel.app/api/audit-log';
+  return resolveHostedApiUrl('/api/audit-log');
 }
 
 async function requestAuditLog(method = 'GET', payload, { includeAdminSecret = false } = {}) {
@@ -2501,9 +2505,7 @@ async function performLogout({ renderLoginScreen = false } = {}) {
 }
 
 function getUserStateApiUrl() {
-  const origin = typeof window !== 'undefined' ? window.location.origin : '';
-  if (origin && origin.includes('vercel.app')) return `${origin}/api/user-state`;
-  return 'https://risk-calculator-eight.vercel.app/api/user-state';
+  return resolveHostedApiUrl('/api/user-state');
 }
 
 async function requestUserState(method = 'GET', username, payload, audit = null) {

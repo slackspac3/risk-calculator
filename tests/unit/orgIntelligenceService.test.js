@@ -24,13 +24,23 @@ function createMemoryStorage(seed = {}) {
 function loadOrgIntelligenceService({ origin = 'https://slackspac3.github.io', fetchImpl, extraContext = {} } = {}) {
   const filePath = path.resolve(__dirname, '../../assets/services/orgIntelligenceService.js');
   const source = `${fs.readFileSync(filePath, 'utf8')}\nmodule.exports = OrgIntelligenceService;\n`;
+  const apiOriginResolver = {
+    DEFAULT_API_ORIGIN: 'https://risk-calculator-eight.vercel.app',
+    resolveApiUrl(path = '') {
+      return `https://risk-calculator-eight.vercel.app${String(path || '').trim()}`;
+    }
+  };
   const context = {
     module: { exports: {} },
     exports: {},
     console,
     localStorage: createMemoryStorage(),
     window: {
-      location: { origin }
+      location: { origin },
+      __RISK_CALCULATOR_RELEASE__: {
+        apiOrigin: 'https://risk-calculator-eight.vercel.app'
+      },
+      ApiOriginResolver: apiOriginResolver
     },
     AuthService: {
       getApiSessionToken() {
@@ -41,11 +51,13 @@ function loadOrgIntelligenceService({ origin = 'https://slackspac3.github.io', f
       }
     },
     fetch: fetchImpl,
+    ApiOriginResolver: apiOriginResolver,
     ...extraContext
   };
   context.global = context;
   context.globalThis = context;
-  vm.runInNewContext(source, context, { filename: filePath });
+  vm.createContext(context);
+  vm.runInContext(source, context, { filename: filePath });
   return context.module.exports;
 }
 
