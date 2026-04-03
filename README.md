@@ -209,6 +209,7 @@ This keeps the benchmark grounded by a stable gold set while still using AI as a
 The product now includes a structured Step 1 AI feedback loop for:
 - the generated scenario draft
 - the generated risk shortlist
+- individual generated risk cards when a user rates or removes them
 
 Current behavior:
 - users can rate each on a 1-5 scale
@@ -223,6 +224,10 @@ Current behavior:
   - `live_ai`
   - `fallback`
   - `local`
+- when a user removes a generated risk, the product now asks why:
+  - `Incorrect risk`
+  - `Correct, but narrowing scope`
+  - `Only partially relevant`
 
 How that feedback improves the platform:
 - feedback is still captured in the browser and shared to the server-backed org intelligence store
@@ -233,6 +238,7 @@ How that feedback improves the platform:
   - BU-level priors
   - global shared priors
 - for the currently migrated Step 1 workflows, those priors are now applied server-side to prompt/context guidance and risk ordering
+- only clearly incorrect generated risks are promoted into the AI tuning path when removed; scope-narrowing and partial-relevance removals stay analyst-only so the system does not learn to suppress valid adjacent risks
 
 Important guardrails:
 - fallback feedback is tracked separately from live-AI feedback
@@ -260,6 +266,8 @@ Current global-admin priorities:
 - use `#/admin/home` as the front door for platform work
 - verify pilot AI readiness in `Admin > System Access` before demos, reviews, or sign-off sessions where AI quality matters
 - review `Admin > AI Feedback & Tuning` before changing shared AI alignment, draft style, shortlist discipline, or learning sensitivity
+- use the AI Feedback & Tuning drill-down to inspect recent events and low-scoring live-AI cases before changing shared policy
+- if signal quality is contaminated or you need a clean restart, use the guarded reset flow in `Admin > AI Feedback & Tuning` to clear shared feedback, wipe saved user-tier AI feedback signals, and restore default tuning without deleting assessments
 - keep company context, document library coverage, defaults, and access current before assuming a weak output is only a model problem
 - treat platform-wide tuning as a governed change, not as an ad hoc reaction to one noisy session
 

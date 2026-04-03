@@ -31,6 +31,7 @@ global.fetch = async (_url, options = {}) => {
 };
 
 const handler = require('../../api/org-intelligence');
+const { readUserState } = require('../../api/user-state');
 
 function buildSessionToken(payload) {
   const payloadPart = Buffer.from(JSON.stringify(payload)).toString('base64url');
@@ -154,4 +155,137 @@ test('org intelligence stores per-risk AI feedback events with the explicit risk
   assert.equal(postRes.payload.feedback.events[0].target, 'risk');
   assert.equal(postRes.payload.feedback.events[0].riskTitle, 'Business continuity and recovery failure');
   assert.equal(postRes.payload.feedback.events[0].selectedInAssessment, true);
+});
+
+test('org intelligence reset_feedback requires admin and can clear shared and user-tier feedback', async () => {
+  const userToken = buildSessionToken({
+    username: 'alex',
+    role: 'user',
+    exp: Date.now() + 60_000
+  });
+  const adminToken = buildSessionToken({
+    username: 'admin',
+    role: 'admin',
+    exp: Date.now() + 60_000
+  });
+  kvStore.set('risk_calculator_users', JSON.stringify([
+    {
+      username: 'alex',
+      displayName: 'Alex',
+      role: 'user',
+      passwordHash: 'hash',
+      passwordSalt: 'salt',
+      passwordVersion: 'scrypt-v1'
+    },
+    {
+      username: 'maya',
+      displayName: 'Maya',
+      role: 'user',
+      passwordHash: 'hash',
+      passwordSalt: 'salt',
+      passwordVersion: 'scrypt-v1'
+    }
+  ]));
+  kvStore.set('risk_calculator_user_state__alex', JSON.stringify({
+    _meta: { revision: 1, updatedAt: Date.now() },
+    learningStore: {
+      aiFeedback: {
+        events: [
+          {
+            id: 'user-feedback-1',
+            target: 'draft',
+            score: 2,
+            runtimeMode: 'live_ai',
+            lensKey: 'cyber'
+          }
+        ]
+      },
+      scenarioPatterns: [{ id: 'pattern-1', title: 'Keep me' }]
+    }
+  }));
+  kvStore.set('risk_calculator_user_state__maya', JSON.stringify({
+    _meta: { revision: 3, updatedAt: Date.now() },
+    learningStore: {
+      aiFeedback: {
+        events: [
+          {
+            id: 'user-feedback-2',
+            target: 'risk',
+            score: 1,
+            runtimeMode: 'live_ai',
+            lensKey: 'operational'
+          }
+        ]
+      }
+    }
+  }));
+
+  const seedRes = createRes();
+  await handler({
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-session-token': userToken
+    },
+    body: {
+      type: 'record_feedback',
+      feedback: {
+        target: 'draft',
+        score: 4,
+        runtimeMode: 'live_ai',
+        lensKey: 'cyber'
+      }
+    }
+  }, seedRes);
+  assert.equal(seedRes.statusCode, 200);
+
+  const forbiddenRes = createRes();
+  await handler({
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-session-token': userToken
+    },
+    body: {
+      type: 'reset_feedback'
+    }
+  }, forbiddenRes);
+  assert.equal(forbiddenRes.statusCode, 403);
+
+  const resetRes = createRes();
+  await handler({
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-session-token': adminToken
+    },
+    body: {
+      type: 'reset_feedback',
+      includeUserTier: true
+    }
+  }, resetRes);
+
+  assert.equal(resetRes.statusCode, 200);
+  assert.equal(resetRes.payload.ok, true);
+  assert.deepEqual(resetRes.payload.feedback.events, []);
+  assert.equal(resetRes.payload.resetScope, 'platform');
+  assert.equal(resetRes.payload.userTierReset.clearedUsers, 2);
+  assert.equal(resetRes.payload.userTierReset.failedUsers.length, 0);
+
+  const getRes = createRes();
+  await handler({
+    method: 'GET',
+    headers: {
+      'x-session-token': adminToken
+    }
+  }, getRes);
+  assert.equal(getRes.statusCode, 200);
+  assert.deepEqual(getRes.payload.feedback.events, []);
+
+  const alexState = await readUserState('alex');
+  const mayaState = await readUserState('maya');
+  assert.deepEqual(alexState.learningStore.aiFeedback.events, []);
+  assert.deepEqual(mayaState.learningStore.aiFeedback.events, []);
+  assert.equal(Array.isArray(alexState.learningStore.scenarioPatterns), true);
+  assert.equal(alexState.learningStore.scenarioPatterns.length, 1);
 });

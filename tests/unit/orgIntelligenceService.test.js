@@ -21,7 +21,7 @@ function createMemoryStorage(seed = {}) {
   };
 }
 
-function loadOrgIntelligenceService({ origin = 'https://slackspac3.github.io', fetchImpl, extraContext = {} } = {}) {
+function loadOrgIntelligenceService({ origin = 'https://slackspac3.github.io', fetchImpl, extraContext = {}, storageSeed = {} } = {}) {
   const filePath = path.resolve(__dirname, '../../assets/services/orgIntelligenceService.js');
   const source = `${fs.readFileSync(filePath, 'utf8')}\nmodule.exports = OrgIntelligenceService;\n`;
   const apiOriginResolver = {
@@ -34,7 +34,7 @@ function loadOrgIntelligenceService({ origin = 'https://slackspac3.github.io', f
     module: { exports: {} },
     exports: {},
     console,
-    localStorage: createMemoryStorage(),
+    localStorage: createMemoryStorage(storageSeed),
     window: {
       location: { origin },
       __RISK_CALCULATOR_RELEASE__: {
@@ -218,4 +218,86 @@ test('OrgIntelligenceService ignores browser-local scenario patterns when mergin
   }, 4);
 
   assert.equal(Array.from(patterns, (item) => item.assessmentId).join(','), 'org-pattern-1');
+});
+
+test('OrgIntelligenceService can reset shared feedback and clears cached events', async () => {
+  const calls = [];
+  const service = loadOrgIntelligenceService({
+    fetchImpl: async (url, options = {}) => {
+      calls.push({ url: String(url), method: options.method || 'GET', body: String(options.body || '') });
+      if ((options.method || 'GET') === 'POST' && String(options.body || '').includes('record_feedback')) {
+        return {
+          ok: true,
+          json: async () => ({
+            ok: true,
+            feedback: {
+              updatedAt: Date.now(),
+              events: [
+                {
+                  id: 'fb-1',
+                  target: 'draft',
+                  score: 2,
+                  runtimeMode: 'live_ai',
+                  functionKey: 'technology',
+                  lensKey: 'cyber',
+                  submittedBy: 'alex'
+                }
+              ]
+            }
+          }),
+          text: async () => ''
+        };
+      }
+      if ((options.method || 'GET') === 'POST' && String(options.body || '').includes('reset_feedback')) {
+        return {
+          ok: true,
+          json: async () => ({
+            ok: true,
+            feedback: { updatedAt: Date.now(), events: [] },
+            resetScope: 'platform',
+            userTierReset: {
+              attemptedUsers: 2,
+              clearedUsers: 2,
+              skippedUsers: 0,
+              failedUsers: []
+            }
+          }),
+          text: async () => JSON.stringify({
+            ok: true,
+            feedback: { updatedAt: Date.now(), events: [] },
+            resetScope: 'platform',
+            userTierReset: {
+              attemptedUsers: 2,
+              clearedUsers: 2,
+              skippedUsers: 0,
+              failedUsers: []
+            }
+          })
+        };
+      }
+      return {
+        ok: true,
+        json: async () => ({ ok: true, feedback: { updatedAt: Date.now(), events: [] } }),
+        text: async () => ''
+      };
+    }
+  });
+
+  const saved = await service.recordAiFeedback({
+    target: 'draft',
+    score: 2,
+    runtimeMode: 'live_ai',
+    functionKey: 'technology',
+    lensKey: 'cyber'
+  });
+  assert.ok(saved);
+  assert.equal(service.getFeedbackEvents().length, 1);
+
+  const reset = await service.resetAiFeedback({ includeUserTier: true });
+  assert.equal(reset.ok, true);
+  assert.equal(reset.resetScope, 'platform');
+  assert.equal(reset.userTierReset.clearedUsers, 2);
+  assert.equal(service.getFeedbackEvents().length, 0);
+  assert.match(calls[calls.length - 1].body, /reset_feedback/);
+  assert.match(calls[calls.length - 1].body, /"includeUserTier":true/);
 });

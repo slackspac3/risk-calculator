@@ -2,12 +2,15 @@ const crypto = require('crypto');
 const { sendApiError, requireSession } = require('./_apiAuth');
 const { applyCorsHeaders, getUnexpectedFields, isAllowedOrigin, isPlainObject, parseRequestBody } = require('./_request');
 const { get: kvGet, set: kvSet } = require('./_kvStore');
+const { readAccounts } = require('./users');
+const { readUserState, writeUserState } = require('./user-state');
 
 const ORG_PATTERNS_KEY = 'risk_calculator_org_patterns';
 const ORG_CALIBRATION_KEY = 'risk_calculator_org_calibration';
 const DECISION_HISTORY_KEY = 'risk_calculator_decision_history';
 const COVERAGE_MAP_KEY = 'org_coverage_map';
 const AI_FEEDBACK_KEY = 'risk_calculator_ai_feedback';
+const USER_STATE_PREFIX = process.env.USER_STATE_PREFIX || 'risk_calculator_user_state';
 
 async function readJsonKey(key, fallback) {
   try {
@@ -22,6 +25,10 @@ async function readJsonKey(key, fallback) {
 
 async function writeJsonKey(key, value) {
   await kvSet(key, JSON.stringify(value));
+}
+
+function buildUserStateKey(username = '') {
+  return `${USER_STATE_PREFIX}__${String(username || '').trim().toLowerCase()}`;
 }
 
 function toSafeString(value, max = 240) {
@@ -286,6 +293,56 @@ function appendFeedbackEvent(store, event = {}, session = {}) {
   return next;
 }
 
+async function resetUserTierAiFeedback() {
+  const accounts = await readAccounts();
+  const usernames = Array.from(new Set(
+    (Array.isArray(accounts) ? accounts : [])
+      .map((account) => toSafeUsername(account?.username))
+      .filter(Boolean)
+  ));
+  const summary = {
+    attemptedUsers: usernames.length,
+    clearedUsers: 0,
+    skippedUsers: 0,
+    failedUsers: []
+  };
+  for (const username of usernames) {
+    try {
+      const rawState = await kvGet(buildUserStateKey(username));
+      if (!rawState) {
+        summary.skippedUsers += 1;
+        continue;
+      }
+      const currentState = await readUserState(username);
+      const nextState = {
+        ...currentState,
+        learningStore: {
+          ...(currentState?.learningStore && typeof currentState.learningStore === 'object'
+            ? currentState.learningStore
+            : {}),
+          aiFeedback: {
+            ...((currentState?.learningStore?.aiFeedback && typeof currentState.learningStore.aiFeedback === 'object')
+              ? currentState.learningStore.aiFeedback
+              : {}),
+            events: []
+          }
+        }
+      };
+      const writeResult = await writeUserState(username, nextState, currentState?._meta || {});
+      if (!writeResult?.ok) {
+        throw new Error(writeResult?.conflict ? 'conflict' : 'write_failed');
+      }
+      summary.clearedUsers += 1;
+    } catch (error) {
+      summary.failedUsers.push({
+        username,
+        reason: toSafeString(error?.message || 'reset_failed', 120)
+      });
+    }
+  }
+  return summary;
+}
+
 function updateCoverageMap(map, payload = {}) {
   const next = isPlainObject(map) ? { ...map } : { updatedAt: 0, scenarioTypes: {} };
   next.scenarioTypes = isPlainObject(next.scenarioTypes) ? { ...next.scenarioTypes } : {};
@@ -366,7 +423,7 @@ module.exports = async function handler(req, res) {
     if (req.method === 'POST') {
       const session = requireSession(req, res);
       if (!session) return;
-      if (getUnexpectedFields(body, ['calibration', 'coverage', 'decision', 'feedback', 'pattern', 'type']).length) {
+      if (getUnexpectedFields(body, ['calibration', 'coverage', 'decision', 'feedback', 'includeUserTier', 'pattern', 'type']).length) {
         sendApiError(res, 400, 'VALIDATION_ERROR', 'Unexpected fields were included in the org intelligence request.');
         return;
       }
@@ -408,6 +465,30 @@ module.exports = async function handler(req, res) {
         const nextFeedback = appendFeedbackEvent(feedback, body.feedback || {}, session);
         await writeJsonKey(AI_FEEDBACK_KEY, nextFeedback);
         res.status(200).json({ ok: true, feedback: nextFeedback });
+        return;
+      }
+      if (type === 'reset_feedback') {
+        const adminSession = requireSession(req, res, {
+          roles: ['admin'],
+          forbiddenMessage: 'You are not allowed to reset shared AI feedback.'
+        });
+        if (!adminSession) return;
+        void adminSession;
+        const includeUserTier = body.includeUserTier === true;
+        const nextFeedback = {
+          updatedAt: Date.now(),
+          events: []
+        };
+        await writeJsonKey(AI_FEEDBACK_KEY, nextFeedback);
+        const userTierReset = includeUserTier
+          ? await resetUserTierAiFeedback()
+          : { attemptedUsers: 0, clearedUsers: 0, skippedUsers: 0, failedUsers: [] };
+        res.status(200).json({
+          ok: true,
+          feedback: nextFeedback,
+          userTierReset,
+          resetScope: includeUserTier ? 'platform' : 'shared_only'
+        });
         return;
       }
       sendApiError(res, 400, 'VALIDATION_ERROR', 'Unsupported type.');

@@ -127,3 +127,22 @@ test('recordAiFeedback captures per-risk star ratings and feeds explicit risk we
   assert.ok(profile.topPositiveRisks.some(item => item.title === 'Business continuity and recovery failure'));
   assert.ok(profile.topNegativeRisks.some(item => item.title === 'Cyber compromise of critical platforms or data'));
 });
+
+test('recordRiskDecision preserves removal reason as analyst-only context', () => {
+  LearningStore.recordRiskDecision('alex', {
+    action: 'remove',
+    buId: 'corp-tech',
+    functionKey: 'technology',
+    lensKey: 'cyber',
+    riskTitle: 'Operational breakdown affecting core services',
+    riskCategory: 'Operational',
+    source: 'ai',
+    reason: 'narrower scope',
+    scenarioFingerprint: 'corp-tech | cyber | Azure global admin credentials discovered on darkweb'
+  });
+
+  const store = LearningStore.getLearningStore('alex');
+  assert.equal(store.analystSignals.removedRisks.length, 1);
+  assert.equal(store.analystSignals.removedRisks[0].reason, 'narrower-scope');
+  assert.match(store.analystSignals.removedRisks[0].scenarioFingerprint, /Azure global admin credentials/i);
+});

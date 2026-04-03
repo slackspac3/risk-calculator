@@ -14,6 +14,15 @@ const AdminAiFeedbackSection = (() => {
         };
   }
 
+  function getDefaultTuning() {
+    return {
+      alignmentPriority: 'strict',
+      draftStyle: 'executive-brief',
+      shortlistDiscipline: 'strict',
+      learningSensitivity: 'balanced'
+    };
+  }
+
   function getDashboardModel(settings = {}) {
     return typeof OrgIntelligenceService !== 'undefined' && OrgIntelligenceService && typeof OrgIntelligenceService.buildFeedbackDashboardModel === 'function'
       ? OrgIntelligenceService.buildFeedbackDashboardModel({}, settings)
@@ -42,6 +51,8 @@ const AdminAiFeedbackSection = (() => {
           lensBreakdown: [],
           functionBreakdown: [],
           businessUnitBreakdown: [],
+          recentEvents: [],
+          lowScoreLiveEvents: [],
           topIssues: []
         };
   }
@@ -66,6 +77,57 @@ const AdminAiFeedbackSection = (() => {
       <div class="admin-overview-label">${escape(label)}</div>
       <div class="admin-overview-value">${escape(value)}</div>
       <div class="admin-overview-foot">${escape(foot)}</div>
+    </div>`;
+  }
+
+  function formatEventTarget(target = '') {
+    const safe = String(target || '').trim().toLowerCase();
+    if (safe === 'shortlist') return 'Shortlist';
+    if (safe === 'risk') return 'Per-risk';
+    return 'Draft';
+  }
+
+  function formatRuntimeMode(mode = '') {
+    const safe = String(mode || '').trim().toLowerCase();
+    if (safe === 'live_ai') return 'Live AI';
+    if (safe === 'fallback') return 'Fallback';
+    return 'Local';
+  }
+
+  function formatEventTimestamp(timestamp) {
+    if (!timestamp) return 'Unknown time';
+    try {
+      return new Date(timestamp).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    } catch {
+      return 'Unknown time';
+    }
+  }
+
+  function renderFeedbackEventList(events = [], { emptyLabel = 'No detailed feedback events yet.' } = {}) {
+    if (!Array.isArray(events) || !events.length) {
+      return `<div class="form-help">${escape(emptyLabel)}</div>`;
+    }
+    return `<div style="display:flex;flex-direction:column;gap:var(--sp-3)">
+      ${events.map((event) => {
+        const reasons = Array.isArray(event.reasons) ? event.reasons : [];
+        const citations = Array.isArray(event.citations) ? event.citations : [];
+        return `<div style="padding:var(--sp-4);border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--bg-canvas);display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;justify-content:space-between;gap:var(--sp-3);align-items:flex-start;flex-wrap:wrap">
+            <div>
+              <div style="font-weight:700;color:var(--text-primary)">${escape(formatEventTarget(event.target))} · ${escape(`${Number(event.score || 0)} / 5`)}</div>
+              <div class="form-help">${escape(formatEventTimestamp(event.recordedAt))} · ${escape(formatRuntimeMode(event.runtimeMode))} · ${escape(event.buName || 'Unscoped')} · ${escape(event.functionKey || 'general')}</div>
+            </div>
+            <div class="badge badge--neutral">${escape(String(event.lensKey || 'general').replace(/-/g, ' '))}</div>
+          </div>
+          ${event.riskTitle ? `<div><strong style="color:var(--text-primary)">Risk</strong><div class="form-help">${escape(event.riskTitle)}</div></div>` : ''}
+          ${event.scenarioFingerprint ? `<div><strong style="color:var(--text-primary)">Scenario context</strong><div class="form-help">${escape(event.scenarioFingerprint)}</div></div>` : ''}
+          ${(reasons.length || citations.length) ? `<div style="display:flex;gap:8px;flex-wrap:wrap">
+            ${reasons.map((reason) => `<span class="badge badge--neutral">${escape(formatReasonLabel(reason))}</span>`).join('')}
+            ${citations.map((citation) => `<span class="badge badge--neutral">${escape(citation.title || citation.docId || 'Source')}</span>`).join('')}
+          </div>` : ''}
+          <div class="form-help">Submitted by ${escape(event.submittedBy || 'unknown')}.</div>
+        </div>`;
+      }).join('')}
     </div>`;
   }
 
@@ -148,6 +210,7 @@ const AdminAiFeedbackSection = (() => {
     return renderSettingsSection({
       title: 'AI Feedback & Tuning',
       scope: 'admin-settings',
+      open: true,
       description: 'Monitor how users rate generated drafts, shortlists, and individual risk cards, then tune alignment, writing quality, shortlist discipline, and shared-learning sensitivity without guessing.',
       meta: liveAiMeta,
       body: `<div class="admin-workbench-strip admin-workbench-strip--compact">
@@ -159,6 +222,7 @@ const AdminAiFeedbackSection = (() => {
         <div class="flex items-center gap-3" style="flex-wrap:wrap">
           <button class="btn btn--secondary" id="btn-refresh-ai-feedback-dashboard" type="button">Refresh now</button>
           <button class="btn btn--ghost" id="btn-export-ai-feedback-dashboard" type="button">Export feedback snapshot</button>
+          <button class="btn btn--ghost" id="btn-reset-ai-feedback-dashboard" type="button">Reset feedback &amp; tuning</button>
         </div>
       </div>
       <div class="admin-overview-grid" style="margin-top:var(--sp-4)">
@@ -294,6 +358,20 @@ const AdminAiFeedbackSection = (() => {
           </div>
         </div>
       </div>`
+      + `<div class="card card--elevated mt-6">
+        <div class="context-panel-title">Drill into recent signal</div>
+        <div class="context-panel-copy" style="margin-top:var(--sp-2)">Inspect recent shared events before you change a tuning control. These details stay bounded to the admin workbench and do not create a new inference path.</div>
+        <div style="display:flex;flex-direction:column;gap:var(--sp-3);margin-top:var(--sp-4)">
+          <details class="wizard-disclosure" open>
+            <summary>Recent feedback events <span class="badge badge--neutral">${Number((dashboard.recentEvents || []).length || 0)}</span></summary>
+            <div class="wizard-disclosure-body">${renderFeedbackEventList(dashboard.recentEvents, { emptyLabel: 'No recent feedback events yet.' })}</div>
+          </details>
+          <details class="wizard-disclosure">
+            <summary>Low-scoring live-AI events <span class="badge badge--neutral">${Number((dashboard.lowScoreLiveEvents || []).length || 0)}</span></summary>
+            <div class="wizard-disclosure-body">${renderFeedbackEventList(dashboard.lowScoreLiveEvents, { emptyLabel: 'No low-scoring live-AI events yet.' })}</div>
+          </details>
+        </div>
+      </div>`
     });
   }
 
@@ -326,6 +404,67 @@ const AdminAiFeedbackSection = (() => {
       } catch (error) {
         console.error('AdminAiFeedbackSection export failed:', error);
         UI.toast('The feedback snapshot could not be exported right now.', 'warning');
+      }
+    });
+
+    document.getElementById('btn-reset-ai-feedback-dashboard')?.addEventListener('click', async () => {
+      const confirmed = typeof confirmDestructiveAction === 'function'
+        ? await confirmDestructiveAction({
+            title: 'Reset platform AI feedback and tuning?',
+            body: 'This clears the shared AI feedback history shown in this dashboard, removes saved user-tier AI feedback signals from user workspaces across the platform, and resets the AI tuning controls to their default values. It does not delete assessments or analyst-only notes.',
+            confirmLabel: 'Reset feedback and tuning'
+          })
+        : await UI.confirm('Reset platform AI feedback and tuning? This clears shared feedback history, removes saved user-tier AI feedback signals, and returns the tuning controls to defaults.');
+      if (!confirmed) return;
+      const button = document.getElementById('btn-reset-ai-feedback-dashboard');
+      if (button) {
+        button.disabled = true;
+        button.textContent = 'Resetting…';
+      }
+      try {
+        const currentSettings = typeof getAdminSettings === 'function' ? getAdminSettings() : (settings || {});
+        const nextSettings = JSON.parse(JSON.stringify(currentSettings || {}));
+        nextSettings.aiFeedbackTuning = getDefaultTuning();
+        const saved = typeof saveAdminSettings === 'function'
+          ? await saveAdminSettings(nextSettings, {
+              audit: {
+                category: 'settings',
+                eventType: 'ai_feedback_tuning_reset',
+                target: 'ai_feedback_tuning'
+              }
+            })
+          : false;
+        if (!saved) {
+          UI.toast('The tuning controls could not be reset right now.', 'warning');
+          return;
+        }
+        const resetFeedback = typeof OrgIntelligenceService !== 'undefined'
+          && OrgIntelligenceService
+          && typeof OrgIntelligenceService.resetAiFeedback === 'function'
+          ? await OrgIntelligenceService.resetAiFeedback({ includeUserTier: true })
+          : false;
+        rerenderCurrentAdminSection();
+        if (!resetFeedback) {
+          UI.toast('Tuning reset to defaults, but platform AI feedback could not be cleared right now.', 'warning', 5000);
+          return;
+        }
+        const failedUsers = Array.isArray(resetFeedback.userTierReset?.failedUsers) ? resetFeedback.userTierReset.failedUsers : [];
+        if (failedUsers.length) {
+          UI.toast(`Tuning reset to defaults, but ${failedUsers.length} user workspace ${failedUsers.length === 1 ? 'signal reset failed' : 'signal resets failed'}.`, 'warning', 5000);
+          return;
+        }
+        const clearedUsers = Number(resetFeedback.userTierReset?.clearedUsers || 0);
+        UI.toast(clearedUsers
+          ? `AI feedback and tuning reset across ${clearedUsers} user ${clearedUsers === 1 ? 'workspace' : 'workspaces'}.`
+          : 'AI feedback and tuning reset.', 'success');
+      } catch (error) {
+        console.error('AdminAiFeedbackSection reset failed:', error);
+        UI.toast('The feedback reset could not be completed right now.', 'warning');
+      } finally {
+        if (button) {
+          button.disabled = false;
+          button.textContent = 'Reset feedback & tuning';
+        }
       }
     });
   }

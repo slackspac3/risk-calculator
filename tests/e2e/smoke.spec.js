@@ -1267,6 +1267,10 @@ test('admin AI feedback and tuning dashboard renders the signal view and tuning 
     await expect(page.getByRole('heading', { name: /ai feedback & tuning/i })).toBeVisible();
     await expect(page.locator('#admin-ai-alignment-priority')).toHaveValue('strict');
     await expect(page.locator('#admin-ai-learning-sensitivity')).toHaveValue('balanced');
+    await expect(page.locator('#btn-reset-ai-feedback-dashboard')).toBeVisible();
+    await page.locator('#btn-refresh-ai-feedback-dashboard').click();
+    await expect(page.getByText(/recent feedback events/i).first()).toBeVisible();
+    await expect(page.locator('.wizard-disclosure[open] .wizard-disclosure-body').getByText(/submitted by alex/i).first()).toBeVisible();
   });
 });
 

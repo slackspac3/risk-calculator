@@ -249,7 +249,9 @@ const LearningStore = (() => {
       lensKey: _normaliseLensKey(payload),
       riskTitle: _normaliseText(payload?.riskTitle || payload?.title || '', 180),
       riskCategory: _normaliseText(payload?.riskCategory || payload?.category || '', 90),
-      source: _normaliseText(payload?.source || '', 40)
+      source: _normaliseText(payload?.source || '', 40),
+      reason: _normaliseReasonTag(payload?.reason || payload?.decisionReason || ''),
+      scenarioFingerprint: _normaliseText(payload?.scenarioFingerprint || '', 260)
     };
   }
 

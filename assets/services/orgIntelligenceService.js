@@ -608,10 +608,53 @@ const OrgIntelligenceService = (() => {
     return _post('record_feedback', { feedback: event });
   }
 
+  async function resetAiFeedback(options = {}) {
+    const includeUserTier = options?.includeUserTier === true;
+    const response = await _post('reset_feedback', {
+      includeUserTier
+    });
+    if (!response?.ok || !response.feedback || typeof response.feedback !== 'object') return false;
+    const cached = getCachedState();
+    _saveCache({
+      ...cached,
+      feedback: {
+        updatedAt: Number(response.feedback.updatedAt || Date.now()),
+        events: Array.isArray(response.feedback.events)
+          ? response.feedback.events.map(_normaliseFeedbackEvent).filter(item => item.score >= 1 && item.score <= 5).slice(0, 600)
+          : []
+      },
+      updatedAt: Date.now()
+    });
+    return {
+      ok: true,
+      includeUserTier,
+      resetScope: _safeText(response.resetScope, 40) || (includeUserTier ? 'platform' : 'shared_only'),
+      userTierReset: response.userTierReset && typeof response.userTierReset === 'object'
+        ? {
+            attemptedUsers: Number(response.userTierReset.attemptedUsers || 0),
+            clearedUsers: Number(response.userTierReset.clearedUsers || 0),
+            skippedUsers: Number(response.userTierReset.skippedUsers || 0),
+            failedUsers: Array.isArray(response.userTierReset.failedUsers)
+              ? response.userTierReset.failedUsers.map((item) => ({
+                  username: _safeText(item?.username, 120),
+                  reason: _safeText(item?.reason, 120)
+                })).filter((item) => item.username || item.reason).slice(0, 20)
+              : []
+          }
+        : {
+            attemptedUsers: 0,
+            clearedUsers: 0,
+            skippedUsers: 0,
+            failedUsers: []
+          }
+    };
+  }
+
   function _feedbackMatches(event = {}, filters = {}) {
     const buId = _safeText(filters?.buId || filters?.businessUnitId, 80);
     const functionKey = _safeText(filters?.functionKey, 80).toLowerCase();
-    const lensKey = _normaliseScenarioKey(filters?.scenarioLensKey || filters?.scenarioLens?.key || filters?.lensKey || '');
+    const rawLensKey = _safeText(filters?.scenarioLensKey || filters?.scenarioLens?.key || filters?.lensKey || '', 120).toLowerCase();
+    const lensKey = rawLensKey ? _normaliseScenarioKey(rawLensKey) : '';
     const target = _normaliseFeedbackTarget(filters?.target || '');
     const runtimeModes = Array.isArray(filters?.runtimeModes) && filters.runtimeModes.length
       ? filters.runtimeModes.map(_normaliseRuntimeMode)
@@ -881,6 +924,25 @@ const OrgIntelligenceService = (() => {
     const events = getFeedbackEvents(filters);
     const profile = _buildFeedbackProfile(events);
     const thresholds = getFeedbackTierThresholds(settings);
+    const recentEvents = events
+      .slice()
+      .sort((left, right) => Number(right.recordedAt || 0) - Number(left.recordedAt || 0))
+      .slice(0, 12)
+      .map((event) => ({
+        id: _safeText(event.id, 120),
+        recordedAt: Number(event.recordedAt || 0),
+        target: _normaliseFeedbackTarget(event.target),
+        score: Number(event.score || 0),
+        runtimeMode: _normaliseRuntimeMode(event.runtimeMode),
+        buName: _safeText(event.buName || event.buId || 'Unscoped', 160),
+        functionKey: _safeText(event.functionKey || 'general', 80).toLowerCase(),
+        lensKey: _normaliseScenarioKey(event.lensKey || 'general'),
+        submittedBy: _safeText(event.submittedBy, 120),
+        reasons: Array.isArray(event.reasons) ? event.reasons.map((item) => _normaliseReasonTag(item)).filter(Boolean).slice(0, 6) : [],
+        riskTitle: _safeText(event.riskTitle, 180),
+        scenarioFingerprint: _safeText(event.scenarioFingerprint, 220),
+        citations: _normaliseFeedbackCitationList(event.citations).slice(0, 3)
+      }));
     const tallyBreakdown = (keySelector, formatter = (key) => key) => {
       const breakdown = new Map();
       events.forEach((event) => {
@@ -921,6 +983,8 @@ const OrgIntelligenceService = (() => {
       lensBreakdown: tallyBreakdown((event) => event.lensKey, (key) => String(key || 'general').replace(/-/g, ' ')),
       functionBreakdown: tallyBreakdown((event) => event.functionKey, (key) => key || 'general'),
       businessUnitBreakdown: tallyBreakdown((event) => event.buName || event.buId, (key) => key || 'Unscoped'),
+      recentEvents,
+      lowScoreLiveEvents: recentEvents.filter((event) => event.runtimeMode === 'live_ai' && Number(event.score || 0) <= 2).slice(0, 8),
       topIssues: Object.entries(reasonWeights)
         .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
         .slice(0, 6)
@@ -1143,6 +1207,7 @@ const OrgIntelligenceService = (() => {
     recordCompletedAssessment,
     recordReviewDecision,
     recordAiFeedback,
+    resetAiFeedback,
     getMergedScenarioPatterns,
     getFeedbackEvents,
     getFeedbackTierThresholds,

@@ -55,7 +55,8 @@ function normaliseFeedbackEvent(event = {}) {
 function feedbackMatches(event = {}, filters = {}) {
   const buId = toSafeString(filters.buId, 80);
   const functionKey = toSafeString(filters.functionKey, 80).toLowerCase();
-  const lensKey = normaliseScenarioKey(filters.scenarioLensKey || filters.lensKey || '');
+  const rawLensKey = toSafeString(filters.scenarioLensKey || filters.lensKey || '', 120).toLowerCase();
+  const lensKey = rawLensKey ? normaliseScenarioKey(rawLensKey) : '';
   if (buId && toSafeString(event.buId, 80) !== buId) return false;
   if (functionKey && toSafeString(event.functionKey, 80).toLowerCase() !== functionKey) return false;
   if (lensKey && normaliseScenarioKey(event.lensKey || '') !== lensKey) return false;

@@ -554,3 +554,7 @@ module.exports = async function handler(req, res) {
     sendApiError(res, 500, 'USER_STORE_REQUEST_FAILED', 'The user request could not be completed.');
   }
 };
+
+module.exports.readAccounts = readAccounts;
+module.exports.writeAccounts = writeAccounts;
+module.exports.sanitiseAccount = sanitiseAccount;

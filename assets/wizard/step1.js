@@ -1305,8 +1305,45 @@ const STEP1_AI_FEEDBACK_REASON_OPTIONS = Object.freeze({
   ]
 });
 
+const STEP1_RISK_REMOVAL_REASON_OPTIONS = Object.freeze([
+  {
+    key: 'incorrect-risk',
+    label: 'Incorrect risk',
+    description: 'This risk does not belong in the current scenario and should count as AI correction.',
+    aiFeedbackReason: 'included-unrelated-risks',
+    tuningSignal: true
+  },
+  {
+    key: 'narrower-scope',
+    label: 'Correct, but narrowing scope',
+    description: 'This risk could matter, but I want a tighter scenario discussion right now.',
+    aiFeedbackReason: '',
+    tuningSignal: false
+  },
+  {
+    key: 'partially-relevant',
+    label: 'Only partially relevant',
+    description: 'This risk overlaps with the scenario, but it is not central enough to keep in scope.',
+    aiFeedbackReason: '',
+    tuningSignal: false
+  }
+]);
+
 function normaliseStep1AiFeedbackReason(value = '') {
   return String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
+function normaliseStep1RiskRemovalReason(value = '') {
+  return String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
+function getStep1RiskRemovalReasonOption(reason = '') {
+  const safeReason = normaliseStep1RiskRemovalReason(reason);
+  return STEP1_RISK_REMOVAL_REASON_OPTIONS.find((option) => option.key === safeReason) || null;
+}
+
+function shouldRecordStep1RiskRemovalAsAiFeedback(reason = '') {
+  return !!getStep1RiskRemovalReasonOption(reason)?.tuningSignal;
 }
 
 function getStep1AiRuntimeMode(draft = AppState.draft) {
@@ -3951,7 +3988,7 @@ function getStep1HierarchicalFeedbackProfile(assessmentSignals = {}) {
   return null;
 }
 
-function recordStep1RiskDecision(risk, action = 'keep') {
+function recordStep1RiskDecision(risk, action = 'keep', options = {}) {
   const username = AuthService.getCurrentUser()?.username || '';
   if (!username || typeof LearningStore === 'undefined' || typeof LearningStore.recordRiskDecision !== 'function' || !risk) return;
   LearningStore.recordRiskDecision(username, {
@@ -3960,8 +3997,130 @@ function recordStep1RiskDecision(risk, action = 'keep') {
     scenarioLens: AppState.draft?.scenarioLens || null,
     riskTitle: risk.title,
     riskCategory: risk.category,
-    source: risk.source || ''
+    source: risk.source || '',
+    reason: normaliseStep1RiskRemovalReason(options?.reason || ''),
+    scenarioFingerprint: buildStep1AiFeedbackScenarioFingerprint(AppState.draft)
   });
+}
+
+function promptStep1RiskRemovalReason(risk = {}) {
+  const options = STEP1_RISK_REMOVAL_REASON_OPTIONS;
+  const riskTitle = String(risk?.title || 'this risk').trim();
+  if (!UI || typeof UI.modal !== 'function') {
+    const raw = typeof window !== 'undefined' && typeof window.prompt === 'function'
+      ? window.prompt(
+          `Why are you removing "${riskTitle}"?\n1 = Incorrect risk\n2 = Correct, but narrowing scope\n3 = Only partially relevant`,
+          ''
+        )
+      : '';
+    const trimmed = String(raw || '').trim().toLowerCase();
+    if (!trimmed) return Promise.resolve(null);
+    const aliases = {
+      '1': 'incorrect-risk',
+      incorrect: 'incorrect-risk',
+      'incorrect-risk': 'incorrect-risk',
+      '2': 'narrower-scope',
+      narrower: 'narrower-scope',
+      'narrower-scope': 'narrower-scope',
+      '3': 'partially-relevant',
+      partial: 'partially-relevant',
+      'partially-relevant': 'partially-relevant'
+    };
+    return Promise.resolve(aliases[trimmed] || null);
+  }
+  return new Promise((resolve) => {
+    const modalKey = `risk-removal-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    const titleId = `${modalKey}-title`;
+    const confirmId = `${modalKey}-confirm`;
+    const cancelId = `${modalKey}-cancel`;
+    let selectedReason = '';
+    let settled = false;
+    const finish = (value = null) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+    const dialog = UI.modal({
+      title: 'Why are you removing this risk?',
+      body: `
+        <div aria-labelledby="${titleId}" style="display:flex;flex-direction:column;gap:12px">
+          <p id="${titleId}" class="help-body-copy" style="margin:0">Choose the reason that best matches why <strong>${escapeHtml(riskTitle)}</strong> is leaving the shortlist.</p>
+          <div style="display:grid;gap:10px">
+            ${options.map((option) => `
+              <button
+                class="btn btn--ghost"
+                data-risk-removal-reason="${escapeHtml(option.key)}"
+                type="button"
+                aria-pressed="false"
+                style="display:flex;flex-direction:column;align-items:flex-start;gap:6px;text-align:left;white-space:normal;padding:14px 16px"
+              >
+                <strong>${escapeHtml(option.label)}</strong>
+                <span class="form-help" style="margin:0">${escapeHtml(option.description)}</span>
+              </button>
+            `).join('')}
+          </div>
+          <div class="banner banner--neutral" role="note">
+            <span class="banner-text">Only <strong>Incorrect risk</strong> feeds shared AI tuning. Scope choices stay as analyst context only.</span>
+          </div>
+        </div>
+      `,
+      footer: `
+        <button class="btn btn--ghost" id="${cancelId}" type="button">Cancel</button>
+        <button class="btn btn--primary" id="${confirmId}" type="button" disabled>Remove risk</button>
+      `,
+      onClose: () => finish(null)
+    });
+    const root = document.querySelector('.modal-backdrop:last-of-type');
+    const confirmButton = root?.querySelector(`#${confirmId}`);
+    const updateSelection = (reasonKey = '') => {
+      selectedReason = normaliseStep1RiskRemovalReason(reasonKey);
+      Array.from(root?.querySelectorAll('[data-risk-removal-reason]') || []).forEach((button) => {
+        const active = String(button.dataset.riskRemovalReason || '') === selectedReason;
+        button.setAttribute('aria-pressed', active ? 'true' : 'false');
+        button.classList.toggle('btn--secondary', active);
+        button.classList.toggle('btn--ghost', !active);
+      });
+      if (confirmButton) confirmButton.disabled = !selectedReason;
+    };
+    Array.from(root?.querySelectorAll('[data-risk-removal-reason]') || []).forEach((button) => {
+      button.addEventListener('click', () => updateSelection(button.dataset.riskRemovalReason || ''));
+    });
+    root?.querySelector(`#${cancelId}`)?.addEventListener('click', () => dialog.close());
+    confirmButton?.addEventListener('click', () => {
+      if (!selectedReason) return;
+      finish(selectedReason);
+      dialog.close();
+    });
+  });
+}
+
+async function applyStep1RiskRemoval(riskId = '', reason = '', {
+  buList = getBUList(),
+  scenarioGeographies = getScenarioGeographies()
+} = {}) {
+  const safeRiskId = String(riskId || '').trim();
+  const risk = getRiskCandidates().find((item) => String(item?.id || '').trim() === safeRiskId);
+  const reasonOption = getStep1RiskRemovalReasonOption(reason);
+  if (!risk || !reasonOption) return false;
+  recordStep1RiskDecision(risk, 'remove', { reason: reasonOption.key });
+  if (shouldRecordStep1RiskRemovalAsAiFeedback(reasonOption.key) && isStep1GeneratedRiskFeedbackEligible(risk)) {
+    await saveStep1AiRiskFeedback(safeRiskId, 1, {
+      buList,
+      reasons: [reasonOption.aiFeedbackReason].filter(Boolean),
+      silent: true
+    });
+  }
+  AppState.draft.riskCandidates = getRiskCandidates().filter((item) => item.id !== safeRiskId);
+  AppState.draft.selectedRiskIds = (AppState.draft.selectedRiskIds || []).filter((id) => id !== safeRiskId);
+  syncRiskSelection();
+  persistAndRenderStep1({ buList, scenarioGeographies, refreshRegulations: true, preserveScroll: true });
+  const removalMessage = reasonOption.key === 'incorrect-risk'
+    ? 'Removed risk and recorded it as incorrect AI output.'
+    : reasonOption.key === 'narrower-scope'
+      ? 'Removed risk and recorded it as analyst scope narrowing only.'
+      : 'Removed risk and recorded it as partially relevant only.';
+  UI.toast(removalMessage, 'success', 3000);
+  return true;
 }
 
 function getRiskAssessmentHaystack(risk) {
@@ -4218,13 +4377,14 @@ function bindRiskCardActions({ buList = getBUList() } = {}) {
     persistAndRenderStep1({ buList, scenarioGeographies: getScenarioGeographies(), refreshRegulations: true, preserveScroll: true });
   });
   document.querySelectorAll('.btn-remove-risk').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       const risk = getRiskCandidates().find(item => item.id === btn.dataset.riskId);
-      recordStep1RiskDecision(risk, 'remove');
-      AppState.draft.riskCandidates = getRiskCandidates().filter(r => r.id !== btn.dataset.riskId);
-      AppState.draft.selectedRiskIds = (AppState.draft.selectedRiskIds || []).filter(id => id !== btn.dataset.riskId);
-      syncRiskSelection();
-      persistAndRenderStep1({ buList, scenarioGeographies: getScenarioGeographies(), refreshRegulations: true, preserveScroll: true });
+      const reason = await promptStep1RiskRemovalReason(risk);
+      if (!reason) return;
+      await applyStep1RiskRemoval(btn.dataset.riskId, reason, {
+        buList,
+        scenarioGeographies: getScenarioGeographies()
+      });
     });
   });
 }
@@ -4338,7 +4498,11 @@ function updateStep1RiskFeedbackUi(riskId = '', score = 0, savedAt = 0, runtimeM
   }
 }
 
-async function saveStep1AiRiskFeedback(riskId = '', score = 0, { buList = getBUList() } = {}) {
+async function saveStep1AiRiskFeedback(riskId = '', score = 0, {
+  buList = getBUList(),
+  reasons = [],
+  silent = false
+} = {}) {
   const safeRiskId = String(riskId || '').trim();
   const risk = getRiskCandidates().find((item) => String(item?.id || '').trim() === safeRiskId);
   if (!risk || !isStep1GeneratedRiskFeedbackEligible(risk)) return;
@@ -4347,10 +4511,15 @@ async function saveStep1AiRiskFeedback(riskId = '', score = 0, { buList = getBUL
   const runtimeMode = getStep1AiRuntimeMode(AppState.draft);
   const selectedRiskIds = new Set(Array.isArray(AppState.draft?.selectedRiskIds) ? AppState.draft.selectedRiskIds : []);
   const bu = (Array.isArray(buList) ? buList : []).find(item => item?.id === AppState.draft?.buId) || null;
+  const safeReasons = Array.from(new Set(
+    (Array.isArray(reasons) ? reasons : [])
+      .map(normaliseStep1AiFeedbackReason)
+      .filter(Boolean)
+  )).slice(0, 6);
   const payload = {
     target: 'risk',
     score: safeScore,
-    reasons: [],
+    reasons: safeReasons,
     runtimeMode,
     buId: AppState.draft?.buId || '',
     buName: bu?.name || AppState.draft?.buName || '',
@@ -4373,16 +4542,24 @@ async function saveStep1AiRiskFeedback(riskId = '', score = 0, { buList = getBUL
       ...((AppState.draft.aiFeedback && typeof AppState.draft.aiFeedback.risks === 'object') ? AppState.draft.aiFeedback.risks : {}),
       [safeRiskId]: {
         score: safeScore,
+        reasons: safeReasons,
         runtimeMode,
         savedAt
       }
     }
   };
-  saveDraft();
-  updateStep1RiskFeedbackUi(safeRiskId, safeScore, savedAt, runtimeMode);
-  if (feedbackSync.shared === false) {
+  if (!silent) saveDraft();
+  if (!silent) updateStep1RiskFeedbackUi(safeRiskId, safeScore, savedAt, runtimeMode);
+  if (!silent && feedbackSync.shared === false) {
     UI.toast('Saved risk feedback locally. Shared learning sync is unavailable right now.', 'warning', 5000);
   }
+  return {
+    shared: feedbackSync.shared,
+    local: feedbackSync.local,
+    savedAt,
+    runtimeMode,
+    reasons: safeReasons
+  };
 }
 
 function bindStep1AiFeedbackActions({ buList = getBUList() } = {}) {
