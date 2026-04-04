@@ -5,6 +5,7 @@ const { buildTraceEntry, callAi, parseOrRepairStructuredJson, runStructuredQuali
 const { buildDeterministicFallbackResult, buildFallbackFromError, buildManualModeResult, buildWorkflowTimeoutProfile } = require('./_aiWorkflowSupport');
 const { buildFeedbackLearningPromptBlock, resolveHierarchicalFeedbackProfile, rerankRiskCardsWithFeedback } = require('./_learningAuthority');
 const ScenarioClassification = require('./_scenarioClassification');
+const { SCENARIO_TAXONOMY_FAMILY_BY_KEY } = require('./_scenarioTaxonomy');
 
 function normaliseSentenceKey(sentence = '') {
   return String(sentence || '')
@@ -1188,6 +1189,280 @@ function normaliseRiskCards(risks = [], fallbackRegulations = []) {
     });
 }
 
+function normalisePhraseKey(value = '') {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function hasPhrase(text = '', phrase = '') {
+  const haystack = ` ${normalisePhraseKey(text)} `;
+  const needle = normalisePhraseKey(phrase);
+  if (!needle) return false;
+  return haystack.includes(` ${needle} `);
+}
+
+function countPhraseMatches(text = '', phrases = []) {
+  return Array.from(new Set((Array.isArray(phrases) ? phrases : [])
+    .map((item) => typeof item === 'string' ? item : item?.text)
+    .map((item) => String(item || '').trim())
+    .filter(Boolean)))
+    .filter((phrase) => hasPhrase(text, phrase))
+    .length;
+}
+
+function uniqueKeys(values = []) {
+  return Array.from(new Set((Array.isArray(values) ? values : []).map((value) => String(value || '').trim()).filter(Boolean)));
+}
+
+function collectFamilyThemePhrases(family = null) {
+  if (!family) return [];
+  return uniqueKeys([
+    ...(Array.isArray(family.preferredRiskThemes) ? family.preferredRiskThemes : []),
+    ...(Array.isArray(family.shortlistSeedThemes) ? family.shortlistSeedThemes : []),
+    ...(Array.isArray(family.positiveSignals)
+      ? family.positiveSignals
+        .filter((signal) => ['strong', 'medium'].includes(String(signal?.strength || '').trim().toLowerCase()))
+        .map((signal) => signal?.text)
+      : [])
+  ]).slice(0, 18);
+}
+
+function resolveAcceptedScenarioClassification(finalNarrative = '', input = {}, fallbackClassification = {}) {
+  const accepted = classifyScenario(finalNarrative, {
+    guidedInput: input.guidedInput,
+    businessUnit: input.businessUnit,
+    scenarioLensHint: input.scenarioLensHint || fallbackClassification?.primaryFamily?.key || fallbackClassification?.key || ''
+  });
+  if (accepted?.primaryFamily?.key) return accepted;
+  return fallbackClassification;
+}
+
+function evaluateShortlistRiskCard(risk = {}, {
+  acceptedClassification = {},
+  narrativeAnchors = []
+} = {}) {
+  const acceptedPrimaryFamily = acceptedClassification?.primaryFamily || null;
+  const acceptedPrimaryKey = String(acceptedPrimaryFamily?.key || '').trim();
+  const acceptedSecondaryKeys = new Set(
+    (Array.isArray(acceptedClassification?.secondaryFamilies) ? acceptedClassification.secondaryFamilies : [])
+      .map((family) => String(family?.key || '').trim())
+      .filter(Boolean)
+  );
+  const acceptedOverlayKeys = new Set(
+    (Array.isArray(acceptedClassification?.overlays) ? acceptedClassification.overlays : [])
+      .map((overlay) => String(overlay?.key || '').trim())
+      .filter(Boolean)
+  );
+  const riskText = [risk?.title, risk?.category, risk?.description]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)
+    .join('. ');
+  const riskClassification = classifyScenario(riskText, {});
+  const riskPrimaryKey = String(riskClassification?.primaryFamily?.key || '').trim();
+  const riskOverlayKeys = uniqueKeys(
+    (Array.isArray(riskClassification?.overlays) ? riskClassification.overlays : [])
+      .map((overlay) => overlay?.key)
+  );
+  const familyAligned = !!acceptedPrimaryKey && riskPrimaryKey === acceptedPrimaryKey;
+  const secondaryAligned = !!riskPrimaryKey && acceptedSecondaryKeys.has(riskPrimaryKey);
+  const acceptedAllowsCyberSecondary = Array.isArray(acceptedClassification?.secondaryFamilies)
+    && acceptedClassification.secondaryFamilies.some((family) => family?.domain === 'cyber');
+  const cyberCauseMismatch = Boolean(
+    acceptedPrimaryFamily
+    && acceptedPrimaryFamily.domain !== 'cyber'
+    && !acceptedAllowsCyberSecondary
+    && hasExplicitCyberCompromiseSignals(riskText)
+  );
+  const blockedFamily = acceptedPrimaryFamily && (
+    cyberCauseMismatch
+    || (riskPrimaryKey && (
+      acceptedPrimaryFamily.forbiddenDriftFamilies.includes(riskPrimaryKey)
+      || acceptedPrimaryFamily.cannotBePrimaryWith.includes(riskPrimaryKey)
+    ))
+  ) ? (riskPrimaryKey || 'cyber_cause_mismatch') : '';
+  const anchorOverlap = countScenarioAnchorOverlap(riskText, narrativeAnchors);
+  const overlayOverlapCount = riskOverlayKeys.filter((key) => acceptedOverlayKeys.has(key)).length;
+  const themeFamily = familyAligned
+    ? acceptedPrimaryFamily
+    : (secondaryAligned ? (SCENARIO_TAXONOMY_FAMILY_BY_KEY[riskPrimaryKey] || acceptedPrimaryFamily) : acceptedPrimaryFamily);
+  const themeOverlapCount = countPhraseMatches(riskText, collectFamilyThemePhrases(themeFamily));
+  const antiSignalOverlapCount = countPhraseMatches(riskText, acceptedPrimaryFamily?.antiSignals || []);
+  const consequenceOnly = !riskPrimaryKey
+    || riskClassification.reasonCodes?.includes('CONSEQUENCE_ONLY_NOT_PRIMARY')
+    || (riskClassification.reasonCodes?.includes('INSUFFICIENT_PRIMARY_SIGNAL') && riskOverlayKeys.length > 0 && !familyAligned && !secondaryAligned);
+  const consequenceHeavy = Boolean(riskClassification.ambiguityFlags?.includes('CONSEQUENCE_HEAVY_TEXT'));
+  const overlayDrivenDomainAllowed = !riskPrimaryKey
+    || ['operational', 'business_continuity', 'supply_chain', 'third_party'].includes(String(riskClassification?.domain || '').trim());
+
+  let score = 0;
+  if (familyAligned) score += 58;
+  else if (secondaryAligned) score += 40;
+  else if (riskPrimaryKey) score -= 26;
+  if (blockedFamily) score -= 90;
+  if (anchorOverlap >= 2) score += 22;
+  else if (anchorOverlap === 1) score += 10;
+  else if (narrativeAnchors.length) score -= 14;
+  score += Math.min(18, overlayOverlapCount * 6);
+  score += Math.min(18, themeOverlapCount * 6);
+  if (antiSignalOverlapCount) score -= Math.min(24, antiSignalOverlapCount * 12);
+  if (consequenceOnly) score -= familyAligned || secondaryAligned ? 10 : 30;
+  if (consequenceHeavy) score -= familyAligned || secondaryAligned ? 4 : 12;
+
+  const eventAligned = familyAligned || secondaryAligned;
+  const overlayDrivenAligned = !eventAligned
+    && !blockedFamily
+    && overlayDrivenDomainAllowed
+    && overlayOverlapCount >= 2;
+  const stronglyAligned = !blockedFamily
+    && eventAligned
+    && score >= (familyAligned ? 40 : 36)
+    && !(consequenceOnly && anchorOverlap === 0 && themeOverlapCount === 0);
+
+  return {
+    risk,
+    score,
+    riskClassification,
+    riskPrimaryKey,
+    familyAligned,
+    secondaryAligned,
+    eventAligned,
+    overlayDrivenAligned,
+    consequenceOnly,
+    blockedFamily,
+    anchorOverlap,
+    overlayOverlapCount,
+    themeOverlapCount,
+    stronglyAligned
+  };
+}
+
+function assessShortlistCoherence(risks = [], {
+  acceptedClassification = {},
+  finalNarrative = '',
+  seedNarrative = '',
+  input = {}
+} = {}) {
+  const normalisedRisks = normaliseRiskCards(risks, input.applicableRegulations || []);
+  const narrativeAnchors = extractGuidedDraftAnchors({ guidedInput: input.guidedInput }, `${seedNarrative || ''} ${finalNarrative || ''}`.trim());
+  const evaluations = normalisedRisks.map((risk) => evaluateShortlistRiskCard(risk, {
+    acceptedClassification,
+    narrativeAnchors
+  }));
+  const strongEventAligned = evaluations.filter((evaluation) => evaluation.stronglyAligned);
+  const hasStrongEventAligned = strongEventAligned.length > 0;
+  const acceptedEvaluations = evaluations.filter((evaluation) => (
+    evaluation.stronglyAligned
+    || (
+      hasStrongEventAligned
+      && evaluation.overlayDrivenAligned
+    )
+  ));
+  const acceptedRisks = acceptedEvaluations.map((evaluation) => evaluation.risk);
+  const blockedFamilies = uniqueKeys(evaluations.map((evaluation) => evaluation.blockedFamily));
+  const lowAnchorCount = narrativeAnchors.length
+    ? evaluations.filter((evaluation) => evaluation.anchorOverlap === 0).length
+    : 0;
+  const outsideFamilyCount = evaluations.filter((evaluation) => !evaluation.familyAligned && !evaluation.secondaryAligned && !evaluation.overlayDrivenAligned).length;
+  const consequenceOnlyCount = evaluations.filter((evaluation) => evaluation.consequenceOnly).length;
+  const minimumAcceptedCount = normalisedRisks.length >= 3 ? 2 : (normalisedRisks.length ? 1 : 0);
+  const enoughUsable = acceptedRisks.length >= minimumAcceptedCount;
+  const fullyAccepted = acceptedRisks.length === normalisedRisks.length && !blockedFamilies.length;
+  const reasonCodes = [];
+  if (blockedFamilies.length) reasonCodes.push('BLOCKED_DRIFT_FAMILIES');
+  if (normalisedRisks.length && outsideFamilyCount >= Math.ceil(normalisedRisks.length / 2)) reasonCodes.push('MAJORITY_OUTSIDE_ACCEPTED_FAMILY');
+  if (normalisedRisks.length && consequenceOnlyCount >= Math.ceil(normalisedRisks.length / 2)) reasonCodes.push('CONSEQUENCE_ONLY_DRIFT');
+  if (lowAnchorCount && lowAnchorCount >= Math.ceil(normalisedRisks.length / 2)) reasonCodes.push('LOW_EVENT_ANCHOR_OVERLAP');
+
+  return {
+    acceptedRisks,
+    blockedFamilies,
+    enoughUsable,
+    fullyAccepted,
+    candidateCount: normalisedRisks.length,
+    alignedCount: acceptedRisks.length,
+    reasonCodes
+  };
+}
+
+function enforceScenarioShortlistCoherence(candidateRisks = [], {
+  acceptedClassification = {},
+  finalNarrative = '',
+  seedNarrative = '',
+  input = {},
+  fallbackRisks = []
+} = {}) {
+  const candidateAssessment = assessShortlistCoherence(candidateRisks, {
+    acceptedClassification,
+    finalNarrative,
+    seedNarrative,
+    input
+  });
+  if (!candidateAssessment.candidateCount) {
+    const replacementRisks = normaliseRiskCards(fallbackRisks, input.applicableRegulations || []);
+    return {
+      mode: replacementRisks.length ? 'fallback_replaced' : 'accepted',
+      risks: replacementRisks,
+      alignedCount: replacementRisks.length,
+      totalCount: 0,
+      returnedCount: replacementRisks.length,
+      candidateAlignedCount: 0,
+      reasonCodes: replacementRisks.length ? ['EMPTY_SHORTLIST', 'FALLBACK_REPLACED'] : ['EMPTY_SHORTLIST'],
+      blockedFamilies: [],
+      usedFallbackShortlist: replacementRisks.length > 0
+    };
+  }
+  if (candidateAssessment.fullyAccepted) {
+    return {
+      mode: 'accepted',
+      risks: normaliseRiskCards(candidateRisks, input.applicableRegulations || []),
+      alignedCount: candidateAssessment.alignedCount,
+      totalCount: candidateAssessment.candidateCount,
+      returnedCount: candidateAssessment.candidateCount,
+      candidateAlignedCount: candidateAssessment.alignedCount,
+      reasonCodes: ['ACCEPTED_AS_ALIGNED'],
+      blockedFamilies: candidateAssessment.blockedFamilies,
+      usedFallbackShortlist: false
+    };
+  }
+  if (candidateAssessment.enoughUsable) {
+    return {
+      mode: 'filtered',
+      risks: candidateAssessment.acceptedRisks,
+      alignedCount: candidateAssessment.acceptedRisks.length,
+      totalCount: candidateAssessment.candidateCount,
+      returnedCount: candidateAssessment.acceptedRisks.length,
+      candidateAlignedCount: candidateAssessment.alignedCount,
+      reasonCodes: uniqueKeys([...candidateAssessment.reasonCodes, 'FILTERED_TO_ALIGNED_SET']),
+      blockedFamilies: candidateAssessment.blockedFamilies,
+      usedFallbackShortlist: false
+    };
+  }
+
+  const fallbackAssessment = assessShortlistCoherence(fallbackRisks, {
+    acceptedClassification,
+    finalNarrative,
+    seedNarrative,
+    input
+  });
+  const fallbackSelectedRisks = fallbackAssessment.enoughUsable
+    ? fallbackAssessment.acceptedRisks
+    : normaliseRiskCards(fallbackRisks, input.applicableRegulations || []);
+  return {
+    mode: 'fallback_replaced',
+    risks: fallbackSelectedRisks,
+    alignedCount: fallbackAssessment.acceptedRisks.length || fallbackSelectedRisks.length,
+    totalCount: candidateAssessment.candidateCount,
+    returnedCount: fallbackSelectedRisks.length,
+    candidateAlignedCount: candidateAssessment.alignedCount,
+    reasonCodes: uniqueKeys([...candidateAssessment.reasonCodes, 'FALLBACK_REPLACED']),
+    blockedFamilies: uniqueKeys([...candidateAssessment.blockedFamilies, ...fallbackAssessment.blockedFamilies]),
+    usedFallbackShortlist: true
+  };
+}
+
 function normaliseGuidance(items = []) {
   return Array.from(new Set((Array.isArray(items) ? items : [])
     .map((item) => cleanUserFacingText(item, { maxSentences: 1, stripTrailingPeriod: true }))
@@ -1244,7 +1519,8 @@ function evaluateGuidedDraftCandidate(candidate = '', {
 function buildAiAlignment(input = {}, result = {}, {
   classification = {},
   seedNarrative = '',
-  fallbackScenarioExpansion = null
+  fallbackScenarioExpansion = null,
+  shortlistCoherence = null
 } = {}) {
   const expectedLens = (classification?.key && classification.key !== 'general')
     ? classification.key
@@ -1277,6 +1553,9 @@ function buildAiAlignment(input = {}, result = {}, {
     const anchorCompatible = !narrativeAnchors.length || countScenarioAnchorOverlap(riskText, narrativeAnchors) > 0;
     return lensCompatible && anchorCompatible;
   }).length;
+  const shortlistAlignedCount = Number(shortlistCoherence?.alignedCount || alignedRiskCount);
+  const shortlistTotalCount = Number(shortlistCoherence?.returnedCount || risks.length);
+  const shortlistMode = String(shortlistCoherence?.mode || 'accepted').trim();
   const checks = [
     {
       label: 'Primary lens',
@@ -1301,9 +1580,9 @@ function buildAiAlignment(input = {}, result = {}, {
     },
     {
       label: 'Shortlist fit',
-      status: risks.length && alignedRiskCount >= Math.max(1, Math.ceil(risks.length / 2)) ? 'ok' : 'warning',
-      detail: risks.length
-        ? `${alignedRiskCount} of ${risks.length} suggested risks stay aligned with the current event path and scenario lens.`
+      status: shortlistTotalCount && shortlistAlignedCount >= Math.max(1, Math.ceil(shortlistTotalCount / 2)) ? 'ok' : 'warning',
+      detail: shortlistTotalCount
+        ? `${shortlistAlignedCount} of ${shortlistTotalCount} suggested risks stay aligned with the current event path and scenario lens${shortlistMode === 'accepted' ? '.' : (shortlistMode === 'filtered' ? ', after server filtering.' : ', after the raw shortlist was replaced with taxonomy-safe seeds.')}`
         : 'No candidate risks were returned, so the shortlist falls back to deterministic server seeds.'
     }
   ];
@@ -1311,7 +1590,7 @@ function buildAiAlignment(input = {}, result = {}, {
   return {
     label: score >= 85 ? 'Aligned and grounded' : score >= 65 ? 'Mostly aligned' : 'Needs review',
     score,
-    summary: `AI kept the draft in the ${resolvedLens.label.toLowerCase()} lens and aligned ${alignedRiskCount} of ${Math.max(risks.length, 1)} suggested risks.`,
+    summary: `AI kept the draft in the ${resolvedLens.label.toLowerCase()} lens and aligned ${shortlistAlignedCount} of ${Math.max(shortlistTotalCount, 1)} suggested risks.`,
     checks,
     taxonomy: {
       version: String(classification?.taxonomyVersion || '').trim(),
@@ -1347,6 +1626,13 @@ function buildServerFallbackResult(input = {}, { aiUnavailable = false, feedback
     userProfile: input.adminSettings?.userProfileSummary
   });
   const fallbackRisks = rerankRiskCardsWithFeedback(fallbackScenarioExpansion.riskTitles, feedbackProfile);
+  const shortlistCoherence = enforceScenarioShortlistCoherence(fallbackRisks, {
+    acceptedClassification: classification,
+    finalNarrative: fallbackScenarioExpansion.scenarioExpansion,
+    seedNarrative,
+    input,
+    fallbackRisks
+  });
   const result = buildDeterministicFallbackResult({
     baseResult: {
       seedNarrative,
@@ -1367,8 +1653,8 @@ function buildServerFallbackResult(input = {}, { aiUnavailable = false, feedback
       benchmarkBasis: 'This Step 1 draft is in deterministic server fallback mode. Treat it as a bounded working draft until live AI is available again.',
       scenarioLens: buildScenarioLens(classification),
       structuredScenario: buildStructuredScenario(input, classification),
-      risks: fallbackRisks,
-      regulations: Array.from(new Set([...(Array.isArray(input.applicableRegulations) ? input.applicableRegulations : []), ...fallbackRisks.flatMap((risk) => risk.regulations || [])].map(String).filter(Boolean))),
+      risks: shortlistCoherence.risks,
+      regulations: Array.from(new Set([...(Array.isArray(input.applicableRegulations) ? input.applicableRegulations : []), ...shortlistCoherence.risks.flatMap((risk) => risk.regulations || [])].map(String).filter(Boolean))),
       citations: Array.isArray(input.citations) ? input.citations : []
     },
     aiUnavailable,
@@ -1380,10 +1666,12 @@ function buildServerFallbackResult(input = {}, { aiUnavailable = false, feedback
     withEvidenceMeta,
     includeReasonFields: false
   });
+  result.shortlistCoherence = shortlistCoherence;
   result.aiAlignment = buildAiAlignment(input, result, {
     classification,
     seedNarrative,
-    fallbackScenarioExpansion
+    fallbackScenarioExpansion,
+    shortlistCoherence
   });
   return result;
 }
@@ -1679,26 +1967,37 @@ ${feedbackPromptBlock}`;
     });
     const useFallbackNarrative = !selectedDraft.accepted;
     const rerankedCandidateRisks = rerankRiskCardsWithFeedback(candidate.risks, feedbackProfile);
-    const fallbackExpansion = (useFallbackNarrative || !rerankedCandidateRisks.length)
-      ? getFallbackScenarioExpansion()
-      : null;
-    const rerankedFallbackRisks = fallbackExpansion
-      ? rerankRiskCardsWithFeedback(fallbackExpansion.riskTitles, feedbackProfile)
-      : [];
     const finalNarrative = useFallbackNarrative
-      ? fallbackExpansion.scenarioExpansion
+      ? getFallbackScenarioExpansion().scenarioExpansion
       : (selectedDraft.narrative || candidate.draftNarrative || candidate.enhancedStatement || seedNarrative);
-    const finalRisks = useFallbackNarrative || !rerankedCandidateRisks.length
-      ? rerankedFallbackRisks
-      : rerankedCandidateRisks;
+    const finalClassification = resolveAcceptedScenarioClassification(finalNarrative, input, classification);
+    const fallbackExpansion = buildScenarioExpansion({
+      ...input,
+      riskStatement: finalNarrative
+    }, finalClassification);
+    const rerankedFallbackRisks = rerankRiskCardsWithFeedback(fallbackExpansion.riskTitles, feedbackProfile);
+    const shortlistCoherence = enforceScenarioShortlistCoherence(rerankedCandidateRisks, {
+      acceptedClassification: finalClassification,
+      finalNarrative,
+      seedNarrative,
+      input,
+      fallbackRisks: rerankedFallbackRisks
+    });
+    const finalRisks = shortlistCoherence.risks;
+    const finalSummary = useFallbackNarrative
+      ? (fallbackExpansion.summary || candidate.summary || '')
+      : (candidate.summary || fallbackExpansion.summary || '');
+    const finalLinkAnalysis = (useFallbackNarrative || shortlistCoherence.mode !== 'accepted')
+      ? buildRiskContextLinkAnalysis({ classification: finalClassification, riskTitles: finalRisks })
+      : (candidate.linkAnalysis || buildRiskContextLinkAnalysis({ classification: finalClassification, riskTitles: finalRisks }));
     const finalScenarioLens = useFallbackNarrative
       ? normaliseScenarioLens({
           secondaryKeys: [
             candidate?.scenarioLens?.key,
             ...(Array.isArray(candidate?.scenarioLens?.secondaryKeys) ? candidate.scenarioLens.secondaryKeys : [])
           ]
-        }, buildScenarioLens(classification))
-      : candidate.scenarioLens;
+        }, buildScenarioLens(finalClassification))
+      : normaliseScenarioLens(candidate.scenarioLens, buildScenarioLens(finalClassification));
     const result = withEvidenceMeta({
       mode: useFallbackNarrative ? 'deterministic_fallback' : 'live',
       seedNarrative,
@@ -1706,8 +2005,8 @@ ${feedbackPromptBlock}`;
       draftNarrativeSource: useFallbackNarrative ? 'fallback' : 'ai',
       draftNarrativeReason: useFallbackNarrative ? (selectedDraft.reason || 'quality_fallback') : 'accepted',
       enhancedStatement: finalNarrative,
-      summary: candidate.summary || (fallbackExpansion?.summary || ''),
-      linkAnalysis: candidate.linkAnalysis || buildRiskContextLinkAnalysis({ classification, riskTitles: finalRisks }),
+      summary: finalSummary,
+      linkAnalysis: finalLinkAnalysis,
       workflowGuidance: candidate.workflowGuidance?.length ? candidate.workflowGuidance : defaultWorkflowGuidance,
       benchmarkBasis: candidate.benchmarkBasis || defaultBenchmarkBasis,
       scenarioLens: finalScenarioLens,
@@ -1727,10 +2026,12 @@ ${feedbackPromptBlock}`;
         sources: input.citations || []
       })
     }, evidenceMeta);
+    result.shortlistCoherence = shortlistCoherence;
     result.aiAlignment = buildAiAlignment(input, result, {
-      classification,
+      classification: finalClassification,
       seedNarrative,
-      fallbackScenarioExpansion: fallbackExpansion
+      fallbackScenarioExpansion: fallbackExpansion,
+      shortlistCoherence
     });
     return result;
   } catch (error) {
@@ -1748,11 +2049,21 @@ module.exports = {
   buildGuidedScenarioDraftWorkflow,
   normaliseGuidedScenarioDraftInput,
   workflowUtils: {
+    buildAiAlignment,
     buildResolvedObligationPromptBlock,
     buildContextPromptBlock,
     buildEvidenceMeta,
+    buildRiskContextLinkAnalysis,
+    buildRiskContextSummary,
+    buildScenarioDraftValidationText,
+    buildScenarioExpansion,
+    buildScenarioLens,
+    buildStructuredScenario,
+    classifyScenario,
+    cleanScenarioSeed,
     compactInputValue,
     cleanUserFacingText,
+    isCompatibleScenarioLens,
     isPlainObject,
     normaliseAdminSettingsInput,
     normaliseBlockInputText,
@@ -1760,10 +2071,12 @@ module.exports = {
     normaliseCitationInputs,
     normaliseGuidance,
     normaliseInlineInputText,
+    normaliseScenarioLens,
     normalisePriorMessagesInput,
     normaliseResolvedObligationContextInput,
     normaliseResolvedObligationEntryInput,
     normaliseRiskCards,
+    enforceScenarioShortlistCoherence,
     normaliseStringListInput,
     truncateText,
     withEvidenceMeta

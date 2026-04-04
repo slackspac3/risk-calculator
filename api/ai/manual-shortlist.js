@@ -3,7 +3,7 @@
 const { requireSession } = require('../_apiAuth');
 const { applyCorsHeaders, getUnexpectedFields, isAllowedOrigin, isPlainObject, parseRequestBody } = require('../_request');
 const { checkRateLimit } = require('../_rateLimit');
-const { buildManualStep1Workflow, normaliseManualStep1Input } = require('../_manualStep1Workflow');
+const { buildManualShortlistWorkflow, normaliseManualStep1Input } = require('../_manualStep1Workflow');
 const { recordAiRouteReuse, withAiRouteMetrics } = require('../_aiRouteMetrics');
 const { withWorkflowReuse } = require('../_workflowReuse');
 
@@ -95,7 +95,7 @@ module.exports = async function handler(req, res) {
     scopeKey: String(session?.username || 'anonymous').trim().toLowerCase(),
     fingerprintInput: normalisedInput,
     observeReuseEvent: (event) => recordAiRouteReuse(routeName, event),
-    compute: () => buildManualStep1Workflow({
+    compute: () => buildManualShortlistWorkflow({
       ...normalisedInput,
       session
     }, {

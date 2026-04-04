@@ -9,6 +9,8 @@ const SERVICE_FILES = [
   '../../../assets/services/aiTraceRuntime.js',
   '../../../assets/services/aiStatusClient.js',
   '../../../assets/services/aiWorkflowClient.js',
+  '../../../assets/services/scenarioTaxonomyProjectionData.js',
+  '../../../assets/services/scenarioTaxonomyProjection.js',
   '../../../assets/services/llmService.js'
 ];
 

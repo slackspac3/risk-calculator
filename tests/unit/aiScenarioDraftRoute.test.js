@@ -460,6 +460,126 @@ test('scenario-draft route orchestrates live generation and quality-gate server-
   assert.equal(String(res.payload.trace?.label || ''), 'Step 1 guided draft');
 });
 
+test('scenario-draft route repairs an off-lane live shortlist so it stays aligned with the accepted identity narrative', async () => {
+  process.env.ALLOWED_ORIGIN = 'https://slackspac3.github.io';
+  process.env.SESSION_SIGNING_SECRET = 'test-signing-secret';
+  process.env.KV_REST_API_URL = 'https://example.test/kv';
+  process.env.KV_REST_API_TOKEN = 'test-token';
+  process.env.COMPASS_API_KEY = 'proxy-secret';
+  process.env.COMPASS_MODEL = 'gpt-5.1';
+
+  const aiPayload = JSON.stringify({
+    draftNarrative: 'Azure global admin credentials found on the dark web are being used to access the tenant, escalate privileges, and modify critical controls.',
+    summary: 'The scenario stays in the identity compromise lane.',
+    linkAnalysis: 'The main chain is identity compromise, privileged escalation, and downstream disruption or fraud.',
+    workflowGuidance: [
+      'Confirm the scope of the compromised admin identity.',
+      'Keep only the risks that share the same identity compromise path.'
+    ],
+    benchmarkBasis: 'Prefer identity-control and privileged-access comparators from GCC and global enterprise peers.',
+    scenarioLens: {
+      key: 'identity',
+      label: 'Cyber',
+      functionKey: 'technology',
+      estimatePresetKey: 'identity',
+      secondaryKeys: []
+    },
+    structuredScenario: {
+      assetService: 'Azure tenant administration',
+      primaryDriver: 'Credential theft and account takeover',
+      eventPath: 'Privileged credential abuse to access the tenant',
+      effect: 'Privilege misuse, disruption, and exposure'
+    },
+    risks: [
+      {
+        title: 'Privileged account takeover through exposed admin credentials',
+        category: 'Identity & Access',
+        description: 'Exposed global admin credentials could enable privilege escalation and control changes across the tenant.',
+        confidence: 'high',
+        regulations: ['ISO 27001']
+      },
+      {
+        title: 'Direct financial loss from payment-control weakness',
+        category: 'Financial',
+        description: 'Monetary loss could follow because payment controls are weak.',
+        confidence: 'medium',
+        regulations: ['ISO 27001']
+      },
+      {
+        title: 'Compliance assurance gap and policy remediation',
+        category: 'Compliance',
+        description: 'Assurance activity is required because the event occurred.',
+        confidence: 'medium',
+        regulations: ['ISO 27001']
+      },
+      {
+        title: 'AI model governance review',
+        category: 'AI / Model Risk',
+        description: 'Model governance should be reviewed after the incident.',
+        confidence: 'low',
+        regulations: ['ISO 27001']
+      }
+    ]
+  });
+
+  global.fetch = async (url) => {
+    if (String(url).includes('/kv')) {
+      return {
+        ok: true,
+        json: async () => ({ result: null })
+      };
+    }
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: aiPayload
+            }
+          }
+        ]
+      }),
+      text: async () => aiPayload
+    };
+  };
+
+  const handler = loadFresh('../../api/ai/scenario-draft');
+  const token = buildSessionToken({
+    username: 'analyst',
+    role: 'user',
+    exp: Date.now() + 60_000
+  });
+  const res = createRes();
+
+  await handler({
+    method: 'POST',
+    body: JSON.stringify({
+      riskStatement: 'Azure global admin credentials found on the dark web.',
+      guidedInput: {
+        event: 'Azure global admin credentials found on the dark web.',
+        impact: 'Control disruption and fraud exposure'
+      },
+      traceLabel: 'Step 1 guided draft'
+    }),
+    headers: {
+      origin: 'https://slackspac3.github.io',
+      'x-session-token': token
+    },
+    socket: { remoteAddress: '127.0.0.1' }
+  }, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.payload.mode, 'live');
+  assert.equal(res.payload.usedFallback, false);
+  assert.equal(String(res.payload.shortlistCoherence?.mode || ''), 'fallback_replaced');
+  assert.equal(Boolean(res.payload.shortlistCoherence?.usedFallbackShortlist), true);
+  const titles = (Array.isArray(res.payload.risks) ? res.payload.risks : []).map((risk) => String(risk?.title || '')).join(' | ');
+  assert.match(titles, /privileged|configuration|tenant/i);
+  assert.doesNotMatch(titles, /payment-control|compliance assurance|ai model/i);
+});
+
 test('scenario-draft route rejects a finance-led rewrite when the guided event is explicitly identity compromise', async () => {
   process.env.ALLOWED_ORIGIN = 'https://slackspac3.github.io';
   process.env.SESSION_SIGNING_SECRET = 'test-signing-secret';

@@ -596,10 +596,34 @@ Return corrected JSON only.`;
     return _aiStatusClient.fetchStatus({ force, probe });
   }
 
+  function _getScenarioTaxonomyProjection() {
+    return (typeof window !== 'undefined' && window?.ScenarioTaxonomyProjection)
+      || globalThis?.ScenarioTaxonomyProjection
+      || null;
+  }
+
+  function _classifyScenarioWithProjection(text = '', options = {}) {
+    const helper = _getScenarioTaxonomyProjection();
+    if (!helper || typeof helper.classifyScenarioText !== 'function') return null;
+    const classification = helper.classifyScenarioText(text, {
+      scenarioLensHint: options.scenarioLensHint || options.lensHint || ''
+    });
+    return classification && (classification.familyKey || classification.lensKey || classification.key)
+      ? classification
+      : null;
+  }
+
   function _normaliseScenarioHintKey(value) {
     const rawValues = value && typeof value === 'object'
-      ? [value.key, value.label, value.functionKey, value.estimatePresetKey]
+      ? [value.key, value.label, value.functionKey, value.estimatePresetKey, value.legacyKey, value.familyKey]
       : [value];
+    const helper = _getScenarioTaxonomyProjection();
+    if (helper?.normaliseHintKey) {
+      for (const raw of rawValues) {
+        const projected = helper.normaliseHintKey(raw);
+        if (projected && projected !== 'general') return projected;
+      }
+    }
     const aliasMap = {
       ransomware: 'ransomware',
       identity: 'identity',
@@ -679,7 +703,7 @@ Return corrected JSON only.`;
     return '';
   }
 
-  function _scenarioClassificationByKey(key = 'general') {
+  function _scenarioClassificationByKey(key = 'general', options = {}) {
     const map = {
       ransomware: {
         key: 'ransomware',
@@ -734,6 +758,15 @@ Return corrected JSON only.`;
         effect: 'Unauthorised access to and exfiltration of sensitive or regulated data',
         tef: { min: 0.5, likely: 2, max: 8 },
         tc: { min: 0.5, likely: 0.68, max: 0.88 }
+      },
+      'availability-attack': {
+        key: 'availability-attack',
+        scenarioType: 'Availability Attack Scenario',
+        primaryDriver: 'Hostile traffic actors targeting exposed customer-facing services',
+        eventPath: 'Volumetric or application-layer attack saturates the live service path',
+        effect: 'Legitimate traffic is degraded or denied while customer-facing services slow or fail under attack pressure',
+        tef: { min: 0.4, likely: 1.8, max: 7 },
+        tc: { min: 0.42, likely: 0.62, max: 0.84 }
       },
       'ai-model-risk': {
         key: 'ai-model-risk',
@@ -934,12 +967,116 @@ Return corrected JSON only.`;
         tc: { min: 0.45, likely: 0.62, max: 0.82 }
       }
     };
-    return map[key] || map.general;
+    const base = map[key] || map.general;
+    return {
+      ...base,
+      secondaryKeys: Array.isArray(options.secondaryKeys) ? options.secondaryKeys.filter(Boolean).slice(0, 3) : []
+    };
+  }
+
+  function _buildLegacyScenarioClassificationFromProjection(classification = null, fallbackKey = 'general') {
+    const helper = _getScenarioTaxonomyProjection();
+    if (!helper || !classification) return null;
+    const primaryKey = String(classification.legacyKey || classification.key || fallbackKey || 'general').trim() || 'general';
+    const secondaryKeys = Array.isArray(classification.secondaryKeys) ? classification.secondaryKeys.filter(Boolean).slice(0, 3) : [];
+    const projectionLens = helper.buildScenarioLens(classification, primaryKey);
+    const legacy = _scenarioClassificationByKey(primaryKey, { secondaryKeys });
+    return {
+      ...legacy,
+      familyKey: String(classification.familyKey || '').trim(),
+      familyLabel: String(classification.familyLabel || '').trim(),
+      lensKey: String(classification.lensKey || projectionLens?.key || '').trim(),
+      lensLabel: String(classification.lensLabel || projectionLens?.label || '').trim(),
+      functionKey: String(classification.functionKey || projectionLens?.functionKey || '').trim(),
+      estimatePresetKey: String(classification.estimatePresetKey || projectionLens?.estimatePresetKey || '').trim(),
+      taxonomyVersion: String(classification.taxonomyVersion || helper.taxonomyVersion || '').trim(),
+      matchedSignals: Array.isArray(classification.matchedSignals) ? classification.matchedSignals.slice(0, 8) : [],
+      matchedAntiSignals: Array.isArray(classification.matchedAntiSignals) ? classification.matchedAntiSignals.slice(0, 8) : [],
+      ambiguityFlags: Array.isArray(classification.ambiguityFlags) ? classification.ambiguityFlags.slice(0, 6) : [],
+      unsupportedSignals: Array.isArray(classification.unsupportedSignals) ? classification.unsupportedSignals.slice(0, 6) : []
+    };
   }
 
   function _extractRiskCandidates(text, { lensHint = null } = {}) {
     const source = String(text || '').toLowerCase();
-    const lensKey = _normaliseScenarioHintKey(lensHint);
+    const projected = _classifyScenarioWithProjection(text, { scenarioLensHint: lensHint });
+    const familyKey = String(projected?.familyKey || '').trim();
+    const lensKey = String(projected?.legacyKey || projected?.key || _normaliseScenarioHintKey(lensHint)).trim();
+    if (familyKey === 'identity_compromise' || familyKey === 'phishing_bec' || familyKey === 'business_email_compromise') {
+      return [
+        {
+          key: 'identity',
+          title: 'Privileged identity compromise affecting the tenant or approval path',
+          category: 'Cyber',
+          regulations: ['UAE PDPL', 'ISO 27001'],
+          description: 'Compromised credentials or mailbox access can be used to change control state, manipulate trust channels, and expand unauthorised access across connected systems.'
+        },
+        {
+          key: 'cloud',
+          title: 'Unauthorised configuration change across critical cloud controls',
+          category: 'Cyber',
+          regulations: ['ISO 27001', 'NIST SP 800-53'],
+          description: 'Administrative access may be abused to alter security settings, identity controls, or recovery assumptions in the affected tenant and cloud estate.'
+        },
+        {
+          key: 'operational',
+          title: 'Operational disruption from tenant control-state change',
+          category: 'Operational',
+          regulations: ['ISO 31000', 'ISO 22301'],
+          description: 'Service assurance, approvals, and incident response can degrade once identity trust and configuration integrity are no longer reliable.'
+        }
+      ];
+    }
+    if (familyKey === 'availability_attack') {
+      return [
+        {
+          key: 'cyber',
+          title: 'Availability attack against customer-facing services',
+          category: 'Cyber',
+          regulations: ['ISO 27001', 'NIST SP 800-53'],
+          description: 'Hostile traffic saturation can overwhelm the exposed service path, degrade performance, and block legitimate use at the moment demand is highest.'
+        },
+        {
+          key: 'operational',
+          title: 'Service disruption and customer-impact escalation',
+          category: 'Operational',
+          regulations: ['ISO 22301', 'ISO 31000'],
+          description: 'Customer-facing services can slow or fail materially while teams work through recovery sequencing, communications, and temporary traffic controls.'
+        },
+        {
+          key: 'business-continuity',
+          title: 'Recovery strain during prolonged availability disruption',
+          category: 'Business Continuity',
+          regulations: ['ISO 22301'],
+          description: 'Extended disruption can force emergency routing, manual intervention, and prioritisation pressure across operations and support teams.'
+        }
+      ];
+    }
+    if (familyKey === 'privacy_non_compliance' || familyKey === 'records_retention_non_compliance' || familyKey === 'cross_border_transfer_non_compliance') {
+      return [
+        {
+          key: 'compliance',
+          title: 'Privacy obligation and approved-use control failure',
+          category: 'Compliance',
+          regulations: ['UAE PDPL', 'ISO 37301'],
+          description: 'The primary issue is failure to keep personal data use, retention, or transfer within the approved legal and policy boundaries.'
+        },
+        {
+          key: 'regulatory',
+          title: 'Supervisory scrutiny over retention or processing obligations',
+          category: 'Regulatory',
+          regulations: ['UAE PDPL', 'GDPR'],
+          description: 'Regulators may challenge how the organisation governed lawful basis, retention, transfer restrictions, and privacy accountability.'
+        },
+        {
+          key: 'legal-contract',
+          title: 'Legal exposure from non-compliant handling of records',
+          category: 'Legal / Contract',
+          regulations: ['ISO 37301'],
+          description: 'Incorrect retention or processing can create legal claims, contractual challenge, and costly remediation obligations even without explicit external disclosure.'
+        }
+      ];
+    }
     if (/bankrupt|bankruptcy|insolv|insolven|receivable|bad debt|write[- ]?off|counterparty|credit loss|credit exposure|customer default|client default|collections|collectability|cashflow|working capital|provisioning|provision/.test(source)) {
       return [
         {
@@ -1095,8 +1232,6 @@ Return corrected JSON only.`;
       ];
     }
     const catalog = [
-      { key: 'ai-model-risk', title: 'AI model governance or responsible-AI failure', category: 'AI / Model Risk', regulations: ['ISO/IEC 42001', 'NIST AI RMF', 'EU AI Act'], terms: ['ai', 'model risk', 'responsible ai', 'model drift', 'hallucination', 'bias', 'algorithm', 'llm', 'training data', 'ai act'] },
-      { key: 'data-governance', title: 'Data-governance or privacy-control breakdown', category: 'Data Governance', regulations: ['ISO 27701', 'GDPR', 'UAE PDPL'], terms: ['data governance', 'data quality', 'data lineage', 'retention', 'purpose limitation', 'privacy', 'personal data', 'consent', 'data residency', 'master data'] },
       { key: 'strategic', title: 'Strategic execution or market-position risk', category: 'Strategic', regulations: ['ISO 31000', 'COSO ERM'], terms: ['strategy', 'strategic', 'expansion', 'transformation', 'market', 'competitive', 'portfolio', 'investment'] },
       { key: 'operational', title: 'Operational breakdown affecting core services', category: 'Operational', regulations: ['ISO 31000', 'ISO 22301'], terms: ['outage', 'downtime', 'availability', 'service disruption', 'operational disruption', 'failure', 'breakdown', 'backlog', 'capacity', 'process failure', 'human error', 'manual error', 'aging infrastructure', 'ageing infrastructure', 'legacy infrastructure', 'platform instability', 'system instability'] },
       { key: 'cyber', title: 'Cyber compromise of critical platforms or data', category: 'Cyber', regulations: ['UAE PDPL', 'UAE NESA IAS', 'ISO 27001'], terms: ['ransom', 'phish', 'malware', 'identity', 'credential', 'sso', 'entra', 'azure ad', 'breach', 'exfil', 'cloud compromise', 'cloud exposure', 'cloud breach', 'misconfig', 'vulnerability', 'privileged'] },
@@ -1119,8 +1254,6 @@ Return corrected JSON only.`;
       { key: 'hse', title: 'Health, safety, and environmental incident exposure', category: 'HSE', regulations: ['ISO 45001', 'ISO 14001'], terms: ['hse', 'health and safety', 'safety', 'injury', 'environmental', 'spill', 'worker'] }
     ];
     const compatibilityBoosts = {
-      'ai-model-risk': new Set(['ai-model-risk', 'data-governance', 'compliance', 'cyber']),
-      'data-governance': new Set(['data-governance', 'compliance', 'regulatory', 'cyber']),
       procurement: new Set(['procurement', 'supply-chain', 'third-party']),
       'supply-chain': new Set(['supply-chain', 'procurement', 'third-party']),
       compliance: new Set(['compliance', 'regulatory']),
@@ -2154,13 +2287,45 @@ ${businessUnit.selectedDepartmentContext}` : ''
     classification = {},
     scenarioLensHint = ''
   } = {}) {
+    const helper = _getScenarioTaxonomyProjection();
+    const normalisedIdeas = _normalisePromptIdeaCandidates(ideas);
     const seedText = String(sourceText || '').toLowerCase();
     const expectedLens = _normaliseScenarioHintKey(scenarioLensHint) || _normaliseScenarioHintKey(classification?.key || '');
+    if (helper && normalisedIdeas.length) {
+      const sourceClassification = _classifyScenarioWithProjection(sourceText, { scenarioLensHint })
+        || _classifyScenarioWithProjection(sourceText, { scenarioLensHint: expectedLens });
+      const allowedLenses = new Set([
+        helper.normaliseHintKey(sourceClassification?.lensKey || expectedLens),
+        ...(Array.isArray(sourceClassification?.secondaryFamilyKeys) ? sourceClassification.secondaryFamilyKeys : [])
+          .map((familyKey) => helper.familyByKey?.[familyKey]?.lensKey)
+          .filter(Boolean),
+        ...(Array.isArray(classification?.secondaryKeys) ? classification.secondaryKeys : [])
+          .map((key) => helper.normaliseHintKey(key))
+          .filter(Boolean)
+      ].filter(Boolean));
+      const sourceUnsupported = new Set(
+        Array.isArray(sourceClassification?.unsupportedSignals) && sourceClassification.unsupportedSignals.length
+          ? sourceClassification.unsupportedSignals
+          : helper.detectUnsupportedSignals(sourceText)
+      );
+      return normalisedIdeas.filter((idea) => {
+        const combined = `${idea.label}. ${idea.prompt}`;
+        const ideaClassification = _classifyScenarioWithProjection(combined, { scenarioLensHint: expectedLens }) || {};
+        const ideaLens = helper.normaliseHintKey(ideaClassification?.lensKey || ideaClassification?.key || '');
+        const ideaUnsupported = Array.isArray(ideaClassification?.unsupportedSignals)
+          ? ideaClassification.unsupportedSignals
+          : helper.detectUnsupportedSignals(combined);
+        if (!sourceUnsupported.size && ideaUnsupported.length) return false;
+        if (!allowedLenses.size || !ideaLens || ideaLens === 'general') return !ideaUnsupported.length;
+        if (allowedLenses.has(ideaLens)) return true;
+        return Array.from(allowedLenses).some((lens) => helper.areLensesCompatible(lens, ideaLens));
+      });
+    }
     const allowedLenses = new Set([
       expectedLens,
       ...((Array.isArray(classification?.secondaryKeys) ? classification.secondaryKeys : []).map(_normaliseScenarioHintKey).filter(Boolean))
     ].filter(Boolean));
-    return _normalisePromptIdeaCandidates(ideas).filter((idea) => {
+    return normalisedIdeas.filter((idea) => {
       const combined = `${idea.label} ${idea.prompt}`.toLowerCase();
       if (!_hasAiModelSignals(seedText) && /(responsible ai|model risk|model drift|hallucination|algorithmic bias|training data|ai assistant|unsafe output)/.test(combined)) {
         return false;
@@ -2314,6 +2479,12 @@ ${businessUnit.selectedDepartmentContext}` : ''
       options.businessUnit?.notes
     ].filter(Boolean).join(' ');
     const directScenarioText = [narrative, guidedText].filter(Boolean).join(' ').trim();
+    const projectionClassification = _classifyScenarioWithProjection(directScenarioText || businessContext, {
+      scenarioLensHint: options.scenarioLensHint
+    });
+    if (projectionClassification?.familyKey) {
+      return _buildLegacyScenarioClassificationFromProjection(projectionClassification, 'general');
+    }
     const n = String(directScenarioText || businessContext || '').toLowerCase();
     const hintKey = _normaliseScenarioHintKey(options.scenarioLensHint);
     const hasOperationalOutageSignals = _hasOperationalOutageSignals(n);
@@ -2466,6 +2637,23 @@ ${businessUnit.selectedDepartmentContext}` : ''
   }
 
   function _buildScenarioLens(classification = {}) {
+    const helper = _getScenarioTaxonomyProjection();
+    if (helper) {
+      const projectionLens = helper.buildScenarioLens({
+        lensKey: classification?.lensKey || classification?.key || '',
+        familyKey: classification?.familyKey || '',
+        secondaryFamilyKeys: Array.isArray(classification?.secondaryFamilyKeys) ? classification.secondaryFamilyKeys : []
+      }, classification?.key || 'general');
+      if (projectionLens?.key && projectionLens.key !== 'general') {
+        return {
+          ...projectionLens,
+          secondaryKeys: Array.from(new Set([
+            ...(Array.isArray(projectionLens.secondaryKeys) ? projectionLens.secondaryKeys : []),
+            ...(Array.isArray(classification?.secondaryKeys) ? classification.secondaryKeys : [])
+          ])).filter((key) => key && key !== projectionLens.key).slice(0, 3)
+        };
+      }
+    }
     const key = String(classification?.key || 'general').trim() || 'general';
     const map = {
       ransomware: { label: 'Cyber', functionKey: 'technology', estimatePresetKey: 'ransomware' },
@@ -2977,6 +3165,14 @@ ${businessUnit.selectedDepartmentContext}` : ''
   }
 
   function _isCompatibleScenarioLens(expected = '', actual = '') {
+    const helper = _getScenarioTaxonomyProjection();
+    if (helper) {
+      const expectedProjection = helper.normaliseHintKey(expected);
+      const actualProjection = helper.normaliseHintKey(actual);
+      if (expectedProjection && actualProjection && expectedProjection !== 'general' && actualProjection !== 'general') {
+        return helper.areLensesCompatible(expectedProjection, actualProjection);
+      }
+    }
     const expectedKey = _normaliseScenarioHintKey(expected);
     const actualKey = _normaliseScenarioHintKey(actual);
     if (!expectedKey || expectedKey === 'general' || !actualKey) return true;
@@ -3048,6 +3244,10 @@ ${businessUnit.selectedDepartmentContext}` : ''
   }
 
   function _inferLensFromRiskCard(risk = {}) {
+    const projected = _classifyScenarioWithProjection(`${risk?.title || ''} ${risk?.description || ''}`, {
+      scenarioLensHint: risk?.category || ''
+    });
+    if (projected?.lensKey && projected.lensKey !== 'general') return projected.lensKey;
     const raw = _normaliseScenarioHintKey(risk?.category || '');
     if (raw) return raw;
     const text = `${risk?.title || ''} ${risk?.description || ''}`.toLowerCase();

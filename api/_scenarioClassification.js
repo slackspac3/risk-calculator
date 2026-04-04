@@ -4,6 +4,7 @@ const {
   SCENARIO_TAXONOMY,
   SCENARIO_TAXONOMY_DOMAINS,
   SCENARIO_TAXONOMY_OVERLAYS,
+  SCENARIO_TAXONOMY_FAMILIES,
   SCENARIO_TAXONOMY_ACTIVE_FAMILIES,
   SCENARIO_TAXONOMY_FAMILY_BY_KEY,
   SCENARIO_TAXONOMY_MECHANISM_BY_KEY,
@@ -142,7 +143,7 @@ const OVERLAY_SIGNAL_MAP = Object.freeze({
   backlog_growth: ['backlog', 'queue growth', 'deferred work', 'delayed projects', 'downstream delay'],
   recovery_strain: ['recovery strain', 'recovery pressure', 'restoration delay', 'recovery burden', 'response strain'],
   reputational_damage: ['reputational', 'trust impact', 'brand damage', 'stakeholder scrutiny', 'public confidence'],
-  data_exposure: ['data exposure', 'exfiltration', 'breach', 'disclosure', 'leaked data', 'exposed records', 'stolen data'],
+  data_exposure: ['data exposure', 'data breach', 'exfiltration', 'unauthorised disclosure', 'unauthorized disclosure', 'leaked data', 'exposed records', 'stolen data'],
   operational_disruption: ['operational disruption', 'service disruption', 'delayed delivery', 'instability', 'degraded service', 'dependent projects delayed'],
   control_breakdown: ['control failure', 'control breakdown', 'approval gap', 'policy breach', 'weak controls', 'override'],
   third_party_dependency: ['supplier', 'vendor', 'third-party', 'third party', 'dependency', 'outsourced'],
@@ -245,6 +246,13 @@ function getFamilyExtraMatches(familyKey = '', text = '') {
       push({ text: 'deceptive payment pattern', strength: 'strong' });
     }
   }
+  if (familyKey === 'third_party_access_compromise') {
+    if (/(vendor|third-party|third party|supplier|partner|support account)/.test(raw)
+      && /(compromis|abused|unauthori[sz]ed access|intrusion|credentials? .*abused)/.test(raw)
+      && !/(no compromise|not compromised|without compromise|no intrusion|not abused)/.test(raw)) {
+      push({ text: 'compromised inherited access path', strength: 'strong' });
+    }
+  }
   if (familyKey === 'delivery_slippage' || familyKey === 'programme_delivery_slippage') {
     if (/(supplier|vendor|delivery|shipment|logistics)/.test(raw)
       && /(delay|delayed|missed delivery|delivery date|late|slippage|milestone|deployment|go-live|rollout|dependent project|dependent projects)/.test(raw)) {
@@ -295,7 +303,8 @@ function buildHintAliasMap() {
     aliasMap.set(normaliseText(domain.key), domain.key);
     aliasMap.set(normaliseText(domain.label), domain.key);
   });
-  SCENARIO_TAXONOMY_ACTIVE_FAMILIES.forEach((family) => {
+  SCENARIO_TAXONOMY_FAMILIES.forEach((family) => {
+    const resolvedFamily = resolveFamilyByKey(family.key) || family;
     [
       family.key,
       family.label,
@@ -304,11 +313,12 @@ function buildHintAliasMap() {
       family.lensKey,
       family.lensLabel,
       family.functionKey,
-      family.estimatePresetKey
+      family.estimatePresetKey,
+      family.preferredFamilyKey
     ].forEach((alias) => {
       const normalisedAlias = normaliseText(alias);
       if (!normalisedAlias) return;
-      if (!aliasMap.has(normalisedAlias)) aliasMap.set(normalisedAlias, family.key);
+      if (!aliasMap.has(normalisedAlias)) aliasMap.set(normalisedAlias, resolvedFamily.key);
     });
   });
   return aliasMap;
@@ -318,17 +328,17 @@ const HINT_ALIAS_MAP = buildHintAliasMap();
 
 function findFamilyByHint(value) {
   const candidates = value && typeof value === 'object'
-    ? [value.key, value.label, value.functionKey, value.estimatePresetKey, value.domain, value.primaryFamily?.key]
+    ? [value.key, value.label, value.functionKey, value.estimatePresetKey, value.domain, value.primaryFamily?.key, value.legacyKey, value.familyKey]
     : [value];
   for (const candidate of candidates) {
     const normalised = normaliseText(candidate);
     if (!normalised) continue;
     const resolved = HINT_ALIAS_MAP.get(normalised);
     if (!resolved || resolved === 'general') continue;
-    if (SCENARIO_TAXONOMY_FAMILY_BY_KEY[resolved]) return SCENARIO_TAXONOMY_FAMILY_BY_KEY[resolved];
+    if (SCENARIO_TAXONOMY_FAMILY_BY_KEY[resolved]) return resolveFamilyByKey(resolved);
     const defaultFamilyKey = DOMAIN_DEFAULT_FAMILY[resolved];
     if (defaultFamilyKey && SCENARIO_TAXONOMY_FAMILY_BY_KEY[defaultFamilyKey]) {
-      return SCENARIO_TAXONOMY_FAMILY_BY_KEY[defaultFamilyKey];
+      return resolveFamilyByKey(defaultFamilyKey);
     }
   }
   return null;
@@ -338,16 +348,16 @@ function normaliseScenarioHintKey(value) {
   const family = findFamilyByHint(value);
   if (family?.lensKey) return family.lensKey;
   const candidates = value && typeof value === 'object'
-    ? [value.key, value.label, value.functionKey, value.estimatePresetKey]
+    ? [value.key, value.label, value.functionKey, value.estimatePresetKey, value.legacyKey, value.familyKey]
     : [value];
   for (const candidate of candidates) {
     const normalised = HINT_ALIAS_MAP.get(normaliseText(candidate));
     if (!normalised) continue;
     if (SCENARIO_TAXONOMY_FAMILY_BY_KEY[normalised]) {
-      return SCENARIO_TAXONOMY_FAMILY_BY_KEY[normalised].lensKey || 'general';
+      return resolveFamilyByKey(normalised)?.lensKey || 'general';
     }
     if (DOMAIN_DEFAULT_FAMILY[normalised]) {
-      return SCENARIO_TAXONOMY_FAMILY_BY_KEY[DOMAIN_DEFAULT_FAMILY[normalised]]?.lensKey || 'general';
+      return resolveFamilyByKey(DOMAIN_DEFAULT_FAMILY[normalised])?.lensKey || 'general';
     }
   }
   return '';
@@ -474,9 +484,49 @@ function hasExplicitPrivacyObligationSignals(text = '') {
   return /(privacy obligations?|data protection obligations?|retention breach|unlawful processing|without lawful basis|cross-border transfer|transfer without safeguards|records retention)/i.test(text);
 }
 
+function hasExplicitThirdPartyAccessCompromiseSignals(text = '') {
+  return /(vendor access compromised|third-party access compromised|partner account compromised|external support account abused|vendor credentials abused|third-party remote access(?: path)?(?: is| becomes| was)? (?:compromised|abused)|supplier access path)/i.test(text);
+}
+
+function hasExplicitCyberCauseSignals(text = '') {
+  return hasAvailabilityAttackSignals(text)
+    || hasIdentitySignals(text)
+    || /(ransomware|malware|phishing|phish|credential theft|stolen token|compromised|compromise|unauthori[sz]ed access|intrusion|breach|botnet|volumetric attack)/i.test(text);
+}
+
+function hasExplicitGreenwashingSignals(text = '') {
+  return /(greenwashing|sustainability disclosure|climate disclosure|claim substantiation|esg disclosure gap)/i.test(text);
+}
+
+function hasExplicitRecordsRetentionSignals(text = '') {
+  return /(records retention|retention schedule|records kept too long|deletion obligations? not met|retention breach)/i.test(text);
+}
+
+function hasExplicitCrossBorderTransferSignals(text = '') {
+  return /(cross-border transfer|cross border transfer|international transfer|transfer without safeguards|data residency breach|transfer impact assessment)/i.test(text);
+}
+
+function hasExplicitInvoiceSignals(text = '') {
+  return /(fake invoice|false invoice|invoice scam|duplicate invoice)/i.test(text);
+}
+
 function applyPrecedence(scoredFamilies = [], text = '', meta = {}) {
   const byKey = new Map(scoredFamilies.map((item) => [item.family.key, item]));
   const applied = [];
+  const penalise = (keys = [], { against = null, penalty = 5, tolerance = 2, label = '' } = {}) => {
+    if (!against) return;
+    let changed = false;
+    keys
+      .map((key) => byKey.get(key))
+      .filter(Boolean)
+      .forEach((candidate) => {
+        if (against.score >= candidate.score - tolerance) {
+          candidate.score -= penalty;
+          changed = true;
+        }
+      });
+    if (changed && label) applied.push(label);
+  };
 
   const identity = byKey.get('identity_compromise');
   const paymentControl = byKey.get('payment_control_failure');
@@ -494,6 +544,15 @@ function applyPrecedence(scoredFamilies = [], text = '', meta = {}) {
       if (availability.score >= candidate.score - 3) candidate.score -= 6;
     });
     applied.push('availability_attack beats business_continuity when hostile traffic is the event path');
+    penalise(
+      ['policy_breach', 'privacy_non_compliance', 'regulatory_filing_failure', 'greenwashing_disclosure_gap'],
+      {
+        against: availability,
+        penalty: 6,
+        tolerance: 3,
+        label: 'availability_attack beats compliance or regulatory consequence wording when hostile traffic is the event path'
+      }
+    );
   }
 
   const privacy = byKey.get('privacy_non_compliance');
@@ -502,12 +561,46 @@ function applyPrecedence(scoredFamilies = [], text = '', meta = {}) {
     disclosure.score -= 7;
     applied.push('privacy_non_compliance beats data_disclosure when obligation failure is primary');
   }
+  const retention = byKey.get('records_retention_non_compliance');
+  if (retention && privacy && hasExplicitRecordsRetentionSignals(text) && retention.score >= privacy.score - 2) {
+    privacy.score -= 5;
+    applied.push('records_retention_non_compliance beats generic privacy non-compliance when retention obligations are explicit');
+  }
+  const crossBorder = byKey.get('cross_border_transfer_non_compliance');
+  if (crossBorder && privacy && hasExplicitCrossBorderTransferSignals(text) && crossBorder.score >= privacy.score - 2) {
+    privacy.score -= 5;
+    applied.push('cross_border_transfer_non_compliance beats generic privacy non-compliance when transfer obligations are explicit');
+  }
 
   const delivery = byKey.get('delivery_slippage');
   const singleSource = byKey.get('single_source_dependency');
   if (delivery && singleSource && hasExplicitDelaySignals(text) && delivery.score >= singleSource.score - 2) {
     singleSource.score -= 5;
     applied.push('delivery_slippage beats single_source_dependency when actual delay is explicit');
+  }
+  if (delivery && hasExplicitDelaySignals(text) && !hasExplicitCyberCauseSignals(text)) {
+    penalise(
+      ['availability_attack', 'identity_compromise', 'cloud_control_failure', 'unauthorized_configuration_change', 'third_party_access_compromise'],
+      {
+        against: delivery,
+        penalty: 6,
+        tolerance: 2,
+        label: 'delivery_slippage beats cyber-leaning interpretation when supplier delay is explicit and cyber cause is absent'
+      }
+    );
+  }
+
+  const thirdPartyAccessCompromise = byKey.get('third_party_access_compromise');
+  if (thirdPartyAccessCompromise && hasExplicitThirdPartyAccessCompromiseSignals(text)) {
+    penalise(
+      ['vendor_access_weakness', 'supplier_control_weakness'],
+      {
+        against: thirdPartyAccessCompromise,
+        penalty: 6,
+        tolerance: 2,
+        label: 'third_party_access_compromise beats governance weakness when an inherited access path is explicitly compromised'
+      }
+    );
   }
 
   const invoiceFraud = byKey.get('invoice_fraud');
@@ -521,6 +614,17 @@ function applyPrecedence(scoredFamilies = [], text = '', meta = {}) {
       paymentControl.score -= 5;
       applied.push('payment_fraud beats payment_control_failure when deception is explicit');
     }
+  }
+  if (invoiceFraud && paymentFraud && hasExplicitInvoiceSignals(text) && invoiceFraud.score >= paymentFraud.score - 1) {
+    paymentFraud.score -= 4;
+    applied.push('invoice_fraud beats payment_fraud when the deception is explicitly invoice-led');
+  }
+
+  const greenwashing = byKey.get('greenwashing_disclosure_gap');
+  const policyBreach = byKey.get('policy_breach');
+  if (greenwashing && policyBreach && hasExplicitGreenwashingSignals(text) && greenwashing.score >= policyBreach.score - 2) {
+    policyBreach.score -= 6;
+    applied.push('greenwashing_disclosure_gap beats generic policy breach when disclosure substantiation is explicit');
   }
 
   return {
@@ -584,6 +688,16 @@ function buildPrimaryProfile(family = null) {
 
 function cleanSentenceFragment(value = '') {
   return String(value || '').replace(/\s+/g, ' ').trim();
+}
+
+function resolveFamilyByKey(key = '', visited = new Set()) {
+  const family = SCENARIO_TAXONOMY_FAMILY_BY_KEY[String(key || '').trim()] || null;
+  if (!family) return null;
+  if (String(family.status || 'active') !== 'compatibility_only') return family;
+  const preferredFamilyKey = String(family.preferredFamilyKey || '').trim();
+  if (!preferredFamilyKey || visited.has(family.key)) return family;
+  visited.add(family.key);
+  return resolveFamilyByKey(preferredFamilyKey, visited) || family;
 }
 
 function buildSecondaryFamilies(scoredFamilies = [], primaryFamily = null) {

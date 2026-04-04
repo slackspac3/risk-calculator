@@ -133,7 +133,7 @@ test('supplier delivery slippage for infrastructure deployment stays out of proc
     }
   });
 
-  assert.equal(classification.key, 'transformation-delivery');
+  assert.equal(classification.key, 'supply-chain');
 
   const risks = internals._extractRiskCandidates(text, {
     lensHint: { key: 'operational', label: 'Operational' }
@@ -141,6 +141,50 @@ test('supplier delivery slippage for infrastructure deployment stays out of proc
 
   assert.equal(risks[0]?.key, 'transformation-delivery');
   assert.equal(risks.some((risk) => risk.key === 'procurement'), false);
+});
+
+test('classifies volumetric DDoS as cyber availability rather than compliance or AI drift', () => {
+  const internals = loadLlmInternals();
+  const text = 'DDoS traffic overwhelms the public website and degrades customer-facing services.';
+  const classification = internals._classifyScenario(text, {
+    guidedInput: {
+      event: text,
+      asset: 'Public website',
+      cause: 'Volumetric hostile traffic',
+      impact: 'Customer-facing service degradation'
+    }
+  });
+
+  assert.equal(classification.key, 'availability-attack');
+
+  const risks = internals._extractRiskCandidates(text, {
+    lensHint: { key: 'cyber', label: 'Cyber' }
+  });
+
+  assert.equal(risks.some((risk) => risk.key === 'compliance'), false);
+  assert.equal(risks.some((risk) => risk.key === 'ai-model-risk'), false);
+});
+
+test('classifies privacy-obligation wording as compliance rather than data breach without disclosure signals', () => {
+  const internals = loadLlmInternals();
+  const text = 'Customer records are retained and processed in breach of privacy obligations and lawful basis requirements.';
+  const classification = internals._classifyScenario(text, {
+    guidedInput: {
+      event: text,
+      asset: 'Customer records',
+      cause: 'Weak retention and lawful-basis control',
+      impact: 'Supervisory scrutiny and remediation pressure'
+    }
+  });
+
+  assert.equal(classification.key, 'compliance');
+
+  const risks = internals._extractRiskCandidates(text, {
+    lensHint: { key: 'compliance', label: 'Compliance' }
+  });
+
+  assert.equal(risks.some((risk) => risk.key === 'data-breach'), false);
+  assert.equal(risks[0]?.key, 'compliance');
 });
 
 test('evaluateGuidedDraftCandidate rejects a draft that explicitly labels the wrong lens', () => {

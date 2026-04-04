@@ -7,7 +7,11 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 function loadStep1Internals() {
+  const projectionDataPath = path.resolve(__dirname, '../../assets/services/scenarioTaxonomyProjectionData.js');
+  const projectionPath = path.resolve(__dirname, '../../assets/services/scenarioTaxonomyProjection.js');
   const filePath = path.resolve(__dirname, '../../assets/wizard/step1.js');
+  const projectionDataSource = fs.readFileSync(projectionDataPath, 'utf8');
+  const projectionSource = fs.readFileSync(projectionPath, 'utf8');
   const source = fs.readFileSync(filePath, 'utf8');
   let lastGuessRisksArgs = null;
 
@@ -66,6 +70,8 @@ function loadStep1Internals() {
   };
 
   vm.createContext(context);
+  vm.runInContext(projectionDataSource, context, { filename: 'scenarioTaxonomyProjectionData.js' });
+  vm.runInContext(projectionSource, context, { filename: 'scenarioTaxonomyProjection.js' });
   vm.runInContext(source, context, { filename: 'step1.js' });
   return {
     appState: context.AppState,
@@ -106,8 +112,8 @@ test('CEO mailbox hijack stays in the identity/cyber prompt lane', () => {
   });
 
   const labels = suggestions.map(item => item.label);
-  assert.ok(labels.includes('Identity takeover'));
-  assert.ok(labels.includes('Executive mailbox compromise'));
+  assert.ok(labels.includes('Identity Platform Compromise'));
+  assert.ok(labels.includes('Privileged Account Takeover'));
   assert.equal(labels.includes('Contract cover gap'), false);
   assert.equal(labels.includes('Single-source shortfall'), false);
   assert.equal(labels.includes('Responsible AI drift'), false);
@@ -129,8 +135,8 @@ test('dark-web Azure admin credential discovery does not leak AI-model prompt id
   });
 
   const labels = suggestions.map(item => item.label);
-  assert.ok(labels.includes('Privileged credential exposure'));
-  assert.ok(labels.includes('Admin account takeover'));
+  assert.ok(labels.includes('Identity Platform Compromise'));
+  assert.ok(labels.includes('Privileged Account Takeover'));
   assert.equal(labels.includes('Responsible AI drift'), false);
 });
 
@@ -178,8 +184,8 @@ test('guided prompt ideas and lens ignore stale prior outage narratives', () => 
   });
 
   const labels = suggestions.map(item => item.label);
-  assert.ok(labels.includes('Privileged credential exposure'));
-  assert.ok(labels.includes('Data or identity exposure') || labels.includes('Admin account takeover'));
+  assert.ok(labels.includes('Identity Platform Compromise'));
+  assert.ok(labels.includes('Privileged Account Takeover'));
   assert.equal(labels.includes('Operational outage from aging infrastructure'), false);
   assert.equal(labels.includes('Human-error service disruption'), false);
 
@@ -216,8 +222,7 @@ test('no-DR Outlook continuity scenario stays in continuity prompt ideas and kee
     ]
   });
   const labels = suggestions.map((item) => item.label);
-  assert.ok(labels.includes('Email service continuity gap'));
-  assert.ok(labels.includes('Recovery failure in core communications'));
+  assert.ok(labels.includes('DR Gap'));
   assert.equal(labels.includes('Responsible AI drift'), false);
   assert.equal(labels.includes('Cloud exposure'), false);
   assert.equal(internals.shouldUseStep1LivePreview(draft), false);
@@ -246,8 +251,7 @@ test('counterparty default scenario stays in finance suggestions and avoids paym
     ]
   });
   const labels = suggestions.map((item) => item.label);
-  assert.ok(labels.includes('Counterparty insolvency'));
-  assert.ok(labels.includes('Working-capital strain after default'));
+  assert.ok(labels.includes('Counterparty Default'));
   assert.equal(labels.includes('Payment control failure'), false);
   assert.equal(labels.includes('Responsible AI drift'), false);
 });
@@ -275,8 +279,7 @@ test('supplier labour scenario stays in ESG prompt ideas instead of drifting int
     ]
   });
   const labels = suggestions.map((item) => item.label);
-  assert.ok(labels.includes('Supplier labour-practice failure'));
-  assert.ok(labels.includes('Human-rights due-diligence gap'));
+  assert.ok(labels.includes('Forced Labour / Modern Slavery'));
   assert.equal(labels.includes('Single-source shortfall'), false);
 });
 
@@ -364,10 +367,62 @@ test('supplier delivery slippage for infrastructure deployment stays out of proc
   });
 
   const labels = suggestions.map(item => item.label);
-  assert.ok(labels.includes('Critical supplier delivery delay'));
-  assert.ok(labels.includes('Deployment dependency slippage'));
+  assert.ok(labels.includes('Delivery Slippage'));
   assert.equal(labels.includes('Single-source shortfall'), false);
   assert.equal(labels.includes('Contract cover gap'), false);
+});
+
+test('availability-attack prompt hints stay in the cyber availability lane', () => {
+  const internals = loadStep1Internals();
+  const event = 'DDoS traffic overwhelms the public website and degrades customer-facing services.';
+  assert.equal(internals.inferStep1FunctionKeyFromText(event), 'technology');
+
+  const suggestions = internals.buildStep1GuidedPromptSuggestions({
+    guidedInput: {
+      event,
+      asset: 'Public website',
+      cause: 'Volumetric hostile traffic',
+      impact: 'Customer-facing service degradation'
+    }
+  }, {
+    recommendedExamples: [
+      { promptLabel: 'Compliance assurance gap', event: 'A policy assurance gap emerges.', functionKey: 'compliance' },
+      { promptLabel: 'Responsible AI drift', event: 'An AI assistant drifts.', functionKey: 'technology' }
+    ]
+  });
+
+  const labels = suggestions.map((item) => item.label);
+  assert.ok(labels.includes('Availability Attack'));
+  assert.equal(labels.includes('Compliance assurance gap'), false);
+  assert.equal(labels.includes('Responsible AI drift'), false);
+});
+
+test('privacy-obligation prompt hints stay in the compliance lane without implying breach', () => {
+  const internals = loadStep1Internals();
+  const event = 'Customer records are retained and processed in breach of privacy obligations and lawful basis requirements.';
+  const draft = {
+    step1Path: 'guided',
+    guidedInput: {
+      event,
+      asset: 'Customer records',
+      cause: 'Weak retention and lawful-basis controls',
+      impact: 'Supervisory scrutiny and remediation pressure'
+    }
+  };
+
+  const lens = internals.getStep1PreferredScenarioLens({}, draft, event);
+  assert.equal(lens.key, 'compliance');
+  assert.equal(lens.functionKey, 'compliance');
+
+  const suggestions = internals.buildStep1GuidedPromptSuggestions(draft, {
+    recommendedExamples: [
+      { promptLabel: 'External data breach', event: 'Stolen data is leaked externally.', functionKey: 'technology' }
+    ]
+  });
+
+  const labels = suggestions.map((item) => item.label);
+  assert.ok(labels.includes('Privacy Non Compliance'));
+  assert.equal(labels.includes('External data breach'), false);
 });
 
 test('displayed guided preview prefers the live AI-checked preview for the current signature', () => {

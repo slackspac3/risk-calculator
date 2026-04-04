@@ -78,7 +78,6 @@ const STEP1_USE_GUIDED_SERVER_HELPERS = false;
 
 const STEP1_LENS_REGULATION_SUGGESTIONS = {
   cyber: ['UAE PDPL', 'UAE Cybersecurity Council Guidance', 'NIST SP 800-53', 'NIST RMF', 'ISO 27001'],
-  'data-governance': ['UAE PDPL', 'ISO 27701', 'ISO 27018'],
   regulatory: ['BIS Export Controls', 'OFAC Sanctions'],
   financial: ['UAE AML/CFT', 'COSO Internal Control Framework'],
   'fraud-integrity': ['ISO 37001', 'UAE AML/CFT'],
@@ -88,7 +87,6 @@ const STEP1_LENS_REGULATION_SUGGESTIONS = {
   'business-continuity': ['ISO 22301', 'ISO 22313', 'NFPA 1600'],
   'physical-security': ['UAE Fire and Life Safety Code', 'ISO 22301'],
   'ot-resilience': ['IEC 62443', 'ISO 22301'],
-  'ai-model-risk': ['ISO/IEC 42001', 'NIST AI RMF', 'EU AI Act'],
   'people-workforce': ['UN Guiding Principles', 'SA8000', 'ILO-OSH 2001'],
   'investment-jv': ['COSO ERM', 'ISO 31000'],
   'transformation-delivery': ['ISO 31010', 'COSO ERM'],
@@ -99,6 +97,72 @@ const STEP1_LENS_REGULATION_SUGGESTIONS = {
   'legal-contract': ['ISO 37301'],
   geopolitical: ['OFAC Sanctions', 'BIS Export Controls']
 };
+
+function getStep1ScenarioTaxonomyProjection() {
+  if (typeof window !== 'undefined' && window?.ScenarioTaxonomyProjection) return window.ScenarioTaxonomyProjection;
+  if (typeof globalThis !== 'undefined' && globalThis?.ScenarioTaxonomyProjection) return globalThis.ScenarioTaxonomyProjection;
+  return null;
+}
+
+function classifyStep1ScenarioWithProjection(text = '', scenarioLensHint = '') {
+  const helper = getStep1ScenarioTaxonomyProjection();
+  if (!helper || typeof helper.classifyScenarioText !== 'function') return null;
+  const classification = helper.classifyScenarioText(text, { scenarioLensHint });
+  return classification && (classification.familyKey || (classification.lensKey && classification.lensKey !== 'general'))
+    ? classification
+    : null;
+}
+
+function mapStep1FunctionKeyFromProjection(classification = null, fallback = 'general') {
+  const lensKey = String(classification?.lensKey || '').trim();
+  const lensBucketMap = {
+    cyber: 'technology',
+    financial: 'finance',
+    compliance: 'compliance',
+    regulatory: 'compliance',
+    'legal-contract': 'compliance',
+    procurement: 'procurement',
+    'third-party': 'procurement',
+    operational: 'operations',
+    'business-continuity': 'operations',
+    'supply-chain': 'operations',
+    'physical-security': 'operations',
+    'ot-resilience': 'operations',
+    hse: 'hse',
+    'people-workforce': 'hse',
+    strategic: 'strategic',
+    geopolitical: 'strategic',
+    esg: 'strategic',
+    'investment-jv': 'strategic',
+    'transformation-delivery': 'strategic'
+  };
+  return lensBucketMap[lensKey] || String(classification?.functionKey || fallback || 'general').trim() || 'general';
+}
+
+function buildStep1LensFromProjection(classification = null, fallback = null) {
+  const helper = getStep1ScenarioTaxonomyProjection();
+  if (!helper || typeof helper.buildScenarioLens !== 'function') return fallback;
+  const lens = helper.buildScenarioLens(classification || {}, fallback?.key || fallback || '');
+  return lens && lens.key
+    ? {
+        ...lens,
+        functionKey: mapStep1FunctionKeyFromProjection(classification || lens, lens.functionKey || fallback?.functionKey || 'general')
+      }
+    : fallback;
+}
+
+function mergeStep1LensWithStored(lens = null, stored = null) {
+  if (!lens?.key) return stored || lens;
+  if (!stored?.key || stored.key === 'general' || stored.key === lens.key) return lens;
+  return {
+    ...lens,
+    secondaryKeys: Array.from(new Set([
+      ...(Array.isArray(lens.secondaryKeys) ? lens.secondaryKeys : []),
+      ...(Array.isArray(stored.secondaryKeys) ? stored.secondaryKeys : []),
+      stored.key
+    ])).filter((key) => key && key !== lens.key)
+  };
+}
 
 const STEP1_REGULATION_CATEGORY_RULES = [
   {
@@ -342,6 +406,8 @@ function createStep1DryRunScenario(input = {}) {
 }
 
 function inferStep1FunctionKeyFromText(text = '') {
+  const projected = classifyStep1ScenarioWithProjection(text);
+  if (projected?.familyKey) return mapStep1FunctionKeyFromProjection(projected, projected.functionKey || 'general');
   const haystack = String(text || '').toLowerCase();
   if (!haystack.trim()) return 'general';
   const hasContinuityGapSignal = /(?:^|[^a-z0-9])no dr(?:$|[^a-z0-9])|without dr|dr gap|no disaster recovery|without disaster recovery|no failover|without failover|failover gap|recovery gap|rto|rpo|business continuity|disaster recovery/.test(haystack);
@@ -416,6 +482,10 @@ function inferStep1FunctionKey(settings = getEffectiveSettings(), draft = AppSta
 }
 
 function buildStep1ExplicitNarrativeLens(narrativeText = '') {
+  const projected = classifyStep1ScenarioWithProjection(narrativeText);
+  if (projected?.familyKey) {
+    return buildStep1LensFromProjection(projected, null);
+  }
   const haystack = String(narrativeText || '').toLowerCase();
   if (!haystack.trim()) return null;
   const hasContinuityGapSignal = /(?:^|[^a-z0-9])no dr(?:$|[^a-z0-9])|without dr|dr gap|no disaster recovery|without disaster recovery|no failover|without failover|failover gap|recovery gap|rto|rpo|business continuity|disaster recovery/.test(haystack);
@@ -488,10 +558,14 @@ function buildStep1ExplicitNarrativeLens(narrativeText = '') {
 
 function getStep1ManualPreferredScenarioLens(settings = getEffectiveSettings(), draft = AppState.draft || {}, narrativeOverride = '') {
   const narrativeText = String(narrativeOverride || '').trim();
+  const stored = draft?.scenarioLens?.key ? { ...draft.scenarioLens } : null;
+  const projected = classifyStep1ScenarioWithProjection(narrativeText, stored || '');
+  if (projected?.familyKey) {
+    return mergeStep1LensWithStored(buildStep1LensFromProjection(projected, stored), stored);
+  }
   const fallbackLens = getStep1PreferredScenarioLens(settings, draft, narrativeText);
   const explicitLens = buildStep1ExplicitNarrativeLens(narrativeText);
   if (!explicitLens) return fallbackLens;
-  const stored = draft?.scenarioLens?.key ? { ...draft.scenarioLens } : null;
   if (!stored || !stored.key || stored.key === 'general' || stored.key === explicitLens.key) {
     return explicitLens;
   }
@@ -505,6 +579,8 @@ function getStep1ManualPreferredScenarioLens(settings = getEffectiveSettings(), 
 }
 
 function getStep1PreferredScenarioLens(settings = getEffectiveSettings(), draft = AppState.draft || {}, narrativeOverride = '') {
+  const helper = getStep1ScenarioTaxonomyProjection();
+  const stored = draft?.scenarioLens?.key ? { ...draft.scenarioLens } : null;
   const scenarioText = String([
     narrativeOverride,
     draft?.narrative,
@@ -514,13 +590,23 @@ function getStep1PreferredScenarioLens(settings = getEffectiveSettings(), draft 
     draft?.guidedInput?.asset,
     draft?.guidedInput?.cause,
     draft?.guidedInput?.impact
-  ].filter(Boolean).join(' ')).toLowerCase();
-  const continuityGapSignal = /(?:^|[^a-z0-9])no dr(?:$|[^a-z0-9])|without dr|dr gap|no disaster recovery|without disaster recovery|no failover|without failover|failover gap|recovery gap|rto|rpo|business continuity|disaster recovery/.test(scenarioText);
-  const criticalMessagingServiceSignal = /(outlook(?: online)?|exchange(?: online)?|email system|mail system|mail service|messaging service|critical email|critical communication service|microsoft 365)/.test(scenarioText);
-  const explicitCyberCompromiseSignal = /(cyber|security|identity|credential|ransom|malware|phish|breach|exfil|privileged|unauthori[sz]ed|misconfig|vulnerability|token theft|session hijack|compromise|account takeover|account hijack|hijack(?:ed|ing)?|mailbox|email compromise|email account|business email compromise|\bbec\b|dark ?web|credential dump|credential leak|leaked credential|stolen credential|admin account|tenant admin|azure admin|executive mailbox|ceo fraud)/.test(scenarioText);
-  const supplierLabourSignal = /(exploitative labor|exploitative labour|forced labor|forced labour|child labor|child labour|modern slavery|labor practice|labour practice|worker exploitation|worker abuse|human rights|living wage)/.test(scenarioText);
-  const esgDisclosureSignal = /(esg|sustainability|greenwashing|climate disclosure|sustainability disclosure|carbon|emission|net zero|scope 1|scope 2|scope 3|social impact)/.test(scenarioText);
-  const geopoliticalSignal = /(geopolitical|market access|sanctions|export control|tariff|sovereign|entity list|cross-border restriction)/.test(scenarioText);
+  ].filter(Boolean).join(' ')).trim();
+  if (helper && scenarioText) {
+    const projected = classifyStep1ScenarioWithProjection(scenarioText, stored || '');
+    if (projected?.familyKey) {
+      return mergeStep1LensWithStored(buildStep1LensFromProjection(projected, stored), stored);
+    }
+    if (stored?.key) return stored;
+    const weakLens = buildStep1LensFromProjection(projected, null);
+    if (weakLens?.key && weakLens.key !== 'general') return weakLens;
+  }
+  const scenarioHaystack = scenarioText.toLowerCase();
+  const continuityGapSignal = /(?:^|[^a-z0-9])no dr(?:$|[^a-z0-9])|without dr|dr gap|no disaster recovery|without disaster recovery|no failover|without failover|failover gap|recovery gap|rto|rpo|business continuity|disaster recovery/.test(scenarioHaystack);
+  const criticalMessagingServiceSignal = /(outlook(?: online)?|exchange(?: online)?|email system|mail system|mail service|messaging service|critical email|critical communication service|microsoft 365)/.test(scenarioHaystack);
+  const explicitCyberCompromiseSignal = /(cyber|security|identity|credential|ransom|malware|phish|breach|exfil|privileged|unauthori[sz]ed|misconfig|vulnerability|token theft|session hijack|compromise|account takeover|account hijack|hijack(?:ed|ing)?|mailbox|email compromise|email account|business email compromise|\bbec\b|dark ?web|credential dump|credential leak|leaked credential|stolen credential|admin account|tenant admin|azure admin|executive mailbox|ceo fraud)/.test(scenarioHaystack);
+  const supplierLabourSignal = /(exploitative labor|exploitative labour|forced labor|forced labour|child labor|child labour|modern slavery|labor practice|labour practice|worker exploitation|worker abuse|human rights|living wage)/.test(scenarioHaystack);
+  const esgDisclosureSignal = /(esg|sustainability|greenwashing|climate disclosure|sustainability disclosure|carbon|emission|net zero|scope 1|scope 2|scope 3|social impact)/.test(scenarioHaystack);
+  const geopoliticalSignal = /(geopolitical|market access|sanctions|export control|tariff|sovereign|entity list|cross-border restriction)/.test(scenarioHaystack);
   const continuityPreferredLens = continuityGapSignal
     && criticalMessagingServiceSignal
     && !explicitCyberCompromiseSignal
@@ -557,7 +643,6 @@ function getStep1PreferredScenarioLens(settings = getEffectiveSettings(), draft 
     })] || STEP1_FUNCTION_TO_SCENARIO_LENS.general)
   };
   const preferredInferred = continuityPreferredLens || esgPreferredLens || geopoliticalPreferredLens || inferred;
-  const stored = draft?.scenarioLens?.key ? { ...draft.scenarioLens } : null;
   if (!stored) return preferredInferred;
   const hasScenarioContext = !!String(
     narrativeOverride
@@ -612,6 +697,47 @@ function buildStep1GuidedPromptSuggestions(draft = AppState.draft || {}, example
         draft?.sourceNarrative
       ].filter(Boolean).join(' ');
   const haystack = ` ${String(sourceText || '').toLowerCase()} `;
+  const helper = getStep1ScenarioTaxonomyProjection();
+  if (helper && sourceText.trim()) {
+    const sourceClassification = classifyStep1ScenarioWithProjection(sourceText, draft?.scenarioLens || '');
+    const expectedLens = draft?.scenarioLens || getStep1PreferredScenarioLens(getEffectiveSettings(), draft, sourceText);
+    const allowedSecondaryFamilies = new Set(Array.isArray(sourceClassification?.secondaryFamilyKeys) ? sourceClassification.secondaryFamilyKeys : []);
+    const allowedSecondaryLenses = new Set(Array.isArray(sourceClassification?.secondaryKeys) ? sourceClassification.secondaryKeys : []);
+    const localSuggestions = sourceClassification?.familyKey
+      ? helper.buildPromptIdeaSuggestions(sourceText, {
+          scenarioLensHint: expectedLens,
+          limit: 3
+        })
+      : [];
+    const fallbackExamples = (exampleModel && Array.isArray(exampleModel.recommendedExamples))
+      ? exampleModel.recommendedExamples
+      : getStep1ExampleExperienceModel(getEffectiveSettings(), draft).recommendedExamples || [];
+    const filteredExamples = sourceClassification?.familyKey
+      ? fallbackExamples.filter((example) => {
+          const exampleText = [example?.promptLabel, example?.event].filter(Boolean).join('. ');
+          const exampleClassification = classifyStep1ScenarioWithProjection(exampleText, expectedLens);
+          if (!exampleClassification?.familyKey) return false;
+          if (exampleClassification?.unsupportedSignals?.length) return false;
+          if (!expectedLens?.key) return true;
+          if (
+            exampleClassification.lensKey !== expectedLens.key
+            && !allowedSecondaryFamilies.has(exampleClassification.familyKey)
+            && !allowedSecondaryLenses.has(exampleClassification.lensKey)
+          ) {
+            return false;
+          }
+          return helper.areLensesCompatible(expectedLens.key, exampleClassification.lensKey);
+        }).map((example) => ({
+          label: example.promptLabel,
+          prompt: example.event
+        }))
+      : [];
+    const combined = normaliseStep1PromptIdeaSuggestions([
+      ...localSuggestions.map((suggestion) => ({ label: suggestion.label, prompt: suggestion.prompt })),
+      ...filteredExamples
+    ]);
+    if (combined.length) return combined.slice(0, 3);
+  }
   const suggestions = [];
   const seen = new Set();
   const hasCounterpartyCreditSignal = /(bankrupt|bankruptcy|insolv|insolven|receivable|bad debt|write[- ]?off|counterparty|credit loss|credit exposure|delinquen|default|collectability|collections|cashflow|working capital|provisioning|provision)/.test(haystack);

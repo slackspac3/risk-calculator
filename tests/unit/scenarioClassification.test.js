@@ -16,8 +16,8 @@ const {
   buildScenarioLens
 } = require('../../api/_scenarioClassification');
 
-test('canonical phase 1 taxonomy exposes the exact domain, overlay, mechanism, and family shape', () => {
-  assert.equal(SCENARIO_TAXONOMY.taxonomyVersion, 'phase1-2026-04-03');
+test('canonical phase 1.1 taxonomy exposes the exact domain, overlay, mechanism, and family shape', () => {
+  assert.equal(SCENARIO_TAXONOMY.taxonomyVersion, 'phase1.1-2026-04-04');
   assert.deepEqual(
     SCENARIO_TAXONOMY_DOMAINS.map((item) => item.key),
     [
@@ -64,6 +64,8 @@ test('canonical phase 1 taxonomy exposes the exact domain, overlay, mechanism, a
       'control_change',
       'process_bypass',
       'manual_workaround',
+      'manual_processing_error',
+      'capacity_constraint',
       'hostile_traffic_saturation',
       'dependency_failure',
       'coordination_breakdown',
@@ -71,17 +73,27 @@ test('canonical phase 1 taxonomy exposes the exact domain, overlay, mechanism, a
       'records_retention_failure',
       'unlawful_processing',
       'sourcing_concentration',
-      'access_control_weakness'
+      'access_control_weakness',
+      'industrial_control_instability'
     ]
   );
 
   assert.equal(SCENARIO_TAXONOMY_FAMILIES.length, 63);
-  assert.equal(SCENARIO_TAXONOMY_ACTIVE_FAMILIES.length, 61);
+  assert.equal(SCENARIO_TAXONOMY_ACTIVE_FAMILIES.length, 55);
   assert.deepEqual(
     SCENARIO_TAXONOMY_FAMILIES
       .filter((family) => family.status === 'compatibility_only')
-      .map((family) => family.key),
-    ['privileged_misuse', 'approval_override']
+      .map((family) => [family.key, family.preferredFamilyKey]),
+    [
+      ['privileged_misuse', 'identity_compromise'],
+      ['capacity_shortfall', 'service_delivery_failure'],
+      ['manual_error', 'process_breakdown'],
+      ['backlog_escalation', 'service_delivery_failure'],
+      ['crisis_escalation', 'recovery_coordination_failure'],
+      ['approval_override', 'payment_control_failure'],
+      ['facility_access_lapse', 'perimeter_breach'],
+      ['industrial_control_instability', 'ot_resilience_failure']
+    ]
   );
 });
 
@@ -198,7 +210,7 @@ test('mixed identity scenarios keep the identity event path primary while surfac
   assert.ok(classification.secondaryFamilies.some((family) => ['data_disclosure', 'cloud_control_failure'].includes(family.key)));
   assert.ok(classification.overlays.some((overlay) => overlay.key === 'data_exposure'));
   assert.ok(Array.isArray(classification.matchedAntiSignals));
-  assert.equal(classification.taxonomyVersion, 'phase1-2026-04-03');
+  assert.equal(classification.taxonomyVersion, 'phase1.1-2026-04-04');
 });
 
 test('consequence-heavy ambiguous text does not create fake precision', () => {
