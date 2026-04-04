@@ -4,8 +4,13 @@ const { getCompassProviderConfig } = require('./_aiRuntime');
 const { buildTraceEntry, callAi, parseOrRepairStructuredJson, runStructuredQualityGate, sanitizeAiText } = require('./_aiOrchestrator');
 const { buildDeterministicFallbackResult, buildFallbackFromError, buildManualModeResult, buildWorkflowTimeoutProfile } = require('./_aiWorkflowSupport');
 const { buildFeedbackLearningPromptBlock, resolveHierarchicalFeedbackProfile, rerankRiskCardsWithFeedback } = require('./_learningAuthority');
+const { calibrateCoherenceConfidence } = require('./_confidenceCalibration');
 const ScenarioClassification = require('./_scenarioClassification');
-const { SCENARIO_TAXONOMY_FAMILY_BY_KEY } = require('./_scenarioTaxonomy');
+const {
+  SCENARIO_TAXONOMY_FAMILY_BY_KEY,
+  SCENARIO_TAXONOMY_MECHANISM_BY_KEY,
+  SCENARIO_TAXONOMY_OVERLAY_BY_KEY
+} = require('./_scenarioTaxonomy');
 
 function normaliseSentenceKey(sentence = '') {
   return String(sentence || '')
@@ -1230,6 +1235,324 @@ function collectFamilyThemePhrases(family = null) {
   ]).slice(0, 18);
 }
 
+function collectMechanismThemePhrases(mechanismKeys = []) {
+  return uniqueKeys((Array.isArray(mechanismKeys) ? mechanismKeys : [])
+    .map((key) => SCENARIO_TAXONOMY_MECHANISM_BY_KEY[String(key || '').trim()])
+    .filter(Boolean)
+    .flatMap((mechanism) => [
+      mechanism.label,
+      ...(Array.isArray(mechanism.examplePhrases) ? mechanism.examplePhrases : []),
+      ...(Array.isArray(mechanism.positiveSignals)
+        ? mechanism.positiveSignals
+          .filter((signal) => ['strong', 'medium'].includes(String(signal?.strength || '').trim().toLowerCase()))
+          .map((signal) => signal?.text)
+        : [])
+    ]));
+}
+
+function collectAllowedSecondaryFamilyKeys(primaryFamily = null) {
+  return uniqueKeys([
+    ...(Array.isArray(primaryFamily?.allowedSecondaryFamilies) ? primaryFamily.allowedSecondaryFamilies : []),
+    ...(Array.isArray(primaryFamily?.canCoExistWith) ? primaryFamily.canCoExistWith : []),
+    ...(Array.isArray(primaryFamily?.canEscalateTo) ? primaryFamily.canEscalateTo : [])
+  ]);
+}
+
+function collectFamilyLensKeys(familyKeys = []) {
+  return uniqueKeys((Array.isArray(familyKeys) ? familyKeys : [])
+    .map((key) => SCENARIO_TAXONOMY_FAMILY_BY_KEY[String(key || '').trim()]?.lensKey)
+    .filter(Boolean));
+}
+
+function familyConflictsWith(referenceFamily = null, candidateFamilyKey = '') {
+  const candidateKey = String(candidateFamilyKey || '').trim();
+  if (!referenceFamily || !candidateKey || candidateKey === String(referenceFamily.key || '').trim()) return false;
+  const candidateFamily = SCENARIO_TAXONOMY_FAMILY_BY_KEY[candidateKey] || null;
+  return referenceFamily.forbiddenDriftFamilies.includes(candidateKey)
+    || referenceFamily.cannotBePrimaryWith.includes(candidateKey)
+    || !!(candidateFamily && (
+      (Array.isArray(candidateFamily.forbiddenDriftFamilies) && candidateFamily.forbiddenDriftFamilies.includes(referenceFamily.key))
+      || (Array.isArray(candidateFamily.cannotBePrimaryWith) && candidateFamily.cannotBePrimaryWith.includes(referenceFamily.key))
+    ));
+}
+
+function classifyShortlistLead(risk = {}) {
+  const leadText = [risk?.title, risk?.category]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)
+    .join('. ');
+  if (!leadText) {
+    return {
+      primaryKey: '',
+      domain: '',
+      lensKey: normaliseScenarioHintKey(risk?.category || ''),
+      classification: null
+    };
+  }
+  const classification = classifyScenario(leadText, { scenarioLensHint: '' });
+  const lens = buildScenarioLens(classification);
+  return {
+    primaryKey: String(classification?.primaryFamily?.key || '').trim(),
+    domain: String(classification?.domain || '').trim(),
+    lensKey: String(normaliseScenarioHintKey(risk?.category || '') || lens?.key || '').trim(),
+    classification
+  };
+}
+
+function summariseDominantFamilies(evaluations = [], {
+  acceptedContext = null
+} = {}) {
+  const acceptedPrimaryKey = String(acceptedContext?.acceptedPrimaryKey || '').trim();
+  const acceptedSecondaryKeys = acceptedContext?.acceptedSecondaryKeySet || new Set();
+  const allowedSecondaryKeys = acceptedContext?.allowedSecondaryKeySet || new Set();
+  const counts = new Map();
+
+  (Array.isArray(evaluations) ? evaluations : []).forEach((evaluation) => {
+    const familyKey = String(
+      evaluation?.riskPrimaryKey
+      || evaluation?.leadPrimaryKey
+      || ''
+    ).trim();
+    if (!familyKey) return;
+    const entry = counts.get(familyKey) || {
+      familyKey,
+      count: 0,
+      alignedCount: 0,
+      blockedCount: 0,
+      weakOverlayOnlyCount: 0
+    };
+    entry.count += 1;
+    if (evaluation?.familyAligned || evaluation?.secondaryAligned || evaluation?.secondaryContextAligned || evaluation?.allowedSecondaryAligned) {
+      entry.alignedCount += 1;
+    }
+    if (evaluation?.blocked) entry.blockedCount += 1;
+    if (evaluation?.weakOverlayOnly) entry.weakOverlayOnlyCount += 1;
+    counts.set(familyKey, entry);
+  });
+
+  return Array.from(counts.values())
+    .sort((left, right) => {
+      if (right.count !== left.count) return right.count - left.count;
+      if (right.alignedCount !== left.alignedCount) return right.alignedCount - left.alignedCount;
+      return left.familyKey.localeCompare(right.familyKey);
+    })
+    .slice(0, 5)
+    .map((entry) => ({
+      familyKey: entry.familyKey,
+      count: entry.count,
+      alignedCount: entry.alignedCount,
+      blockedCount: entry.blockedCount,
+      weakOverlayOnlyCount: entry.weakOverlayOnlyCount,
+      alignment: entry.familyKey === acceptedPrimaryKey
+        ? 'accepted_primary'
+        : (acceptedSecondaryKeys.has(entry.familyKey)
+            ? 'accepted_secondary'
+            : (allowedSecondaryKeys.has(entry.familyKey) ? 'allowed_secondary' : 'off_lane'))
+    }));
+}
+
+function buildShortlistCoherenceContext(acceptedClassification = {}, narrativeAnchors = []) {
+  const primaryFamily = acceptedClassification?.primaryFamily || null;
+  const acceptedLens = buildScenarioLens(acceptedClassification);
+  const explicitSecondaryAllowance = new Set(collectAllowedSecondaryFamilyKeys(primaryFamily));
+  const secondaryFamilies = Array.isArray(acceptedClassification?.secondaryFamilies)
+    ? acceptedClassification.secondaryFamilies
+      .filter(Boolean)
+      .filter((family) => !primaryFamily || explicitSecondaryAllowance.has(String(family?.key || '').trim()))
+    : [];
+  const acceptedPrimaryKey = String(primaryFamily?.key || '').trim();
+  const acceptedSecondaryFamilyKeys = uniqueKeys(secondaryFamilies.map((family) => family?.key));
+  const allowedSecondaryFamilyKeys = collectAllowedSecondaryFamilyKeys(primaryFamily);
+  const acceptedFamilyKeys = uniqueKeys([acceptedPrimaryKey, ...acceptedSecondaryFamilyKeys]);
+  const allowedFamilyKeys = uniqueKeys([acceptedPrimaryKey, ...acceptedSecondaryFamilyKeys, ...allowedSecondaryFamilyKeys]);
+  const acceptedOverlayKeys = uniqueKeys([
+    ...(Array.isArray(primaryFamily?.defaultOverlays) ? primaryFamily.defaultOverlays : []),
+    ...(Array.isArray(acceptedClassification?.overlays) ? acceptedClassification.overlays : []).map((overlay) => overlay?.key)
+  ]);
+  const acceptedMechanismKeys = uniqueKeys([
+    ...(Array.isArray(acceptedClassification?.mechanisms) ? acceptedClassification.mechanisms.map((mechanism) => mechanism?.key) : []),
+    ...(Array.isArray(primaryFamily?.defaultMechanisms) ? primaryFamily.defaultMechanisms : []),
+    ...secondaryFamilies.flatMap((family) => Array.isArray(family?.defaultMechanisms) ? family.defaultMechanisms.slice(0, 1) : [])
+  ]);
+  const triggerSignalPhrases = uniqueKeys(
+    (Array.isArray(acceptedClassification?.matchedSignals) ? acceptedClassification.matchedSignals : [])
+      .filter((signal) => ['strong', 'medium'].includes(String(signal?.strength || '').trim().toLowerCase()))
+      .map((signal) => signal?.text)
+  );
+  const mechanismThemePhrases = collectMechanismThemePhrases(acceptedMechanismKeys);
+  const familyThemePhrases = uniqueKeys([
+    ...collectFamilyThemePhrases(primaryFamily),
+    ...secondaryFamilies.flatMap((family) => collectFamilyThemePhrases(family).slice(0, 8))
+  ]);
+  const anchorPhrases = uniqueKeys([
+    ...(Array.isArray(narrativeAnchors) ? narrativeAnchors : []),
+    ...triggerSignalPhrases,
+    ...mechanismThemePhrases,
+    ...familyThemePhrases
+  ]).slice(0, 42);
+  return {
+    primaryFamily,
+    acceptedPrimaryKey,
+    acceptedPrimaryDomain: String(primaryFamily?.domain || '').trim(),
+    acceptedLensKey: String(acceptedLens?.key || '').trim(),
+    acceptedSecondaryFamilyKeys,
+    acceptedSecondaryKeySet: new Set(acceptedSecondaryFamilyKeys),
+    acceptedFamilyKeys,
+    acceptedFamilyKeySet: new Set(acceptedFamilyKeys),
+    acceptedDomainKeys: uniqueKeys(acceptedFamilyKeys.map((familyKey) => SCENARIO_TAXONOMY_FAMILY_BY_KEY[familyKey]?.domain)),
+    acceptedDomainKeySet: new Set(uniqueKeys(acceptedFamilyKeys.map((familyKey) => SCENARIO_TAXONOMY_FAMILY_BY_KEY[familyKey]?.domain))),
+    allowedSecondaryFamilyKeys,
+    allowedSecondaryKeySet: new Set(allowedSecondaryFamilyKeys),
+    allowedFamilyKeys,
+    allowedFamilyKeySet: new Set(allowedFamilyKeys),
+    allowedLensKeys: uniqueKeys([
+      String(acceptedLens?.key || '').trim(),
+      ...collectFamilyLensKeys(allowedFamilyKeys),
+      ...(Array.isArray(acceptedLens?.secondaryKeys) ? acceptedLens.secondaryKeys : [])
+    ]),
+    allowedLensKeySet: new Set(uniqueKeys([
+      String(acceptedLens?.key || '').trim(),
+      ...collectFamilyLensKeys(allowedFamilyKeys),
+      ...(Array.isArray(acceptedLens?.secondaryKeys) ? acceptedLens.secondaryKeys : [])
+    ])),
+    acceptedOverlayKeys,
+    acceptedOverlayKeySet: new Set(acceptedOverlayKeys),
+    acceptedMechanismKeys,
+    acceptedMechanismKeySet: new Set(acceptedMechanismKeys),
+    triggerSignalPhrases,
+    familyThemePhrases,
+    anchorPhrases,
+    taxonomyVersion: String(acceptedClassification?.taxonomyVersion || '').trim()
+  };
+}
+
+function buildDeterministicPrimaryShortlistCard(family = null, acceptedClassification = {}, input = {}, themeIndex = 0) {
+  if (!family) return null;
+  const theme = String(
+    family.shortlistSeedThemes?.[themeIndex]
+    || family.preferredRiskThemes?.[themeIndex]
+    || family.shortlistSeedThemes?.[0]
+    || family.preferredRiskThemes?.[0]
+    || family.label
+  ).trim();
+  const asset = cleanUserFacingText(input?.guidedInput?.asset || family.typicalAssets?.[0] || '', {
+    maxSentences: 1,
+    stripTrailingPeriod: true
+  });
+  const cause = cleanUserFacingText(input?.guidedInput?.cause || family.typicalCauses?.[0] || '', {
+    maxSentences: 1,
+    stripTrailingPeriod: true
+  });
+  const effects = joinList((Array.isArray(family.typicalConsequences) ? family.typicalConsequences : []).slice(0, 2));
+  const description = cleanUserFacingText([
+    `${family.label} remains the accepted primary event path.`,
+    family.description,
+    cause ? `The same path is anchored to ${cause.toLowerCase()}.` : '',
+    effects ? `Keep the shortlist tied to ${effects.toLowerCase()}, not to a different primary family.` : '',
+    asset ? `The current focus stays on ${asset.toLowerCase()}.` : ''
+  ].filter(Boolean).join(' '), { maxSentences: 3 });
+  return {
+    title: toDisplayLabel(theme),
+    category: family.lensLabel || toDisplayLabel(family.domain || 'General'),
+    description,
+    source: 'server',
+    confidence: 'medium'
+  };
+}
+
+function buildDeterministicMechanismShortlistCard(primaryFamily = null, mechanism = null) {
+  if (!primaryFamily || !mechanism) return null;
+  const description = cleanUserFacingText([
+    `${primaryFamily.label} remains the accepted primary family.`,
+    mechanism.description,
+    `Keep the shortlist tied to the same ${primaryFamily.label.toLowerCase()} path rather than downstream drift.`
+  ].join(' '), { maxSentences: 3 });
+  return {
+    title: toDisplayLabel(`${mechanism.label} in ${primaryFamily.label}`),
+    category: primaryFamily.lensLabel || toDisplayLabel(primaryFamily.domain || 'General'),
+    description,
+    source: 'server',
+    confidence: 'medium'
+  };
+}
+
+function buildDeterministicSecondaryShortlistCard(primaryFamily = null, secondaryFamily = null) {
+  if (!primaryFamily || !secondaryFamily) return null;
+  const description = cleanUserFacingText([
+    `${secondaryFamily.label} stays secondary to the accepted ${primaryFamily.label.toLowerCase()} path.`,
+    secondaryFamily.description,
+    'Keep it only because the accepted narrative explicitly supports the same escalation, not because of generic downstream consequences.'
+  ].join(' '), { maxSentences: 3 });
+  return {
+    title: toDisplayLabel(secondaryFamily.shortlistSeedThemes?.[0] || secondaryFamily.preferredRiskThemes?.[0] || secondaryFamily.label),
+    category: secondaryFamily.lensLabel || toDisplayLabel(secondaryFamily.domain || 'General'),
+    description,
+    source: 'server',
+    confidence: 'medium'
+  };
+}
+
+function buildDeterministicOverlaySupportCard(primaryFamily = null, overlayKey = '') {
+  if (!primaryFamily) return null;
+  const overlay = SCENARIO_TAXONOMY_OVERLAY_BY_KEY[String(overlayKey || '').trim()] || null;
+  if (!overlay) return null;
+  const description = cleanUserFacingText([
+    `${overlay.label} remains supporting context for the accepted ${primaryFamily.label.toLowerCase()} event path.`,
+    `Do not let ${overlay.label.toLowerCase()} replace ${primaryFamily.label.toLowerCase()} as the primary family.`,
+    primaryFamily.description
+  ].join(' '), { maxSentences: 3 });
+  return {
+    title: toDisplayLabel(`${overlay.label} after ${primaryFamily.label}`),
+    category: primaryFamily.lensLabel || toDisplayLabel(primaryFamily.domain || 'General'),
+    description,
+    source: 'server',
+    confidence: 'medium'
+  };
+}
+
+function buildDeterministicCoherentShortlist(acceptedClassification = {}, {
+  input = {}
+} = {}) {
+  const primaryFamily = acceptedClassification?.primaryFamily || null;
+  if (!primaryFamily) return [];
+
+  const explicitSecondaryAllowance = new Set([
+    ...(Array.isArray(primaryFamily?.allowedSecondaryFamilies) ? primaryFamily.allowedSecondaryFamilies : []),
+    ...(Array.isArray(primaryFamily?.canCoExistWith) ? primaryFamily.canCoExistWith : []),
+    ...(Array.isArray(primaryFamily?.canEscalateTo) ? primaryFamily.canEscalateTo : [])
+  ]);
+  const secondaryFamilies = Array.isArray(acceptedClassification?.secondaryFamilies)
+    ? acceptedClassification.secondaryFamilies
+      .filter(Boolean)
+      .filter((family) => explicitSecondaryAllowance.has(String(family?.key || '').trim()))
+    : [];
+  const mechanismObjects = uniqueKeys([
+    ...(Array.isArray(primaryFamily?.defaultMechanisms) ? primaryFamily.defaultMechanisms : []),
+    ...secondaryFamilies.flatMap((family) => Array.isArray(family?.defaultMechanisms) ? family.defaultMechanisms.slice(0, 1) : [])
+  ])
+    .map((key) => SCENARIO_TAXONOMY_MECHANISM_BY_KEY[key])
+    .filter(Boolean);
+  const overlayKeys = uniqueKeys([
+    ...(Array.isArray(primaryFamily?.defaultOverlays) ? primaryFamily.defaultOverlays : []),
+    ...(Array.isArray(acceptedClassification?.overlays) ? acceptedClassification.overlays.map((overlay) => overlay?.key) : [])
+  ]);
+  const fallbackRiskCards = buildFallbackRiskCards(acceptedClassification, input);
+  const trimmedFallbackRiskCards = fallbackRiskCards.length === 1
+    && normaliseSentenceKey(fallbackRiskCards[0]?.title || '') === normaliseSentenceKey('Material enterprise risk requiring structured assessment')
+    ? []
+    : fallbackRiskCards;
+
+  return normaliseRiskCards([
+    ...trimmedFallbackRiskCards,
+    buildDeterministicPrimaryShortlistCard(primaryFamily, acceptedClassification, input, 0),
+    buildDeterministicMechanismShortlistCard(primaryFamily, mechanismObjects[0] || null),
+    buildDeterministicSecondaryShortlistCard(primaryFamily, secondaryFamilies[0] || null),
+    buildDeterministicPrimaryShortlistCard(primaryFamily, acceptedClassification, input, 1),
+    buildDeterministicOverlaySupportCard(primaryFamily, overlayKeys[0] || ''),
+    buildDeterministicMechanismShortlistCard(primaryFamily, mechanismObjects[1] || null)
+  ].filter(Boolean), input.applicableRegulations || []).slice(0, 3);
+}
+
 function resolveAcceptedScenarioClassification(finalNarrative = '', input = {}, fallbackClassification = {}) {
   const accepted = classifyScenario(finalNarrative, {
     guidedInput: input.guidedInput,
@@ -1242,100 +1565,198 @@ function resolveAcceptedScenarioClassification(finalNarrative = '', input = {}, 
 
 function evaluateShortlistRiskCard(risk = {}, {
   acceptedClassification = {},
+  acceptedContext = null,
   narrativeAnchors = []
 } = {}) {
-  const acceptedPrimaryFamily = acceptedClassification?.primaryFamily || null;
-  const acceptedPrimaryKey = String(acceptedPrimaryFamily?.key || '').trim();
-  const acceptedSecondaryKeys = new Set(
-    (Array.isArray(acceptedClassification?.secondaryFamilies) ? acceptedClassification.secondaryFamilies : [])
-      .map((family) => String(family?.key || '').trim())
-      .filter(Boolean)
-  );
-  const acceptedOverlayKeys = new Set(
-    (Array.isArray(acceptedClassification?.overlays) ? acceptedClassification.overlays : [])
-      .map((overlay) => String(overlay?.key || '').trim())
-      .filter(Boolean)
-  );
+  const shortlistContext = acceptedContext || buildShortlistCoherenceContext(acceptedClassification, narrativeAnchors);
+  const acceptedPrimaryFamily = shortlistContext.primaryFamily || null;
+  const acceptedPrimaryKey = String(shortlistContext.acceptedPrimaryKey || '').trim();
+  const acceptedSecondaryKeys = shortlistContext.acceptedSecondaryKeySet || new Set();
+  const allowedSecondaryKeys = shortlistContext.allowedSecondaryKeySet || new Set();
+  const acceptedOverlayKeys = shortlistContext.acceptedOverlayKeySet || new Set();
+  const acceptedMechanismKeys = shortlistContext.acceptedMechanismKeySet || new Set();
+  const acceptedDomainKeys = shortlistContext.acceptedDomainKeySet || new Set();
+  const allowedLensKeys = shortlistContext.allowedLensKeySet || new Set();
+  const acceptedLensKey = String(shortlistContext.acceptedLensKey || '').trim();
   const riskText = [risk?.title, risk?.category, risk?.description]
     .map((value) => String(value || '').trim())
     .filter(Boolean)
     .join('. ');
-  const riskClassification = classifyScenario(riskText, {});
+  const riskClassification = classifyScenario(riskText, { scenarioLensHint: '' });
+  const leadProfile = classifyShortlistLead(risk);
   const riskPrimaryKey = String(riskClassification?.primaryFamily?.key || '').trim();
+  const riskPrimaryFamily = SCENARIO_TAXONOMY_FAMILY_BY_KEY[riskPrimaryKey] || null;
+  const riskSecondaryKeys = new Set(
+    (Array.isArray(riskClassification?.secondaryFamilies) ? riskClassification.secondaryFamilies : [])
+      .map((family) => String(family?.key || '').trim())
+      .filter(Boolean)
+  );
   const riskOverlayKeys = uniqueKeys(
     (Array.isArray(riskClassification?.overlays) ? riskClassification.overlays : [])
       .map((overlay) => overlay?.key)
   );
+  const riskMechanismKeys = uniqueKeys(
+    (Array.isArray(riskClassification?.mechanisms) ? riskClassification.mechanisms : [])
+      .map((mechanism) => mechanism?.key)
+  );
+  const riskDomainKey = String(riskClassification?.domain || riskPrimaryFamily?.domain || '').trim();
+  const riskLensKey = String(buildScenarioLens(riskClassification)?.key || '').trim();
+  const leadPrimaryKey = String(leadProfile.primaryKey || '').trim();
+  const leadPrimaryFamily = SCENARIO_TAXONOMY_FAMILY_BY_KEY[leadPrimaryKey] || null;
+  const leadDomainKey = String(leadProfile.domain || leadPrimaryFamily?.domain || '').trim();
+  const leadLensKey = String(leadProfile.lensKey || '').trim();
   const familyAligned = !!acceptedPrimaryKey && riskPrimaryKey === acceptedPrimaryKey;
   const secondaryAligned = !!riskPrimaryKey && acceptedSecondaryKeys.has(riskPrimaryKey);
-  const acceptedAllowsCyberSecondary = Array.isArray(acceptedClassification?.secondaryFamilies)
-    && acceptedClassification.secondaryFamilies.some((family) => family?.domain === 'cyber');
-  const cyberCauseMismatch = Boolean(
-    acceptedPrimaryFamily
-    && acceptedPrimaryFamily.domain !== 'cyber'
-    && !acceptedAllowsCyberSecondary
-    && hasExplicitCyberCompromiseSignals(riskText)
-  );
-  const blockedFamily = acceptedPrimaryFamily && (
-    cyberCauseMismatch
-    || (riskPrimaryKey && (
-      acceptedPrimaryFamily.forbiddenDriftFamilies.includes(riskPrimaryKey)
-      || acceptedPrimaryFamily.cannotBePrimaryWith.includes(riskPrimaryKey)
-    ))
-  ) ? (riskPrimaryKey || 'cyber_cause_mismatch') : '';
-  const anchorOverlap = countScenarioAnchorOverlap(riskText, narrativeAnchors);
+  const narrativeAnchorOverlap = countScenarioAnchorOverlap(riskText, narrativeAnchors);
+  const classificationAnchorOverlap = countPhraseMatches(riskText, shortlistContext.anchorPhrases || []);
   const overlayOverlapCount = riskOverlayKeys.filter((key) => acceptedOverlayKeys.has(key)).length;
-  const themeFamily = familyAligned
-    ? acceptedPrimaryFamily
-    : (secondaryAligned ? (SCENARIO_TAXONOMY_FAMILY_BY_KEY[riskPrimaryKey] || acceptedPrimaryFamily) : acceptedPrimaryFamily);
-  const themeOverlapCount = countPhraseMatches(riskText, collectFamilyThemePhrases(themeFamily));
-  const antiSignalOverlapCount = countPhraseMatches(riskText, acceptedPrimaryFamily?.antiSignals || []);
+  const mechanismOverlapCount = riskMechanismKeys.filter((key) => acceptedMechanismKeys.has(key)).length;
+  const triggerSignalOverlapCount = countPhraseMatches(riskText, shortlistContext.triggerSignalPhrases || []);
+  const themeOverlapCount = countPhraseMatches(riskText, shortlistContext.familyThemePhrases || []);
+  const familyContextOverlapCount = countPhraseMatches(riskText, shortlistContext.acceptedFamilyKeys || []);
+  const eventPathEvidenceCount = [
+    narrativeAnchorOverlap > 0,
+    classificationAnchorOverlap > 0,
+    mechanismOverlapCount > 0,
+    triggerSignalOverlapCount > 0,
+    themeOverlapCount > 0,
+    familyContextOverlapCount > 0
+  ].filter(Boolean).length;
+  const taxonomyPathOverlapCount = mechanismOverlapCount + triggerSignalOverlapCount + themeOverlapCount + familyContextOverlapCount;
+  const allowedSecondaryAligned = !familyAligned
+    && !secondaryAligned
+    && !!riskPrimaryKey
+    && allowedSecondaryKeys.has(riskPrimaryKey)
+    && (eventPathEvidenceCount >= 2 || (classificationAnchorOverlap > 0 && taxonomyPathOverlapCount > 0));
+  const secondaryContextAligned = !familyAligned && !secondaryAligned && !allowedSecondaryAligned
+    && Array.from(riskSecondaryKeys).some((key) => key === acceptedPrimaryKey || acceptedSecondaryKeys.has(key));
+  const eventAligned = familyAligned || secondaryAligned || secondaryContextAligned || allowedSecondaryAligned;
+  const leadFamilyAligned = !!leadPrimaryKey && (leadPrimaryKey === acceptedPrimaryKey || acceptedSecondaryKeys.has(leadPrimaryKey));
+  const leadAllowedSecondaryAligned = !!leadPrimaryKey && allowedSecondaryKeys.has(leadPrimaryKey);
+  const riskDomainAligned = !!riskDomainKey && acceptedDomainKeys.has(riskDomainKey);
+  const leadDomainAligned = !!leadDomainKey && acceptedDomainKeys.has(leadDomainKey);
+  const riskLensAligned = !riskLensKey || !acceptedLensKey || allowedLensKeys.has(riskLensKey) || isCompatibleScenarioLens(acceptedLensKey, riskLensKey);
+  const leadLensAligned = !leadLensKey || !acceptedLensKey || allowedLensKeys.has(leadLensKey) || isCompatibleScenarioLens(acceptedLensKey, leadLensKey);
+  const blockedByAcceptedAntiSignals = countPhraseMatches(riskText, acceptedPrimaryFamily?.antiSignals || []);
+  const blockedByRiskAntiSignals = (Array.isArray(riskClassification?.blockedByAntiSignals) ? riskClassification.blockedByAntiSignals : [])
+    .some((entry) => entry?.familyKey === acceptedPrimaryKey || acceptedSecondaryKeys.has(String(entry?.familyKey || '').trim()) || allowedSecondaryKeys.has(String(entry?.familyKey || '').trim()));
+  const primaryBoundaryBlocked = !!(acceptedPrimaryFamily && riskPrimaryKey && familyConflictsWith(acceptedPrimaryFamily, riskPrimaryKey));
+  const leadBoundaryBlocked = !!(acceptedPrimaryFamily && leadPrimaryKey && familyConflictsWith(acceptedPrimaryFamily, leadPrimaryKey));
+  const riskOffLanePrimary = !!(riskPrimaryKey && !eventAligned && !riskDomainAligned && !riskLensAligned);
+  const leadOffLanePrimary = !!(leadPrimaryKey && !leadFamilyAligned && !leadAllowedSecondaryAligned && !leadDomainAligned && !leadLensAligned);
+  const blockedFamily = primaryBoundaryBlocked
+    ? riskPrimaryKey
+    : (leadBoundaryBlocked ? leadPrimaryKey : '');
   const consequenceOnly = !riskPrimaryKey
     || riskClassification.reasonCodes?.includes('CONSEQUENCE_ONLY_NOT_PRIMARY')
-    || (riskClassification.reasonCodes?.includes('INSUFFICIENT_PRIMARY_SIGNAL') && riskOverlayKeys.length > 0 && !familyAligned && !secondaryAligned);
+    || (riskClassification.reasonCodes?.includes('INSUFFICIENT_PRIMARY_SIGNAL') && riskOverlayKeys.length > 0 && !eventAligned);
   const consequenceHeavy = Boolean(riskClassification.ambiguityFlags?.includes('CONSEQUENCE_HEAVY_TEXT'));
   const overlayDrivenDomainAllowed = !riskPrimaryKey
-    || ['operational', 'business_continuity', 'supply_chain', 'third_party'].includes(String(riskClassification?.domain || '').trim());
+    || riskDomainAligned
+    || leadDomainAligned
+    || riskLensAligned
+    || leadLensAligned;
+  const blocked = Boolean(
+    blockedFamily
+    || blockedByAcceptedAntiSignals
+    || blockedByRiskAntiSignals
+    || ((riskOffLanePrimary || leadOffLanePrimary) && eventPathEvidenceCount === 0 && taxonomyPathOverlapCount === 0)
+  );
+  const familyFitReasonCodes = uniqueKeys([
+    familyAligned ? 'PRIMARY_FAMILY_ALIGNED' : '',
+    secondaryAligned ? 'SECONDARY_FAMILY_ALIGNED' : '',
+    allowedSecondaryAligned ? 'ALLOWED_SECONDARY_FAMILY_ALIGNED' : '',
+    secondaryContextAligned ? 'PRIMARY_PATH_AS_SECONDARY' : '',
+    blockedFamily ? 'BLOCKED_BY_PRIMARY_DRIFT_BOUNDARY' : '',
+    leadBoundaryBlocked ? 'BLOCKED_BY_LEAD_FAMILY_DRIFT' : '',
+    leadOffLanePrimary ? 'OFF_LANE_LEAD_FAMILY' : '',
+    !leadLensAligned && !!leadLensKey ? 'LEAD_LENS_CONFLICT' : '',
+    blockedByAcceptedAntiSignals ? 'BLOCKED_BY_ACCEPTED_ANTI_SIGNAL' : '',
+    blockedByRiskAntiSignals ? 'BLOCKED_BY_CLASSIFIER_ANTI_SIGNAL' : '',
+    consequenceOnly ? 'CONSEQUENCE_ONLY_CARD' : '',
+    consequenceHeavy ? 'CONSEQUENCE_HEAVY_CARD' : '',
+    eventPathEvidenceCount ? 'HAS_EVENT_PATH_EVIDENCE' : 'NO_EVENT_PATH_EVIDENCE'
+  ]);
 
   let score = 0;
   if (familyAligned) score += 58;
   else if (secondaryAligned) score += 40;
+  else if (allowedSecondaryAligned) score += 34;
+  else if (secondaryContextAligned) score += 28;
   else if (riskPrimaryKey) score -= 26;
-  if (blockedFamily) score -= 90;
-  if (anchorOverlap >= 2) score += 22;
-  else if (anchorOverlap === 1) score += 10;
-  else if (narrativeAnchors.length) score -= 14;
+  if (leadFamilyAligned) score += 12;
+  else if (leadAllowedSecondaryAligned) score += 8;
+  else if (leadPrimaryKey) score -= leadBoundaryBlocked ? 20 : 8;
+  if (riskDomainAligned) score += 6;
+  if (leadDomainAligned) score += 4;
+  if (riskLensAligned) score += 8;
+  if (leadLensAligned) score += 4;
+  else if (leadLensKey) score -= 10;
+  if (blocked) score -= 90;
+  if (narrativeAnchorOverlap >= 2) score += 22;
+  else if (narrativeAnchorOverlap === 1) score += 10;
+  else if (classificationAnchorOverlap >= 2) score += 14;
+  else if ((narrativeAnchors.length || shortlistContext.anchorPhrases?.length) && !eventAligned) score -= 14;
   score += Math.min(18, overlayOverlapCount * 6);
+  score += Math.min(18, mechanismOverlapCount * 9);
+  score += Math.min(18, triggerSignalOverlapCount * 6);
   score += Math.min(18, themeOverlapCount * 6);
-  if (antiSignalOverlapCount) score -= Math.min(24, antiSignalOverlapCount * 12);
-  if (consequenceOnly) score -= familyAligned || secondaryAligned ? 10 : 30;
-  if (consequenceHeavy) score -= familyAligned || secondaryAligned ? 4 : 12;
+  if (blockedByAcceptedAntiSignals) score -= Math.min(30, blockedByAcceptedAntiSignals * 12);
+  if (blockedByRiskAntiSignals) score -= 24;
+  if (consequenceOnly) score -= eventAligned ? 10 : 30;
+  if (consequenceHeavy) score -= eventAligned ? 4 : 12;
 
-  const eventAligned = familyAligned || secondaryAligned;
   const overlayDrivenAligned = !eventAligned
-    && !blockedFamily
+    && !blocked
     && overlayDrivenDomainAllowed
-    && overlayOverlapCount >= 2;
-  const stronglyAligned = !blockedFamily
+    && overlayOverlapCount >= 1
+    && eventPathEvidenceCount >= 2
+    && taxonomyPathOverlapCount >= 1
+    && !consequenceHeavy
+    && !(consequenceOnly && classificationAnchorOverlap === 0 && mechanismOverlapCount === 0);
+  const stronglyAligned = !blocked
     && eventAligned
-    && score >= (familyAligned ? 40 : 36)
-    && !(consequenceOnly && anchorOverlap === 0 && themeOverlapCount === 0);
+    && eventPathEvidenceCount >= 1
+    && score >= (familyAligned ? 40 : (secondaryAligned || allowedSecondaryAligned ? 36 : 34))
+    && !(consequenceOnly && narrativeAnchorOverlap === 0 && classificationAnchorOverlap === 0 && mechanismOverlapCount === 0 && themeOverlapCount === 0);
+  const weakOverlayOnly = overlayDrivenAligned && !eventAligned;
+  const alignmentType = blocked
+    ? 'blocked'
+    : (familyAligned
+        ? 'primary-aligned'
+        : ((secondaryAligned || allowedSecondaryAligned || secondaryContextAligned)
+            ? 'secondary-aligned'
+            : (overlayDrivenAligned ? 'overlay-consistent-weak' : 'off-lane')));
 
   return {
     risk,
     score,
     riskClassification,
     riskPrimaryKey,
+    leadPrimaryKey,
+    riskSecondaryKeys: Array.from(riskSecondaryKeys),
     familyAligned,
     secondaryAligned,
+    allowedSecondaryAligned,
+    secondaryContextAligned,
     eventAligned,
     overlayDrivenAligned,
+    weakOverlayOnly,
     consequenceOnly,
+    consequenceHeavy,
     blockedFamily,
-    anchorOverlap,
+    blocked,
+    narrativeAnchorOverlap,
+    classificationAnchorOverlap,
     overlayOverlapCount,
+    mechanismOverlapCount,
+    triggerSignalOverlapCount,
     themeOverlapCount,
-    stronglyAligned
+    eventPathEvidenceCount,
+    taxonomyPathOverlapCount,
+    acceptedReasonCodes: familyFitReasonCodes,
+    stronglyAligned,
+    alignmentType
   };
 }
 
@@ -1347,11 +1768,13 @@ function assessShortlistCoherence(risks = [], {
 } = {}) {
   const normalisedRisks = normaliseRiskCards(risks, input.applicableRegulations || []);
   const narrativeAnchors = extractGuidedDraftAnchors({ guidedInput: input.guidedInput }, `${seedNarrative || ''} ${finalNarrative || ''}`.trim());
+  const acceptedContext = buildShortlistCoherenceContext(acceptedClassification, narrativeAnchors);
   const evaluations = normalisedRisks.map((risk) => evaluateShortlistRiskCard(risk, {
     acceptedClassification,
+    acceptedContext,
     narrativeAnchors
   }));
-  const strongEventAligned = evaluations.filter((evaluation) => evaluation.stronglyAligned);
+  const strongEventAligned = evaluations.filter((evaluation) => evaluation.stronglyAligned).sort((left, right) => right.score - left.score);
   const hasStrongEventAligned = strongEventAligned.length > 0;
   const acceptedEvaluations = evaluations.filter((evaluation) => (
     evaluation.stronglyAligned
@@ -1359,31 +1782,149 @@ function assessShortlistCoherence(risks = [], {
       hasStrongEventAligned
       && evaluation.overlayDrivenAligned
     )
-  ));
+  )).sort((left, right) => right.score - left.score);
   const acceptedRisks = acceptedEvaluations.map((evaluation) => evaluation.risk);
   const blockedFamilies = uniqueKeys(evaluations.map((evaluation) => evaluation.blockedFamily));
-  const lowAnchorCount = narrativeAnchors.length
-    ? evaluations.filter((evaluation) => evaluation.anchorOverlap === 0).length
+  const blockedCount = evaluations.filter((evaluation) => evaluation.blocked).length;
+  const lowAnchorCount = (narrativeAnchors.length || acceptedContext.anchorPhrases.length)
+    ? evaluations.filter((evaluation) => evaluation.narrativeAnchorOverlap === 0 && evaluation.classificationAnchorOverlap === 0).length
     : 0;
-  const outsideFamilyCount = evaluations.filter((evaluation) => !evaluation.familyAligned && !evaluation.secondaryAligned && !evaluation.overlayDrivenAligned).length;
+  const outsideFamilyCount = evaluations.filter((evaluation) => !evaluation.familyAligned && !evaluation.secondaryAligned && !evaluation.secondaryContextAligned && !evaluation.overlayDrivenAligned).length;
   const consequenceOnlyCount = evaluations.filter((evaluation) => evaluation.consequenceOnly).length;
+  const weakOverlayOnlyCount = evaluations.filter((evaluation) => evaluation.weakOverlayOnly).length;
+  const acceptedWeakOverlayOnlyCount = acceptedEvaluations.filter((evaluation) => evaluation.weakOverlayOnly).length;
+  const acceptedStrongEventCount = acceptedEvaluations.filter((evaluation) => evaluation.stronglyAligned).length;
+  const acceptedPrimaryOrSecondaryCount = acceptedEvaluations.filter((evaluation) => (
+    evaluation.familyAligned
+    || evaluation.secondaryAligned
+    || evaluation.allowedSecondaryAligned
+    || evaluation.secondaryContextAligned
+  )).length;
+  const weakMechanismAlignmentCount = evaluations.filter((evaluation) => evaluation.mechanismOverlapCount === 0 && !evaluation.familyAligned && !evaluation.secondaryAligned).length;
+  const dominantFamilies = summariseDominantFamilies(evaluations, { acceptedContext });
+  const acceptedDominantFamilies = summariseDominantFamilies(acceptedEvaluations, { acceptedContext });
+  const dominantFamilyAligned = !dominantFamilies.length || dominantFamilies[0].alignment !== 'off_lane';
+  const acceptedDominantFamilyAligned = !acceptedDominantFamilies.length || acceptedDominantFamilies[0].alignment !== 'off_lane';
+  const weakOverlayOnlyDominant = acceptedWeakOverlayOnlyCount > acceptedStrongEventCount;
   const minimumAcceptedCount = normalisedRisks.length >= 3 ? 2 : (normalisedRisks.length ? 1 : 0);
-  const enoughUsable = acceptedRisks.length >= minimumAcceptedCount;
-  const fullyAccepted = acceptedRisks.length === normalisedRisks.length && !blockedFamilies.length;
+  const enoughUsable = acceptedRisks.length >= minimumAcceptedCount
+    && acceptedPrimaryOrSecondaryCount >= 1
+    && acceptedStrongEventCount >= 1
+    && acceptedDominantFamilyAligned
+    && !weakOverlayOnlyDominant;
+  const fullyAccepted = acceptedRisks.length === normalisedRisks.length
+    && !blockedFamilies.length
+    && !blockedCount
+    && dominantFamilyAligned
+    && !weakOverlayOnlyDominant;
   const reasonCodes = [];
   if (blockedFamilies.length) reasonCodes.push('BLOCKED_DRIFT_FAMILIES');
+  if (blockedCount && blockedCount >= Math.ceil(Math.max(1, normalisedRisks.length) / 2)) reasonCodes.push('MAJORITY_BLOCKED');
   if (normalisedRisks.length && outsideFamilyCount >= Math.ceil(normalisedRisks.length / 2)) reasonCodes.push('MAJORITY_OUTSIDE_ACCEPTED_FAMILY');
   if (normalisedRisks.length && consequenceOnlyCount >= Math.ceil(normalisedRisks.length / 2)) reasonCodes.push('CONSEQUENCE_ONLY_DRIFT');
+  if (!dominantFamilyAligned) reasonCodes.push('DOMINANT_FAMILY_DRIFT');
+  if (weakOverlayOnlyCount > Math.floor(Math.max(1, normalisedRisks.length) / 2)) reasonCodes.push('WEAK_OVERLAY_ONLY_SHORTLIST');
   if (lowAnchorCount && lowAnchorCount >= Math.ceil(normalisedRisks.length / 2)) reasonCodes.push('LOW_EVENT_ANCHOR_OVERLAP');
+  if (weakMechanismAlignmentCount && weakMechanismAlignmentCount >= Math.ceil(normalisedRisks.length / 2)) reasonCodes.push('LOW_MECHANISM_ALIGNMENT');
+  if (!acceptedEvaluations.some((evaluation) => evaluation.familyAligned || evaluation.secondaryAligned)) reasonCodes.push('NO_PRIMARY_OR_ACCEPTED_SECONDARY_CARD');
 
   return {
     acceptedRisks,
+    acceptedEvaluations,
+    evaluations,
     blockedFamilies,
+    blockedCount,
     enoughUsable,
     fullyAccepted,
     candidateCount: normalisedRisks.length,
     alignedCount: acceptedRisks.length,
-    reasonCodes
+    filteredOutCount: Math.max(0, normalisedRisks.length - acceptedRisks.length),
+    reasonCodes,
+    weakOverlayOnlyCount,
+    dominantFamilies,
+    acceptedDominantFamilies,
+    acceptedContext,
+    acceptedPrimaryFamilyKey: acceptedContext.acceptedPrimaryKey,
+    acceptedSecondaryFamilyKeys: acceptedContext.acceptedSecondaryFamilyKeys.slice(),
+    allowedSecondaryFamilyKeys: acceptedContext.allowedSecondaryFamilyKeys.slice(),
+    acceptedMechanismKeys: acceptedContext.acceptedMechanismKeys.slice(),
+    acceptedOverlayKeys: acceptedContext.acceptedOverlayKeys.slice(),
+    narrativeAnchorCount: narrativeAnchors.length,
+    taxonomyVersion: acceptedContext.taxonomyVersion || String(acceptedClassification?.taxonomyVersion || '').trim()
+  };
+}
+
+function buildShortlistCoherenceResult(risks = [], {
+  mode = 'accepted',
+  candidateAssessment = null,
+  acceptedClassification = {},
+  finalNarrative = '',
+  seedNarrative = '',
+  input = {},
+  reasonCodes = [],
+  blockedFamilies = [],
+  usedFallbackShortlist = false
+} = {}) {
+  const normalisedReturnedRisks = normaliseRiskCards(risks, input.applicableRegulations || []);
+  const returnedAssessment = assessShortlistCoherence(normalisedReturnedRisks, {
+    acceptedClassification,
+    finalNarrative,
+    seedNarrative,
+    input
+  });
+  const candidateCount = Number(candidateAssessment?.candidateCount || 0);
+  const candidateAlignedCount = Number(candidateAssessment?.alignedCount || 0);
+  const filteredOutCount = mode === 'accepted'
+    ? 0
+    : (mode === 'filtered'
+        ? Math.max(0, candidateCount - normalisedReturnedRisks.length)
+        : Math.max(0, candidateCount - candidateAlignedCount));
+  const metadataReasonCodes = uniqueKeys(reasonCodes);
+  const metadataBlockedFamilies = uniqueKeys(blockedFamilies);
+  const dominantFamilies = Array.isArray(returnedAssessment?.dominantFamilies) ? returnedAssessment.dominantFamilies : [];
+  const dominantFamilyAligned = !dominantFamilies.length || dominantFamilies[0]?.alignment !== 'off_lane';
+  const calibratedConfidence = calibrateCoherenceConfidence({
+    outputType: 'shortlist',
+    mode,
+    sourceMode: usedFallbackShortlist ? 'deterministic_fallback' : 'live',
+    totalCount: candidateCount || normalisedReturnedRisks.length,
+    alignedCount: Number(returnedAssessment?.alignedCount || 0),
+    blockedCount: Number(candidateAssessment?.blockedCount || 0),
+    weakOverlayOnlyCount: Number(returnedAssessment?.weakOverlayOnlyCount || 0),
+    dominantFamilyAligned,
+    lowAnchorOverlap: metadataReasonCodes.includes('LOW_EVENT_ANCHOR_OVERLAP'),
+    reasonCodes: metadataReasonCodes,
+    usedFallback: usedFallbackShortlist,
+    strongAlignment: Boolean(returnedAssessment?.enoughUsable && dominantFamilyAligned)
+  });
+
+  return {
+    mode,
+    risks: normalisedReturnedRisks,
+    alignedCount: returnedAssessment.alignedCount,
+    totalCount: candidateCount,
+    returnedCount: normalisedReturnedRisks.length,
+    filteredOutCount,
+    candidateAlignedCount,
+    blockedCount: Number(candidateAssessment?.blockedCount || 0),
+    weakOverlayOnlyCount: Number(returnedAssessment?.weakOverlayOnlyCount || 0),
+    candidateWeakOverlayOnlyCount: Number(candidateAssessment?.weakOverlayOnlyCount || 0),
+    dominantFamilies,
+    candidateDominantFamilies: Array.isArray(candidateAssessment?.dominantFamilies) ? candidateAssessment.dominantFamilies : [],
+    reasonCodes: metadataReasonCodes,
+    blockedFamilies: metadataBlockedFamilies,
+    usedFallbackShortlist,
+    acceptedPrimaryFamilyKey: String(candidateAssessment?.acceptedPrimaryFamilyKey || '').trim(),
+    acceptedSecondaryFamilyKeys: Array.isArray(candidateAssessment?.acceptedSecondaryFamilyKeys) ? candidateAssessment.acceptedSecondaryFamilyKeys.slice() : [],
+    allowedSecondaryFamilyKeys: Array.isArray(candidateAssessment?.allowedSecondaryFamilyKeys) ? candidateAssessment.allowedSecondaryFamilyKeys.slice() : [],
+    acceptedMechanismKeys: Array.isArray(candidateAssessment?.acceptedMechanismKeys) ? candidateAssessment.acceptedMechanismKeys.slice() : [],
+    acceptedOverlayKeys: Array.isArray(candidateAssessment?.acceptedOverlayKeys) ? candidateAssessment.acceptedOverlayKeys.slice() : [],
+    narrativeAnchorCount: Number(candidateAssessment?.narrativeAnchorCount || 0),
+    taxonomyVersion: String(candidateAssessment?.taxonomyVersion || acceptedClassification?.taxonomyVersion || '').trim(),
+    confidenceScore: calibratedConfidence.confidenceScore,
+    confidenceBand: calibratedConfidence.confidenceBand,
+    confidenceDrivers: calibratedConfidence.confidenceDrivers,
+    calibrationMode: calibratedConfidence.calibrationMode
   };
 }
 
@@ -1400,45 +1941,59 @@ function enforceScenarioShortlistCoherence(candidateRisks = [], {
     seedNarrative,
     input
   });
+  const baseMetadata = {
+    acceptedPrimaryFamilyKey: candidateAssessment.acceptedPrimaryFamilyKey,
+    acceptedSecondaryFamilyKeys: candidateAssessment.acceptedSecondaryFamilyKeys,
+    allowedSecondaryFamilyKeys: candidateAssessment.allowedSecondaryFamilyKeys,
+    acceptedMechanismKeys: candidateAssessment.acceptedMechanismKeys,
+    acceptedOverlayKeys: candidateAssessment.acceptedOverlayKeys,
+    narrativeAnchorCount: candidateAssessment.narrativeAnchorCount,
+    taxonomyVersion: candidateAssessment.taxonomyVersion
+  };
   if (!candidateAssessment.candidateCount) {
-    const replacementRisks = normaliseRiskCards(fallbackRisks, input.applicableRegulations || []);
-    return {
+    const replacementRisks = buildDeterministicCoherentShortlist(acceptedClassification, {
+      input
+    });
+    return buildShortlistCoherenceResult(replacementRisks, {
       mode: replacementRisks.length ? 'fallback_replaced' : 'accepted',
-      risks: replacementRisks,
-      alignedCount: replacementRisks.length,
-      totalCount: 0,
-      returnedCount: replacementRisks.length,
-      candidateAlignedCount: 0,
-      reasonCodes: replacementRisks.length ? ['EMPTY_SHORTLIST', 'FALLBACK_REPLACED'] : ['EMPTY_SHORTLIST'],
+      candidateAssessment,
+      acceptedClassification,
+      finalNarrative,
+      seedNarrative,
+      input,
+      reasonCodes: replacementRisks.length ? ['EMPTY_SHORTLIST', 'DETERMINISTIC_SHORTLIST_REBUILT', 'FALLBACK_REPLACED'] : ['EMPTY_SHORTLIST'],
       blockedFamilies: [],
-      usedFallbackShortlist: replacementRisks.length > 0
-    };
+      usedFallbackShortlist: replacementRisks.length > 0,
+      ...baseMetadata
+    });
   }
   if (candidateAssessment.fullyAccepted) {
-    return {
+    return buildShortlistCoherenceResult(candidateRisks, {
       mode: 'accepted',
-      risks: normaliseRiskCards(candidateRisks, input.applicableRegulations || []),
-      alignedCount: candidateAssessment.alignedCount,
-      totalCount: candidateAssessment.candidateCount,
-      returnedCount: candidateAssessment.candidateCount,
-      candidateAlignedCount: candidateAssessment.alignedCount,
+      candidateAssessment,
+      acceptedClassification,
+      finalNarrative,
+      seedNarrative,
+      input,
       reasonCodes: ['ACCEPTED_AS_ALIGNED'],
       blockedFamilies: candidateAssessment.blockedFamilies,
-      usedFallbackShortlist: false
-    };
+      usedFallbackShortlist: false,
+      ...baseMetadata
+    });
   }
   if (candidateAssessment.enoughUsable) {
-    return {
+    return buildShortlistCoherenceResult(candidateAssessment.acceptedRisks, {
       mode: 'filtered',
-      risks: candidateAssessment.acceptedRisks,
-      alignedCount: candidateAssessment.acceptedRisks.length,
-      totalCount: candidateAssessment.candidateCount,
-      returnedCount: candidateAssessment.acceptedRisks.length,
-      candidateAlignedCount: candidateAssessment.alignedCount,
+      candidateAssessment,
+      acceptedClassification,
+      finalNarrative,
+      seedNarrative,
+      input,
       reasonCodes: uniqueKeys([...candidateAssessment.reasonCodes, 'FILTERED_TO_ALIGNED_SET']),
       blockedFamilies: candidateAssessment.blockedFamilies,
-      usedFallbackShortlist: false
-    };
+      usedFallbackShortlist: false,
+      ...baseMetadata
+    });
   }
 
   const fallbackAssessment = assessShortlistCoherence(fallbackRisks, {
@@ -1447,20 +2002,35 @@ function enforceScenarioShortlistCoherence(candidateRisks = [], {
     seedNarrative,
     input
   });
-  const fallbackSelectedRisks = fallbackAssessment.enoughUsable
+  const minimumReplacementCount = fallbackAssessment.candidateCount >= 2
+    ? 2
+    : (fallbackAssessment.candidateCount ? 1 : 0);
+  const fallbackStrongEnough = fallbackAssessment.acceptedRisks.length >= minimumReplacementCount
+    && fallbackAssessment.acceptedEvaluations.some((evaluation) => evaluation.familyAligned || evaluation.secondaryAligned || evaluation.allowedSecondaryAligned || evaluation.secondaryContextAligned)
+    && (!fallbackAssessment.acceptedDominantFamilies.length || fallbackAssessment.acceptedDominantFamilies[0].alignment !== 'off_lane')
+    && fallbackAssessment.acceptedEvaluations.filter((evaluation) => evaluation.weakOverlayOnly).length
+      <= fallbackAssessment.acceptedEvaluations.filter((evaluation) => evaluation.stronglyAligned).length;
+  const fallbackSelectedRisks = fallbackStrongEnough
     ? fallbackAssessment.acceptedRisks
-    : normaliseRiskCards(fallbackRisks, input.applicableRegulations || []);
-  return {
+    : buildDeterministicCoherentShortlist(acceptedClassification, {
+      input
+    });
+  return buildShortlistCoherenceResult(fallbackSelectedRisks, {
     mode: 'fallback_replaced',
-    risks: fallbackSelectedRisks,
-    alignedCount: fallbackAssessment.acceptedRisks.length || fallbackSelectedRisks.length,
-    totalCount: candidateAssessment.candidateCount,
-    returnedCount: fallbackSelectedRisks.length,
-    candidateAlignedCount: candidateAssessment.alignedCount,
-    reasonCodes: uniqueKeys([...candidateAssessment.reasonCodes, 'FALLBACK_REPLACED']),
+    candidateAssessment,
+    acceptedClassification,
+    finalNarrative,
+    seedNarrative,
+    input,
+    reasonCodes: uniqueKeys([
+      ...candidateAssessment.reasonCodes,
+      ...(fallbackStrongEnough ? [] : ['DETERMINISTIC_SHORTLIST_REBUILT']),
+      'FALLBACK_REPLACED'
+    ]),
     blockedFamilies: uniqueKeys([...candidateAssessment.blockedFamilies, ...fallbackAssessment.blockedFamilies]),
-    usedFallbackShortlist: true
-  };
+    usedFallbackShortlist: true,
+    ...baseMetadata
+  });
 }
 
 function normaliseGuidance(items = []) {
@@ -1600,7 +2170,11 @@ function buildAiAlignment(input = {}, result = {}, {
       overlays: Array.isArray(classification?.overlays) ? classification.overlays.map((overlay) => overlay?.key).filter(Boolean) : [],
       mechanisms: Array.isArray(classification?.mechanisms) ? classification.mechanisms.map((mechanism) => mechanism?.key).filter(Boolean) : [],
       reasonCodes: Array.isArray(classification?.reasonCodes) ? classification.reasonCodes.slice(0, 8) : [],
-      ambiguityFlags: Array.isArray(classification?.ambiguityFlags) ? classification.ambiguityFlags.slice(0, 6) : []
+      ambiguityFlags: Array.isArray(classification?.ambiguityFlags) ? classification.ambiguityFlags.slice(0, 6) : [],
+      confidenceScore: Number(classification?.confidenceScore || 0),
+      confidenceBand: String(classification?.confidenceBand || '').trim(),
+      confidenceDrivers: Array.isArray(classification?.confidenceDrivers) ? classification.confidenceDrivers.slice(0, 8) : [],
+      calibrationMode: String(classification?.calibrationMode || '').trim()
     }
   };
 }

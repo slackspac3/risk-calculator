@@ -152,6 +152,7 @@
       .map(stemToken)
       .filter((token) => token.length >= 4);
     if (!meaningfulTokens.length) return false;
+    if (signalTokens.length > 1 && meaningfulTokens.length < 2) return false;
     const haystackTokens = Array.from(new Set(
       (String(haystack || '').toLowerCase().match(/[a-z0-9]+/g) || [])
         .map(stemToken)

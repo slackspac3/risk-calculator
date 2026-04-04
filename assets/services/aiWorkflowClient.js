@@ -256,6 +256,9 @@ const AiWorkflowClient = (() => {
       scenarioTitle: normaliseInlineText(value.scenarioTitle || ''),
       narrative: normaliseBlockText(value.narrative || ''),
       enhancedNarrative: normaliseBlockText(value.enhancedNarrative || ''),
+      structuredScenario: normaliseStructuredScenario(value.structuredScenario),
+      scenarioLens: normaliseScenarioLens(value.scenarioLens),
+      selectedRisks: (Array.isArray(value.selectedRisks) ? value.selectedRisks : []).map((item) => normaliseSelectedRisk(item)).filter(Boolean).slice(0, 8),
       geography: normaliseInlineText(value.geography || ''),
       applicableRegulations: normaliseStringList(value.applicableRegulations, { maxItems: 12 }),
       fairParams: normaliseFairParams(value.fairParams),
@@ -336,7 +339,29 @@ const AiWorkflowClient = (() => {
     if (!isPlainObject(value)) return undefined;
     return compactValue({
       key: normaliseInlineText(value.key || ''),
-      label: normaliseInlineText(value.label || '')
+      label: normaliseInlineText(value.label || ''),
+      functionKey: normaliseInlineText(value.functionKey || ''),
+      estimatePresetKey: normaliseInlineText(value.estimatePresetKey || ''),
+      secondaryKeys: normaliseStringList(value.secondaryKeys, { maxItems: 4 })
+    });
+  }
+
+  function normaliseStructuredScenario(value = {}) {
+    if (!isPlainObject(value)) return undefined;
+    return compactValue({
+      assetService: normaliseInlineText(value.assetService || ''),
+      primaryDriver: normaliseInlineText(value.primaryDriver || ''),
+      eventPath: normaliseBlockText(value.eventPath || ''),
+      effect: normaliseBlockText(value.effect || '')
+    });
+  }
+
+  function normaliseSelectedRisk(item = {}) {
+    if (!isPlainObject(item)) return undefined;
+    return compactValue({
+      title: normaliseInlineText(item.title || ''),
+      category: normaliseInlineText(item.category || ''),
+      description: normaliseBlockText(item.description || '')
     });
   }
 

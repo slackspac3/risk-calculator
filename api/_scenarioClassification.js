@@ -10,6 +10,7 @@ const {
   SCENARIO_TAXONOMY_MECHANISM_BY_KEY,
   SCENARIO_TAXONOMY_OVERLAY_BY_KEY
 } = require('./_scenarioTaxonomy');
+const { calibrateClassificationConfidence } = require('./_confidenceCalibration');
 
 const STRENGTH_WEIGHTS = Object.freeze({
   strong: 9,
@@ -247,37 +248,161 @@ function getFamilyExtraMatches(familyKey = '', text = '') {
     }
   }
   if (familyKey === 'third_party_access_compromise') {
-    if (/(vendor|third-party|third party|supplier|partner|support account)/.test(raw)
-      && /(compromis|abused|unauthori[sz]ed access|intrusion|credentials? .*abused)/.test(raw)
-      && !/(no compromise|not compromised|without compromise|no intrusion|not abused)/.test(raw)) {
+    if (hasExplicitThirdPartyAccessCompromiseSignals(raw)) {
       push({ text: 'compromised inherited access path', strength: 'strong' });
     }
   }
+  if (familyKey === 'single_source_dependency') {
+    if (hasExplicitSingleSourceDependencySignals(raw)) {
+      push({ text: 'single-source dependency pattern', strength: 'strong' });
+    }
+  }
+  if (familyKey === 'supplier_concentration_risk') {
+    if (hasExplicitSupplierConcentrationSignals(raw)) {
+      push({ text: 'supplier concentration pattern', strength: 'strong' });
+    }
+  }
   if (familyKey === 'delivery_slippage' || familyKey === 'programme_delivery_slippage') {
-    if (/(supplier|vendor|delivery|shipment|logistics)/.test(raw)
-      && /(delay|delayed|missed delivery|delivery date|late|slippage|milestone|deployment|go-live|rollout|dependent project|dependent projects)/.test(raw)) {
+    if (hasExplicitDeliverySlippageSignals(raw)) {
       push({ text: 'delivery dependency slippage', strength: 'strong' });
     }
   }
+  if (familyKey === 'logistics_disruption') {
+    if (hasExplicitLogisticsDisruptionSignals(raw)) {
+      push({ text: 'explicit logistics or transit disruption', strength: 'strong' });
+    }
+  }
+  if (familyKey === 'supplier_control_weakness') {
+    if (hasExplicitSupplierControlWeaknessSignals(raw)) {
+      push({ text: 'supplier assurance or control weakness', strength: 'strong' });
+    }
+  }
+  if (familyKey === 'vendor_access_weakness') {
+    if (hasExplicitVendorAccessWeaknessSignals(raw)) {
+      push({ text: 'external vendor access weakness', strength: 'strong' });
+    }
+  }
+  if (familyKey === 'supplier_insolvency') {
+    if (hasExplicitSupplierInsolvencySignals(raw)) {
+      push({ text: 'supplier insolvency pattern', strength: 'strong' });
+    }
+  }
+  if (familyKey === 'policy_breach') {
+    if (hasExplicitPolicyBreachSignals(raw)) {
+      push({ text: 'internal policy or control-process breach', strength: 'strong' });
+    }
+  }
   if (familyKey === 'privacy_non_compliance') {
-    if (/(privacy|data protection|lawful basis|retention|processing)/.test(raw)
-      && /(breach|without|fail|failure|unlawful)/.test(raw)) {
+    if (hasExplicitPrivacyObligationSignals(raw)) {
       push({ text: 'privacy obligation failure', strength: 'strong' });
     }
   }
   if (familyKey === 'records_retention_non_compliance') {
-    if (/(records|retention|deletion)/.test(raw) && /(breach|fail|failure|too long|not met)/.test(raw)) {
+    if (hasExplicitRecordsRetentionSignals(raw)) {
       push({ text: 'records retention obligation failure', strength: 'strong' });
     }
   }
   if (familyKey === 'cross_border_transfer_non_compliance') {
-    if (/(cross-border|cross border|international transfer|transfer)/.test(raw) && /(without|missing|fail|failure|safeguard)/.test(raw)) {
+    if (hasExplicitCrossBorderTransferSignals(raw)) {
       push({ text: 'cross-border transfer obligation failure', strength: 'strong' });
     }
   }
+  if (familyKey === 'regulatory_filing_failure') {
+    if (hasExplicitRegulatoryFilingSignals(raw)) {
+      push({ text: 'mandatory filing or notification failure', strength: 'strong' });
+    }
+  }
+  if (familyKey === 'sanctions_breach') {
+    if (hasExplicitSanctionsSignals(raw)) {
+      push({ text: 'sanctions or restricted-party breach', strength: 'strong' });
+    }
+  }
+  if (familyKey === 'licensing_permit_issue') {
+    if (hasExplicitLicensingSignals(raw)) {
+      push({ text: 'licensing or permit failure', strength: 'strong' });
+    }
+  }
+  if (familyKey === 'contract_liability') {
+    if (hasExplicitContractLiabilitySignals(raw)) {
+      push({ text: 'contractual liability or indemnity exposure', strength: 'strong' });
+    }
+  }
   if (familyKey === 'forced_labour_modern_slavery') {
-    if (/(forced labour|forced labor|modern slavery|child labour|child labor|human rights)/.test(raw)) {
+    if (hasExplicitForcedLabourSignals(raw)) {
       push({ text: 'modern slavery indicator', strength: 'strong' });
+    }
+  }
+  if (familyKey === 'greenwashing_disclosure_gap') {
+    if (hasExplicitGreenwashingSignals(raw)) {
+      push({ text: 'unsupported ESG disclosure or claim pattern', strength: 'strong' });
+    }
+  }
+  if (familyKey === 'safety_incident') {
+    if (hasExplicitSafetyIncidentSignals(raw)) {
+      push({ text: 'explicit safety incident pattern', strength: 'strong' });
+    }
+  }
+  if (familyKey === 'environmental_spill') {
+    if (hasExplicitEnvironmentalSpillSignals(raw)) {
+      push({ text: 'explicit environmental spill or release', strength: 'strong' });
+    }
+  }
+  if (familyKey === 'workforce_fatigue_staffing_weakness') {
+    if (hasExplicitWorkforceFatigueSignals(raw)) {
+      push({ text: 'fatigue or staffing weakness pattern', strength: 'strong' });
+    }
+  }
+  if (familyKey === 'critical_staff_dependency') {
+    if (hasExplicitCriticalStaffDependencySignals(raw)) {
+      push({ text: 'explicit key-person dependency pattern', strength: 'strong' });
+    }
+  }
+  if (familyKey === 'process_breakdown') {
+    if (hasExplicitProcessBreakdownSignals(raw)) {
+      push({ text: 'workflow breakdown pattern', strength: 'strong' });
+    }
+  }
+  if (familyKey === 'platform_instability') {
+    if (hasExplicitPlatformInstabilitySignals(raw) && !hasExplicitOtResilienceSignals(raw)) {
+      push({ text: 'platform instability pattern', strength: 'strong' });
+    }
+  }
+  if (familyKey === 'service_delivery_failure') {
+    if (hasExplicitServiceDeliveryFailureSignals(raw)
+      && !hasExplicitContinuityGapSignals(raw)
+      && !hasExplicitPerimeterBreachSignals(raw)
+      && !hasExplicitOtResilienceSignals(raw)) {
+      push({ text: 'service delivery breakdown pattern', strength: 'strong' });
+    }
+  }
+  if (familyKey === 'critical_service_dependency_failure') {
+    if (hasExplicitDependencyFailureSignals(raw) && !hasExplicitContinuityGapSignals(raw)) {
+      push({ text: 'critical dependency failure pattern', strength: 'strong' });
+    }
+  }
+  if (familyKey === 'dr_gap') {
+    if (hasExplicitDrGapSignals(raw)) {
+      push({ text: 'explicit disaster recovery gap', strength: 'strong' });
+    }
+  }
+  if (familyKey === 'failover_failure') {
+    if (hasExplicitFailoverSignals(raw)) {
+      push({ text: 'explicit failover weakness', strength: 'strong' });
+    }
+  }
+  if (familyKey === 'recovery_coordination_failure') {
+    if (hasExplicitRecoveryCoordinationSignals(raw)) {
+      push({ text: 'explicit recovery coordination failure', strength: 'strong' });
+    }
+  }
+  if (familyKey === 'perimeter_breach') {
+    if (hasExplicitPerimeterBreachSignals(raw)) {
+      push({ text: 'physical intrusion or site-access breach', strength: 'strong' });
+    }
+  }
+  if (familyKey === 'ot_resilience_failure') {
+    if (hasExplicitOtResilienceSignals(raw) && !hasAvailabilityAttackSignals(raw)) {
+      push({ text: 'explicit OT or industrial-control instability', strength: 'strong' });
     }
   }
   return extra;
@@ -457,7 +582,7 @@ function hasExplicitFraudSignals(text = '') {
 }
 
 function hasExplicitDisclosureSignals(text = '') {
-  return /(exfiltration|breach|disclosure|leaked data|exposed records|stolen data|data exposure|leak(?:ed)? records)/i.test(text);
+  return /(exfiltration|data breach|personal data breach|unauthori[sz]ed disclosure|external disclosure|leaked data|exposed records|stolen data|data exposure|leak(?:ed)? records)/i.test(text);
 }
 
 function hasAvailabilityAttackSignals(text = '') {
@@ -468,8 +593,138 @@ function hasAvailabilityAttackSignals(text = '') {
       && /(slow(?:ing|ed)? down|slow to|crash|degrad|unavailable|availability|disrupt)/i.test(text));
 }
 
-function hasContinuitySignals(text = '') {
-  return /(?:^|[^a-z0-9])no dr(?:$|[^a-z0-9])|without dr|dr gap|disaster recovery|failover|fallback|outage survival|recovery continuity|crisis coordination/i.test(text);
+function hasExplicitProcessBreakdownSignals(text = '') {
+  return /(process breakdown|workflow failure|workflow fails repeatedly|manual processing error|manual workaround|rework cycle)/i.test(text)
+    || ((/(workflow|process|fulfilment|fulfillment|handoff|manual process|internal workflow)/i.test(text))
+      && /(fail(?:s|ed|ing)?|break(?:s|down)?|collapse(?:s|d)?|disrupt(?:s|ed)?|manual workaround|rework|backlog)/i.test(text));
+}
+
+function hasExplicitPlatformInstabilitySignals(text = '') {
+  return /(platform instability|system instability|aging infrastructure|legacy infrastructure|repeated platform defects|recurring platform defects|repeated system failure)/i.test(text)
+    || ((/(platform|system|application|service)/i.test(text))
+      && /(unstable|instability|reliability issue|repeated defects|recurring defects|aging infrastructure|legacy infrastructure)/i.test(text));
+}
+
+function hasExplicitServiceDeliveryFailureSignals(text = '') {
+  return /(service delivery failure|critical service disruption|service becomes unstable|delivery delays)/i.test(text)
+    || ((/(service|delivery path|workflow|customer-facing service|core service|platform)/i.test(text))
+      && /(fails repeatedly|repeated failure|service delays|degrad(?:e|es|ed|ing)|unstable|backlog|manual workaround|capacity shortfall|throughput constraint|resource bottleneck)/i.test(text));
+}
+
+function hasExplicitDependencyFailureSignals(text = '') {
+  return /(critical dependency failure|core dependency unavailable|dependency becomes unavailable|upstream service unavailable|shared service unavailable|dependency outage)/i.test(text)
+    || ((/(dependency|upstream|shared service|shared platform|supporting service)/i.test(text))
+      && /(unavailable|down|fails?|failure|outage)/i.test(text));
+}
+
+function hasExplicitDrGapSignals(text = '') {
+  return /(?:^|[^a-z0-9])no dr(?:$|[^a-z0-9])|without dr|dr gap|disaster recovery gap|missing disaster recovery|no disaster recovery capability|recovery capability missing/i.test(text);
+}
+
+function hasExplicitFailoverSignals(text = '') {
+  return /failover failure|(?:^|[^a-z0-9])no failover(?:$|[^a-z0-9])|without failover|fallback not ready|fallback fails?|failover does not work|fallback unavailable/i.test(text);
+}
+
+function hasExplicitRecoveryCoordinationSignals(text = '') {
+  return /(recovery coordination failure|recovery team not aligned|restoration teams not aligned|continuity communications break down|recovery effort breaks down)/i.test(text)
+    || ((/(recovery|restoration|continuity communications)/i.test(text))
+      && /(not aligned|breaks down|fails?|delayed|delay|poor coordination|coordination breakdown)/i.test(text));
+}
+
+function hasExplicitContinuityGapSignals(text = '') {
+  return hasExplicitDrGapSignals(text) || hasExplicitFailoverSignals(text);
+}
+
+function hasFunctioningFallbackSignals(text = '') {
+  return /(recovery controls? (?:are )?function(?:ing|al)|fallback (?:controls?|arrangements?) (?:are )?function(?:ing|al)|fallback (?:is )?(?:working|available|operational)|failover (?:is|remains) (?:working|available|functional)|recovery capability (?:exists|is in place)|dr (?:capability|controls?) (?:exists|is in place))/i.test(text);
+}
+
+function hasExplicitPerimeterBreachSignals(text = '') {
+  return /(perimeter breach|site intrusion|intrusion into facility|unauthori[sz]ed site access|badge control lapse|visitor management failure|facility access lapse|restricted area entered|tailgating)/i.test(text)
+    || ((/(facility|site|perimeter|badge|visitor|restricted (?:operations )?area|campus|loading bay)/i.test(text))
+      && /(bypass(?:es|ed)?|intrusion|entered|enters|unauthori[sz]ed|tailgating|breach)/i.test(text));
+}
+
+function hasExplicitOtResilienceSignals(text = '') {
+  return /(ot resilience failure|industrial control instability|industrial control environment becomes unstable|operational technology environment becomes unstable|ics instability|scada disruption|control room instability)/i.test(text)
+    || ((/(\bot\b|operational technology|industrial control|ics|scada|control room|site systems)/i.test(text))
+      && /(unstable|instability|outage|fails?|failure|cannot be sustained safely|resilience)/i.test(text));
+}
+
+function hasExplicitForcedLabourSignals(text = '') {
+  return /(forced labour|forced labor|modern slavery|child labour|child labor|human rights abuse|labour exploitation|exploitative labour practices?)/i.test(text)
+    || ((/(supplier|sub-tier|workforce|labou?r practices?|human rights)/i.test(text))
+      && /(forced labour|modern slavery|child labour|worker exploitation|exploitative)/i.test(text));
+}
+
+function hasExplicitSafetyIncidentSignals(text = '') {
+  return /(safety incident|site safety incident|contractor safety incident|unsafe operating conditions|worker harm|worker harmed|injury|unsafe condition)/i.test(text)
+    || ((/(worker|contractor|site|safety)/i.test(text))
+      && /(incident|harm|injur|unsafe)/i.test(text));
+}
+
+function hasExplicitEnvironmentalSpillSignals(text = '') {
+  return /(environmental spill|release to environment|environmental discharge|harmful material release|pollution event|loss of containment|contamination)/i.test(text)
+    || ((/(containment|spill|release|discharge|contamination|pollution)/i.test(text))
+      && /(environment|surrounding environment|harmful material|material)/i.test(text));
+}
+
+function hasExplicitWorkforceFatigueSignals(text = '') {
+  return /(workforce fatigue|staffing weakness|sustained understaffing|unsafe staffing levels|staffing pressure|workforce strain|shift coverage weakness)/i.test(text)
+    || ((/(fatigue|understaffed|staffing|shift coverage|worker welfare|attrition)/i.test(text))
+      && /(increase|weakness|pressure|strain|shortfall|unsafe|sustained)/i.test(text));
+}
+
+function hasExplicitCriticalStaffDependencySignals(text = '') {
+  return /(critical staff dependency|single point of failure in the team|key-person dependency|only one person knows|knowledge concentration|absence would materially disrupt execution)/i.test(text)
+    || ((/(small number of individuals|too few trained staff|critical process|critical team|specialist)/i.test(text))
+      && /(depends on|dependence on|dependency|absence|disrupt execution|only one person knows)/i.test(text));
+}
+
+function hasExplicitSingleSourceDependencySignals(text = '') {
+  return /(single-source dependency|single supplier|sole source|only supplier|no viable substitute|no alternative supplier|lack of alternate source)/i.test(text)
+    || ((/(supplier|vendor|source|provider|material)/i.test(text))
+      && /(single|sole|only|no viable substitute|no alternative|alternate source)/i.test(text));
+}
+
+function hasExplicitSupplierConcentrationSignals(text = '') {
+  return /(supplier concentration|concentrated supplier base|small number of suppliers|too few suppliers|lack of supplier diversification|supplier portfolio concentration|most critical component exposure)/i.test(text)
+    || ((/(suppliers?|vendors?|providers?)/i.test(text))
+      && /(concentration|concentrated|too few|small number|not diversified|lack of diversification|most .* exposure)/i.test(text));
+}
+
+function hasExplicitDeliverySlippageSignals(text = '') {
+  return /(supplier delay|miss(?:es|ed)? (?:committed )?delivery dates?|missed delivery date|delivery commitments? missed|late delivery|delayed deployment|delayed installation|delivery slippage|dependent projects? delayed)/i.test(text)
+    || ((/(supplier|vendor|delivery|shipment)/i.test(text))
+      && /(delay|delayed|late|missed|slippage)/i.test(text));
+}
+
+function hasExplicitLogisticsDisruptionSignals(text = '') {
+  return /(logistics disruption|transport disruption|shipment delay|shipping disruption|route blockage|transit disruption|port closure|freight disruption|customs hold|shipment .* blocked)/i.test(text)
+    || ((/(shipment|transport|logistics|shipping|route|transit|freight|port|customs)/i.test(text))
+      && /(delay|blocked|disrupt(?:ed|ion)|held|closure|fail(?:s|ed)?|interruption)/i.test(text));
+}
+
+function hasExplicitSupplierControlWeaknessSignals(text = '') {
+  return /(supplier control weakness|weak supplier controls?|weak control processes|supplier assurance gap|cannot evidence adequate assurance|insufficient supplier assurance|weak supplier governance|poor supplier governance|weak control posture at supplier|assurance evidence is incomplete)/i.test(text)
+    || ((/(supplier|vendor|third-party|third party)/i.test(text))
+      && /(weak controls?|control processes?|assurance|cannot evidence|insufficient assurance|governance weakness|control posture)/i.test(text)
+      && !hasExplicitVendorAccessWeaknessSignals(text)
+      && !hasExplicitThirdPartyAccessCompromiseSignals(text));
+}
+
+function hasExplicitVendorAccessWeaknessSignals(text = '') {
+  return /(vendor access weakness|excessive third-party access|external vendor accounts? have excessive access|weak vendor access controls?|weak segregation across critical systems|poorly governed external access|third-party remote access weakness|supplier access is weakly controlled)/i.test(text)
+    || ((/(vendor|supplier|third-party|third party|external support|partner)/i.test(text))
+      && /(access|account|segregation|remote access|identity control|privilege)/i.test(text)
+      && /(excessive|weak|poor|insufficient|ungoverned|not segregated|broad)/i.test(text)
+      && !hasExplicitThirdPartyAccessCompromiseSignals(text));
+}
+
+function hasExplicitSupplierInsolvencySignals(text = '') {
+  return /(supplier enters insolvency|supplier insolvency|vendor insolvency|supplier bankruptcy|vendor bankruptcy|financial distress .*supplier|cannot continue delivery commitments|unable to continue supply)/i.test(text)
+    || ((/(supplier|vendor|provider)/i.test(text))
+      && /(insolvency|bankruptcy|financial distress|administration|cannot continue|unable to continue supply)/i.test(text));
 }
 
 function hasIdentitySignals(text = '') {
@@ -477,15 +732,31 @@ function hasIdentitySignals(text = '') {
 }
 
 function hasExplicitDelaySignals(text = '') {
-  return /(supplier delay|missed delivery date|delayed deployment|delayed programme milestone|logistics disruption|dependent projects delayed|shipment delay|late delivery|delivery slippage)/i.test(text);
+  return hasExplicitDeliverySlippageSignals(text) || hasExplicitLogisticsDisruptionSignals(text);
 }
 
 function hasExplicitPrivacyObligationSignals(text = '') {
-  return /(privacy obligations?|data protection obligations?|retention breach|unlawful processing|without lawful basis|cross-border transfer|transfer without safeguards|records retention)/i.test(text);
+  return /(privacy obligations?|data protection obligations?|privacy governance failure|privacy control failure|retention breach|unlawful processing|without lawful basis|processed without a lawful basis|processing without lawful basis|records retention)/i.test(text)
+    || ((/(privacy|data protection|personal data)/i.test(text))
+      && /(without lawful basis|unlawful processing|obligation|governance failure|control failure)/i.test(text));
+}
+
+function hasExplicitPolicyBreachSignals(text = '') {
+  return /(policy breach|policy violation|required internal control process|internal governance requirement breached|control process is not followed|policy expectations|control non-compliance)/i.test(text)
+    || ((/(policy|internal control|governance requirement|control process)/i.test(text))
+      && /(breach|violation|not followed|not met|failure|non-compliance)/i.test(text));
+}
+
+function hasExplicitThirdPartyPathAbsentSignals(text = '') {
+  return /(no third-party access path|no third party access path|without third-party access|without third party access|no vendor access path|external access is not involved|third-party access is not involved)/i.test(text);
 }
 
 function hasExplicitThirdPartyAccessCompromiseSignals(text = '') {
-  return /(vendor access compromised|third-party access compromised|partner account compromised|external support account abused|vendor credentials abused|third-party remote access(?: path)?(?: is| becomes| was)? (?:compromised|abused)|supplier access path)/i.test(text);
+  if (hasExplicitThirdPartyPathAbsentSignals(text)) return false;
+  if (/(no compromise|not compromised|without compromise|no intrusion|not abused|no compromise has occurred|has not been compromised)/i.test(text)) return false;
+  return /(vendor access compromised|third-party access compromised|partner account compromised|external support account abused|vendor credentials abused|third-party remote access(?: path)?(?: is| becomes| was)? (?:compromised|abused)|supplier access path .*compromis|vendor access path .*compromis|vendor access path .* used to reach internal systems|third-party access path .* used to reach internal systems)/i.test(text)
+    || ((/(vendor|third-party|third party|supplier|partner|support account)/i.test(text))
+      && /(compromis|abused|unauthori[sz]ed access|intrusion|credentials? .*abused)/i.test(text));
 }
 
 function hasExplicitCyberCauseSignals(text = '') {
@@ -495,15 +766,60 @@ function hasExplicitCyberCauseSignals(text = '') {
 }
 
 function hasExplicitGreenwashingSignals(text = '') {
-  return /(greenwashing|sustainability disclosure|climate disclosure|claim substantiation|esg disclosure gap)/i.test(text);
+  return /(greenwashing|sustainability disclosure|climate disclosure|claim substantiation|esg disclosure gap|public sustainability claims?|unsupported sustainability claims?)/i.test(text)
+    || ((/(sustainability|climate|esg)/i.test(text))
+      && /(claim|claims|disclosure|statement)/i.test(text)
+      && /(cannot be evidenced|cannot be supported|unsupported|not supported|differ materially|materially differ|actual operating practice|actual practice)/i.test(text));
 }
 
 function hasExplicitRecordsRetentionSignals(text = '') {
-  return /(records retention|retention schedule|records kept too long|deletion obligations? not met|retention breach)/i.test(text);
+  return /(records retention|retention schedule|records kept too long|customer records are retained beyond required deletion periods|retained beyond required deletion periods|required deletion periods|deletion obligations? not met|retention breach)/i.test(text)
+    || ((/(records|retention|deletion)/i.test(text))
+      && /(beyond required|too long|not met|not followed|required deletion periods)/i.test(text));
 }
 
 function hasExplicitCrossBorderTransferSignals(text = '') {
-  return /(cross-border transfer|cross border transfer|international transfer|transfer without safeguards|data residency breach|transfer impact assessment)/i.test(text);
+  return /(cross-border transfer|cross border transfer|transferred across borders|across borders without required safeguards|international transfer|transfer without safeguards|data residency breach|transfer impact assessment)/i.test(text)
+    || ((/(transfer|across borders|cross-border|cross border|international)/i.test(text))
+      && /(without required safeguards|without safeguards|required safeguards|missing safeguards|transfer impact assessment)/i.test(text));
+}
+
+function hasExplicitRegulatoryFilingSignals(text = '') {
+  return /(regulatory filing|mandatory regulatory filing|missed filing|late filing|filing is not submitted on time|reporting deadline failure|mandatory reporting obligation not met|notification failure)/i.test(text)
+    || ((/(filing|notification|reporting|submission)/i.test(text))
+      && /(mandatory|regulatory|not submitted on time|late|missed deadline|deadline failure|not met)/i.test(text));
+}
+
+function hasExplicitSanctionsSignals(text = '') {
+  return /(sanctions breach|sanctions restrictions|sanctions screening|screening control failure|restricted-party|restricted party|prohibited transaction|entity list|export control breach)/i.test(text)
+    || ((/(sanctions|screening|restricted party|entity list|export control)/i.test(text))
+      && /(breach|failure|despite|proceeds|restriction|prohibited transaction)/i.test(text));
+}
+
+function hasExplicitLicensingSignals(text = '') {
+  return /(licence issue|license issue|permit issue|permit breach|licensing failure|required permit|invalid permit|expired licence|expired license|licence condition failure|operations continue without a required permit)/i.test(text)
+    || ((/(permit|licence|license|licensing)/i.test(text))
+      && /(required|valid|invalid|expired|without|condition failure|not met|breach)/i.test(text));
+}
+
+function hasExplicitContractLiabilitySignals(text = '') {
+  return /(contract liability|contractual liability|supplier agreement breach|breach of contract|indemnity exposure|terms breach|contract dispute|contractual claim)/i.test(text)
+    || ((/(contract|contractual|agreement|indemnity|terms)/i.test(text))
+      && /(breach|liability|claim|dispute|exposure|indemnity)/i.test(text));
+}
+
+function hasGovernanceConsequenceOnlySignals(text = '') {
+  return /(regulatory scrutiny|regulator attention|legal exposure|legal concern|possible liability|potential liability|downstream liability)/i.test(text)
+    && !(
+      hasExplicitPolicyBreachSignals(text)
+      || hasExplicitPrivacyObligationSignals(text)
+      || hasExplicitRecordsRetentionSignals(text)
+      || hasExplicitCrossBorderTransferSignals(text)
+      || hasExplicitRegulatoryFilingSignals(text)
+      || hasExplicitSanctionsSignals(text)
+      || hasExplicitLicensingSignals(text)
+      || hasExplicitContractLiabilitySignals(text)
+    );
 }
 
 function hasExplicitInvoiceSignals(text = '') {
@@ -536,6 +852,15 @@ function applyPrecedence(scoredFamilies = [], text = '', meta = {}) {
   }
 
   const availability = byKey.get('availability_attack');
+  const processBreakdown = byKey.get('process_breakdown');
+  const platformInstability = byKey.get('platform_instability');
+  const serviceDelivery = byKey.get('service_delivery_failure');
+  const criticalDependency = byKey.get('critical_service_dependency_failure');
+  const drGap = byKey.get('dr_gap');
+  const failoverFailure = byKey.get('failover_failure');
+  const recoveryCoordination = byKey.get('recovery_coordination_failure');
+  const perimeterBreach = byKey.get('perimeter_breach');
+  const otResilienceFailure = byKey.get('ot_resilience_failure');
   const continuityFamilies = ['dr_gap', 'failover_failure', 'recovery_coordination_failure', 'crisis_escalation']
     .map((key) => byKey.get(key))
     .filter(Boolean);
@@ -557,26 +882,137 @@ function applyPrecedence(scoredFamilies = [], text = '', meta = {}) {
 
   const privacy = byKey.get('privacy_non_compliance');
   const disclosure = byKey.get('data_disclosure');
+  const policyBreach = byKey.get('policy_breach');
+  const regulatoryFiling = byKey.get('regulatory_filing_failure');
+  const sanctionsBreach = byKey.get('sanctions_breach');
+  const licensingIssue = byKey.get('licensing_permit_issue');
+  const contractLiability = byKey.get('contract_liability');
+  if (policyBreach && hasExplicitPolicyBreachSignals(text)) {
+    penalise(
+      ['regulatory_filing_failure', 'sanctions_breach', 'licensing_permit_issue', 'contract_liability'],
+      {
+        against: policyBreach,
+        penalty: 4,
+        tolerance: 2,
+        label: 'policy_breach stays primary only when no more specific privacy, regulatory, or contract event path is explicit'
+      }
+    );
+  }
   if (privacy && disclosure && hasExplicitPrivacyObligationSignals(text) && !hasExplicitDisclosureSignals(text) && privacy.score >= disclosure.score - 3) {
     disclosure.score -= 7;
     applied.push('privacy_non_compliance beats data_disclosure when obligation failure is primary');
+  }
+  if (privacy && policyBreach && hasExplicitPrivacyObligationSignals(text) && privacy.score >= policyBreach.score - 2) {
+    policyBreach.score -= 5;
+    applied.push('privacy_non_compliance beats generic policy_breach when privacy obligations are explicit');
   }
   const retention = byKey.get('records_retention_non_compliance');
   if (retention && privacy && hasExplicitRecordsRetentionSignals(text) && retention.score >= privacy.score - 2) {
     privacy.score -= 5;
     applied.push('records_retention_non_compliance beats generic privacy non-compliance when retention obligations are explicit');
   }
+  if (retention && policyBreach && hasExplicitRecordsRetentionSignals(text) && retention.score >= policyBreach.score - 2) {
+    policyBreach.score -= 5;
+    applied.push('records_retention_non_compliance beats generic policy_breach when retention obligations are explicit');
+  }
   const crossBorder = byKey.get('cross_border_transfer_non_compliance');
   if (crossBorder && privacy && hasExplicitCrossBorderTransferSignals(text) && crossBorder.score >= privacy.score - 2) {
     privacy.score -= 5;
     applied.push('cross_border_transfer_non_compliance beats generic privacy non-compliance when transfer obligations are explicit');
   }
+  if (crossBorder && policyBreach && hasExplicitCrossBorderTransferSignals(text) && crossBorder.score >= policyBreach.score - 2) {
+    policyBreach.score -= 5;
+    applied.push('cross_border_transfer_non_compliance beats generic policy_breach when transfer obligations are explicit');
+  }
+  if (regulatoryFiling && hasExplicitRegulatoryFilingSignals(text)) {
+    penalise(
+      ['policy_breach', 'privacy_non_compliance'],
+      {
+        against: regulatoryFiling,
+        penalty: 6,
+        tolerance: 2,
+        label: 'regulatory_filing_failure beats generic compliance when a filing or reporting obligation is explicitly missed'
+      }
+    );
+  }
+  if (sanctionsBreach && hasExplicitSanctionsSignals(text)) {
+    penalise(
+      ['policy_breach', 'regulatory_filing_failure', 'market_access_restriction'],
+      {
+        against: sanctionsBreach,
+        penalty: 6,
+        tolerance: 2,
+        label: 'sanctions_breach beats generic policy or regulatory concern when sanctions signals are explicit'
+      }
+    );
+  }
+  if (licensingIssue && hasExplicitLicensingSignals(text)) {
+    penalise(
+      ['policy_breach', 'regulatory_filing_failure'],
+      {
+        against: licensingIssue,
+        penalty: 6,
+        tolerance: 2,
+        label: 'licensing_permit_issue beats generic compliance or regulatory concern when permit or licence signals are explicit'
+      }
+    );
+  }
+  if (contractLiability && hasExplicitContractLiabilitySignals(text) && !hasExplicitDisclosureSignals(text)) {
+    penalise(
+      ['policy_breach', 'supplier_control_weakness', 'data_disclosure'],
+      {
+        against: contractLiability,
+        penalty: 6,
+        tolerance: 2,
+        label: 'contract_liability beats generic compliance or disclosure drift when contractual obligation language is explicit'
+      }
+    );
+  }
 
   const delivery = byKey.get('delivery_slippage');
   const singleSource = byKey.get('single_source_dependency');
+  const supplierInsolvency = byKey.get('supplier_insolvency');
+  const logisticsDisruption = byKey.get('logistics_disruption');
+  const vendorAccessWeakness = byKey.get('vendor_access_weakness');
+  const programmeDelivery = byKey.get('programme_delivery_slippage');
   if (delivery && singleSource && hasExplicitDelaySignals(text) && delivery.score >= singleSource.score - 2) {
     singleSource.score -= 5;
     applied.push('delivery_slippage beats single_source_dependency when actual delay is explicit');
+  }
+  const supplierConcentration = byKey.get('supplier_concentration_risk');
+  if (delivery && supplierConcentration && hasExplicitDeliverySlippageSignals(text) && delivery.score >= supplierConcentration.score - 2) {
+    supplierConcentration.score -= 5;
+    applied.push('delivery_slippage beats supplier_concentration_risk when actual missed delivery is explicit');
+  }
+  if (singleSource
+    && hasExplicitSingleSourceDependencySignals(text)
+    && !hasExplicitDelaySignals(text)
+    && !hasExplicitSupplierInsolvencySignals(text)
+    && !hasExplicitThirdPartyAccessCompromiseSignals(text)) {
+    penalise(
+      ['delivery_slippage', 'logistics_disruption', 'programme_delivery_slippage', 'supplier_insolvency', 'third_party_access_compromise'],
+      {
+        against: singleSource,
+        penalty: 6,
+        tolerance: 2,
+        label: 'single_source_dependency stays primary when the event path is sourcing fragility rather than a live delivery, insolvency, or compromise event'
+      }
+    );
+  }
+  if (supplierConcentration
+    && hasExplicitSupplierConcentrationSignals(text)
+    && !hasExplicitDelaySignals(text)
+    && !hasExplicitSupplierInsolvencySignals(text)
+    && !hasExplicitThirdPartyAccessCompromiseSignals(text)) {
+    penalise(
+      ['delivery_slippage', 'logistics_disruption', 'programme_delivery_slippage', 'supplier_insolvency', 'third_party_access_compromise'],
+      {
+        against: supplierConcentration,
+        penalty: 6,
+        tolerance: 2,
+        label: 'supplier_concentration_risk stays primary when diversification weakness is explicit and no live supplier incident is stated'
+      }
+    );
   }
   if (delivery && hasExplicitDelaySignals(text) && !hasExplicitCyberCauseSignals(text)) {
     penalise(
@@ -589,18 +1025,84 @@ function applyPrecedence(scoredFamilies = [], text = '', meta = {}) {
       }
     );
   }
+  if (delivery
+    && programmeDelivery
+    && hasExplicitDeliverySlippageSignals(text)
+    && /(supplier|vendor|shipment|delivery|hardware|equipment|material)/i.test(text)
+    && !/(internal integration|integration work|portfolio|programme governance|benefits realisation|benefits realization)/i.test(text)
+    && delivery.score >= programmeDelivery.score - 2) {
+    programmeDelivery.score -= 5;
+    applied.push('delivery_slippage beats programme_delivery_slippage when the event is supplier delivery rather than internal programme execution');
+  }
+  if (logisticsDisruption && hasExplicitLogisticsDisruptionSignals(text)) {
+    penalise(
+      ['delivery_slippage', 'programme_delivery_slippage'],
+      {
+        against: logisticsDisruption,
+        penalty: 6,
+        tolerance: 2,
+        label: 'logistics_disruption beats generic delivery slippage when transport or transit failure is explicit'
+      }
+    );
+  }
+  if (supplierInsolvency && hasExplicitSupplierInsolvencySignals(text)) {
+    penalise(
+      ['delivery_slippage', 'counterparty_default'],
+      {
+        against: supplierInsolvency,
+        penalty: 7,
+        tolerance: 2,
+        label: 'supplier_insolvency beats generic delivery or finance interpretations when supplier financial failure is explicit'
+      }
+    );
+  }
+  if (vendorAccessWeakness
+    && hasExplicitVendorAccessWeaknessSignals(text)
+    && !hasExplicitThirdPartyAccessCompromiseSignals(text)) {
+    penalise(
+      ['supplier_control_weakness', 'identity_compromise', 'cloud_control_failure'],
+      {
+        against: vendorAccessWeakness,
+        penalty: 5,
+        tolerance: 2,
+        label: 'vendor_access_weakness beats generic governance or internal cyber interpretations when the external-access path is the issue'
+      }
+    );
+  }
+  const supplierControlWeakness = byKey.get('supplier_control_weakness');
+  if (supplierControlWeakness
+    && hasExplicitSupplierControlWeaknessSignals(text)
+    && !hasExplicitVendorAccessWeaknessSignals(text)
+    && !hasExplicitThirdPartyAccessCompromiseSignals(text)
+    && !hasExplicitSupplierInsolvencySignals(text)
+    && !hasExplicitDelaySignals(text)) {
+    penalise(
+      ['policy_breach', 'regulatory_filing_failure'],
+      {
+        against: supplierControlWeakness,
+        penalty: 5,
+        tolerance: 2,
+        label: 'supplier_control_weakness beats generic compliance interpretations when inherited supplier assurance weakness is primary'
+      }
+    );
+  }
 
   const thirdPartyAccessCompromise = byKey.get('third_party_access_compromise');
   if (thirdPartyAccessCompromise && hasExplicitThirdPartyAccessCompromiseSignals(text)) {
     penalise(
-      ['vendor_access_weakness', 'supplier_control_weakness'],
+      ['vendor_access_weakness', 'supplier_control_weakness', 'identity_compromise'],
       {
         against: thirdPartyAccessCompromise,
         penalty: 6,
         tolerance: 2,
-        label: 'third_party_access_compromise beats governance weakness when an inherited access path is explicitly compromised'
+        label: 'third_party_access_compromise beats governance weakness or internal identity when an inherited access path is explicitly compromised'
       }
     );
+  }
+  if (hasExplicitThirdPartyPathAbsentSignals(text)) {
+    if (thirdPartyAccessCompromise) thirdPartyAccessCompromise.score -= 8;
+    if (vendorAccessWeakness) vendorAccessWeakness.score -= 6;
+    applied.push('internal-only wording blocks third-party path interpretations');
   }
 
   const invoiceFraud = byKey.get('invoice_fraud');
@@ -621,10 +1123,168 @@ function applyPrecedence(scoredFamilies = [], text = '', meta = {}) {
   }
 
   const greenwashing = byKey.get('greenwashing_disclosure_gap');
-  const policyBreach = byKey.get('policy_breach');
+  const forcedLabour = byKey.get('forced_labour_modern_slavery');
+  const safetyIncident = byKey.get('safety_incident');
+  const environmentalSpill = byKey.get('environmental_spill');
+  const workforceFatigue = byKey.get('workforce_fatigue_staffing_weakness');
+  const criticalStaffDependency = byKey.get('critical_staff_dependency');
   if (greenwashing && policyBreach && hasExplicitGreenwashingSignals(text) && greenwashing.score >= policyBreach.score - 2) {
     policyBreach.score -= 6;
     applied.push('greenwashing_disclosure_gap beats generic policy breach when disclosure substantiation is explicit');
+  }
+  if (greenwashing && hasExplicitGreenwashingSignals(text)) {
+    penalise(
+      ['regulatory_filing_failure', 'privacy_non_compliance'],
+      {
+        against: greenwashing,
+        penalty: 5,
+        tolerance: 2,
+        label: 'greenwashing_disclosure_gap beats generic compliance or filing interpretations when ESG claims are explicitly unsupported'
+      }
+    );
+  }
+  if (forcedLabour && hasExplicitForcedLabourSignals(text)) {
+    penalise(
+      ['supplier_control_weakness', 'single_source_dependency', 'supplier_concentration_risk', 'policy_breach'],
+      {
+        against: forcedLabour,
+        penalty: 6,
+        tolerance: 2,
+        label: 'forced_labour_modern_slavery beats procurement or generic compliance when human-rights abuse is explicit'
+      }
+    );
+  }
+  if (safetyIncident && hasExplicitSafetyIncidentSignals(text)) {
+    penalise(
+      ['process_breakdown', 'service_delivery_failure', 'platform_instability'],
+      {
+        against: safetyIncident,
+        penalty: 6,
+        tolerance: 2,
+        label: 'safety_incident beats generic operational disruption when safety harm or unsafe conditions are explicit'
+      }
+    );
+  }
+  if (environmentalSpill && hasExplicitEnvironmentalSpillSignals(text)) {
+    penalise(
+      ['policy_breach', 'regulatory_filing_failure', 'process_breakdown', 'service_delivery_failure'],
+      {
+        against: environmentalSpill,
+        penalty: 6,
+        tolerance: 2,
+        label: 'environmental_spill beats generic compliance or operational interpretations when a spill or release is explicit'
+      }
+    );
+    if (safetyIncident && !hasExplicitSafetyIncidentSignals(text) && environmentalSpill.score >= safetyIncident.score - 2) {
+      safetyIncident.score -= 4;
+      applied.push('environmental_spill stays primary over safety_incident when release is explicit and worker harm is not');
+    }
+  }
+  if (workforceFatigue && hasExplicitWorkforceFatigueSignals(text)) {
+    penalise(
+      ['process_breakdown', 'service_delivery_failure', 'platform_instability'],
+      {
+        against: workforceFatigue,
+        penalty: 6,
+        tolerance: 2,
+        label: 'workforce_fatigue_staffing_weakness beats generic operational backlog when fatigue or unsafe staffing is explicit'
+      }
+    );
+  }
+  if (criticalStaffDependency && hasExplicitCriticalStaffDependencySignals(text)) {
+    penalise(
+      ['process_breakdown', 'service_delivery_failure', 'platform_instability', 'portfolio_execution_drift'],
+      {
+        against: criticalStaffDependency,
+        penalty: 6,
+        tolerance: 2,
+        label: 'critical_staff_dependency beats generic operational or strategic interpretations when key-person concentration is explicit'
+      }
+    );
+    if (workforceFatigue && !hasExplicitWorkforceFatigueSignals(text) && criticalStaffDependency.score >= workforceFatigue.score - 2) {
+      workforceFatigue.score -= 4;
+      applied.push('critical_staff_dependency stays primary over generic workforce fatigue when key-person concentration is explicit');
+    }
+  }
+
+  const strongestOperational = [criticalDependency, serviceDelivery, processBreakdown, platformInstability]
+    .filter(Boolean)
+    .sort((left, right) => right.score - left.score)[0] || null;
+  const strongestContinuity = [failoverFailure, drGap, recoveryCoordination]
+    .filter(Boolean)
+    .sort((left, right) => right.score - left.score)[0] || null;
+
+  if (strongestOperational && !hasExplicitContinuityGapSignals(text) && !hasExplicitRecoveryCoordinationSignals(text)) {
+    penalise(
+      ['dr_gap', 'failover_failure', 'recovery_coordination_failure', 'crisis_escalation'],
+      {
+        against: strongestOperational,
+        penalty: 6,
+        tolerance: 2,
+        label: 'operational service or workflow failure beats business_continuity when explicit DR, failover, or recovery-gap language is absent'
+      }
+    );
+  }
+  if (strongestOperational && hasFunctioningFallbackSignals(text) && !hasExplicitContinuityGapSignals(text)) {
+    penalise(
+      ['dr_gap', 'failover_failure', 'recovery_coordination_failure', 'crisis_escalation'],
+      {
+        against: strongestOperational,
+        penalty: 7,
+        tolerance: 2,
+        label: 'functioning fallback or recovery controls block continuity promotion when the event path is operational'
+      }
+    );
+  }
+  if (strongestContinuity && (hasExplicitContinuityGapSignals(text) || hasExplicitRecoveryCoordinationSignals(text))) {
+    penalise(
+      ['process_breakdown', 'service_delivery_failure', 'platform_instability', 'critical_service_dependency_failure'],
+      {
+        against: strongestContinuity,
+        penalty: 5,
+        tolerance: 2,
+        label: 'explicit DR, failover, or recovery-gap language beats generic operational instability'
+      }
+    );
+  }
+  if (criticalDependency && serviceDelivery && hasExplicitDependencyFailureSignals(text) && criticalDependency.score >= serviceDelivery.score - 2) {
+    serviceDelivery.score -= 5;
+    applied.push('critical_service_dependency_failure beats generic service_delivery_failure when the dependency failure is the event path');
+  }
+  if (serviceDelivery
+    && platformInstability
+    && hasExplicitServiceDeliveryFailureSignals(text)
+    && hasExplicitPlatformInstabilitySignals(text)
+    && /(customer-facing service|service delays|critical service|delivery path)/i.test(text)
+    && serviceDelivery.score >= platformInstability.score - 4) {
+    platformInstability.score -= 5;
+    applied.push('service_delivery_failure beats platform_instability when the service path is failing and platform defects are the cause');
+  }
+  if (processBreakdown && serviceDelivery && hasExplicitProcessBreakdownSignals(text) && /(workflow|manual workaround|manual processing|handoff)/i.test(text) && processBreakdown.score >= serviceDelivery.score - 1) {
+    serviceDelivery.score -= 3;
+    applied.push('process_breakdown beats service_delivery_failure when workflow collapse or manual rework is explicit');
+  }
+  if (perimeterBreach && hasExplicitPerimeterBreachSignals(text)) {
+    penalise(
+      ['process_breakdown', 'service_delivery_failure', 'platform_instability', 'dr_gap', 'failover_failure', 'recovery_coordination_failure'],
+      {
+        against: perimeterBreach,
+        penalty: 6,
+        tolerance: 2,
+        label: 'perimeter_breach beats generic operational or continuity wording when physical intrusion or restricted-area access failure is explicit'
+      }
+    );
+  }
+  if (otResilienceFailure && hasExplicitOtResilienceSignals(text)) {
+    penalise(
+      ['process_breakdown', 'service_delivery_failure', 'platform_instability', 'availability_attack'],
+      {
+        against: otResilienceFailure,
+        penalty: 6,
+        tolerance: 2,
+        label: 'ot_resilience_failure beats generic operational or cyber wording when industrial-control instability is explicit'
+      }
+    );
   }
 
   return {
@@ -644,20 +1304,9 @@ function resolveOverlays(text = '', primaryFamily = null, secondaryFamilies = []
       ]
     : [];
   return uniqueStrings([...defaults, ...explicit])
+    .filter((key) => !(key === 'third_party_dependency' && hasExplicitThirdPartyPathAbsentSignals(text)))
     .filter((key) => SCENARIO_TAXONOMY_OVERLAY_BY_KEY[key])
     .map((key) => SCENARIO_TAXONOMY_OVERLAY_BY_KEY[key]);
-}
-
-function buildConfidence(best = null, second = null, hasExplicitSignals = false) {
-  const bestScore = Number(best?.score || 0);
-  const secondScore = Number(second?.score || 0);
-  const margin = bestScore - secondScore;
-  if (bestScore >= 26 && margin >= 6) return 0.96;
-  if (bestScore >= 20 && margin >= 5) return 0.9;
-  if (bestScore >= 14 && margin >= 4) return 0.8;
-  if (bestScore >= 10 && margin >= 2) return hasExplicitSignals ? 0.68 : 0.58;
-  if (bestScore >= 6) return hasExplicitSignals ? 0.54 : 0.42;
-  return 0.24;
 }
 
 function buildPrimaryProfile(family = null) {
@@ -736,9 +1385,16 @@ function classifyScenario(narrative = '', options = {}) {
   );
   const hasUsablePrimary = Boolean(best && !best.blocked && best.score >= 8 && (hasExplicitPrimarySignals || best.matchedSignals.length >= 2));
   const weakExplicitPrimary = Boolean(best && !best.blocked && best.score >= 5 && best.matchedSignals.length > 0);
+  const suppressGovernanceHintFallback = Boolean(
+    !hasUsablePrimary
+    && !weakExplicitPrimary
+    && hintFamily
+    && ['compliance', 'regulatory', 'legal_contract'].includes(String(hintFamily.domain || '').trim())
+    && hasGovernanceConsequenceOnlySignals(text)
+  );
   const primaryFamily = hasUsablePrimary
     ? best.family
-    : (weakExplicitPrimary ? best.family : (hintFamily || null));
+    : (weakExplicitPrimary ? best.family : (suppressGovernanceHintFallback ? null : (hintFamily || null)));
   const secondaryFamilies = hasUsablePrimary ? buildSecondaryFamilies(scoredFamilies, primaryFamily) : [];
   const mechanisms = hasUsablePrimary
     ? uniqueStrings([
@@ -753,9 +1409,7 @@ function classifyScenario(narrative = '', options = {}) {
     includeDefaultOverlays: hasUsablePrimary || weakExplicitPrimary
   });
   const primaryProfile = buildPrimaryProfile(primaryFamily);
-  const confidence = hasUsablePrimary
-    ? buildConfidence(best, second, hasExplicitPrimarySignals)
-    : (hintFamily ? 0.32 : 0.18);
+  const usedHintFallback = Boolean(primaryFamily && !hasUsablePrimary && !weakExplicitPrimary && hintFamily?.key === primaryFamily.key);
 
   const topDomainSet = new Set(
     scoredFamilies
@@ -778,9 +1432,14 @@ function classifyScenario(narrative = '', options = {}) {
   if (!hasUsablePrimary) ambiguityFlags.push('WEAK_EVENT_PATH');
   if (overlayHeavy) ambiguityFlags.push('CONSEQUENCE_HEAVY_TEXT');
   if (topDomainSet.size > 1) ambiguityFlags.push('MIXED_DOMAIN_SIGNALS');
-  if (confidence < 0.6) ambiguityFlags.push('LOW_PRIMARY_CONFIDENCE');
 
   const matchedSignals = hasUsablePrimary ? best.matchedSignals : [];
+  const blockedByAntiSignals = scoredFamilies
+    .filter((item) => item.antiMatches.length)
+    .map((item) => ({
+      familyKey: item.family.key,
+      signals: item.antiMatches.map((signal) => signal.text)
+    }));
   const matchedAntiSignals = scoredFamilies
     .filter((item) => item.antiMatches.length)
     .slice(0, 4)
@@ -788,28 +1447,53 @@ function classifyScenario(narrative = '', options = {}) {
       ...signal,
       familyKey: item.family.key
     })));
-
-  return {
+  const classification = {
     ...primaryProfile,
     domain: String(primaryFamily?.domain || '').trim(),
     primaryFamily,
     secondaryFamilies,
     mechanisms,
     overlays,
-    confidence,
     matchedSignals,
     matchedAntiSignals,
     triggerSignals: uniqueStrings(matchedSignals.map((signal) => signal.text)),
-    blockedByAntiSignals: scoredFamilies
-      .filter((item) => item.antiMatches.length)
-      .map((item) => ({
-        familyKey: item.family.key,
-        signals: item.antiMatches.map((signal) => signal.text)
-      })),
+    blockedByAntiSignals,
     reasonCodes: uniqueStrings(reasonCodes),
     ambiguityFlags: uniqueStrings(ambiguityFlags),
     taxonomyVersion: SCENARIO_TAXONOMY.taxonomyVersion,
     secondaryKeys: uniqueStrings(secondaryFamilies.map((family) => family.lensKey)).filter((key) => key && key !== primaryProfile.key)
+  };
+  const calibratedConfidence = calibrateClassificationConfidence({
+    bestScore: Number(best?.score || 0),
+    secondScore: Number(second?.score || 0),
+    matchedSignalCount: matchedSignals.length,
+    strongSignalCount: matchedSignals.filter((signal) => String(signal?.strength || '').toLowerCase() === 'strong').length,
+    mechanismCount: mechanisms.length,
+    antiSignalCount: Number(best?.antiMatches?.length || 0),
+    blockedByAntiSignalCount: best?.blocked ? 1 : 0,
+    topDomainCount: topDomainSet.size,
+    hasUsablePrimary,
+    weakExplicitPrimary,
+    hasExplicitPrimarySignals,
+    requiredSignalsMet: Boolean(best?.requiredMatches?.length),
+    overlayHeavy,
+    ambiguityFlags: classification.ambiguityFlags,
+    reasonCodes: classification.reasonCodes,
+    precedenceAppliedCount: precedence.applied.length,
+    usedHintFallback
+  });
+
+  return {
+    ...classification,
+    confidence: calibratedConfidence.confidenceScore / 100,
+    confidenceScore: calibratedConfidence.confidenceScore,
+    confidenceBand: calibratedConfidence.confidenceBand,
+    confidenceDrivers: calibratedConfidence.confidenceDrivers,
+    calibrationMode: calibratedConfidence.calibrationMode,
+    ambiguityFlags: uniqueStrings([
+      ...classification.ambiguityFlags,
+      ...(calibratedConfidence.confidenceScore < 60 ? ['LOW_PRIMARY_CONFIDENCE'] : [])
+    ])
   };
 }
 

@@ -21,6 +21,30 @@ test('compatibility-only manual_error aliases cleanly to process_breakdown', () 
   assert.ok(classification.overlays.some((overlay) => overlay.key === 'backlog_growth'));
 });
 
+test('compatibility-only facility_access_lapse aliases cleanly to perimeter_breach', () => {
+  const classification = classifyScenario(
+    'A badge control lapse lets an unauthorised person enter a restricted operations area.',
+    { scenarioLensHint: 'facility_access_lapse' }
+  );
+
+  assert.equal(normaliseScenarioHintKey('facility_access_lapse'), 'physical-security');
+  assert.equal(classification.primaryFamily?.key, 'perimeter_breach');
+  assert.equal(buildScenarioLens(classification).key, 'physical-security');
+  assert.ok(classification.overlays.some((overlay) => overlay.key === 'control_breakdown'));
+});
+
+test('compatibility-only industrial_control_instability aliases cleanly to ot_resilience_failure', () => {
+  const classification = classifyScenario(
+    'Industrial control instability spreads through the OT environment and site operations cannot be sustained safely.',
+    { scenarioLensHint: 'industrial_control_instability' }
+  );
+
+  assert.equal(normaliseScenarioHintKey('industrial_control_instability'), 'ot-resilience');
+  assert.equal(classification.primaryFamily?.key, 'ot_resilience_failure');
+  assert.equal(buildScenarioLens(classification).key, 'ot-resilience');
+  assert.ok(classification.overlays.some((overlay) => overlay.key === 'recovery_strain'));
+});
+
 test('identity compromise remains primary when financial consequence is downstream', () => {
   const classification = classifyScenario(
     'Compromised global admin credentials are used to access the tenant, change approval settings, and trigger an unauthorised funds transfer with direct monetary loss.',
@@ -147,7 +171,8 @@ test('vendor governance weakness near miss does not get promoted into access com
 
   assert.equal(classification.primaryFamily?.key, 'vendor_access_weakness');
   assert.equal(buildScenarioLens(classification).key, 'third-party');
-  assert.equal(classification.reasonCodes.includes('PRECEDENCE_RULE_APPLIED'), false);
+  assert.ok(classification.reasonCodes.includes('REQUIRED_SIGNAL_MATCH'));
+  assert.equal(classification.secondaryFamilies.some((family) => family.key === 'third_party_access_compromise'), false);
 });
 
 test('greenwashing disclosure gap beats generic policy-breach wording', () => {

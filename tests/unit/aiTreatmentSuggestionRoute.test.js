@@ -112,6 +112,11 @@ test('treatment-suggestion route returns manual mode for incomplete baseline inp
   assert.equal(res.payload.aiUnavailable, false);
   assert.deepEqual(res.payload.suggestedInputs, {});
   assert.equal(String(res.payload.manualReasonCode || ''), 'incomplete_treatment_input');
+  assert.equal(res.payload.treatmentCoherence.mode, 'manual');
+  assert.equal(typeof res.payload.treatmentCoherence.confidenceScore, 'number');
+  assert.equal(res.payload.treatmentCoherence.confidenceBand, 'low');
+  assert.ok(Array.isArray(res.payload.treatmentCoherence.confidenceDrivers));
+  assert.equal(typeof res.payload.treatmentCoherence.calibrationMode, 'string');
   assert.equal(String(res.payload.trace?.label || ''), 'Step 3 treatment suggestion');
 });
 
@@ -163,6 +168,12 @@ test('treatment-suggestion route returns deterministic server fallback when host
   assert.equal(res.payload.usedFallback, true);
   assert.equal(res.payload.aiUnavailable, true);
   assert.equal(String(res.payload.fallbackReasonTitle || ''), 'Deterministic fallback treatment suggestion loaded');
+  assert.equal(res.payload.treatmentCoherence.mode, 'accepted');
+  assert.equal(res.payload.treatmentCoherence.acceptedPrimaryFamilyKey, 'identity_compromise');
+  assert.equal(typeof res.payload.treatmentCoherence.confidenceScore, 'number');
+  assert.match(String(res.payload.treatmentCoherence.confidenceBand || ''), /high|medium|low/);
+  assert.ok(Array.isArray(res.payload.treatmentCoherence.confidenceDrivers));
+  assert.equal(typeof res.payload.treatmentCoherence.calibrationMode, 'string');
   assert.equal(typeof res.payload.suggestedInputs?.TEF?.likely, 'number');
   assert.equal(String(res.payload.trace?.label || ''), 'Step 3 treatment suggestion');
 });
@@ -259,6 +270,8 @@ test('treatment-suggestion route orchestrates live generation server-side', asyn
   assert.equal(res.payload.mode, 'live');
   assert.equal(res.payload.usedFallback, false);
   assert.equal(res.payload.aiUnavailable, false);
+  assert.equal(res.payload.treatmentCoherence.mode, 'accepted');
+  assert.equal(res.payload.treatmentCoherence.acceptedPrimaryFamilyKey, 'identity_compromise');
   assert.match(String(res.payload.summary || ''), /future-state case/i);
   assert.equal(typeof res.payload.suggestedInputs?.controlStrength?.likely, 'number');
   assert.equal(String(res.payload.trace?.label || ''), 'Step 3 treatment suggestion');
@@ -282,14 +295,14 @@ test('treatment-suggestion route does not reuse completed results when the norma
     }
     aiFetchCount += 1;
     const aiPayload = JSON.stringify({
-      summary: `Treatment response ${aiFetchCount}`,
-      changesSummary: 'The future-state case improves baseline controls.',
-      workflowGuidance: ['Review the adjusted values before applying them.'],
-      benchmarkBasis: 'Use realistic control improvements.',
+      summary: `Identity treatment response ${aiFetchCount} keeps the future-state case anchored to privileged access hardening.`,
+      changesSummary: 'The future-state case improves privileged identity controls, lowers likely misuse success, and reduces disruption from the same access path.',
+      workflowGuidance: ['Review the adjusted identity-control values before applying them.'],
+      benchmarkBasis: 'Use realistic privileged-access and containment improvements.',
       inputRationale: {
-        tef: 'Frequency reduces slightly.',
-        vulnerability: 'Vulnerability improves.',
-        lossComponents: 'Disruption costs improve modestly.'
+        tef: 'Frequency reduces slightly because successful credential misuse becomes harder.',
+        vulnerability: 'Vulnerability improves where privileged-access controls are stronger.',
+        lossComponents: 'Disruption costs improve where the same identity-led event is contained faster.'
       },
       suggestedInputs: {
         TEF: { min: 1, likely: 3, max: 5 },

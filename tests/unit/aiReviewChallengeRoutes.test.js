@@ -132,6 +132,11 @@ test('reviewer-brief route returns deterministic fallback when hosted AI proxy i
   assert.equal(res.payload.mode, 'deterministic_fallback');
   assert.equal(res.payload.usedFallback, true);
   assert.equal(res.payload.aiUnavailable, true);
+  assert.equal(res.payload.reviewerCoherence.mode, 'accepted');
+  assert.equal(typeof res.payload.reviewerCoherence.confidenceScore, 'number');
+  assert.match(String(res.payload.reviewerCoherence.confidenceBand || ''), /high|medium|low/);
+  assert.ok(Array.isArray(res.payload.reviewerCoherence.confidenceDrivers));
+  assert.equal(typeof res.payload.reviewerCoherence.calibrationMode, 'string');
   assert.match(String(res.payload.whatMatters || ''), /assessment|risk/i);
 });
 
@@ -157,6 +162,11 @@ test('reviewer-brief route returns manual mode for incomplete assessment content
   assert.equal(res.payload.mode, 'manual');
   assert.equal(res.payload.usedFallback, false);
   assert.equal(res.payload.aiUnavailable, false);
+  assert.equal(res.payload.reviewerCoherence.mode, 'manual');
+  assert.equal(typeof res.payload.reviewerCoherence.confidenceScore, 'number');
+  assert.equal(res.payload.reviewerCoherence.confidenceBand, 'low');
+  assert.ok(Array.isArray(res.payload.reviewerCoherence.confidenceDrivers));
+  assert.equal(typeof res.payload.reviewerCoherence.calibrationMode, 'string');
   assert.equal(String(res.payload.manualReasonCode || ''), 'incomplete_assessment_data');
 });
 
@@ -180,6 +190,7 @@ test('reviewer-brief route orchestrates live reviewer brief generation server-si
   assert.equal(res.statusCode, 200);
   assert.equal(res.payload.mode, 'live');
   assert.equal(res.payload.whatMatters, 'The current risk remains above the board attention threshold.');
+  assert.equal(res.payload.reviewerCoherence.mode, 'accepted');
   assert.equal(String(res.payload.trace?.label || ''), 'Reviewer decision brief');
 });
 
@@ -206,6 +217,7 @@ test('challenge-assessment route returns deterministic fallback for executive an
   assert.equal(executiveRes.payload.mode, 'deterministic_fallback');
   assert.equal(executiveRes.payload.usedFallback, true);
   assert.equal(executiveRes.payload.aiUnavailable, true);
+  assert.equal(executiveRes.payload.reviewerCoherence.mode, 'corrected');
   assert.match(String(executiveRes.payload.challengeSummary || ''), /committee should challenge/i);
 
   const reviewRes = createRes();
@@ -228,6 +240,7 @@ test('challenge-assessment route returns deterministic fallback for executive an
   assert.equal(reviewRes.payload.mode, 'deterministic_fallback');
   assert.equal(reviewRes.payload.usedFallback, true);
   assert.equal(reviewRes.payload.aiUnavailable, true);
+  assert.equal(reviewRes.payload.reviewerCoherence.mode, 'corrected');
   assert.equal(String(reviewRes.payload.trace?.label || ''), 'Assessment challenge');
 });
 
@@ -256,6 +269,7 @@ test('challenge-assessment route orchestrates live executive challenge generatio
   assert.equal(res.statusCode, 200);
   assert.equal(res.payload.mode, 'live');
   assert.equal(res.payload.confidenceVerdict, 'Likely understated');
+  assert.equal(res.payload.reviewerCoherence.mode, 'corrected');
   assert.equal(String(res.payload.trace?.label || ''), 'Assessment challenge');
 });
 
@@ -285,6 +299,7 @@ test('parameter-challenge route returns deterministic fallback when hosted AI pr
   assert.equal(res.payload.mode, 'deterministic_fallback');
   assert.equal(res.payload.usedFallback, true);
   assert.equal(res.payload.aiUnavailable, true);
+  assert.equal(res.payload.reviewerCoherence.mode, 'fallback_replaced');
   assert.equal(Array.isArray(res.payload.analystQuestions), true);
   assert.equal(String(res.payload.trace?.label || ''), 'Parameter challenge record');
 });
@@ -317,6 +332,7 @@ test('parameter-challenge route returns manual mode for incomplete challenge inp
   assert.equal(res.payload.mode, 'manual');
   assert.equal(res.payload.usedFallback, false);
   assert.equal(res.payload.aiUnavailable, false);
+  assert.equal(res.payload.reviewerCoherence.mode, 'manual');
   assert.equal(String(res.payload.manualReasonCode || ''), 'incomplete_parameter_challenge_input');
 });
 
@@ -345,7 +361,8 @@ test('challenge-synthesis route returns deterministic fallback when hosted AI pr
   assert.equal(res.payload.mode, 'deterministic_fallback');
   assert.equal(res.payload.usedFallback, true);
   assert.equal(res.payload.aiUnavailable, true);
-  assert.match(String(res.payload.overallConcern || ''), /reviewers/i);
+  assert.equal(res.payload.reviewerCoherence.mode, 'corrected');
+  assert.match(String(res.payload.overallConcern || ''), /reviewer/i);
   assert.equal(String(res.payload.trace?.label || ''), 'Challenge synthesis');
 });
 
@@ -379,6 +396,7 @@ test('consensus-recommendation route returns deterministic fallback when hosted 
   assert.equal(res.payload.mode, 'deterministic_fallback');
   assert.equal(res.payload.usedFallback, true);
   assert.equal(res.payload.aiUnavailable, true);
+  assert.equal(res.payload.reviewerCoherence.mode, 'fallback_replaced');
   assert.deepEqual(res.payload.acceptChallenges, ['C1']);
   assert.equal(String(res.payload.trace?.label || ''), 'Consensus recommendation');
 });
@@ -410,14 +428,15 @@ test('review-mediation route returns manual guidance when hosted AI proxy is not
   assert.equal(res.payload.mode, 'manual');
   assert.equal(res.payload.usedFallback, false);
   assert.equal(res.payload.aiUnavailable, true);
+  assert.equal(res.payload.reviewerCoherence.mode, 'manual');
   assert.match(String(res.payload.proposedMiddleGround || ''), /manual mediation/i);
 
   process.env.COMPASS_API_KEY = 'proxy-secret';
   process.env.COMPASS_MODEL = 'gpt-5.1';
   global.fetch = buildAiFetch(JSON.stringify({
-    reconciliationSummary: 'Both sides agree recovery timing is the main source of uncertainty.',
-    proposedMiddleGround: 'Use a slower but still plausible recovery estimate until fresh evidence is reviewed.',
-    whyReasonable: 'It reflects the reviewer concern without discarding the analyst evidence entirely.',
+    reconciliationSummary: 'Both sides agree the identity-compromise scenario remains primary and recovery timing is the main source of uncertainty within that path.',
+    proposedMiddleGround: 'Use a slower but still plausible recovery estimate for the accepted identity-compromise path until fresh evidence is reviewed.',
+    whyReasonable: 'It reflects the reviewer concern without discarding the analyst evidence or changing the primary scenario family.',
     recommendedField: 'controlStrLikely',
     recommendedValue: 0.58,
     recommendedValueLabel: 'Moderately weaker control strength',
@@ -443,5 +462,6 @@ test('review-mediation route returns manual guidance when hosted AI proxy is not
   assert.equal(res.statusCode, 200);
   assert.equal(res.payload.mode, 'live');
   assert.equal(res.payload.recommendedField, 'controlStrLikely');
+  assert.equal(res.payload.reviewerCoherence.mode, 'corrected');
   assert.equal(String(res.payload.trace?.label || ''), 'Review mediation');
 });

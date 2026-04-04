@@ -16,8 +16,16 @@ const {
   buildScenarioLens
 } = require('../../api/_scenarioClassification');
 
+function assertConfidenceMetadata(classification = {}) {
+  assert.equal(typeof classification.confidence, 'number');
+  assert.equal(typeof classification.confidenceScore, 'number');
+  assert.match(String(classification.confidenceBand || ''), /high|medium|low/);
+  assert.ok(Array.isArray(classification.confidenceDrivers));
+  assert.equal(typeof classification.calibrationMode, 'string');
+}
+
 test('canonical phase 1.1 taxonomy exposes the exact domain, overlay, mechanism, and family shape', () => {
-  assert.equal(SCENARIO_TAXONOMY.taxonomyVersion, 'phase1.1-2026-04-04');
+  assert.equal(SCENARIO_TAXONOMY.taxonomyVersion, 'phase1.1.4-2026-04-04');
   assert.deepEqual(
     SCENARIO_TAXONOMY_DOMAINS.map((item) => item.key),
     [
@@ -73,6 +81,8 @@ test('canonical phase 1.1 taxonomy exposes the exact domain, overlay, mechanism,
       'records_retention_failure',
       'unlawful_processing',
       'sourcing_concentration',
+      'fatigue_staffing_pressure',
+      'key_person_concentration',
       'access_control_weakness',
       'industrial_control_instability'
     ]
@@ -106,6 +116,10 @@ test('identity compromise stays cyber, exposes mechanisms, and keeps finance as 
   assert.equal(classification.domain, 'cyber');
   assert.equal(classification.primaryFamily?.key, 'identity_compromise');
   assert.ok(Number(classification.confidence || 0) >= 0.8);
+  assert.equal(classification.confidenceBand, 'high');
+  assert.ok(classification.confidenceDrivers.includes('STRONG_PRIMARY_SIGNALS'));
+  assert.ok(classification.confidenceDrivers.includes('NO_STRONG_COMPETING_FAMILY'));
+  assertConfidenceMetadata(classification);
   assert.ok(classification.reasonCodes.includes('DIRECT_SIGNAL_MATCH'));
   assert.ok(classification.reasonCodes.includes('PRECEDENCE_RULE_APPLIED'));
   assert.ok(classification.matchedSignals.some((signal) => /identity compromise path|dark web credentials|admin credentials/i.test(String(signal.text || ''))));
@@ -196,9 +210,11 @@ test('forced labour stays ESG / people and does not collapse into procurement-on
 
   assert.equal(classification.domain, 'esg_hse_people');
   assert.equal(classification.primaryFamily?.key, 'forced_labour_modern_slavery');
+  assert.equal(classification.confidenceBand, 'high');
   assert.ok(classification.overlays.some((overlay) => overlay.key === 'reputational_damage'));
   assert.ok(classification.overlays.some((overlay) => overlay.key === 'third_party_dependency'));
   assert.equal(buildScenarioLens(classification).key, 'esg');
+  assertConfidenceMetadata(classification);
 });
 
 test('mixed identity scenarios keep the identity event path primary while surfacing secondary families and overlays', () => {
@@ -210,7 +226,7 @@ test('mixed identity scenarios keep the identity event path primary while surfac
   assert.ok(classification.secondaryFamilies.some((family) => ['data_disclosure', 'cloud_control_failure'].includes(family.key)));
   assert.ok(classification.overlays.some((overlay) => overlay.key === 'data_exposure'));
   assert.ok(Array.isArray(classification.matchedAntiSignals));
-  assert.equal(classification.taxonomyVersion, 'phase1.1-2026-04-04');
+  assert.equal(classification.taxonomyVersion, 'phase1.1.4-2026-04-04');
 });
 
 test('consequence-heavy ambiguous text does not create fake precision', () => {
@@ -222,6 +238,9 @@ test('consequence-heavy ambiguous text does not create fake precision', () => {
   assert.ok(classification.reasonCodes.includes('INSUFFICIENT_PRIMARY_SIGNAL'));
   assert.ok(classification.ambiguityFlags.includes('WEAK_EVENT_PATH'));
   assert.ok(classification.ambiguityFlags.includes('CONSEQUENCE_HEAVY_TEXT'));
+  assert.equal(classification.confidenceBand, 'low');
+  assert.ok(classification.confidenceDrivers.includes('CONSEQUENCE_HEAVY_TEXT'));
+  assertConfidenceMetadata(classification);
 });
 
 test('weak text does not inherit default overlays from a stale hint family', () => {
@@ -233,4 +252,47 @@ test('weak text does not inherit default overlays from a stale hint family', () 
   assert.ok(classification.reasonCodes.includes('INSUFFICIENT_PRIMARY_SIGNAL'));
   assert.equal(classification.overlays.some((overlay) => overlay.key === 'direct_monetary_loss'), false);
   assert.equal(classification.overlays.some((overlay) => overlay.key === 'control_breakdown'), false);
+  assert.equal(classification.confidenceBand, 'low');
+  assertConfidenceMetadata(classification);
+});
+
+test('mixed identity and finance-consequence wording calibrates below high confidence', () => {
+  const classification = classifyScenario(
+    'Compromised privileged credentials could expose the tenant, trigger treasury review, and create direct financial loss if controls fail.'
+  );
+
+  assert.equal(classification.primaryFamily?.key, 'identity_compromise');
+  assert.notEqual(classification.confidenceBand, 'high');
+  assert.ok(classification.confidenceDrivers.includes('PRECEDENCE_RULE_NEEDED'));
+  assertConfidenceMetadata(classification);
+});
+
+test('privacy-obligation wording near disclosure stays moderated rather than high-confidence breach framing', () => {
+  const classification = classifyScenario(
+    'Customer records are processed without a lawful basis and retained too long, creating concern that the retained data could later be exposed.'
+  );
+
+  assert.ok(['privacy_non_compliance', 'records_retention_non_compliance'].includes(classification.primaryFamily?.key));
+  assert.notEqual(classification.confidenceBand, 'high');
+  assertConfidenceMetadata(classification);
+});
+
+test('supplier delay with transformation spillover calibrates below high confidence when lanes compete closely', () => {
+  const classification = classifyScenario(
+    'A vendor delivery miss and internal integration slippage together threaten the transformation timeline for a critical rollout.'
+  );
+
+  assert.ok(['delivery_slippage', 'programme_delivery_slippage'].includes(classification.primaryFamily?.key));
+  assert.notEqual(classification.confidenceBand, 'high');
+  assertConfidenceMetadata(classification);
+});
+
+test('greenwashing near-miss policy wording stays moderated rather than overconfident', () => {
+  const classification = classifyScenario(
+    'An internal environmental reporting process was not followed, creating a possible policy issue that may later draw stakeholder questions.'
+  );
+
+  assert.notEqual(classification.primaryFamily?.key, 'greenwashing_disclosure_gap');
+  assert.notEqual(classification.confidenceBand, 'high');
+  assertConfidenceMetadata(classification);
 });
