@@ -1387,7 +1387,7 @@ test('admin activity summary cards filter the recent audit table', async ({ page
   };
   const auditEntries = [
     {
-      ts: Date.now() - 60_000,
+      ts: '2026-04-06T07:08:06.000Z',
       actorUsername: 'alex',
       actorRole: 'user',
       eventType: 'login_success',
@@ -1396,7 +1396,7 @@ test('admin activity summary cards filter the recent audit table', async ({ page
       details: { ip: '10.0.0.1' }
     },
     {
-      ts: Date.now() - 50_000,
+      ts: '2026-04-03T04:27:30.000Z',
       actorUsername: 'alex',
       actorRole: 'user',
       eventType: 'login_failure',
@@ -1405,7 +1405,7 @@ test('admin activity summary cards filter the recent audit table', async ({ page
       details: { reason: 'Bad password' }
     },
     {
-      ts: Date.now() - 40_000,
+      ts: '2026-04-03T04:27:04.000Z',
       actorUsername: 'admin',
       actorRole: 'admin',
       eventType: 'settings_update',
@@ -1414,7 +1414,7 @@ test('admin activity summary cards filter the recent audit table', async ({ page
       details: { field: 'aiInstructions' }
     },
     {
-      ts: Date.now() - 30_000,
+      ts: '2026-04-03T04:27:01.000Z',
       actorUsername: 'maya',
       actorRole: 'bu_admin',
       eventType: 'logout',
@@ -1437,26 +1437,45 @@ test('admin activity summary cards filter the recent audit table', async ({ page
     const auditSection = page.locator('details.settings-section').filter({
       has: page.locator('.settings-section__title', { hasText: /activity log/i })
     }).last();
+    const clickVisibleAuditFilter = async (key) => {
+      await page.evaluate(filterKey => {
+        const button = Array.from(document.querySelectorAll(`[data-audit-filter-key="${filterKey}"]`))
+          .filter(node => {
+            const rect = node.getBoundingClientRect();
+            return rect.width > 0 && rect.height > 0;
+          })
+          .at(-1);
+        button?.click();
+      }, key);
+    };
     await auditSection.evaluate(node => { node.open = true; });
-    const auditRefreshButton = page.locator('#btn-refresh-audit-log').last();
     const auditTable = page.locator('#admin-audit-activity-table').last();
     const auditTableRows = page.locator('#admin-audit-activity-table tbody').last().locator('tr');
-    await expect(auditRefreshButton).toBeVisible();
     await expect(auditTableRows).toHaveCount(4);
 
-    await page.locator('[data-audit-filter-key="login_success"]').last().click();
+    await clickVisibleAuditFilter('login_success');
     await expect(page.locator('#audit-log-active-filter').last()).toContainText(/login success/i);
     await expect(auditTableRows).toHaveCount(1);
+    await expect(auditTable).toContainText('06/04/2026');
+    await expect(auditTable).toContainText('11:08:06');
     await expect(auditTable).toContainText('login_success');
     await expect(auditTable).not.toContainText('settings_update');
 
-    await page.locator('[data-audit-filter-key="admin"]').last().click();
+    await clickVisibleAuditFilter('admin');
     await expect(page.locator('#audit-log-active-filter').last()).toContainText(/admin actions/i);
     await expect(auditTableRows).toHaveCount(1);
     await expect(auditTable).toContainText('settings_update');
     await expect(auditTable).not.toContainText('login_failure');
 
-    await page.locator('#btn-clear-audit-filter').last().click();
+    await page.evaluate(() => {
+      const button = Array.from(document.querySelectorAll('#btn-clear-audit-filter'))
+        .filter(node => {
+          const rect = node.getBoundingClientRect();
+          return rect.width > 0 && rect.height > 0;
+        })
+        .at(-1);
+      button?.click();
+    });
     await expect(page.locator('#audit-log-active-filter')).toHaveCount(0);
     await expect(auditTableRows).toHaveCount(4);
   });

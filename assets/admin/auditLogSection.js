@@ -55,6 +55,12 @@ const AdminAuditLogSection = (() => {
     return typeof escapeHtml === 'function' ? escapeHtml(String(value ?? '')) : String(value ?? '');
   }
 
+  function formatLogTimestamp(value, fallback = 'Unknown time') {
+    return typeof formatOperationalDateTime === 'function'
+      ? formatOperationalDateTime(value, { includeSeconds: true, fallback })
+      : fallback;
+  }
+
   function getActiveFilter() {
     return AUDIT_FILTERS.find(filter => filter.key === activeFilterKey) || null;
   }
@@ -70,7 +76,7 @@ const AdminAuditLogSection = (() => {
 
   function renderAuditRows(auditEntries = []) {
     if (auditEntries.length) {
-      return auditEntries.map(entry => `<tr><td>${new Date(entry.ts).toLocaleString()}</td><td>${escape(entry.actorUsername || 'system')}</td><td>${escape(entry.actorRole || 'system')}</td><td>${escape(entry.eventType || 'event')}</td><td>${escape(entry.target || '—')}</td><td>${escape(entry.status || 'success')}</td><td>${formatAuditDetails(entry.details) || '—'}</td></tr>`).join('');
+      return auditEntries.map(entry => `<tr><td>${escape(formatLogTimestamp(entry.ts))}</td><td>${escape(entry.actorUsername || 'system')}</td><td>${escape(entry.actorRole || 'system')}</td><td>${escape(entry.eventType || 'event')}</td><td>${escape(entry.target || '—')}</td><td>${escape(entry.status || 'success')}</td><td>${formatAuditDetails(entry.details) || '—'}</td></tr>`).join('');
     }
     const activeFilter = getActiveFilter();
     return `<tr><td colspan="7"><div class="empty-state"><strong>${escape(activeFilter?.emptyTitle || 'No recent activity loaded yet.')}</strong><div style="margin-top:8px">${escape(activeFilter ? 'Clear the filter or refresh activity to inspect a wider audit window.' : 'Use Refresh Activity after the next sign-in, password reset, account change, or settings update to confirm the audit trail is moving.')}</div></div></td></tr>`;
@@ -95,7 +101,7 @@ const AdminAuditLogSection = (() => {
       </div>
       <div class="flex items-center gap-3 mt-4" style="flex-wrap:wrap">
         <button class="btn btn--secondary" id="btn-refresh-audit-log" type="button">${auditCache.loading ? 'Refreshing…' : 'Refresh Activity'}</button>
-        <span class="form-help" id="audit-log-status">${auditCache.error || `Shows up to ${auditSummary.retainedCapacity || 200} recent events. Older activity rolls off automatically.`}</span>
+        <span class="form-help" id="audit-log-status">${auditCache.error || `Shows up to ${auditSummary.retainedCapacity || 200} recent events. Older activity rolls off automatically. All timestamps use Dubai time (GST) with UK date order.`}</span>
       </div>
       ${activeFilter ? `<div class="audit-log-filter-banner" id="audit-log-active-filter">
         <div>
@@ -109,7 +115,7 @@ const AdminAuditLogSection = (() => {
         description: 'Recent browser-side errors captured in this admin session only.',
         table: runtimeEntries.length ? `<table class="data-table">
           <thead><tr><th>Time</th><th>Kind</th><th>Message</th><th>Route</th><th>Source</th></tr></thead>
-          <tbody>${runtimeEntries.map(entry => `<tr><td>${new Date(entry.ts).toLocaleString()}</td><td>${entry.kind}</td><td>${entry.message}</td><td>${entry.route || '—'}</td><td>${entry.source || '—'}</td></tr>`).join('')}</tbody>
+          <tbody>${runtimeEntries.map(entry => `<tr><td>${escape(formatLogTimestamp(entry.ts))}</td><td>${escape(entry.kind)}</td><td>${escape(entry.message)}</td><td>${escape(entry.route || '—')}</td><td>${escape(entry.source || '—')}</td></tr>`).join('')}</tbody>
         </table>` : '<div class="empty-state">No client-side runtime errors have been captured in this admin session.</div>'
       })}
       ${UI.adminTableCard({

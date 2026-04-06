@@ -18,6 +18,12 @@
     return String(source?.scenarioTitle || source?.title || 'Untitled assessment').trim() || 'Untitled assessment';
   }
 
+  function formatAdminHomeDate(value) {
+    return typeof formatOperationalDateTime === 'function'
+      ? formatOperationalDateTime(value, { dateOnly: true, fallback: 'Unknown date' })
+      : 'Unknown date';
+  }
+
   const AdminHomeSection = {
     render({
       settings,
@@ -288,7 +294,7 @@
                 Submitted by <strong>${escapeAdminHomeText(item.submittedBy)}</strong> ·
                 Assigned to <strong>${escapeAdminHomeText(item.assignedReviewerDisplayName || item.assignedReviewerUsername || 'Unassigned')}</strong> ·
                 ${escapeAdminHomeText(item.buName || 'Business unit not set')} ·
-                ${new Date(item.submittedAt).toLocaleDateString('en-GB')}
+                ${escapeAdminHomeText(formatAdminHomeDate(item.submittedAt))}
               </div>
               <div class="review-queue-item__status ${item.reviewStatus !== 'pending' ? 'visible' : 'hidden'}">
                 Status: <strong>${escapeAdminHomeText(item.reviewStatus)}</strong>

@@ -95,12 +95,9 @@ const AdminAiFeedbackSection = (() => {
   }
 
   function formatEventTimestamp(timestamp) {
-    if (!timestamp) return 'Unknown time';
-    try {
-      return new Date(timestamp).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-    } catch {
-      return 'Unknown time';
-    }
+    return typeof formatOperationalDateTime === 'function'
+      ? formatOperationalDateTime(timestamp, { includeSeconds: false, fallback: 'Unknown time' })
+      : 'Unknown time';
   }
 
   function buildAccountLabelByUsername() {

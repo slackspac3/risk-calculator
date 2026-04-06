@@ -51,6 +51,9 @@ const DEFAULT_AI_FEEDBACK_TUNING = Object.freeze({
   shortlistDiscipline: 'strict',
   learningSensitivity: 'balanced'
 });
+const OPERATIONAL_TIME_LOCALE = 'en-GB';
+const OPERATIONAL_TIME_ZONE = 'Asia/Dubai';
+const OPERATIONAL_TIME_LABEL = 'Dubai time (GST)';
 
 const DEFAULT_ADMIN_SETTINGS = {
   geography: 'United Arab Emirates',
@@ -197,6 +200,39 @@ function formatRelativePilotTime(timestamp, fallback = 'just now') {
   if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`;
   const days = Math.round(hours / 24);
   return `${days} day${days === 1 ? '' : 's'} ago`;
+}
+
+function _normaliseOperationalDateInput(value) {
+  if (value == null || value === '') return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatOperationalDateTime(value, {
+  includeSeconds = true,
+  dateOnly = false,
+  fallback = 'Unknown time'
+} = {}) {
+  const date = _normaliseOperationalDateInput(value);
+  if (!date) return fallback;
+  try {
+    return new Intl.DateTimeFormat(OPERATIONAL_TIME_LOCALE, {
+      timeZone: OPERATIONAL_TIME_ZONE,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      ...(dateOnly
+        ? {}
+        : {
+            hour: '2-digit',
+            minute: '2-digit',
+            ...(includeSeconds ? { second: '2-digit' } : {}),
+            hourCycle: 'h23'
+          })
+    }).format(date);
+  } catch {
+    return fallback;
+  }
 }
 
 function renderPilotWarningBanner(kind = 'poc', {
