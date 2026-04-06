@@ -28,6 +28,20 @@ function buildSeededUserSettings(overrides = {}) {
   };
 }
 
+function buildAuditSummary(entries = []) {
+  const list = Array.isArray(entries) ? entries : [];
+  return {
+    total: list.length,
+    retainedCapacity: 200,
+    loginSuccessCount: list.filter(entry => entry?.eventType === 'login_success').length,
+    loginFailureCount: list.filter(entry => entry?.eventType === 'login_failure').length,
+    logoutCount: list.filter(entry => entry?.eventType === 'logout').length,
+    adminActionCount: list.filter(entry => entry?.actorRole === 'admin').length,
+    buAdminActionCount: list.filter(entry => entry?.actorRole === 'bu_admin').length,
+    userActionCount: list.filter(entry => entry?.actorRole === 'user').length
+  };
+}
+
 async function seedAuthenticatedUser(page, {
   username = 'alex.trafton',
   displayName = 'Alex Trafton',
@@ -68,7 +82,9 @@ async function mockSharedApis(page, {
   settings = null,
   aiStatus = null,
   skipUsers = false,
-  managedAccounts = null
+  managedAccounts = null,
+  auditEntries = null,
+  auditSummary = null
 } = {}) {
   if (!skipUsers) await page.route('**/api/users', async route => {
     const request = route.request();
@@ -145,11 +161,12 @@ async function mockSharedApis(page, {
 
   await page.route('**/api/audit-log*', async route => {
     const request = route.request();
+    const entries = Array.isArray(auditEntries) ? auditEntries : [];
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify(request.method() === 'GET'
-        ? { entries: [], summary: { total: 0, retainedCapacity: 200 } }
+        ? { entries, summary: auditSummary || buildAuditSummary(entries) }
         : { ok: true })
     });
   });
@@ -1355,6 +1372,93 @@ test('admin AI feedback and tuning dashboard renders the signal view and tuning 
     await expect(page.locator('.wizard-disclosure[open] .wizard-disclosure-body').getByText(/feedback from/i).first()).toBeVisible();
     await expect(page.locator('.wizard-disclosure[open] .wizard-disclosure-body').getByText(/alex trafton/i).first()).toBeVisible();
     await expect(page.locator('.wizard-disclosure[open] .wizard-disclosure-body').getByText(/@alex/i).first()).toBeVisible();
+  });
+});
+
+test('admin activity summary cards filter the recent audit table', async ({ page }) => {
+  const adminSettings = {
+    geography: 'United Arab Emirates',
+    companyStructure: [],
+    entityContextLayers: [],
+    applicableRegulations: ['UAE PDPL'],
+    aiInstructions: 'Use British English.',
+    benchmarkStrategy: 'Prefer GCC and UAE benchmark references.',
+    typicalDepartments: ['Security']
+  };
+  const auditEntries = [
+    {
+      ts: Date.now() - 60_000,
+      actorUsername: 'alex',
+      actorRole: 'user',
+      eventType: 'login_success',
+      target: 'session',
+      status: 'success',
+      details: { ip: '10.0.0.1' }
+    },
+    {
+      ts: Date.now() - 50_000,
+      actorUsername: 'alex',
+      actorRole: 'user',
+      eventType: 'login_failure',
+      target: 'session',
+      status: 'denied',
+      details: { reason: 'Bad password' }
+    },
+    {
+      ts: Date.now() - 40_000,
+      actorUsername: 'admin',
+      actorRole: 'admin',
+      eventType: 'settings_update',
+      target: 'admin-settings',
+      status: 'success',
+      details: { field: 'aiInstructions' }
+    },
+    {
+      ts: Date.now() - 30_000,
+      actorUsername: 'maya',
+      actorRole: 'bu_admin',
+      eventType: 'logout',
+      target: 'session',
+      status: 'success',
+      details: {}
+    }
+  ];
+
+  await seedAuthenticatedUser(page, {
+    username: 'admin',
+    displayName: 'Global Admin',
+    role: 'admin',
+    adminSettings,
+    preferredAdminSection: 'audit'
+  });
+  await mockSharedApis(page, { settings: adminSettings, auditEntries });
+
+  await expectNoClientCrashOnRoute(page, '/#/admin/settings/audit', async () => {
+    const auditSection = page.locator('details.settings-section').filter({
+      has: page.locator('.settings-section__title', { hasText: /activity log/i })
+    }).last();
+    await auditSection.evaluate(node => { node.open = true; });
+    const auditRefreshButton = page.locator('#btn-refresh-audit-log').last();
+    const auditTable = page.locator('#admin-audit-activity-table').last();
+    const auditTableRows = page.locator('#admin-audit-activity-table tbody').last().locator('tr');
+    await expect(auditRefreshButton).toBeVisible();
+    await expect(auditTableRows).toHaveCount(4);
+
+    await page.locator('[data-audit-filter-key="login_success"]').last().click();
+    await expect(page.locator('#audit-log-active-filter').last()).toContainText(/login success/i);
+    await expect(auditTableRows).toHaveCount(1);
+    await expect(auditTable).toContainText('login_success');
+    await expect(auditTable).not.toContainText('settings_update');
+
+    await page.locator('[data-audit-filter-key="admin"]').last().click();
+    await expect(page.locator('#audit-log-active-filter').last()).toContainText(/admin actions/i);
+    await expect(auditTableRows).toHaveCount(1);
+    await expect(auditTable).toContainText('settings_update');
+    await expect(auditTable).not.toContainText('login_failure');
+
+    await page.locator('#btn-clear-audit-filter').last().click();
+    await expect(page.locator('#audit-log-active-filter')).toHaveCount(0);
+    await expect(auditTableRows).toHaveCount(4);
   });
 });
 

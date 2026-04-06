@@ -308,6 +308,7 @@ Current productization work now includes:
 - role-aware examples and focus areas
 - broader enterprise taxonomy and standards coverage
 - review queue and management decision workflow
+- clickable audit-log summary cards that drill recent platform activity by sign-in event and actor role
 - reviewer brief, challenge mediation, challenge synthesis, and consensus recommendation flows in results
 - living risk register, AI flags, correlation spotting, and board brief generation on role-aware dashboards
 - watchlist confidence trajectory signals so reassessment queues show whether confidence is improving, declining, or flat
