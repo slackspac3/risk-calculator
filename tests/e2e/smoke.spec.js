@@ -1159,6 +1159,85 @@ test('admin settings load latest clears stale autosave callbacks instead of reop
   });
 });
 
+test('admin settings coalesce overlapping saves without surfacing a false latest-version conflict', async ({ page }) => {
+  const adminSettings = {
+    geography: 'United Arab Emirates',
+    companyWebsiteUrl: 'https://current.example.com',
+    companyStructure: [],
+    entityContextLayers: [],
+    applicableRegulations: ['UAE PDPL'],
+    aiInstructions: 'Use British English.',
+    benchmarkStrategy: 'Prefer GCC and UAE benchmark references.',
+    typicalDepartments: ['Security'],
+    _meta: { revision: 1, updatedAt: Date.now() }
+  };
+  const savedSettings = {
+    ...adminSettings,
+    companyWebsiteUrl: 'https://updated.example.com',
+    _meta: { revision: 2, updatedAt: Date.now() + 1000 }
+  };
+  let putCount = 0;
+
+  await seedAuthenticatedUser(page, {
+    username: 'admin',
+    displayName: 'Global Admin',
+    role: 'admin',
+    adminSettings,
+    preferredAdminSection: 'company'
+  });
+  await mockSharedApis(page, { settings: adminSettings });
+  await page.route('**/api/settings', async route => {
+    const request = route.request();
+    if (request.method() === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ settings: adminSettings })
+      });
+      return;
+    }
+    putCount += 1;
+    if (putCount === 1) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ settings: savedSettings })
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 409,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        error: {
+          code: 'WRITE_CONFLICT',
+          message: 'These platform settings changed in another session. Reload the latest version and try again.'
+        },
+        latestSettings: savedSettings,
+        latestMeta: savedSettings._meta
+      })
+    });
+  });
+
+  await expectNoClientCrashOnRoute(page, '/#/admin/settings/company', async () => {
+    await page.evaluate(async () => {
+      const nextSettings = {
+        ...getAdminSettings(),
+        companyWebsiteUrl: 'https://updated.example.com'
+      };
+      await Promise.all([
+        saveAdminSettings(nextSettings),
+        saveAdminSettings(nextSettings)
+      ]);
+    });
+    await page.waitForTimeout(200);
+    await expect.poll(async () => page.evaluate(() => getAdminSettings().companyWebsiteUrl)).toBe('https://updated.example.com');
+    await expect(page.getByRole('heading', { name: /latest version available/i })).toHaveCount(0);
+    expect(putCount).toBe(1);
+  });
+});
+
 test('admin org setup can add and save entity obligations from the tree', async ({ page }) => {
   const adminSettings = {
     geography: 'United Arab Emirates',

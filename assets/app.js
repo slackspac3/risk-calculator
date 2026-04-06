@@ -734,6 +734,17 @@ function buildExpectedMeta(meta = {}) {
   };
 }
 
+function buildComparableAdminSettingsSnapshot(settings = {}) {
+  const normalised = normaliseAdminSettings(settings);
+  return JSON.stringify({
+    ...normalised,
+    _meta: {
+      revision: 0,
+      updatedAt: 0
+    }
+  });
+}
+
 function applySharedSettingsLocally(settings = {}) {
   const normalised = normaliseAdminSettings(settings);
   updateAdminSettingsState(normalised);
@@ -3375,48 +3386,68 @@ function applyManagedAccountAssignmentToSettings(account, updates = {}, baseSett
   };
 }
 
+let adminSettingsSaveQueue = Promise.resolve(false);
+
 async function saveAdminSettings(settings, options = {}) {
-  const expectedRenderToken = Number(options.renderToken || 0);
-  const isStaleRenderContext = () => expectedRenderToken > 0 && expectedRenderToken !== activeAdminSettingsRenderToken;
-  if (isStaleRenderContext()) return false;
-  const merged = normaliseAdminSettings(settings);
-  updateAdminSettingsState(merged);
-  try {
-    localStorage.setItem(GLOBAL_ADMIN_STORAGE_KEY, JSON.stringify(merged));
-  } catch {}
-  if (AuthService.getAdminApiSecret() || AuthService.getApiSessionToken()) {
-    try {
-      const result = await syncSharedAdminSettings(merged, options.audit || null);
-      if (isStaleRenderContext()) return false;
-      if (result?.settings) {
-        applySharedSettingsLocally(result.settings);
-      }
-    } catch (error) {
-      if (isStaleRenderContext()) return false;
-      if (error?.code === 'WRITE_CONFLICT') {
-        showPersistenceConflictDialog({
-          message: 'These platform settings were updated in another session before this save finished.',
-          onReloadLatest: async () => {
-            if (expectedRenderToken > 0) activeAdminSettingsRenderToken += 1;
-            if (error?.latestSettings) applySharedSettingsLocally(error.latestSettings);
-            else await loadSharedAdminSettings();
-            Router.navigate(window.location.hash.replace(/^#/, '') || '/admin/settings/org');
-            UI.toast('Loaded the latest platform settings.', 'info');
-          },
-          onRetry: async () => {
-            if (error?.latestSettings) applySharedSettingsLocally(error.latestSettings);
-            else await loadSharedAdminSettings();
-            await new Promise(resolve => window.setTimeout(resolve, getSafeRetryAfterMs(error)));
-            await saveAdminSettings(settings, options);
-          }
-        });
+  const runSave = async () => {
+    const expectedRenderToken = Number(options.renderToken || 0);
+    const isStaleRenderContext = () => expectedRenderToken > 0 && expectedRenderToken !== activeAdminSettingsRenderToken;
+    if (isStaleRenderContext()) return false;
+    const merged = normaliseAdminSettings(settings);
+    const requestedSnapshot = buildComparableAdminSettingsSnapshot(merged);
+    const currentSettings = getAdminSettings();
+    if (buildComparableAdminSettingsSnapshot(currentSettings) === requestedSnapshot) return true;
+    if (AuthService.getAdminApiSecret() || AuthService.getApiSessionToken()) {
+      try {
+        const result = await syncSharedAdminSettings({
+          ...merged,
+          _meta: buildExpectedMeta(currentSettings._meta)
+        }, options.audit || null);
+        if (isStaleRenderContext()) return false;
+        if (result?.settings) {
+          applySharedSettingsLocally(result.settings);
+        }
+      } catch (error) {
+        if (isStaleRenderContext()) return false;
+        const latestSnapshot = error?.latestSettings
+          ? buildComparableAdminSettingsSnapshot(error.latestSettings)
+          : '';
+        if (error?.code === 'WRITE_CONFLICT' && latestSnapshot && latestSnapshot === requestedSnapshot) {
+          applySharedSettingsLocally(error.latestSettings);
+          return true;
+        }
+        if (error?.code === 'WRITE_CONFLICT') {
+          showPersistenceConflictDialog({
+            message: 'These platform settings were updated in another session before this save finished.',
+            onReloadLatest: async () => {
+              if (expectedRenderToken > 0) activeAdminSettingsRenderToken += 1;
+              if (error?.latestSettings) applySharedSettingsLocally(error.latestSettings);
+              else await loadSharedAdminSettings();
+              Router.navigate(window.location.hash.replace(/^#/, '') || '/admin/settings/org');
+              UI.toast('Loaded the latest platform settings.', 'info');
+            },
+            onRetry: async () => {
+              if (error?.latestSettings) applySharedSettingsLocally(error.latestSettings);
+              else await loadSharedAdminSettings();
+              await new Promise(resolve => window.setTimeout(resolve, getSafeRetryAfterMs(error)));
+              await saveAdminSettings(settings, options);
+            }
+          });
+          return false;
+        }
+        console.warn('syncSharedAdminSettings failed:', error.message);
         return false;
       }
-      console.warn('syncSharedAdminSettings failed:', error.message);
-      return false;
+    } else {
+      applySharedSettingsLocally(merged);
     }
-  }
-  return true;
+    return true;
+  };
+
+  adminSettingsSaveQueue = Promise.resolve(adminSettingsSaveQueue)
+    .catch(() => false)
+    .then(runSave);
+  return adminSettingsSaveQueue;
 }
 
 function normaliseComparableUserSettingValue(key, value) {

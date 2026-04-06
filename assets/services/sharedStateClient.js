@@ -41,14 +41,25 @@
               : (localHasLayers ? localSaved.entityContextLayers : sharedSettings.entityContextLayers),
             companyContextSections: sharedSettings.companyContextSections || localSaved?.companyContextSections || null
           };
-          const normalisedMerged = applySharedSettingsLocally(merged);
+          let normalisedMerged = applySharedSettingsLocally(merged);
           if ((!sharedHasStructure && localHasStructure) || (!sharedHasLayers && localHasLayers)) {
-            client.syncSharedAdminSettings(normalisedMerged, {
-              category: 'settings',
-              eventType: 'shared_settings_rehydrated',
-              target: 'global_settings',
-              details: { reason: 'local_backup_richer_than_shared' }
-            }).catch(error => console.warn('shared settings rehydrate failed:', error.message));
+            try {
+              const result = await client.syncSharedAdminSettings(normalisedMerged, {
+                category: 'settings',
+                eventType: 'shared_settings_rehydrated',
+                target: 'global_settings',
+                details: { reason: 'local_backup_richer_than_shared' }
+              });
+              if (result?.settings) {
+                normalisedMerged = applySharedSettingsLocally(result.settings);
+              }
+            } catch (error) {
+              if (error?.code === 'WRITE_CONFLICT' && error?.latestSettings) {
+                normalisedMerged = applySharedSettingsLocally(error.latestSettings);
+              } else {
+                console.warn('shared settings rehydrate failed:', error.message);
+              }
+            }
           }
           return normalisedMerged;
         }
