@@ -9130,6 +9130,15 @@ function getHelpAudienceModel({
           </div>`
         },
         {
+          title: 'Creating managed pilot users',
+          summary: 'How usernames, passwords, and common create-user issues work.',
+          body: `<div class="help-mini-grid">
+            <div class="help-mini-card"><strong>Display name in, username out</strong><p>Enter the person’s display name and the platform generates the username automatically. Punctuation such as spaces or hyphens is normalised into dots, so “Andy Ben-Dyke” becomes <code>andy.ben.dyke</code>.</p></div>
+            <div class="help-mini-card"><strong>Passwords are issued for you</strong><p>The platform generates a policy-compliant password automatically and shows it only in the current admin session. If you lose it later, use Reset Password from the same user table.</p></div>
+            <div class="help-mini-card"><strong>If creation fails</strong><p>Read the full error text shown under the create-user form. Scope issues, duplicate usernames, or a missing admin action secret are more likely causes than punctuation in the display name.</p></div>
+          </div>`
+        },
+        {
           title: 'What to avoid in this role',
           summary: 'Do not use the admin workbench as a substitute for the normal assessment workflow.',
           body: `<p class="help-body-copy">Use preview and oversight to understand the downstream impact of changes, but keep direct assessment work in the user workflow unless you are deliberately testing that experience.</p>`
