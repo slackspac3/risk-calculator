@@ -471,6 +471,37 @@ AI environment notes:
 - configure KV and secrets there
 - use [ROLLBACK_PLAYBOOK.md](./ROLLBACK_PLAYBOOK.md) for rollback steps
 
+## PoC Architecture Limits And Azure Path
+
+Current PoC architecture limits:
+- the product is currently split across a static GitHub Pages frontend and Vercel-hosted serverless APIs, so hosting, routing, secrets, and rollback are not yet managed inside one enterprise platform boundary
+- shared persistence is intentionally pilot-grade:
+  - Vercel/serverless APIs plus shared KV are sufficient for the PoC review queue, shared settings, and shared user-state flows
+  - they are not yet positioned as a full enterprise system of record with durable workflow orchestration, enterprise reporting pipelines, or broad downstream integrations
+- some resilience and UX safeguards are still browser-scoped by design:
+  - local draft recovery
+  - session-scoped preferences
+  - in-app pilot notifications
+  - bounded shared-result snapshots so reviewers can open work across browser sessions
+- notifications and review routing are currently in-app only; there is no separate email, Teams, workflow-engine, or ticketing integration path yet
+- identity and account management are still pilot-oriented:
+  - managed accounts and signed session tokens exist
+  - enterprise SSO, Entra ID lifecycle management, conditional access, and group-driven provisioning are not yet the active runtime model in this repo
+- observability is intentionally lightweight for the PoC:
+  - AI route metrics are aggregate and in-memory
+  - admin/runtime status views are product-facing rather than a full central operations stack
+
+Expected Azure deployment improvements:
+- a more unified hosting model instead of the current GitHub Pages plus Vercel split
+- enterprise identity integration, expected to move toward Microsoft Entra ID rather than shared PoC-style account handling
+- stronger centralised data, audit, and operational controls than the current pilot KV/browser safety-net mix
+- better support for durable notifications, richer management workflow routing, and broader enterprise integration patterns
+- fuller observability, access governance, and environment control than the current pilot-grade runtime surfaces
+
+Important note:
+- the Azure items above describe the intended improvement direction, not features already implemented in this repository today
+- until that deployment path is complete, treat the current system as a pilot architecture with deliberate PoC constraints
+
 ## Pilot Seed Data
 
 Sample pilot seed/reference data:
