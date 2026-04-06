@@ -1592,3 +1592,67 @@ test('admin can update user access and the request carries the expected role ass
     expect(patchPayload.updates.departmentEntityId).toBe('dept-sec');
   });
 });
+
+test('admin user actions menu keeps only one current-user dropdown open at a time', async ({ page }) => {
+  const settings = {
+    geography: 'United Arab Emirates',
+    companyStructure: [
+      { id: 'bu-g42', name: 'G42', type: 'Holding company', parentId: '', ownerUsername: '' },
+      { id: 'dept-sec', name: 'Security', type: 'Department / function', parentId: 'bu-g42', ownerUsername: '' }
+    ],
+    entityContextLayers: [],
+    applicableRegulations: ['UAE PDPL'],
+    aiInstructions: 'Use British English.',
+    benchmarkStrategy: 'Prefer GCC and UAE benchmark references.',
+    typicalDepartments: ['Security']
+  };
+  const accounts = [
+    {
+      username: 'alex.trafton',
+      displayName: 'Alex Trafton',
+      role: 'user',
+      businessUnitEntityId: 'bu-g42',
+      departmentEntityId: 'dept-sec'
+    },
+    {
+      username: 'jamie.clarke',
+      displayName: 'Jamie Clarke',
+      role: 'function_admin',
+      businessUnitEntityId: 'bu-g42',
+      departmentEntityId: 'dept-sec'
+    }
+  ];
+
+  await seedAuthenticatedUser(page, {
+    username: 'admin',
+    displayName: 'Global Admin',
+    role: 'admin',
+    adminSettings: settings,
+    preferredAdminSection: 'users'
+  });
+  await page.addInitScript(() => {
+    localStorage.setItem('rq_admin_api_secret', 'test-admin-secret');
+  });
+  await page.route('**/api/users', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ accounts, storage: { writable: true, mode: 'shared-kv' } })
+    });
+  });
+  await mockSharedApis(page, { settings, skipUsers: true });
+
+  await expectNoClientCrashOnRoute(page, '/#/admin/settings/users', async () => {
+    const alexRow = page.locator('.managed-account-row[data-username="alex.trafton"]');
+    const jamieRow = page.locator('.managed-account-row[data-username="jamie.clarke"]');
+
+    await alexRow.getByText(/^More$/).evaluate(button => button.click());
+    await expect(alexRow.locator('.results-actions-disclosure[open]')).toHaveCount(1);
+    await expect(alexRow.locator('.results-actions-disclosure[open] .btn-reset-user-password')).toHaveCount(1);
+
+    await jamieRow.getByText(/^More$/).evaluate(button => button.click());
+    await expect(jamieRow.locator('.results-actions-disclosure[open]')).toHaveCount(1);
+    await expect(jamieRow.locator('.results-actions-disclosure[open] .btn-reset-user-password')).toHaveCount(1);
+    await expect(alexRow.locator('.results-actions-disclosure[open]')).toHaveCount(0);
+  });
+});

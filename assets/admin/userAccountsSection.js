@@ -1,5 +1,55 @@
 const AdminUserAccountsSection = (() => {
   let latestContext = null;
+  let disposeManagedAccountMenuController = null;
+
+  function _teardownManagedAccountMenuController() {
+    if (typeof disposeManagedAccountMenuController === 'function') {
+      disposeManagedAccountMenuController();
+    }
+    disposeManagedAccountMenuController = null;
+  }
+
+  function _bindManagedAccountOverflowMenus() {
+    _teardownManagedAccountMenuController();
+    const disclosures = Array.from(document.querySelectorAll('.managed-account-row .results-actions-disclosure'));
+    if (!disclosures.length) return;
+
+    const closeOtherDisclosures = (activeDisclosure = null) => {
+      disclosures.forEach((disclosure) => {
+        if (disclosure !== activeDisclosure) disclosure.open = false;
+      });
+    };
+
+    disclosures.forEach((disclosure) => {
+      disclosure.addEventListener('toggle', () => {
+        if (disclosure.open) closeOtherDisclosures(disclosure);
+      });
+      disclosure.querySelectorAll('.results-actions-disclosure-menu button').forEach((button) => {
+        button.addEventListener('click', () => {
+          disclosure.open = false;
+        });
+      });
+    });
+
+    const handlePointerDown = (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (target.closest('.managed-account-row .results-actions-disclosure')) return;
+      closeOtherDisclosures(null);
+    };
+
+    const handleEscape = (event) => {
+      if (event.key !== 'Escape') return;
+      closeOtherDisclosures(null);
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown, true);
+    document.addEventListener('keydown', handleEscape, true);
+    disposeManagedAccountMenuController = () => {
+      document.removeEventListener('pointerdown', handlePointerDown, true);
+      document.removeEventListener('keydown', handleEscape, true);
+    };
+  }
 
   function renderSection({ settings, companyEntities, companyStructure, managedAccounts }) {
     return renderSettingsSection({
@@ -252,6 +302,7 @@ ${changeSummary.changed.join(' ')}`);
   function bind(context) {
     latestContext = context;
     const { companyStructure, rerenderCurrentAdminSection } = context;
+    _bindManagedAccountOverflowMenus();
     document.getElementById('admin-new-user-bu')?.addEventListener('change', () => _renderAdminNewUserDepartments(companyStructure));
     document.getElementById('admin-new-user-role')?.addEventListener('change', () => _renderAdminNewUserDepartments(companyStructure));
     _renderAdminNewUserDepartments(companyStructure);
