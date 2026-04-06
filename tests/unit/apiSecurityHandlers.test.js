@@ -6,6 +6,7 @@ const crypto = require('node:crypto');
 
 const originalEnv = {
   ALLOWED_ORIGIN: process.env.ALLOWED_ORIGIN,
+  ADMIN_API_SECRET: process.env.ADMIN_API_SECRET,
   BOOTSTRAP_ACCOUNTS_JSON: process.env.BOOTSTRAP_ACCOUNTS_JSON,
   COMPASS_API_KEY: process.env.COMPASS_API_KEY,
   KV_REST_API_URL: process.env.KV_REST_API_URL,
@@ -230,6 +231,67 @@ test('users self view returns the latest managed scope for the authenticated ses
 
   assert.equal(res.statusCode, 200);
   assert.equal(res.payload.user.departmentEntityId, 'group-technology-risk');
+});
+
+test('users create accepts action=create and returns the created managed account', async () => {
+  process.env.ALLOWED_ORIGIN = 'https://slackspac3.github.io';
+  process.env.ADMIN_API_SECRET = 'test-admin-secret';
+  process.env.KV_REST_API_URL = 'https://example.test/kv';
+  process.env.KV_REST_API_TOKEN = 'test-token';
+  const kvStore = new Map();
+  global.fetch = async (_url, options = {}) => {
+    const command = JSON.parse(options.body || '[]');
+    const [action, key, value] = command;
+    if (action === 'GET') {
+      return {
+        ok: true,
+        json: async () => ({ result: kvStore.has(key) ? kvStore.get(key) : null })
+      };
+    }
+    if (action === 'SET') {
+      kvStore.set(key, value);
+      return {
+        ok: true,
+        json: async () => ({ result: 'OK' })
+      };
+    }
+    if (action === 'DEL') {
+      kvStore.delete(key);
+      return {
+        ok: true,
+        json: async () => ({ result: 1 })
+      };
+    }
+    throw new Error(`Unexpected KV command: ${JSON.stringify(command)}`);
+  };
+
+  const handler = loadFresh('../../api/users');
+  const res = createRes();
+
+  await handler({
+    method: 'POST',
+    headers: {
+      origin: 'https://slackspac3.github.io',
+      'content-type': 'application/json',
+      'x-admin-secret': 'test-admin-secret'
+    },
+    body: {
+      action: 'create',
+      account: {
+        username: 'andy.ben.dyke',
+        password: 'RiskPilot!001Aa',
+        displayName: 'Andy Ben-Dyke',
+        role: 'user',
+        businessUnitEntityId: 'bu-g42',
+        departmentEntityId: 'dept-sec'
+      }
+    }
+  }, res);
+
+  assert.equal(res.statusCode, 201);
+  assert.equal(res.payload.account.username, 'andy.ben.dyke');
+  assert.equal(res.payload.account.displayName, 'Andy Ben-Dyke');
+  assert.equal(res.payload.password, 'RiskPilot!001Aa');
 });
 
 test('timing-safe admin secret helper accepts only exact matches', () => {

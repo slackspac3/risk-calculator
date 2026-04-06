@@ -470,8 +470,12 @@ module.exports = async function handler(req, res) {
         return;
       }
 
-      if (hasUnexpectedFields(body, ['account'])) {
+      if (hasUnexpectedFields(body, ['action', 'account'])) {
         sendApiError(res, 400, 'VALIDATION_ERROR', 'Unexpected fields were included in the account request.');
+        return;
+      }
+      if (String(body.action || '').trim().toLowerCase() !== 'create') {
+        sendApiError(res, 400, 'VALIDATION_ERROR', 'User creation requests must include action=create.');
         return;
       }
       if (!isPlainObject(body.account || {})) {
