@@ -303,7 +303,7 @@
                   <button class="btn btn--sm btn--warning" data-queue-action="changes"
                     data-queue-id="${escapeAdminHomeText(item.id)}">Request Changes</button>
                 ` : ''}
-                ${item.currentUserCanEscalate ? `
+                ${(item.currentUserCanEscalate && (item.reviewStatus === 'pending' || item.reviewStatus === 'escalated')) ? `
                   <button class="btn btn--sm btn--secondary" data-queue-action="escalate"
                     data-queue-id="${escapeAdminHomeText(item.id)}">Escalate</button>
                 ` : ''}
@@ -401,6 +401,22 @@
             return response.json();
           }
 
+          async function fetchReviewTargets(action = 'submit') {
+            const safeAction = String(action || 'submit').trim().toLowerCase() === 'escalate'
+              ? 'escalate'
+              : 'submit';
+            const nextSessionToken = typeof AuthService !== 'undefined' && typeof AuthService.getApiSessionToken === 'function'
+              ? AuthService.getApiSessionToken()
+              : '';
+            const response = await fetch(`/api/review-queue?view=targets&action=${encodeURIComponent(safeAction)}`, {
+              headers: {
+                'x-session-token': nextSessionToken
+              }
+            });
+            if (!response.ok) throw new Error('Could not load review targets.');
+            return response.json();
+          }
+
           listEl.querySelectorAll('[data-queue-action="approve"]').forEach(btn => {
             btn.addEventListener('click', async () => {
               btn.disabled = true;
@@ -464,8 +480,64 @@
           });
 
           listEl.querySelectorAll('[data-queue-action="escalate"]').forEach(btn => {
-            btn.addEventListener('click', () => {
-              UI.toast('Holding-company escalation now runs from the assignee results page.', 'info');
+            btn.addEventListener('click', async () => {
+              try {
+                const targetState = await fetchReviewTargets('escalate');
+                const targets = Array.isArray(targetState?.targets) ? targetState.targets : [];
+                if (!targets.length) {
+                  UI.toast('No holding-company reviewer is configured yet.', 'warning');
+                  return;
+                }
+                const modal = UI.modal({
+                  title: 'Escalate assessment',
+                  body: `
+                    <label for="admin-review-escalate-target" class="form-label">Escalate to</label>
+                    <select id="admin-review-escalate-target" class="form-select" style="width:100%;margin-bottom:var(--sp-4)">
+                      ${targets.map(target => `
+                        <option value="${escapeAdminHomeText(String(target.username || ''))}" ${target.username === targetState.defaultTargetUsername ? 'selected' : ''}>
+                          ${escapeAdminHomeText(String(target.displayName || target.username || ''))}
+                        </option>
+                      `).join('')}
+                    </select>
+                    <div class="flex gap-3">
+                      <button type="button" class="btn btn--primary" id="btn-admin-confirm-escalate">Escalate</button>
+                      <button type="button" class="btn btn--ghost" id="btn-admin-cancel-escalate">Cancel</button>
+                    </div>
+                  `
+                });
+                document.getElementById('btn-admin-cancel-escalate')?.addEventListener('click', () => modal.close());
+                document.getElementById('btn-admin-confirm-escalate')?.addEventListener('click', async () => {
+                  const target = String(document.getElementById('admin-review-escalate-target')?.value || '').trim().toLowerCase();
+                  if (!target) {
+                    UI.toast('Select a target first.', 'warning');
+                    return;
+                  }
+                  const confirmButton = document.getElementById('btn-admin-confirm-escalate');
+                  if (confirmButton) {
+                    confirmButton.disabled = true;
+                    confirmButton.textContent = 'Escalating…';
+                  }
+                  try {
+                    const { item } = await patchQueueItem(btn.dataset.queueId, {
+                      reviewStatus: 'escalated',
+                      escalatedTo: target
+                    });
+                    await syncLocalReviewDecision(item);
+                    modal.close();
+                    UI.toast('Assessment escalated.', 'success');
+                    loadReviewQueue();
+                    loadDriftAlerts();
+                  } catch {
+                    UI.toast('Could not escalate this assessment right now.', 'danger');
+                    if (confirmButton) {
+                      confirmButton.disabled = false;
+                      confirmButton.textContent = 'Escalate';
+                    }
+                  }
+                });
+              } catch {
+                UI.toast('Could not load the escalation targets right now.', 'danger');
+              }
             });
           });
         } catch {

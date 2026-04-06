@@ -3430,11 +3430,17 @@ function renderResultsReviewSubmitBanner(assessment, r) {
   const assignedReviewerLabel = escapeHtml(getResultsReviewActorLabel(reviewSubmission));
   const reviewScopeLabel = escapeHtml(getResultsReviewScopeLabel(reviewSubmission.reviewScope));
   if (isReviewAwaitingDecision(reviewStatus)) {
-    const actionButtons = reviewSubmission.currentUserCanReview ? `
+    const reviewActionButtons = [];
+    if (reviewSubmission.currentUserCanReview) {
+      reviewActionButtons.push('<button type="button" class="btn btn--success btn--sm" id="btn-review-approve">Approve</button>');
+      reviewActionButtons.push('<button type="button" class="btn btn--warning btn--sm" id="btn-review-request-changes">Request Changes</button>');
+    }
+    if (reviewSubmission.currentUserCanEscalate) {
+      reviewActionButtons.push('<button type="button" class="btn btn--secondary btn--sm" id="btn-review-escalate">Escalate</button>');
+    }
+    const actionButtons = reviewActionButtons.length ? `
       <div class="review-submit-banner__actions" style="display:flex;gap:8px;flex-wrap:wrap">
-        <button type="button" class="btn btn--success btn--sm" id="btn-review-approve">Approve</button>
-        <button type="button" class="btn btn--warning btn--sm" id="btn-review-request-changes">Request Changes</button>
-        ${reviewSubmission.currentUserCanEscalate ? '<button type="button" class="btn btn--secondary btn--sm" id="btn-review-escalate">Escalate</button>' : ''}
+        ${reviewActionButtons.join('')}
       </div>
     ` : '';
     const label = reviewStatus === 'escalated' ? 'Escalated for review' : 'Submitted for review';

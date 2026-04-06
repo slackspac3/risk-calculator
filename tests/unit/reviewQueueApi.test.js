@@ -396,7 +396,7 @@ test('review queue GET is visible to the submitter and assigned reviewer, but on
   assert.equal(patchRes.payload.item.reviewedBy, 'function-admin');
 });
 
-test('BU assignees can escalate only to holding-company reviewers', async () => {
+test('BU heads can escalate in-scope items to holding-company reviewers without becoming the assignee', async () => {
   kvStore.set('risk_calculator_review_queue', JSON.stringify([
     {
       id: 'rq-1',
@@ -408,10 +408,10 @@ test('BU assignees can escalate only to holding-company reviewers', async () => 
       buName: 'G42',
       departmentEntityId: 'technology',
       scenarioTitle: 'Escalation candidate',
-      assignedReviewerUsername: 'bu-admin',
-      assignedReviewerDisplayName: 'BU Admin',
-      assignedReviewerRole: 'bu_admin',
-      reviewScope: 'business_unit',
+      assignedReviewerUsername: 'function-admin',
+      assignedReviewerDisplayName: 'Function Admin',
+      assignedReviewerRole: 'function_admin',
+      reviewScope: 'function',
       reviewStatus: 'pending'
     }
   ]));
@@ -423,6 +423,18 @@ test('BU assignees can escalate only to holding-company reviewers', async () => 
     sv: 1,
     exp: Date.now() + 60_000
   });
+
+  const buQueueRes = createRes();
+  await handler({
+    method: 'GET',
+    headers: {
+      'x-session-token': buAdminToken
+    }
+  }, buQueueRes);
+
+  assert.equal(buQueueRes.statusCode, 200);
+  assert.equal(buQueueRes.payload.items[0].currentUserCanReview, false);
+  assert.equal(buQueueRes.payload.items[0].currentUserCanEscalate, true);
 
   const escalationTargetsRes = createRes();
   await handler({
@@ -438,6 +450,21 @@ test('BU assignees can escalate only to holding-company reviewers', async () => 
 
   assert.equal(escalationTargetsRes.statusCode, 200);
   assert.deepEqual(Array.from(escalationTargetsRes.payload.targets, item => item.username), ['holding-admin']);
+
+  const forbiddenApproveRes = createRes();
+  await handler({
+    method: 'PATCH',
+    headers: {
+      'content-type': 'application/json',
+      'x-session-token': buAdminToken
+    },
+    body: {
+      id: 'rq-1',
+      reviewStatus: 'approved'
+    }
+  }, forbiddenApproveRes);
+
+  assert.equal(forbiddenApproveRes.statusCode, 403);
 
   const invalidEscalationRes = createRes();
   await handler({

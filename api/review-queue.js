@@ -179,6 +179,11 @@ function isLegacyScopeViewer(session = {}, item = {}) {
   return false;
 }
 
+function isReviewAwaitingDecision(item = {}) {
+  const reviewStatus = toSafeString(item.reviewStatus).toLowerCase();
+  return !reviewStatus || reviewStatus === 'pending' || reviewStatus === 'escalated';
+}
+
 function canViewQueueItem(session = {}, item = {}) {
   const currentUsername = toSafeUsername(session.username);
   if (!currentUsername) return false;
@@ -191,6 +196,7 @@ function canViewQueueItem(session = {}, item = {}) {
 function canReviewQueueItem(session = {}, item = {}) {
   const currentUsername = toSafeUsername(session.username);
   if (!currentUsername) return false;
+  if (!isReviewAwaitingDecision(item)) return false;
   if (session.role === 'admin') return true;
   if (!toSafeUsername(item.assignedReviewerUsername)) return isLegacyScopeViewer(session, item);
   return currentUsername === toSafeUsername(item.assignedReviewerUsername);
@@ -198,7 +204,9 @@ function canReviewQueueItem(session = {}, item = {}) {
 
 function canEscalateQueueItem(session = {}, item = {}) {
   if (String(session.role || '').trim().toLowerCase() !== 'bu_admin') return false;
-  return canReviewQueueItem(session, item);
+  if (!isReviewAwaitingDecision(item)) return false;
+  return !!toSafeString(session.businessUnitEntityId)
+    && toSafeString(session.businessUnitEntityId) === toSafeString(item.buId);
 }
 
 function decorateQueueItemForSession(session = {}, item = {}) {
@@ -381,7 +389,11 @@ module.exports = async function handler(req, res) {
         const index = queue.findIndex(item => toSafeString(item.id) === reviewId);
         if (index < 0) return { missing: true };
         const current = queue[index];
-        if (!canReviewQueueItem(session, current)) return { forbidden: true };
+        if (reviewStatus === 'escalated') {
+          if (!canEscalateQueueItem(session, current)) return { forbidden: true };
+        } else if (!canReviewQueueItem(session, current)) {
+          return { forbidden: true };
+        }
         let nextAssignedReviewer = {
           username: toSafeUsername(current.assignedReviewerUsername),
           displayName: toSafeString(current.assignedReviewerDisplayName),
@@ -391,7 +403,6 @@ module.exports = async function handler(req, res) {
         let escalatedBy = toSafeUsername(current.escalatedBy);
         let escalatedAt = toNumberOrZero(current.escalatedAt);
         if (reviewStatus === 'escalated') {
-          if (!canEscalateQueueItem(session, current)) return { forbidden: true };
           const escalationTargets = buildTargetList(session, accounts, { action: 'escalate' }).targets;
           const requestedTarget = toSafeUsername(body.escalatedTo);
           const target = escalationTargets.find(item => item.username === requestedTarget) || null;
