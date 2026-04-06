@@ -2,6 +2,7 @@
   'use strict';
 
   const PLATFORM_VERSION_LABEL = 'Risk Intelligence Engine v0.8';
+  const pageCleanupHandlers = new Set();
 
   function getWizardStepNumber(route = '') {
     const value = String(route || '').trim();
@@ -51,7 +52,24 @@
     return 'page--dashboard';
   }
 
+  function runPageCleanupHandlers() {
+    Array.from(pageCleanupHandlers).forEach(handler => {
+      try {
+        handler();
+      } catch (error) {
+        console.warn('AppShellPage cleanup failed:', error);
+      }
+    });
+    pageCleanupHandlers.clear();
+  }
+
   const pageShell = {
+    registerCleanup(handler) {
+      if (typeof handler !== 'function') return () => {};
+      pageCleanupHandlers.add(handler);
+      return () => pageCleanupHandlers.delete(handler);
+    },
+
     updateWizardProgressBar(step) {
       const bar = document.getElementById('app-bar');
       if (!bar) return;
@@ -81,6 +99,7 @@
 
     setPage(html) {
       const root = document.getElementById('main-content');
+      runPageCleanupHandlers();
       root.innerHTML = `${html}
         <div class="app-platform-version" aria-label="Platform version">${PLATFORM_VERSION_LABEL}</div>`;
       const routePageClass = getRoutePageClass(window.location.hash.replace('#', ''));

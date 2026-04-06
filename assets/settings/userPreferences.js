@@ -1,4 +1,6 @@
 
+let activeUserSettingsRenderToken = 0;
+
 function buildLocalUserCompanyContextFallback(refineInput = {}) {
   const current = refineInput.currentSections || {};
   const prompt = String(refineInput.userPrompt || '').trim();
@@ -42,6 +44,7 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
     Router.navigate(getDefaultRouteForCurrentUser());
     return;
   }
+  const renderToken = ++activeUserSettingsRenderToken;
   const globalSettings = getAdminSettings();
   const settings = existingSettings;
   const profile = typeof reconcileUserProfileToManagedScope === 'function'
@@ -656,15 +659,25 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
 
 
   async function persistUserSettings(showToast = false) {
+    if (renderToken !== activeUserSettingsRenderToken) return;
     const { payload, businessUnitEntityId, departmentEntityId } = buildUserSettingsPayload();
     saveUserSettings(payload);
+    if (renderToken !== activeUserSettingsRenderToken) return;
     if (!AppState.draft.geography) AppState.draft.geography = getEffectiveSettings().geography;
     saveDraft();
     if (showToast) UI.toast('Personal settings saved.', 'success');
   }
 
   const userSettingsRoot = document.querySelector('.settings-shell');
-  bindAutosave(userSettingsRoot, () => persistUserSettings(false));
+  let userAutosaveArmed = false;
+  window.requestAnimationFrame(() => {
+    if (renderToken === activeUserSettingsRenderToken) userAutosaveArmed = true;
+  });
+  const disposeUserSettingsAutosave = bindAutosave(userSettingsRoot, () => {
+    if (!userAutosaveArmed || renderToken !== activeUserSettingsRenderToken) return;
+    void persistUserSettings(false);
+  });
+  window.AppShellPage?.registerCleanup?.(disposeUserSettingsAutosave);
   bindSettingsSectionState('user-settings', document);
   restoreSettingsScroll('user-settings');
   updateWorkspaceSyncState('settings');

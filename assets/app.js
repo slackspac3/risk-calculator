@@ -3340,6 +3340,9 @@ function applyManagedAccountAssignmentToSettings(account, updates = {}, baseSett
 }
 
 async function saveAdminSettings(settings, options = {}) {
+  const expectedRenderToken = Number(options.renderToken || 0);
+  const isStaleRenderContext = () => expectedRenderToken > 0 && expectedRenderToken !== activeAdminSettingsRenderToken;
+  if (isStaleRenderContext()) return false;
   const merged = normaliseAdminSettings(settings);
   updateAdminSettingsState(merged);
   try {
@@ -3348,14 +3351,17 @@ async function saveAdminSettings(settings, options = {}) {
   if (AuthService.getAdminApiSecret() || AuthService.getApiSessionToken()) {
     try {
       const result = await syncSharedAdminSettings(merged, options.audit || null);
+      if (isStaleRenderContext()) return false;
       if (result?.settings) {
         applySharedSettingsLocally(result.settings);
       }
     } catch (error) {
+      if (isStaleRenderContext()) return false;
       if (error?.code === 'WRITE_CONFLICT') {
         showPersistenceConflictDialog({
           message: 'These platform settings were updated in another session before this save finished.',
           onReloadLatest: async () => {
+            if (expectedRenderToken > 0) activeAdminSettingsRenderToken += 1;
             if (error?.latestSettings) applySharedSettingsLocally(error.latestSettings);
             else await loadSharedAdminSettings();
             Router.navigate(window.location.hash.replace(/^#/, '') || '/admin/settings/org');
@@ -10031,17 +10037,30 @@ function renderSettingsSection({ title, description = '', body = '', open = fals
 
 function createDebouncedSaver(callback, delay = 350) {
   let timeoutId = null;
-  return () => {
+  const run = () => {
     window.clearTimeout(timeoutId);
-    timeoutId = window.setTimeout(() => callback(), delay);
+    timeoutId = window.setTimeout(() => {
+      timeoutId = null;
+      callback();
+    }, delay);
   };
+  run.cancel = () => {
+    window.clearTimeout(timeoutId);
+    timeoutId = null;
+  };
+  return run;
 }
 
 function bindAutosave(container, callback, { events = ['input', 'change'] } = {}) {
   if (!container || typeof callback !== 'function') return () => {};
-  const run = createDebouncedSaver(callback);
+  let active = true;
+  const run = createDebouncedSaver(() => {
+    if (!active || !container.isConnected) return;
+    callback();
+  });
   const listeners = events.map(eventName => {
     const handler = event => {
+      if (!active || !container.isConnected) return;
       if (!event.target || !(event.target instanceof HTMLElement)) return;
       if (event.target.closest('.tag-input-chip button')) return;
       run();
@@ -10049,11 +10068,18 @@ function bindAutosave(container, callback, { events = ['input', 'change'] } = {}
     container.addEventListener(eventName, handler);
     return { eventName, handler };
   });
-  return () => listeners.forEach(({ eventName, handler }) => container.removeEventListener(eventName, handler));
+  return () => {
+    active = false;
+    run.cancel?.();
+    listeners.forEach(({ eventName, handler }) => container.removeEventListener(eventName, handler));
+  };
 }
+
+let activeAdminSettingsRenderToken = 0;
 
 function renderAdminSettings(activeSection = 'org') {
   if (!requireAdmin()) return;
+  const renderToken = ++activeAdminSettingsRenderToken;
   const settings = getAdminSettings();
   const companyStructure = Array.isArray(settings.companyStructure) ? [...settings.companyStructure] : [];
   const entityContextLayers = Array.isArray(settings.entityContextLayers) ? [...settings.entityContextLayers] : [];
@@ -10279,11 +10305,13 @@ function renderAdminSettings(activeSection = 'org') {
   }
 
   async function persistAdminSettings(showToast = false) {
+    if (renderToken !== activeAdminSettingsRenderToken) return false;
     const { warningThresholdUsd, toleranceThresholdUsd, annualReviewThresholdUsd, payload } = buildAdminSettingsPayload();
     if (warningThresholdUsd > toleranceThresholdUsd) return false;
     if (annualReviewThresholdUsd < toleranceThresholdUsd) return false;
-    const saved = await saveAdminSettings(payload);
+    const saved = await saveAdminSettings(payload, { renderToken });
     if (!saved) return false;
+    if (renderToken !== activeAdminSettingsRenderToken) return false;
     if (!AppState.draft.geography) AppState.draft.geography = getAdminSettings().geography;
     saveDraft();
     if (showToast) UI.toast('Settings saved.', 'success');
@@ -10291,7 +10319,15 @@ function renderAdminSettings(activeSection = 'org') {
   }
 
   const adminSettingsRoot = document.querySelector('.settings-shell');
-  bindAutosave(adminSettingsRoot, () => persistAdminSettings(false));
+  let adminAutosaveArmed = false;
+  window.requestAnimationFrame(() => {
+    if (renderToken === activeAdminSettingsRenderToken) adminAutosaveArmed = true;
+  });
+  const disposeAdminSettingsAutosave = bindAutosave(adminSettingsRoot, () => {
+    if (!adminAutosaveArmed || renderToken !== activeAdminSettingsRenderToken) return;
+    void persistAdminSettings(false);
+  });
+  window.AppShellPage?.registerCleanup?.(disposeAdminSettingsAutosave);
 
 
 
