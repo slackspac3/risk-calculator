@@ -518,6 +518,18 @@ Suggested usage:
 - import sample assessments through the dashboard when needed
 - treat the sample user-state file as a reference shape, not a migration script
 
+## Managed Pilot Accounts
+
+Current managed-account behavior:
+- global admins can create, reset, and delete shared pilot users from `Admin > User Account Control`
+- usernames are still derived from the display name in a predictable dot-normalised format such as `andy.ben.dyke`
+- passwords are now issued server-side on both account creation and password reset
+- issued passwords are random, policy-compliant credentials rather than sequential `RiskPilot!/PilotRisk!` style strings
+- new or reset passwords are shown only in the current admin session, so admins should copy or hand them over immediately
+
+Operational note:
+- the API still accepts an explicitly supplied password for controlled/manual administration paths, but the normal product flow now relies on server-issued random credentials so create and reset stay aligned
+
 ## QA
 
 Core checks:
@@ -560,6 +572,7 @@ This is still a pilot codebase, not a finished production security architecture,
 
 Current hardening includes:
 - hashed password storage and legacy upgrade path
+- server-issued random password generation for managed account create and reset flows
 - session-token-based API authorization
 - timing-safe session-signature and admin-secret validation
 - role-based API protection
