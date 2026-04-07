@@ -294,6 +294,70 @@ test('users create accepts action=create and returns the created managed account
   assert.equal(res.payload.password, 'RiskPilot!001Aa');
 });
 
+test('users create issues a strong random password when one is not supplied', async () => {
+  process.env.ALLOWED_ORIGIN = 'https://slackspac3.github.io';
+  process.env.ADMIN_API_SECRET = 'test-admin-secret';
+  process.env.KV_REST_API_URL = 'https://example.test/kv';
+  process.env.KV_REST_API_TOKEN = 'test-token';
+  const kvStore = new Map();
+  global.fetch = async (_url, options = {}) => {
+    const command = JSON.parse(options.body || '[]');
+    const [action, key, value] = command;
+    if (action === 'GET') {
+      return {
+        ok: true,
+        json: async () => ({ result: kvStore.has(key) ? kvStore.get(key) : null })
+      };
+    }
+    if (action === 'SET') {
+      kvStore.set(key, value);
+      return {
+        ok: true,
+        json: async () => ({ result: 'OK' })
+      };
+    }
+    if (action === 'DEL') {
+      kvStore.delete(key);
+      return {
+        ok: true,
+        json: async () => ({ result: 1 })
+      };
+    }
+    throw new Error(`Unexpected KV command: ${JSON.stringify(command)}`);
+  };
+
+  const handler = loadFresh('../../api/users');
+  const res = createRes();
+
+  await handler({
+    method: 'POST',
+    headers: {
+      origin: 'https://slackspac3.github.io',
+      'content-type': 'application/json',
+      'x-admin-secret': 'test-admin-secret'
+    },
+    body: {
+      action: 'create',
+      account: {
+        username: 'jamie.clarke',
+        displayName: 'Jamie Clarke',
+        role: 'user',
+        businessUnitEntityId: 'bu-g42',
+        departmentEntityId: 'dept-sec'
+      }
+    }
+  }, res);
+
+  assert.equal(res.statusCode, 201);
+  assert.equal(res.payload.account.username, 'jamie.clarke');
+  assert.match(res.payload.password, /[a-z]/);
+  assert.match(res.payload.password, /[A-Z]/);
+  assert.match(res.payload.password, /[0-9]/);
+  assert.match(res.payload.password, /[^A-Za-z0-9]/);
+  assert.ok(res.payload.password.length >= 14);
+  assert.doesNotMatch(res.payload.password, /^RiskPilot!\d{3}Aa$/);
+});
+
 test('timing-safe admin secret helper accepts only exact matches', () => {
   const { isRequestSecretValid } = loadFresh('../../api/_apiAuth');
   assert.equal(isRequestSecretValid({ headers: { 'x-admin-secret': 'pilot-secret' } }, 'x-admin-secret', 'pilot-secret'), true);

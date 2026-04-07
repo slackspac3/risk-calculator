@@ -3,6 +3,13 @@ const crypto = require('crypto');
 const PASSWORD_POLICY = {
   minLength: 12
 };
+const PASSWORD_CHARSETS = {
+  lower: 'abcdefghjkmnpqrstuvwxyz',
+  upper: 'ABCDEFGHJKMNPQRSTUVWXYZ',
+  digits: '23456789',
+  special: '!@#$%*-_=+?'
+};
+const PASSWORD_ALL_CHARS = `${PASSWORD_CHARSETS.lower}${PASSWORD_CHARSETS.upper}${PASSWORD_CHARSETS.digits}${PASSWORD_CHARSETS.special}`;
 
 function validatePasswordPolicy(password = '') {
   const value = String(password || '');
@@ -19,9 +26,33 @@ function validatePasswordPolicy(password = '') {
   };
 }
 
-function generateStrongPassword() {
-  const randomBlock = (crypto.randomBytes(4).readUInt32BE(0) % 900000) + 100000;
-  return `PilotRisk!${randomBlock}Aa`;
+function pickRandomCharacter(pool = '') {
+  const source = String(pool || '');
+  if (!source) return '';
+  return source.charAt(crypto.randomInt(source.length));
+}
+
+function shuffleCharacters(characters = []) {
+  const items = Array.isArray(characters) ? [...characters] : [];
+  for (let index = items.length - 1; index > 0; index -= 1) {
+    const swapIndex = crypto.randomInt(index + 1);
+    [items[index], items[swapIndex]] = [items[swapIndex], items[index]];
+  }
+  return items;
+}
+
+function generateStrongPassword(length = 16) {
+  const targetLength = Math.max(PASSWORD_POLICY.minLength + 2, Number(length) || 16);
+  const passwordCharacters = [
+    pickRandomCharacter(PASSWORD_CHARSETS.lower),
+    pickRandomCharacter(PASSWORD_CHARSETS.upper),
+    pickRandomCharacter(PASSWORD_CHARSETS.digits),
+    pickRandomCharacter(PASSWORD_CHARSETS.special)
+  ];
+  while (passwordCharacters.length < targetLength) {
+    passwordCharacters.push(pickRandomCharacter(PASSWORD_ALL_CHARS));
+  }
+  return shuffleCharacters(passwordCharacters).join('');
 }
 
 module.exports = {

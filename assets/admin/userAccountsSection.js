@@ -104,7 +104,7 @@ const AdminUserAccountsSection = (() => {
             </div>
             <div class="flex items-center gap-3 mt-4" style="flex-wrap:wrap">
               <button class="btn btn--secondary" id="btn-admin-add-user">Add User</button>
-              <span class="form-help" id="admin-new-user-result">${AppState.adminNewUserStatus || 'A username and password are generated automatically. New or reset passwords are shown only in this admin session.'}</span>
+              <span class="form-help" id="admin-new-user-result">${AppState.adminNewUserStatus || 'A username and random password are generated automatically. New or reset passwords are shown only in this admin session.'}</span>
             </div>
           </div>
         </div>

@@ -487,22 +487,23 @@ module.exports = async function handler(req, res) {
         return;
       }
       const account = normaliseAccount(body.account || {});
-      if (!account.username || !account.password) {
-        sendApiError(res, 400, 'VALIDATION_ERROR', 'Username and password are required.');
+      if (!account.username) {
+        sendApiError(res, 400, 'VALIDATION_ERROR', 'Username is required.');
         return;
       }
-      const passwordCheck = validatePasswordPolicy(account.password);
+      const issuedPassword = account.password || generateStrongPassword();
+      const passwordCheck = validatePasswordPolicy(issuedPassword);
       if (!passwordCheck.valid) {
         sendApiError(res, 400, 'PASSWORD_POLICY_FAILED', 'Password does not meet the current policy.');
         return;
       }
-      const issuedPassword = account.password;
       let storedAccounts = null;
       const duplicateExists = await withKvLock(USERS_KEY, async () => {
         const accounts = await readAccounts();
         if (accounts.some(item => item.username === account.username)) return true;
         accounts.push({
           ...account,
+          password: issuedPassword,
           sessionVersion: Math.max(1, Number(account.sessionVersion || 1))
         });
         storedAccounts = await persistAccounts(accounts);
@@ -517,7 +518,10 @@ module.exports = async function handler(req, res) {
       }
       await appendAuditEvent({ category: 'user_admin', eventType: 'user_created', actorUsername: actor.username, actorRole: actor.role, target: account.username, status: 'success', source: 'server', details: { role: account.role, businessUnitEntityId: account.businessUnitEntityId, departmentEntityId: account.departmentEntityId } });
       res.status(201).json({
-        account: sanitiseAccount(account),
+        account: sanitiseAccount({
+          ...account,
+          password: issuedPassword
+        }),
         password: issuedPassword,
         accounts: storedAccounts.map(sanitiseAccount)
       });

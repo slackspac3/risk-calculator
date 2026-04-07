@@ -308,11 +308,6 @@ function resolveApiUrl(path) {
     return candidate;
   }
 
-  function generatePassword(accounts) {
-    const nextNumber = accounts.filter(account => account.role !== 'admin').length + 1;
-    return `RiskPilot!${String(nextNumber).padStart(3, '0')}Aa`;
-  }
-
   function persistSession(session, warningKey = 'session-write', warningMessage = 'AuthService session write failed:') {
     try {
       sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
@@ -458,10 +453,8 @@ function resolveApiUrl(path) {
   async function createManagedAccount({ displayName, businessUnitEntityId = '', departmentEntityId = '', role = 'user' } = {}) {
     const accounts = await refreshManagedAccounts().catch(() => readCachedAccounts());
     const username = buildUsername(displayName, accounts);
-    const password = generatePassword(accounts);
     const account = normaliseAccount({
       username,
-      password,
       displayName,
       role: role === 'bu_admin' ? 'bu_admin' : (role === 'function_admin' ? 'function_admin' : 'user'),
       businessUnitEntityId,
@@ -469,7 +462,10 @@ function resolveApiUrl(path) {
     });
     const data = await requestUsers('POST', { action: 'create', account }, { includeAdminSecret: true });
     if (Array.isArray(data?.accounts)) saveCache(data.accounts);
-    return { ...(data?.account || sanitiseAccount(account)), password: data?.password || password };
+    if (!String(data?.password || '').trim()) {
+      throw new Error('Managed account was created without an issued password. Reset the password before sharing access.');
+    }
+    return { ...(data?.account || sanitiseAccount(account)), password: data.password };
   }
 
   async function updateManagedAccount(username, updates = {}) {

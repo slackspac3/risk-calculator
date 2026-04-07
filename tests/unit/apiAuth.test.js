@@ -13,9 +13,17 @@ test('validatePasswordPolicy rejects weak passwords and accepts generated passwo
   assert.equal(weak.valid, false);
   assert.ok(weak.issues.length >= 1);
 
-  const strong = validatePasswordPolicy(generateStrongPassword());
-  assert.equal(strong.valid, true);
-  assert.deepEqual(strong.issues, []);
+  const first = generateStrongPassword();
+  const second = generateStrongPassword();
+  const firstCheck = validatePasswordPolicy(first);
+  const secondCheck = validatePasswordPolicy(second);
+  assert.equal(firstCheck.valid, true);
+  assert.deepEqual(firstCheck.issues, []);
+  assert.equal(secondCheck.valid, true);
+  assert.deepEqual(secondCheck.issues, []);
+  assert.notEqual(first, second);
+  assert.ok(first.length >= 14);
+  assert.ok(second.length >= 14);
 });
 
 test('buildErrorPayload returns the safe API error schema', () => {

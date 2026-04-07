@@ -162,6 +162,7 @@ test('init refreshes the current user scope from the server session view', async
 
 test('createManagedAccount generates a password that satisfies the shared user-store policy', async () => {
   let createPayload = null;
+  const issuedPassword = 'Z7!qN4@Lm2#Rt8?P';
   const { AuthService } = loadAuthService({
     sessionSeed: {
       rq_auth_session: JSON.stringify({
@@ -189,7 +190,7 @@ test('createManagedAccount generates a password that satisfies the shared user-s
               businessUnitEntityId: createPayload.account.businessUnitEntityId,
               departmentEntityId: createPayload.account.departmentEntityId
             },
-            password: createPayload.account.password,
+            password: issuedPassword,
             accounts: []
           })
         };
@@ -210,9 +211,12 @@ test('createManagedAccount generates a password that satisfies the shared user-s
 
   assert.equal(createPayload.action, 'create');
   assert.equal(created.username, 'jamie.clarke');
-  assert.match(createPayload.account.password, /[a-z]/);
-  assert.match(createPayload.account.password, /[A-Z]/);
-  assert.match(createPayload.account.password, /[0-9]/);
-  assert.match(createPayload.account.password, /[^A-Za-z0-9]/);
-  assert.ok(createPayload.account.password.length >= 12);
+  assert.equal(createPayload.account.password, '');
+  assert.equal(created.password, issuedPassword);
+  assert.match(created.password, /[a-z]/);
+  assert.match(created.password, /[A-Z]/);
+  assert.match(created.password, /[0-9]/);
+  assert.match(created.password, /[^A-Za-z0-9]/);
+  assert.ok(created.password.length >= 12);
+  assert.doesNotMatch(created.password, /^RiskPilot!\d{3}Aa$/);
 });
