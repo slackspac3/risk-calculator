@@ -73,9 +73,12 @@
       "data",
       "classification",
       "privacy",
-      "all-bu"
+      "all-bu",
+      "records-retention",
+      "lawful-basis",
+      "transfer-safeguards"
     ],
-    "contentExcerpt": "Data is classified into four tiers: Public, Internal, Confidential, and Restricted. Restricted data includes PII, PHI, payment card data, and trade secrets. Restricted data must be encrypted at all times, access logged, and subject to DLP controls. Data residency requirements mandate UAE-based storage for certain categories. Breaches involving Restricted data trigger mandatory notification obligations. Data retention periods range from 3\u20137 years depending on category and regulation.",
+    "contentExcerpt": "Data is classified into four tiers: Public, Internal, Confidential, and Restricted. Restricted data includes PII, PHI, payment card data, and trade secrets. Restricted data must be encrypted at all times, access logged, and subject to DLP controls. Data residency requirements mandate UAE-based storage for certain categories, and cross-border transfers require approved safeguards. Breaches involving Restricted data trigger mandatory notification obligations. Data retention periods range from 3\u20137 years depending on category and regulation, and teams must not keep records beyond the stated lawful basis or retention window.",
     "lastUpdated": "2024-02-28"
   },
   {
@@ -90,9 +93,12 @@
       "eu",
       "regulatory",
       "bu-ai",
-      "bu-health"
+      "bu-health",
+      "lawful-basis",
+      "records-retention",
+      "transfer-safeguards"
     ],
-    "contentExcerpt": "Where G42 processes personal data of EU data subjects, GDPR obligations apply. Article 33 requires breach notification to the supervisory authority within 72 hours if the breach poses risks to individuals. Article 82 creates civil liability exposure: fines up to \u20ac20M or 4% of global annual turnover. Data Protection Impact Assessments (DPIAs) are mandatory for high-risk processing including large-scale biometric and health data processing.",
+    "contentExcerpt": "Where G42 processes personal data of EU data subjects, GDPR obligations apply. Article 33 requires breach notification to the supervisory authority within 72 hours if the breach poses risks to individuals. The wider GDPR framework is also relevant for lawful basis, retention limits, and transfer safeguards when records are processed for longer than stated or moved across borders before approvals are complete. Article 82 creates civil liability exposure: fines up to \u20ac20M or 4% of global annual turnover. Data Protection Impact Assessments (DPIAs) are mandatory for high-risk processing including large-scale biometric and health data processing.",
     "lastUpdated": "2024-01-10"
   },
   {
@@ -119,9 +125,13 @@
       "third-party",
       "vendor",
       "supply-chain",
-      "all-bu"
+      "all-bu",
+      "vendor-access",
+      "remote-access",
+      "subcontractor",
+      "access-recertification"
     ],
-    "contentExcerpt": "All third parties with access to Confidential or Restricted data must complete annual security assessments. Tier-1 suppliers (critical dependencies) require on-site audits every 2 years. Contractual clauses must include: right to audit, breach notification within 24 hours, data deletion requirements, and liability caps. Supply chain compromises historically account for 15\u201325% of significant incidents. Fourth-party (sub-processor) visibility is required for Tier-1 suppliers.",
+    "contentExcerpt": "All third parties with access to Confidential or Restricted data must complete annual security assessments. Tier-1 suppliers (critical dependencies) require on-site audits every 2 years. Contractual clauses must include: right to audit, breach notification within 24 hours, data deletion requirements, and liability caps. Standing privileged access, shared support accounts, subcontractor reach, and delayed access recertification must be governed explicitly. Supply chain compromises historically account for 15\u201325% of significant incidents. Fourth-party (sub-processor) visibility is required for Tier-1 suppliers.",
     "lastUpdated": "2024-03-01"
   },
   {
@@ -150,9 +160,12 @@
       "bcp",
       "dr",
       "resilience",
-      "all-bu"
+      "all-bu",
+      "alternate-workspace",
+      "manual-fallback",
+      "relocation"
     ],
-    "contentExcerpt": "Business Impact Analysis (BIA) results define Recovery Time Objectives (RTOs) and Recovery Point Objectives (RPOs) per service. Tier-1 services: RTO 4 hours, RPO 1 hour. Tier-2 services: RTO 24 hours, RPO 4 hours. Annual BCP tests are mandatory. Unplanned downtime cost benchmarks: $15k\u2013$50k per hour for Tier-1 services. Ransomware recovery average: 18\u201321 days without offline backups; 3\u20135 days with verified immutable backups.",
+    "contentExcerpt": "Business Impact Analysis (BIA) results define Recovery Time Objectives (RTOs) and Recovery Point Objectives (RPOs) per service. Tier-1 services: RTO 4 hours, RPO 1 hour. Tier-2 services: RTO 24 hours, RPO 4 hours. Annual BCP tests are mandatory. Alternate workspace, relocation decisions, and manual fallback steps for priority tasks must be executable during live disruption. Unplanned downtime cost benchmarks: $15k\u2013$50k per hour for Tier-1 services. Ransomware recovery average: 18\u201321 days without offline backups; 3\u20135 days with verified immutable backups.",
     "lastUpdated": "2024-02-10"
   },
   {
@@ -503,9 +516,13 @@
       "financial",
       "compliance",
       "controls",
-      "all-bu"
+      "all-bu",
+      "payment-controls",
+      "receivables",
+      "segregation-of-duties",
+      "counterparty"
     ],
-    "contentExcerpt": "The COSO Internal Control Framework is relevant for financial reporting integrity, fraud risk, control design, monitoring, segregation of duties, and management accountability. It is especially useful where scenarios involve payment manipulation, approval breakdown, reporting error, compliance control weakness, or unclear control ownership.",
+    "contentExcerpt": "The COSO Internal Control Framework is relevant for financial reporting integrity, fraud risk, control design, monitoring, segregation of duties, and management accountability. It is especially useful where scenarios involve payment manipulation, duplicate-payment release, approval breakdown, receivable recovery pressure, customer insolvency, compliance control weakness, or unclear control ownership.",
     "lastUpdated": "2024-06-15"
   },
   {
@@ -1145,9 +1162,12 @@
       "strategic",
       "operational",
       "governance",
-      "all-bu"
+      "all-bu",
+      "target-state",
+      "exception-governance",
+      "localisation"
     ],
-    "contentExcerpt": "This internal governance standard is relevant where major programmes depend on milestone discipline, dependency management, executive decision rights, scope control, and benefits tracking. It helps transformation scenarios stay grounded in delivery governance rather than generic change-language alone.",
+    "contentExcerpt": "This internal governance standard is relevant where major programmes depend on milestone discipline, dependency management, executive decision rights, scope control, target-state discipline, local exception governance, and benefits tracking. It helps transformation scenarios stay grounded in delivery governance rather than generic change-language alone, especially when localisation or site-access constraints begin to fragment the operating model.",
     "lastUpdated": "2026-03-30"
   },
   {

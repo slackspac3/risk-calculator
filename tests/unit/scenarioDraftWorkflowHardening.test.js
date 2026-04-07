@@ -85,3 +85,38 @@ test('guided Step 1 prompt support stays compact while preserving the strongest 
   assert.doesNotMatch(citationBlock, /Generic governance note/);
   assert.match(citationBlock, /Most relevant source/);
 });
+
+test('missing-detail planner asks for supplier-specific asset detail on supply-chain wording', () => {
+  const plan = workflowUtils.inferStep1MissingDetailPlan({
+    guidedInput: {
+      event: 'Key vendor delivery slips are blocking a dependent rollout.',
+      impact: 'Dependent teams cannot complete the rollout on time.'
+    },
+    scenarioLensHint: 'supply-chain'
+  }, {
+    seedNarrative: 'Key vendor delivery slips are blocking a dependent rollout and delaying dependent milestones.',
+    purpose: 'guided_draft'
+  });
+
+  assert.equal(plan.focusKey, 'asset');
+  assert.match(String(plan.focusPrompt || ''), /supplier|dependency|milestone|service/i);
+  assert.match(String(plan.guidance?.join(' ') || ''), /Keep the scenario to one clear event path/i);
+});
+
+test('missing-detail planner asks for privacy-specific trigger detail on records wording', () => {
+  const plan = workflowUtils.inferStep1MissingDetailPlan({
+    guidedInput: {
+      event: 'Customer records are retained too long and moved abroad.',
+      asset: 'Customer records and troubleshooting logs',
+      impact: 'Privacy obligations may be breached.'
+    },
+    scenarioLensHint: 'compliance'
+  }, {
+    seedNarrative: 'Customer records are retained too long and moved abroad without clear safeguards.',
+    purpose: 'guided_draft'
+  });
+
+  assert.equal(plan.focusKey, 'cause');
+  assert.match(String(plan.focusPrompt || ''), /retention weakness|transfer step|control gap/i);
+  assert.match(String(plan.reasonMessage || ''), /before trying AI draft generation again/i);
+});

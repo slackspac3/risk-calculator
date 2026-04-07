@@ -84,7 +84,8 @@ async function mockSharedApis(page, {
   skipUsers = false,
   managedAccounts = null,
   auditEntries = null,
-  auditSummary = null
+  auditSummary = null,
+  onAuditRequest = null
 } = {}) {
   if (!skipUsers) await page.route('**/api/users', async route => {
     const request = route.request();
@@ -162,6 +163,7 @@ async function mockSharedApis(page, {
   await page.route('**/api/audit-log*', async route => {
     const request = route.request();
     const entries = Array.isArray(auditEntries) ? auditEntries : [];
+    if (typeof onAuditRequest === 'function') onAuditRequest(request);
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -1508,6 +1510,7 @@ test('admin activity summary cards filter the recent audit table', async ({ page
     benchmarkStrategy: 'Prefer GCC and UAE benchmark references.',
     typicalDepartments: ['Security']
   };
+  let auditGetCount = 0;
   const auditEntries = [
     {
       ts: '2026-04-06T07:08:06.000Z',
@@ -1537,6 +1540,18 @@ test('admin activity summary cards filter the recent audit table', async ({ page
       details: { field: 'aiInstructions' }
     },
     {
+      id: 'review-1',
+      ts: '2026-04-03T04:27:02.000Z',
+      actorUsername: 'maya',
+      actorRole: 'bu_admin',
+      category: 'review_queue',
+      eventType: 'review_escalated',
+      target: 'assessment-77',
+      status: 'success',
+      source: 'server',
+      details: { assignedReviewerUsername: 'holding-admin', reviewScope: 'holding_company' }
+    },
+    {
       ts: '2026-04-03T04:27:01.000Z',
       actorUsername: 'maya',
       actorRole: 'bu_admin',
@@ -1554,7 +1569,13 @@ test('admin activity summary cards filter the recent audit table', async ({ page
     adminSettings,
     preferredAdminSection: 'audit'
   });
-  await mockSharedApis(page, { settings: adminSettings, auditEntries });
+  await mockSharedApis(page, {
+    settings: adminSettings,
+    auditEntries,
+    onAuditRequest: (request) => {
+      if (request.method() === 'GET') auditGetCount += 1;
+    }
+  });
 
   await expectNoClientCrashOnRoute(page, '/#/admin/settings/audit', async () => {
     const auditSection = page.locator('details.settings-section').filter({
@@ -1574,7 +1595,21 @@ test('admin activity summary cards filter the recent audit table', async ({ page
     await auditSection.evaluate(node => { node.open = true; });
     const auditTable = page.locator('#admin-audit-activity-table').last();
     const auditTableRows = page.locator('#admin-audit-activity-table tbody').last().locator('tr');
-    await expect(auditTableRows).toHaveCount(4);
+    await expect(page.locator('#btn-refresh-audit-log').last()).toContainText(/refresh/i);
+    await expect(page.locator('#audit-log-status').last()).toContainText(/dubai time/i);
+    await expect(auditTableRows).toHaveCount(5);
+    expect(auditGetCount).toBeGreaterThanOrEqual(1);
+
+    await page.evaluate(() => {
+      const button = Array.from(document.querySelectorAll('#btn-refresh-audit-log'))
+        .filter(node => {
+          const rect = node.getBoundingClientRect();
+          return rect.width > 0 && rect.height > 0;
+        })
+        .at(-1);
+      button?.click();
+    });
+    await expect.poll(() => auditGetCount).toBeGreaterThanOrEqual(2);
 
     await clickVisibleAuditFilter('login_success');
     await expect(page.locator('#audit-log-active-filter').last()).toContainText(/login success/i);
@@ -1590,8 +1625,21 @@ test('admin activity summary cards filter the recent audit table', async ({ page
     await expect(auditTable).toContainText('settings_update');
     await expect(auditTable).not.toContainText('login_failure');
 
+    await page.locator('#audit-log-search').last().fill('review_escalated');
+    await expect(page.locator('#audit-log-active-filter').last()).toContainText(/admin actions/i);
+    await expect(auditTableRows).toHaveCount(1);
+    await expect(auditTable).toContainText(/clear the filters or refresh logs/i);
+
+    await clickVisibleAuditFilter('admin');
+    await page.locator('#audit-log-category-filter').last().selectOption('review_queue');
+    await expect(auditTableRows).toHaveCount(1);
+    await expect(auditTable).toContainText('review_escalated');
+    await page.locator('[data-audit-detail-toggle="review-1"]').last().click();
+    await expect(page.locator('[data-audit-detail-row="review-1"]').last()).toContainText(/holding-admin/i);
+    await expect(page.locator('[data-audit-detail-row="review-1"]').last()).toContainText(/holding company/i);
+
     await page.evaluate(() => {
-      const button = Array.from(document.querySelectorAll('#btn-clear-audit-filter'))
+      const button = Array.from(document.querySelectorAll('#btn-clear-audit-filters'))
         .filter(node => {
           const rect = node.getBoundingClientRect();
           return rect.width > 0 && rect.height > 0;
@@ -1600,7 +1648,8 @@ test('admin activity summary cards filter the recent audit table', async ({ page
       button?.click();
     });
     await expect(page.locator('#audit-log-active-filter')).toHaveCount(0);
-    await expect(auditTableRows).toHaveCount(4);
+    await expect(page.locator('#audit-log-search').last()).toHaveValue('');
+    await expect(auditTableRows).toHaveCount(5);
   });
 });
 

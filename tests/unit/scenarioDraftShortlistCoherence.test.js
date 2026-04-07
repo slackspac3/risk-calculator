@@ -342,6 +342,38 @@ test('shortlist coherence filters generic governance titles that do not stay on 
   assert.doesNotMatch(titles, /governance review|oversight committee/i);
 });
 
+test('shortlist coherence filters consequence-dominant cards when they replace the event path', () => {
+  const narrative = 'A volumetric DDoS attack floods the public website and degrades customer-facing services.';
+  const result = enforceShortlist([
+    {
+      title: 'Public website outage from hostile traffic saturation',
+      category: 'Cyber',
+      description: 'Traffic flooding overwhelms the public website and degrades customer-facing services.'
+    },
+    {
+      title: 'Reputational damage after the visible disruption',
+      category: 'Customer Impact',
+      description: 'The visible disruption creates reputation harm and external scrutiny.'
+    },
+    {
+      title: 'Regulatory scrutiny after the outage',
+      category: 'Compliance',
+      description: 'The outage leads to regulatory scrutiny and remediation pressure.'
+    }
+  ], {
+    narrative,
+    guidedInput: { event: narrative },
+    fallbackRisks: []
+  });
+
+  assert.match(String(result.mode || ''), /accepted|filtered|fallback_replaced/);
+  assertCoherenceMetadata(result);
+  assert.ok((result.reasonCodes || []).includes('CONSEQUENCE_DOMINANT_TITLE_DRIFT') || (result.filteredOutCount || 0) >= 1);
+  const titles = listTitles(result);
+  assert.match(titles, /website outage|traffic|customer-facing/i);
+  assert.doesNotMatch(titles, /Reputational damage|Regulatory scrutiny/i);
+});
+
 test('mixed identity and disclosure scenarios can keep explicit disclosure risks as secondaries', () => {
   const narrative = 'Azure global admin credentials discovered on the dark web are used to access the tenant, modify critical configurations, and extract customer records.';
   const result = enforceShortlist([

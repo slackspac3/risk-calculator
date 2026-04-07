@@ -262,6 +262,12 @@ test('review queue submission uses the session actor, stores the assignee, and r
   assert.equal(postRes.payload.item.assignedReviewerDisplayName, 'Function Admin');
   assert.equal(postRes.payload.item.reviewScope, 'function');
   assert.equal(postRes.payload.item.sharedAssessment.scenarioTitle, 'Tolerance breach');
+  const auditEntries = JSON.parse(kvStore.get('risk_calculator_audit_log') || '[]');
+  assert.equal(auditEntries.length, 1);
+  assert.equal(auditEntries[0].eventType, 'review_submitted');
+  assert.equal(auditEntries[0].category, 'review_queue');
+  assert.equal(auditEntries[0].actorUsername, 'analyst');
+  assert.equal(auditEntries[0].details.assignedReviewerUsername, 'function-admin');
 
   const invalidTargetRes = createRes();
   await handler({
@@ -501,4 +507,9 @@ test('BU heads can escalate in-scope items to holding-company reviewers without 
   assert.equal(escalationRes.payload.item.escalatedTo, 'holding-admin');
   assert.equal(escalationRes.payload.item.escalatedBy, 'bu-admin');
   assert.equal(escalationRes.payload.item.reviewScope, 'holding_company');
+  const auditEntries = JSON.parse(kvStore.get('risk_calculator_audit_log') || '[]');
+  assert.equal(auditEntries.length, 1);
+  assert.equal(auditEntries[0].eventType, 'review_escalated');
+  assert.equal(auditEntries[0].actorUsername, 'bu-admin');
+  assert.equal(auditEntries[0].details.escalatedTo, 'holding-admin');
 });

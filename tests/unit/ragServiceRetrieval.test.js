@@ -76,3 +76,33 @@ test('retrieval surfaces continuity references for alternate-workspace fallback 
 
   assert.equal(results.some((doc) => ['doc-iso22301-20', 'doc-iso22361-51'].includes(doc.docId)), true);
 });
+
+test('retrieval surfaces financial-control references for duplicate-payment wording', async () => {
+  const service = initService();
+  const results = await service.retrieveRelevantDocs('g42', {
+    text: 'Duplicate supplier payments were released after approval overrides and weak segregation of duties in the payment step.',
+    scenarioLens: { key: 'financial' }
+  }, 4);
+
+  assert.equal(results.some((doc) => ['doc-coso-ic-33'].includes(doc.docId)), true);
+});
+
+test('retrieval surfaces privacy retention and transfer safeguards references for novel obligation wording', async () => {
+  const service = initService();
+  const results = await service.retrieveRelevantDocs('g42', {
+    text: 'Records were kept too long and troubleshooting logs were transferred abroad without lawful basis or transfer safeguards.',
+    scenarioLens: { key: 'compliance' }
+  }, 4);
+
+  assert.equal(results.some((doc) => ['doc-data-05', 'doc-gdpr-06'].includes(doc.docId)), true);
+});
+
+test('retrieval surfaces transformation delivery references for local exception governance wording', async () => {
+  const service = initService();
+  const results = await service.retrieveRelevantDocs('g42', {
+    text: 'The target-state rollout is slipping because local exceptions, site-access constraints, and weak exception governance block delivery.',
+    scenarioLens: { key: 'transformation-delivery' }
+  }, 4);
+
+  assert.equal(results.some((doc) => ['doc-transformation-delivery-71'].includes(doc.docId)), true);
+});

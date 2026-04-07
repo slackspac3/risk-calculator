@@ -526,7 +526,7 @@ const AppState = {
   userStateSyncInFlight: false,
   userStateLastConflict: null,
   userSettingsSavedAt: 0,
-  auditLogCache: { loaded: false, loading: false, entries: [], summary: null, error: '' },
+  auditLogCache: { loaded: false, loading: false, entries: [], summary: null, error: '', lastLoadedAt: 0 },
   clientRuntimeErrors: [],
   stateTransitionLog: [],
   draftLastSavedAt: 0,
@@ -2296,6 +2296,7 @@ async function requestAuditLog(method = 'GET', payload, { includeAdminSecret = f
 }
 
 async function loadAuditLog() {
+  const previousCache = AppState.auditLogCache || { loaded: false, loading: false, entries: [], summary: null, error: '', lastLoadedAt: 0 };
   AppState.auditLogCache.loading = true;
   try {
     const data = await requestAuditLog('GET', undefined, { includeAdminSecret: true });
@@ -2304,15 +2305,17 @@ async function loadAuditLog() {
       loading: false,
       entries: Array.isArray(data.entries) ? data.entries : [],
       summary: data.summary || null,
-      error: ''
+      error: '',
+      lastLoadedAt: Date.now()
     };
     return AppState.auditLogCache;
   } catch (error) {
     AppState.auditLogCache = {
       loaded: true,
       loading: false,
-      entries: [],
-      summary: null,
+      entries: Array.isArray(previousCache.entries) ? previousCache.entries : [],
+      summary: previousCache.summary || null,
+      lastLoadedAt: Number(previousCache.lastLoadedAt || 0),
       error: error instanceof Error ? error.message : String(error)
     };
     throw error;
@@ -10233,7 +10236,7 @@ function renderAdminSettings(activeSection = 'org') {
     runtimeStatus,
     serverStatus
   });
-  const auditCache = AppState.auditLogCache || { loaded: false, loading: false, entries: [], summary: null, error: '' };
+  const auditCache = AppState.auditLogCache || { loaded: false, loading: false, entries: [], summary: null, error: '', lastLoadedAt: 0 };
   const auditLogSection = AdminAuditLogSection.renderSection({ auditCache });
 
 

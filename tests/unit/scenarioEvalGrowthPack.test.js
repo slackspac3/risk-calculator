@@ -16,8 +16,10 @@ test('supplemental eval growth pack stays structurally complete across targeted 
   const dataset = loadEvalDataset(GROWTH_PACK_PATH);
   const domains = new Set(dataset.map((row) => row.domain));
 
-  assert.equal(dataset.length, 9);
+  assert.equal(dataset.length, 13);
   [
+    'Cyber',
+    'Financial',
     'AI / Model Risk',
     'Data Governance / Privacy',
     'Supply Chain',

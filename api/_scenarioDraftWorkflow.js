@@ -910,6 +910,18 @@ function hasGenericGovernanceShortlistWording(risk = {}) {
   return titleGovernance && !eventPathTerms && !descriptionEventTerms;
 }
 
+function hasConsequenceDominantShortlistWording(risk = {}) {
+  const title = String(risk?.title || '').trim();
+  const category = String(risk?.category || '').trim();
+  const description = String(risk?.description || '').trim();
+  const titleText = `${title}. ${category}`.trim();
+  const consequenceLead = /(reputational damage|reputation harm|regulatory scrutiny|legal exposure|financial loss|monetary loss|customer attrition|customer confidence loss|investor pressure|board pressure|management pressure|media scrutiny|external scrutiny|penalties?|fines?|litigation|lawsuits?|remediation costs?|stakeholder pressure|negative publicity)/i.test(titleText);
+  const titleMechanismTerms = /(credential|identity|tenant|configuration|privileged access|hostile traffic|ddos|flood|supplier|vendor|delivery|rollout|retention|processing|transfer|records|dataset|privacy|lawful basis|fatigue|understaff|burnout|forced labou?r|slavery|claim substantiation|payment|invoice|receivable|counterparty|insolvency|shared support account|vendor access|remote access|failover|disaster recovery|manual fallback|platform defect|intrusion|perimeter|exfiltration|ransomware|encrypt|utility outage|relocation)/i.test(titleText);
+  const descriptionMechanismTerms = /(credential|identity|tenant|configuration|privileged access|hostile traffic|ddos|supplier|vendor|delivery|rollout|retention|processing|transfer|records|dataset|privacy|lawful basis|fatigue|understaff|burnout|forced labou?r|slavery|claim substantiation|payment|invoice|receivable|counterparty|insolvency|shared support account|vendor access|remote access|failover|disaster recovery|manual fallback|platform defect|intrusion|perimeter|exfiltration|ransomware|encrypt|utility outage|relocation)/i.test(description);
+  const descriptionConsequenceOnly = /(reputational damage|regulatory scrutiny|legal exposure|financial loss|monetary loss|customer attrition|customer confidence|investor pressure|board pressure|management pressure|penalties?|fines?|litigation|lawsuits?|remediation costs?)/i.test(description);
+  return consequenceLead && !titleMechanismTerms && (!descriptionMechanismTerms || descriptionConsequenceOnly);
+}
+
 function buildGuidedScenarioPriorityPromptBlock(input = {}, {
   seedNarrative = '',
   classification = {}
@@ -1934,6 +1946,7 @@ function evaluateShortlistRiskCard(risk = {}, {
     || (riskClassification.reasonCodes?.includes('INSUFFICIENT_PRIMARY_SIGNAL') && riskOverlayKeys.length > 0 && !eventAligned);
   const consequenceHeavy = Boolean(riskClassification.ambiguityFlags?.includes('CONSEQUENCE_HEAVY_TEXT'));
   const genericGovernanceTitle = hasGenericGovernanceShortlistWording(risk);
+  const consequenceDominantTitle = hasConsequenceDominantShortlistWording(risk);
   const overlayDrivenDomainAllowed = !riskPrimaryKey
     || riskDomainAligned
     || leadDomainAligned
@@ -1959,6 +1972,7 @@ function evaluateShortlistRiskCard(risk = {}, {
     consequenceOnly ? 'CONSEQUENCE_ONLY_CARD' : '',
     consequenceHeavy ? 'CONSEQUENCE_HEAVY_CARD' : '',
     genericGovernanceTitle ? 'GENERIC_GOVERNANCE_TITLE' : '',
+    consequenceDominantTitle ? 'CONSEQUENCE_DOMINANT_TITLE' : '',
     eventPathEvidenceCount ? 'HAS_EVENT_PATH_EVIDENCE' : 'NO_EVENT_PATH_EVIDENCE'
   ]);
 
@@ -1990,7 +2004,11 @@ function evaluateShortlistRiskCard(risk = {}, {
   if (consequenceOnly) score -= eventAligned ? 10 : 30;
   if (consequenceHeavy) score -= eventAligned ? 4 : 12;
   if (genericGovernanceTitle) score -= eventAligned ? 16 : 34;
+  if (consequenceDominantTitle) score -= eventAligned ? 18 : 42;
+  if (consequenceDominantTitle && mechanismOverlapCount === 0) score -= 10;
+  if (consequenceDominantTitle && triggerSignalOverlapCount === 0) score -= 8;
   if (titleAnchorOverlap === 0 && genericGovernanceTitle) score -= 12;
+  if (titleAnchorOverlap === 0 && consequenceDominantTitle) score -= 16;
   if (titleAnchorOverlap === 0 && consequenceOnly) score -= 10;
 
   const overlayDrivenAligned = !eventAligned
@@ -2000,12 +2018,14 @@ function evaluateShortlistRiskCard(risk = {}, {
     && eventPathEvidenceCount >= 2
     && taxonomyPathOverlapCount >= 1
     && !consequenceHeavy
+    && !consequenceDominantTitle
     && !(consequenceOnly && classificationAnchorOverlap === 0 && mechanismOverlapCount === 0);
   const stronglyAligned = !blocked
     && eventAligned
     && eventPathEvidenceCount >= 1
     && score >= (familyAligned ? 40 : (secondaryAligned || allowedSecondaryAligned ? 36 : 34))
     && !(genericGovernanceTitle && titleAnchorOverlap === 0 && mechanismOverlapCount === 0 && triggerSignalOverlapCount === 0)
+    && !(consequenceDominantTitle && mechanismOverlapCount === 0 && triggerSignalOverlapCount === 0 && titleAnchorOverlap <= 1)
     && !(consequenceOnly && narrativeAnchorOverlap === 0 && classificationAnchorOverlap === 0 && mechanismOverlapCount === 0 && themeOverlapCount === 0);
   const weakOverlayOnly = overlayDrivenAligned && !eventAligned;
   const alignmentType = blocked
@@ -2033,6 +2053,7 @@ function evaluateShortlistRiskCard(risk = {}, {
     consequenceOnly,
     consequenceHeavy,
     genericGovernanceTitle,
+    consequenceDominantTitle,
     blockedFamily,
     blocked,
     narrativeAnchorOverlap,
@@ -2082,6 +2103,7 @@ function assessShortlistCoherence(risks = [], {
   const consequenceOnlyCount = evaluations.filter((evaluation) => evaluation.consequenceOnly).length;
   const weakOverlayOnlyCount = evaluations.filter((evaluation) => evaluation.weakOverlayOnly).length;
   const genericGovernanceTitleCount = evaluations.filter((evaluation) => evaluation.genericGovernanceTitle).length;
+  const consequenceDominantTitleCount = evaluations.filter((evaluation) => evaluation.consequenceDominantTitle).length;
   const acceptedWeakOverlayOnlyCount = acceptedEvaluations.filter((evaluation) => evaluation.weakOverlayOnly).length;
   const acceptedStrongEventCount = acceptedEvaluations.filter((evaluation) => evaluation.stronglyAligned).length;
   const acceptedPrimaryOrSecondaryCount = acceptedEvaluations.filter((evaluation) => (
@@ -2113,6 +2135,7 @@ function assessShortlistCoherence(risks = [], {
   if (normalisedRisks.length && outsideFamilyCount >= Math.ceil(normalisedRisks.length / 2)) reasonCodes.push('MAJORITY_OUTSIDE_ACCEPTED_FAMILY');
   if (normalisedRisks.length && consequenceOnlyCount >= Math.ceil(normalisedRisks.length / 2)) reasonCodes.push('CONSEQUENCE_ONLY_DRIFT');
   if (normalisedRisks.length && genericGovernanceTitleCount >= Math.ceil(normalisedRisks.length / 2)) reasonCodes.push('GENERIC_GOVERNANCE_TITLE_DRIFT');
+  if (normalisedRisks.length && consequenceDominantTitleCount >= Math.ceil(normalisedRisks.length / 2)) reasonCodes.push('CONSEQUENCE_DOMINANT_TITLE_DRIFT');
   if (!dominantFamilyAligned) reasonCodes.push('DOMINANT_FAMILY_DRIFT');
   if (weakOverlayOnlyCount > Math.floor(Math.max(1, normalisedRisks.length) / 2)) reasonCodes.push('WEAK_OVERLAY_ONLY_SHORTLIST');
   if (lowAnchorCount && lowAnchorCount >= Math.ceil(normalisedRisks.length / 2)) reasonCodes.push('LOW_EVENT_ANCHOR_OVERLAP');
@@ -2577,6 +2600,48 @@ function inferStep1MissingDetailPlan(input = {}, {
   const causeText = cleanUserFacingText(input?.guidedInput?.cause || '', { maxSentences: 1, stripTrailingPeriod: true });
   const text = String(seedNarrative || '').trim();
   const tooThin = !text || text.length < 35;
+  const classification = classifyScenario(
+    [eventText, assetText, causeText, impactText, text]
+      .filter(Boolean)
+      .join('. '),
+    {
+      guidedInput: input.guidedInput,
+      businessUnit: input.businessUnit,
+      scenarioLensHint: input.scenarioLensHint
+    }
+  );
+  const lensKey = String(buildScenarioLens(classification)?.key || 'general').trim();
+  const primaryFamilyKey = String(classification?.primaryFamily?.key || '').trim();
+  const isThirdParty = lensKey === 'third-party' || /(supplier|vendor|third_party|procurement)/i.test(primaryFamilyKey);
+  const isFinancial = lensKey === 'financial' || /(payment|receivable|counterparty|credit|invoice)/i.test(primaryFamilyKey);
+  const isWorkforce = lensKey === 'people-workforce' || /(fatigue|workforce|forced_labou?r|slavery|staff)/i.test(primaryFamilyKey);
+  const isContinuity = lensKey === 'business-continuity' || /(business_continuity|dr_gap|failover|recovery)/i.test(primaryFamilyKey);
+  const isCyber = lensKey === 'cyber' || /(identity|credential|availability_attack|ransom|malware|phishing|cyber)/i.test(primaryFamilyKey);
+  const isTransformation = lensKey === 'transformation-delivery' || /(transformation|programme|delivery_slippage|rollout)/i.test(primaryFamilyKey);
+  const isPrivacy = /(privacy|retention|transfer|disclosure|personal_data|records)/i.test(primaryFamilyKey);
+  const isEsgOrHse = ['esg', 'hse'].includes(lensKey) || /(greenwashing|forced_labou?r|safety|environment)/i.test(primaryFamilyKey);
+  const resolveAssetPrompt = () => {
+    if (isThirdParty) return 'Name the supplier, dependency, milestone, or service affected.';
+    if (isFinancial) return 'Name the payment step, receivable, counterparty, or control affected.';
+    if (isWorkforce) return 'Name the team, role, site, or activity under strain.';
+    if (isContinuity) return 'Name the site, service, process, or critical task affected.';
+    if (isCyber) return 'Name the account, system, service, or tenant affected.';
+    if (isTransformation) return 'Name the rollout, programme, milestone, site, or dependency affected.';
+    if (isPrivacy) return 'Name the records, dataset, transfer path, or processing activity affected.';
+    if (isEsgOrHse) return 'Name the claim, site, supplier, workforce group, or activity affected.';
+    return 'Name the asset, service, dependency, or process affected.';
+  };
+  const resolveCausePrompt = () => {
+    if (isThirdParty) return 'Add the delivery miss, supplier trigger, access weakness, or third-party failure that started it.';
+    if (isFinancial) return 'Add the approval gap, control failure, insolvency trigger, or fraud driver.';
+    if (isWorkforce) return 'Add the staffing weakness, fatigue driver, labour issue, or operating pressure that triggered it.';
+    if (isContinuity) return 'Add the outage trigger, failover gap, recovery weakness, or site event that triggered it.';
+    if (isCyber) return 'Add the attack path, control weakness, credential issue, or hostile trigger.';
+    if (isTransformation) return 'Add the delivery miss, exception, site-access constraint, or programme trigger.';
+    if (isPrivacy) return 'Add the retention weakness, transfer step, or control gap that triggered it.';
+    if (isEsgOrHse) return 'Add the unsupported claim, supplier abuse, safety trigger, or environmental control gap.';
+    return 'Add the likely trigger or threat driver.';
+  };
   let focusKey = '';
   let focusPrompt = '';
   if (!eventText || tooThin) {
@@ -2584,13 +2649,13 @@ function inferStep1MissingDetailPlan(input = {}, {
     focusPrompt = 'State what happened or could happen in one plain sentence.';
   } else if (!assetText) {
     focusKey = 'asset';
-    focusPrompt = 'Name the asset, service, dependency, or process affected.';
+    focusPrompt = resolveAssetPrompt();
   } else if (!impactText) {
     focusKey = 'impact';
     focusPrompt = 'Add the main business impact or why it matters.';
   } else if (!causeText) {
     focusKey = 'cause';
-    focusPrompt = 'Add the likely trigger or threat driver.';
+    focusPrompt = resolveCausePrompt();
   } else if (Array.isArray(evidenceMeta?.missingInformation) && evidenceMeta.missingInformation.some((item) => /Geographic scope/i.test(String(item || '')))) {
     focusKey = 'geography';
     focusPrompt = 'Add the geography if the exposure or obligations change by location.';
@@ -2622,9 +2687,9 @@ function inferStep1MissingDetailPlan(input = {}, {
     guidance: uniqueKeys([
       focusPrompt,
       focusKey !== 'event' ? 'Keep the scenario to one clear event path.' : 'Avoid listing only consequences without the triggering event.',
-      focusKey !== 'asset' ? 'Name the asset, service, dependency, or process affected.' : '',
+      focusKey !== 'asset' ? resolveAssetPrompt() : '',
       focusKey !== 'impact' ? 'Add the main business impact so the draft can stay aligned.' : '',
-      focusKey !== 'cause' ? 'Add the likely trigger if it is already known.' : ''
+      focusKey !== 'cause' ? resolveCausePrompt() : ''
     ]).slice(0, 3),
     reasonMessage: `${focusPrompt} ${actionText.charAt(0).toUpperCase() + actionText.slice(1)}`
   };

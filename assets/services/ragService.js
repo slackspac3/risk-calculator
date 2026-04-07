@@ -85,9 +85,15 @@ const RAGService = (() => {
     },
     {
       key: 'business-continuity-crisis',
-      patterns: ['business continuity', 'continuity', 'crisis management', 'recovery', 'downtime', 'outage', 'incident communications', 'emergency response', 'business impact analysis', 'bia', 'rto', 'rpo', 'incident management', 'service restoration', 'service resumption', 'tabletop exercise'],
+      patterns: ['business continuity', 'continuity', 'crisis management', 'recovery', 'downtime', 'outage', 'incident communications', 'emergency response', 'business impact analysis', 'bia', 'rto', 'rpo', 'incident management', 'service restoration', 'service resumption', 'tabletop exercise', 'alternate workspace', 'manual fallback', 'relocation decision', 'alternate processing'],
       docTags: ['business-continuity', 'resilience', 'crisis-management', 'operational'],
       docIds: ['doc-bcp-10', 'doc-iso22301-20', 'doc-iso22313-21', 'doc-nfpa1600-32', 'doc-iso22361-51', 'doc-nist-80034-75', 'doc-iso22317-76', 'doc-iso22320-77']
+    },
+    {
+      key: 'vendor-access-governance',
+      patterns: ['standing privileged access', 'shared support account', 'subcontractor access', 'vendor account spans critical systems', 'broad access across critical systems', 'remote access path', 'no documented business need'],
+      docTags: ['third-party', 'vendor-access', 'remote-access', 'subcontractor', 'compliance'],
+      docIds: ['doc-3p-08', 'doc-iso27036-22', 'doc-nist-800161-53']
     },
     {
       key: 'hse-incident',
@@ -103,7 +109,7 @@ const RAGService = (() => {
     },
     {
       key: 'financial-control',
-      patterns: ['invoice fraud', 'payment fraud', 'treasury', 'liquidity', 'financial control', 'financial reporting', 'misstatement', 'journal entry', 'revenue recognition'],
+      patterns: ['invoice fraud', 'payment fraud', 'treasury', 'liquidity', 'financial control', 'financial reporting', 'misstatement', 'journal entry', 'revenue recognition', 'duplicate payment', 'payment approval', 'segregation of duties', 'receivable', 'counterparty default', 'customer insolvency', 'write off', 'write-off'],
       docTags: ['financial', 'compliance', 'controls', 'governance', 'data'],
       docIds: ['doc-coso-ic-33', 'doc-bcbs239-41']
     },
@@ -115,7 +121,7 @@ const RAGService = (() => {
     },
     {
       key: 'data-governance',
-      patterns: ['data governance', 'data lineage', 'data quality', 'retention', 'purpose limitation', 'consent', 'data residency', 'master data'],
+      patterns: ['data governance', 'data lineage', 'data quality', 'retention', 'purpose limitation', 'consent', 'data residency', 'master data', 'lawful basis', 'records retained too long', 'transfer safeguards', 'troubleshooting logs', 'overseas diagnostics'],
       docTags: ['data-governance', 'privacy', 'compliance', 'controls'],
       docIds: ['doc-iso27701-19', 'doc-gdpr-06', 'doc-data-05', 'doc-cls-07']
     },
@@ -163,9 +169,9 @@ const RAGService = (() => {
     },
     {
       key: 'transformation-delivery',
-      patterns: ['transformation delivery', 'programme delivery', 'project delivery', 'go-live delay', 'milestone slippage', 'benefit realization', 'benefit realisation'],
+      patterns: ['transformation delivery', 'programme delivery', 'project delivery', 'go-live delay', 'milestone slippage', 'benefit realization', 'benefit realisation', 'target state', 'local exceptions', 'exception governance', 'site-access constraints', 'localisation constraints'],
       docTags: ['transformation-delivery', 'strategic', 'operational', 'governance'],
-      docIds: ['doc-coso-erm-25', 'doc-iso31010-50']
+      docIds: ['doc-coso-erm-25', 'doc-iso31010-50', 'doc-transformation-delivery-71']
     },
     {
       key: 'risk-method',
@@ -190,7 +196,7 @@ const RAGService = (() => {
     },
     {
       key: 'data-governance',
-      patterns: ['data governance', 'data lineage', 'data quality', 'retention', 'purpose limitation', 'consent', 'data residency'],
+      patterns: ['data governance', 'data lineage', 'data quality', 'retention', 'purpose limitation', 'consent', 'data residency', 'lawful basis', 'records retained too long', 'transfer safeguards', 'overseas diagnostics'],
       docTags: ['data-governance', 'privacy', 'controls', 'compliance'],
       docIds: ['doc-iso27701-19', 'doc-gdpr-06', 'doc-data-05', 'doc-cls-07']
     },
@@ -268,9 +274,9 @@ const RAGService = (() => {
     },
     {
       key: 'transformation-delivery',
-      patterns: ['transformation delivery', 'programme delivery', 'program delivery', 'project delivery', 'go-live', 'milestone slip', 'benefit realization', 'benefit realisation'],
+      patterns: ['transformation delivery', 'programme delivery', 'program delivery', 'project delivery', 'go-live', 'milestone slip', 'benefit realization', 'benefit realisation', 'target state', 'local exceptions', 'exception governance', 'site-access constraints', 'localisation constraints'],
       docTags: ['transformation-delivery', 'strategic', 'operational', 'governance'],
-      docIds: ['doc-coso-erm-25', 'doc-iso31010-50']
+      docIds: ['doc-coso-erm-25', 'doc-iso31010-50', 'doc-transformation-delivery-71']
     },
     {
       key: 'risk-management',

@@ -10,6 +10,7 @@ const SHARED_ASSESSMENT_FIELDS = [
 ];
 
 const { sendApiError, requireSession, readAccountsDirectory } = require('./_apiAuth');
+const { appendAuditEvent } = require('./_audit');
 const { applyCorsHeaders, getUnexpectedFields, isAllowedOrigin, isPlainObject, parseRequestBody } = require('./_request');
 const { get: kvGet, set: kvSet, withLock: withKvLock } = require('./_kvStore');
 
@@ -260,6 +261,31 @@ function buildReviewItem(assessment = {}, session = {}, assignee = {}, sharedAss
   };
 }
 
+async function appendReviewQueueAuditEvent(session = {}, {
+  eventType = '',
+  item = {},
+  details = {}
+} = {}) {
+  if (!toSafeString(eventType)) return;
+  await appendAuditEvent({
+    category: 'review_queue',
+    eventType,
+    actorUsername: toSafeUsername(session.username) || 'system',
+    actorRole: String(session.role || '').trim().toLowerCase() || 'system',
+    target: toSafeString(item.assessmentId || item.id || item.scenarioTitle || 'review_queue_item'),
+    status: 'success',
+    source: 'server',
+    details: {
+      reviewId: toSafeString(item.id),
+      scenarioTitle: toSafeString(item.scenarioTitle),
+      assignedReviewerUsername: toSafeUsername(item.assignedReviewerUsername),
+      assignedReviewerRole: String(item.assignedReviewerRole || '').trim().toLowerCase(),
+      reviewScope: toSafeString(item.reviewScope),
+      ...details
+    }
+  });
+}
+
 module.exports = async function handler(req, res) {
   const body = parseRequestBody(req);
   applyCorsHeaders(req, res, {
@@ -361,6 +387,13 @@ module.exports = async function handler(req, res) {
         sendApiError(res, 409, 'ALREADY_SUBMITTED', 'Assessment is already pending review.');
         return;
       }
+      await appendReviewQueueAuditEvent(session, {
+        eventType: 'review_submitted',
+        item: result?.item || {},
+        details: {
+          submittedBy: toSafeUsername(session.username)
+        }
+      });
       res.status(200).json({ item: result?.item || null });
       return;
     }
@@ -451,6 +484,17 @@ module.exports = async function handler(req, res) {
         sendApiError(res, 403, 'FORBIDDEN', 'You are not allowed to update this review item.');
         return;
       }
+      await appendReviewQueueAuditEvent(session, {
+        eventType: reviewStatus === 'changes_requested'
+          ? 'review_changes_requested'
+          : (reviewStatus === 'escalated' ? 'review_escalated' : 'review_approved'),
+        item: result.item,
+        details: {
+          reviewedBy: toSafeUsername(session.username),
+          escalatedTo: reviewStatus === 'escalated' ? toSafeUsername(result.item?.escalatedTo) : '',
+          reviewNotePresent: !!toSafeString(body.reviewNote)
+        }
+      });
       res.status(200).json({ item: result.item });
       return;
     }
