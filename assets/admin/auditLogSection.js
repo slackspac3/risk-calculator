@@ -49,12 +49,14 @@ const AdminAuditLogSection = (() => {
       matches: entry => String(entry?.actorRole || '') === 'user'
     }
   ];
+  const DEFAULT_VISIBLE_AUDIT_ROWS = 50;
   let activeFilterKey = '';
   let activeSearchQuery = '';
   let activeRoleFilter = 'all';
   let activeCategoryFilter = 'all';
   let activeStatusFilter = 'all';
   let activeSourceFilter = 'all';
+  let visibleAuditRowCount = DEFAULT_VISIBLE_AUDIT_ROWS;
   const expandedEntryIds = new Set();
 
   function escape(value = '') {
@@ -231,7 +233,7 @@ const AdminAuditLogSection = (() => {
       if (secondaryFilters.search && !buildAuditSearchHaystack(entry).includes(secondaryFilters.search.toLowerCase())) return false;
       return true;
     });
-    const auditEntries = filteredEntries.slice(0, 25);
+    const auditEntries = filteredEntries.slice(0, visibleAuditRowCount);
     const runtimeEntries = Array.isArray(AppState.clientRuntimeErrors) ? AppState.clientRuntimeErrors.slice(0, 5) : [];
     const roleOptions = buildFilterOptions(loadedEntries, 'actorRole');
     const categoryOptions = buildFilterOptions(loadedEntries, 'category');
@@ -241,6 +243,10 @@ const AdminAuditLogSection = (() => {
     const lastLoadedLabel = Number(auditCache.lastLoadedAt || 0)
       ? formatLogTimestamp(auditCache.lastLoadedAt, 'Unknown time')
       : 'Not refreshed yet';
+    const lastLoadedAt = Number(auditCache.lastLoadedAt || 0);
+    const dataAgeLabel = lastLoadedAt
+      ? (typeof formatRelativePilotTime === 'function' ? formatRelativePilotTime(lastLoadedAt, 'just now') : 'just now')
+      : 'not loaded yet';
     return renderSettingsSection({
       title: 'Activity Log',
       scope: 'admin-settings',
@@ -254,7 +260,12 @@ const AdminAuditLogSection = (() => {
       <div class="audit-log-toolbar">
         <div class="audit-log-toolbar__actions">
           <button class="btn btn--primary audit-log-toolbar__button" id="btn-refresh-audit-log" type="button">${auditCache.loading ? 'Refreshing…' : 'Refresh Logs'}</button>
-          <div class="form-help audit-log-toolbar__meta">Last refreshed: <strong>${escape(lastLoadedLabel)}</strong></div>
+          <div class="form-help audit-log-toolbar__meta">Last refreshed: ${typeof renderLiveTimestampValue === 'function'
+            ? renderLiveTimestampValue(lastLoadedAt, { tagName: 'strong', mode: 'absolute', includeSeconds: true, fallback: 'Not refreshed yet' })
+            : `<strong>${escape(lastLoadedLabel)}</strong>`}</div>
+          <div class="form-help audit-log-toolbar__meta">Data age: ${typeof renderLiveTimestampValue === 'function'
+            ? renderLiveTimestampValue(lastLoadedAt, { tagName: 'strong', mode: 'relative', fallback: 'not loaded yet', staleAfterMs: 120000, staleClass: 'live-timestamp--stale' })
+            : `<strong>${escape(dataAgeLabel)}</strong>`}</div>
           <div class="form-help audit-log-toolbar__meta">Loaded ${escape(String(loadedEntries.length || 0))} / ${escape(String(auditSummary.retainedCapacity || 500))} retained</div>
         </div>
         <span class="form-help" id="audit-log-status">${auditCache.error || 'Older activity rolls off automatically. All timestamps use Dubai time (GST) with UK date order.'}</span>
@@ -284,7 +295,7 @@ const AdminAuditLogSection = (() => {
       ${hasActiveFilters ? `<div class="audit-log-filter-banner" id="audit-log-active-filter">
         <div>
           <strong>${escape(activeFilter ? activeFilter.label : 'Filtered audit view')}</strong>
-          <div class="form-help">Showing up to 25 matching events from the currently loaded audit window.</div>
+          <div class="form-help">Showing ${escape(String(Math.min(filteredEntries.length, visibleAuditRowCount)))} of ${escape(String(filteredEntries.length))} matching events from the currently loaded audit window.</div>
         </div>
         <button class="btn btn--ghost btn--sm" id="btn-clear-audit-filters" type="button">Clear All Filters</button>
       </div>` : ''}
@@ -304,7 +315,14 @@ const AdminAuditLogSection = (() => {
         table: `<table class="data-table" id="admin-audit-activity-table">
           <thead><tr><th>Time</th><th>User</th><th>Activity</th><th>Target</th><th>Outcome</th><th>More</th></tr></thead>
           <tbody>${renderAuditRows(auditEntries)}</tbody>
-        </table>`
+        </table>
+        ${filteredEntries.length > visibleAuditRowCount ? `<div class="audit-log-pagination">
+          <button class="btn btn--secondary btn--sm" id="btn-show-more-audit-rows" type="button">Show 50 More</button>
+          <button class="btn btn--ghost btn--sm" id="btn-show-all-audit-rows" type="button">Show All Loaded</button>
+          <span class="form-help">Viewing ${escape(String(auditEntries.length))} of ${escape(String(filteredEntries.length))} matching events.</span>
+        </div>` : (filteredEntries.length > DEFAULT_VISIBLE_AUDIT_ROWS ? `<div class="audit-log-pagination">
+          <span class="form-help">Viewing all ${escape(String(filteredEntries.length))} matching events from the current retained audit window.</span>
+        </div>` : '')}`
       })}`
     });
   }
@@ -322,6 +340,7 @@ const AdminAuditLogSection = (() => {
       if (status) status.textContent = 'Refreshing recent logs…';
       try {
         await loadAuditLog();
+        visibleAuditRowCount = DEFAULT_VISIBLE_AUDIT_ROWS;
         rerenderCurrentAdminSection();
       } catch (error) {
         if (btn) {
@@ -336,27 +355,33 @@ const AdminAuditLogSection = (() => {
       button.addEventListener('click', () => {
         const nextKey = String(button.getAttribute('data-audit-filter-key') || '').trim();
         activeFilterKey = activeFilterKey === nextKey ? '' : nextKey;
+        visibleAuditRowCount = DEFAULT_VISIBLE_AUDIT_ROWS;
         rerenderCurrentAdminSection();
       });
     });
     document.getElementById('audit-log-search')?.addEventListener('input', (event) => {
       activeSearchQuery = String(event?.target?.value || '');
+      visibleAuditRowCount = DEFAULT_VISIBLE_AUDIT_ROWS;
       rerenderCurrentAdminSection();
     });
     document.getElementById('audit-log-role-filter')?.addEventListener('change', (event) => {
       activeRoleFilter = normaliseFilterValue(event?.target?.value) || 'all';
+      visibleAuditRowCount = DEFAULT_VISIBLE_AUDIT_ROWS;
       rerenderCurrentAdminSection();
     });
     document.getElementById('audit-log-category-filter')?.addEventListener('change', (event) => {
       activeCategoryFilter = normaliseFilterValue(event?.target?.value) || 'all';
+      visibleAuditRowCount = DEFAULT_VISIBLE_AUDIT_ROWS;
       rerenderCurrentAdminSection();
     });
     document.getElementById('audit-log-status-filter')?.addEventListener('change', (event) => {
       activeStatusFilter = normaliseFilterValue(event?.target?.value) || 'all';
+      visibleAuditRowCount = DEFAULT_VISIBLE_AUDIT_ROWS;
       rerenderCurrentAdminSection();
     });
     document.getElementById('audit-log-source-filter')?.addEventListener('change', (event) => {
       activeSourceFilter = normaliseFilterValue(event?.target?.value) || 'all';
+      visibleAuditRowCount = DEFAULT_VISIBLE_AUDIT_ROWS;
       rerenderCurrentAdminSection();
     });
     document.getElementById('btn-clear-audit-filters')?.addEventListener('click', () => {
@@ -366,7 +391,16 @@ const AdminAuditLogSection = (() => {
       activeCategoryFilter = 'all';
       activeStatusFilter = 'all';
       activeSourceFilter = 'all';
+      visibleAuditRowCount = DEFAULT_VISIBLE_AUDIT_ROWS;
       expandedEntryIds.clear();
+      rerenderCurrentAdminSection();
+    });
+    document.getElementById('btn-show-more-audit-rows')?.addEventListener('click', () => {
+      visibleAuditRowCount += DEFAULT_VISIBLE_AUDIT_ROWS;
+      rerenderCurrentAdminSection();
+    });
+    document.getElementById('btn-show-all-audit-rows')?.addEventListener('click', () => {
+      visibleAuditRowCount = Number.MAX_SAFE_INTEGER;
       rerenderCurrentAdminSection();
     });
     document.querySelectorAll('[data-audit-detail-toggle]').forEach((button) => {

@@ -30,15 +30,16 @@ function buildSeededUserSettings(overrides = {}) {
 
 function buildAuditSummary(entries = []) {
   const list = Array.isArray(entries) ? entries : [];
+  const isAuthEvent = entry => ['login_success', 'login_failure', 'logout'].includes(String(entry?.eventType || '').trim().toLowerCase());
   return {
     total: list.length,
     retainedCapacity: 500,
     loginSuccessCount: list.filter(entry => entry?.eventType === 'login_success').length,
     loginFailureCount: list.filter(entry => entry?.eventType === 'login_failure').length,
     logoutCount: list.filter(entry => entry?.eventType === 'logout').length,
-    adminActionCount: list.filter(entry => entry?.actorRole === 'admin').length,
-    buAdminActionCount: list.filter(entry => entry?.actorRole === 'bu_admin').length,
-    userActionCount: list.filter(entry => entry?.actorRole === 'user').length
+    adminActionCount: list.filter(entry => entry?.actorRole === 'admin' && !isAuthEvent(entry)).length,
+    buAdminActionCount: list.filter(entry => entry?.actorRole === 'bu_admin' && !isAuthEvent(entry)).length,
+    userActionCount: list.filter(entry => entry?.actorRole === 'user' && !isAuthEvent(entry)).length
   };
 }
 

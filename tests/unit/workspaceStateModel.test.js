@@ -19,14 +19,37 @@ const {
 
 test('workspace sync queue merges patches without dropping the prior queue', () => {
   const next = applyWorkspaceSyncQueuedTransition({
-    userStateSyncPending: { draft: { scenarioTitle: 'Existing' } }
+    userStateSyncPending: { draftWorkspace: { draft: { scenarioTitle: 'Existing' }, status: 'active', lastSavedAt: 0, recoverySnapshotAt: 0 } }
   }, {
     userSettings: { geography: 'UAE' }
   });
   assert.deepEqual(next.userStateSyncPending, {
-    draft: { scenarioTitle: 'Existing' },
+    draftWorkspace: {
+      schemaVersion: 2,
+      draft: { scenarioTitle: 'Existing' },
+      status: 'active',
+      lastSavedAt: 0,
+      recoverySnapshotAt: 0
+    },
     userSettings: { geography: 'UAE' }
   });
+});
+
+test('workspace sync queue normalises legacy draft and saved assessment patch slices without overwriting untouched slices', () => {
+  const next = applyWorkspaceSyncQueuedTransition({
+    userStateSyncPending: {
+      userSettings: { geography: 'UAE' }
+    }
+  }, {
+    draft: { scenarioTitle: 'New scenario' },
+    assessments: [{ id: 'assessment-1', scenarioTitle: 'Saved' }]
+  });
+  assert.deepEqual(next.userStateSyncPending.userSettings, { geography: 'UAE' });
+  assert.equal(next.userStateSyncPending.draftWorkspace.schemaVersion, 2);
+  assert.equal(next.userStateSyncPending.draftWorkspace.draft.scenarioTitle, 'New scenario');
+  assert.equal(next.userStateSyncPending.savedAssessments.schemaVersion, 2);
+  assert.equal(next.userStateSyncPending.savedAssessments.index.length, 1);
+  assert.equal(next.userStateSyncPending.savedAssessments.index[0].id, 'assessment-1');
 });
 
 test('workspace sync started clears the last conflict and marks the sync in flight', () => {

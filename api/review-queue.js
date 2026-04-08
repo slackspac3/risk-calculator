@@ -9,7 +9,7 @@ const SHARED_ASSESSMENT_FIELDS = [
   'completedAt', 'results', 'lifecycleStatus', 'comparisonBaselineId'
 ];
 
-const { sendApiError, requireSession, readAccountsDirectory } = require('./_apiAuth');
+const { sendApiError, sendConflictError, requireSession, readAccountsDirectory } = require('./_apiAuth');
 const { appendAuditEvent } = require('./_audit');
 const { applyCorsHeaders, getUnexpectedFields, isAllowedOrigin, isPlainObject, parseRequestBody } = require('./_request');
 const { get: kvGet, set: kvSet, withLock: withKvLock } = require('./_kvStore');
@@ -44,6 +44,10 @@ function toSafeUsername(value) {
 function toNumberOrZero(value) {
   const number = Number(value);
   return Number.isFinite(number) ? number : 0;
+}
+
+function getReviewRevision(item = {}) {
+  return Math.max(1, Number(item?.reviewRevision || 1));
 }
 
 function isReviewerRole(role = '') {
@@ -231,12 +235,13 @@ function buildReviewItem(assessment = {}, session = {}, assignee = {}, sharedAss
   const results = isPlainObject(assessment.results) ? assessment.results : {};
   const eventLoss = isPlainObject(results.eventLoss) ? results.eventLoss : {};
   const ale = isPlainObject(results.ale) ? results.ale : {};
+  const submittedAt = Date.now();
   return {
     id: `rq_${crypto.randomUUID()}`,
     assessmentId: toSafeString(assessment.id),
     submittedBy: toSafeUsername(session.username),
     submittedByDisplayName: toSafeString(session.displayName) || toSafeUsername(session.username),
-    submittedAt: Date.now(),
+    submittedAt,
     buId: toSafeString(session.businessUnitEntityId || assessment.buId),
     buName: toSafeString(assessment.buName),
     departmentEntityId: toSafeString(session.departmentEntityId || assessment.departmentEntityId || assessment.functionId || assessment.functionKey),
@@ -251,9 +256,11 @@ function buildReviewItem(assessment = {}, session = {}, assignee = {}, sharedAss
     assignedReviewerRole: String(assignee.role || '').trim().toLowerCase(),
     reviewScope: deriveReviewScopeForTarget(session, assignee),
     reviewStatus: 'pending',
+    reviewRevision: 1,
     reviewNote: '',
     reviewedBy: '',
     reviewedAt: 0,
+    updatedAt: submittedAt,
     escalatedTo: '',
     escalatedBy: '',
     escalatedAt: 0,
@@ -401,15 +408,23 @@ module.exports = async function handler(req, res) {
     if (req.method === 'PATCH') {
       const session = await requireSession(req, res);
       if (!session) return;
-      if (getUnexpectedFields(body, ['escalatedTo', 'id', 'reviewNote', 'reviewStatus', 'reviewedBy']).length) {
+      if (getUnexpectedFields(body, ['escalatedTo', 'expectedReviewRevision', 'id', 'reviewNote', 'reviewStatus', 'reviewedBy']).length) {
         sendApiError(res, 400, 'VALIDATION_ERROR', 'Unexpected fields were included in the review update.');
         return;
       }
       const reviewId = toSafeString(body.id);
       const reviewStatus = toSafeString(body.reviewStatus).toLowerCase();
+      const parsedExpectedReviewRevision = Number(body.expectedReviewRevision);
+      const expectedReviewRevision = body.expectedReviewRevision === undefined || body.expectedReviewRevision === null || body.expectedReviewRevision === ''
+        ? null
+        : (Number.isFinite(parsedExpectedReviewRevision) ? Math.max(1, parsedExpectedReviewRevision) : NaN);
       const validStatuses = new Set(['approved', 'changes_requested', 'escalated']);
       if (!reviewId) {
         sendApiError(res, 400, 'VALIDATION_ERROR', 'Review id is required.');
+        return;
+      }
+      if (Number.isNaN(expectedReviewRevision)) {
+        sendApiError(res, 400, 'VALIDATION_ERROR', 'expectedReviewRevision must be a number when provided.');
         return;
       }
       if (!validStatuses.has(reviewStatus)) {
@@ -422,6 +437,9 @@ module.exports = async function handler(req, res) {
         const index = queue.findIndex(item => toSafeString(item.id) === reviewId);
         if (index < 0) return { missing: true };
         const current = queue[index];
+        if (expectedReviewRevision !== null && getReviewRevision(current) !== expectedReviewRevision) {
+          return { conflict: true, item: decorateQueueItemForSession(session, current) };
+        }
         if (reviewStatus === 'escalated') {
           if (!canEscalateQueueItem(session, current)) return { forbidden: true };
         } else if (!canReviewQueueItem(session, current)) {
@@ -452,9 +470,11 @@ module.exports = async function handler(req, res) {
         const updated = {
           ...current,
           reviewStatus,
+          reviewRevision: getReviewRevision(current) + 1,
           reviewNote: toSafeString(body.reviewNote),
           reviewedBy: toSafeUsername(session.username),
           reviewedAt: Date.now(),
+          updatedAt: Date.now(),
           assignedReviewerUsername: nextAssignedReviewer.username,
           assignedReviewerDisplayName: nextAssignedReviewer.displayName,
           assignedReviewerRole: nextAssignedReviewer.role,
@@ -478,6 +498,14 @@ module.exports = async function handler(req, res) {
       }
       if (result?.invalidTarget) {
         sendApiError(res, 403, 'FORBIDDEN', 'You are not allowed to escalate this assessment to that reviewer.');
+        return;
+      }
+      if (result?.conflict) {
+        sendConflictError(
+          res,
+          'This review item changed in another session. Load the latest item and try again.',
+          { latestItem: result.item }
+        );
         return;
       }
       if (result?.forbidden) {

@@ -188,6 +188,7 @@ function resolveApiUrl(path) {
     error.code = String(parsed?.error?.code || '').trim();
     error.retryAfterSeconds = Number(parsed?.retryAfterSeconds || 0);
     error.details = parsed || null;
+    if (parsed?.latestItem) error.latestItem = parsed.latestItem;
     if (parsed?.latestState) error.latestState = parsed.latestState;
     if (parsed?.latestSettings) error.latestSettings = parsed.latestSettings;
     if (parsed?.latestMeta) error.latestMeta = parsed.latestMeta;
@@ -538,6 +539,7 @@ function resolveApiUrl(path) {
     getCurrentUser,
     updateSessionContext,
     getApiSessionToken,
+    refreshManagedAccounts,
     getManagedAccounts,
     createManagedAccount,
     updateManagedAccount,

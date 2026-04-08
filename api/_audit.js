@@ -3,6 +3,7 @@ const { getKvConfig, withLock: withKvLock } = require('./_kvStore');
 
 const AUDIT_KEY = process.env.AUDIT_LOG_KEY || 'risk_calculator_audit_log';
 const AUDIT_CAPACITY = Number(process.env.AUDIT_LOG_CAPACITY || 500);
+const AUTH_EVENT_TYPES = new Set(['login_success', 'login_failure', 'logout']);
 
 async function runKvCommand(command) {
   let config = null;
@@ -90,6 +91,7 @@ function summariseAuditLog(entries = []) {
     if (entry.eventType === 'login_success') summary.loginSuccessCount += 1;
     if (entry.eventType === 'login_failure') summary.loginFailureCount += 1;
     if (entry.eventType === 'logout') summary.logoutCount += 1;
+    if (AUTH_EVENT_TYPES.has(String(entry.eventType || '').trim().toLowerCase())) continue;
     if (entry.actorRole === 'admin') summary.adminActionCount += 1;
     else if (entry.actorRole === 'bu_admin') summary.buAdminActionCount += 1;
     else if (entry.actorRole === 'user') summary.userActionCount += 1;

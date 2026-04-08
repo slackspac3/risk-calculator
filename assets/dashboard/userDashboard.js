@@ -1889,7 +1889,7 @@ function renderUserDashboard() {
       error: ''
     };
     renderAiFlagsBodyToDom();
-    if (!candidates.length) {
+  if (!candidates.length) {
       const emptyState = {
         open: !!aiFlagsPanel?.open,
         loading: false,
@@ -1979,6 +1979,37 @@ function renderUserDashboard() {
     }
     renderAiFlagsBodyToDom();
   };
+  const renderDashboardReviewInboxFreshness = () => {
+    const meta = typeof window.AppReviewQueueSync?.getSurfaceMeta === 'function'
+      ? window.AppReviewQueueSync.getSurfaceMeta('dashboard')
+      : { lastLoadedAt: 0, stale: false, error: '' };
+    const notice = typeof window.AppReviewQueueSync?.getNotice === 'function'
+      ? window.AppReviewQueueSync.getNotice()
+      : null;
+    const lastLoadedAt = Number(meta?.lastLoadedAt || 0);
+    const syncedLabel = typeof formatOperationalDateTime === 'function'
+      ? formatOperationalDateTime(lastLoadedAt, { includeSeconds: true, fallback: 'Not synced yet' })
+      : 'Not synced yet';
+    const dataAgeLabel = typeof formatRelativePilotTime === 'function'
+      ? formatRelativePilotTime(lastLoadedAt, 'not loaded yet')
+      : 'not loaded yet';
+    const statusCopy = meta?.stale
+      ? 'Review queue changed elsewhere. The inbox is refreshing.'
+      : meta?.error
+        ? String(meta.error || 'Could not refresh the inbox right now.')
+        : notice?.status === 'resolved' && Number(notice?.resolvedAt || 0) >= lastLoadedAt
+          ? 'This inbox reloaded after another tab changed review ownership or status.'
+          : 'Assigned items refresh when review ownership or status changes elsewhere.';
+    return `<div class="review-queue-sync-meta ${meta?.stale ? 'review-queue-sync-meta--stale' : ''}">
+      <span>Last synced ${typeof renderLiveTimestampValue === 'function'
+        ? renderLiveTimestampValue(lastLoadedAt, { tagName: 'strong', mode: 'absolute', includeSeconds: true, fallback: 'Not synced yet' })
+        : `<strong>${escapeDashboardText(syncedLabel)}</strong>`}</span>
+      <span>Data age ${typeof renderLiveTimestampValue === 'function'
+        ? renderLiveTimestampValue(lastLoadedAt, { tagName: 'strong', mode: 'relative', fallback: 'not loaded yet', staleAfterMs: 120000, staleClass: 'live-timestamp--stale' })
+        : `<strong>${escapeDashboardText(dataAgeLabel)}</strong>`}</span>
+      <span>${escapeDashboardText(statusCopy)}</span>
+    </div>`;
+  };
   const loadDashboardReviewInbox = async () => {
     const host = document.getElementById('dashboard-review-inbox-host');
     if (!isOversightUser || !host) return;
@@ -2004,6 +2035,9 @@ function renderUserDashboard() {
           return Number(right?.submittedAt || 0) - Number(left?.submittedAt || 0);
         })
         .slice(0, 4);
+      window.AppReviewQueueSync?.markSurfaceLoaded?.('dashboard', {
+        count: unresolved.length
+      });
       if (!unresolved.length) {
         host.innerHTML = '';
         return;
@@ -2013,7 +2047,7 @@ function renderUserDashboard() {
         description: 'Open the assigned or visible review items here, then complete the decision on the results page.',
         badge: unresolved.length,
         className: 'dashboard-section-card--secondary',
-        body: unresolved.map(item => UI.dashboardAssessmentRow({
+        body: `${renderDashboardReviewInboxFreshness()}${unresolved.map(item => UI.dashboardAssessmentRow({
           assessmentId: String(item?.assessmentId || '').trim(),
           title: escapeDashboardText(item?.scenarioTitle || item?.sharedAssessment?.scenarioTitle || 'Review item'),
           detail: `
@@ -2031,10 +2065,11 @@ function renderUserDashboard() {
               Open Review
             </button>
           `
-        })).join('')
+        })).join('')}`
       });
     } catch (error) {
       console.error('dashboard review inbox load failed:', error);
+      window.AppReviewQueueSync?.markSurfaceLoadFailed?.('dashboard', 'Could not refresh the review inbox right now.');
       host.innerHTML = '<div class="form-help" style="margin-bottom:var(--sp-4)">Could not load the review inbox right now.</div>';
     }
   };
@@ -2045,7 +2080,25 @@ function renderUserDashboard() {
     };
   });
   if (!isOversightUser) loadAiFlags();
-  if (isOversightUser) loadDashboardReviewInbox();
+  if (isOversightUser) {
+    loadDashboardReviewInbox();
+    const handleReviewQueueInvalidated = () => {
+      const host = document.getElementById('dashboard-review-inbox-host');
+      if (host && host.children.length) {
+        host.innerHTML = UI.dashboardSectionCard({
+          title: 'Review inbox',
+          description: 'Open the assigned or visible review items here, then complete the decision on the results page.',
+          className: 'dashboard-section-card--secondary',
+          body: `${renderDashboardReviewInboxFreshness()}<div class="form-help" style="margin-top:var(--sp-3)">Refreshing assigned review requests…</div>`
+        });
+      }
+      void loadDashboardReviewInbox();
+    };
+    window.addEventListener('rq:review-queue-invalidated', handleReviewQueueInvalidated);
+    window.AppShellPage?.registerCleanup?.(() => {
+      window.removeEventListener('rq:review-queue-invalidated', handleReviewQueueInvalidated);
+    });
+  }
   const correlationPanel = document.getElementById('dashboard-correlation-panel');
   const correlationBody = document.getElementById('dashboard-correlation-body');
   const renderCorrelationBodyToDom = () => {

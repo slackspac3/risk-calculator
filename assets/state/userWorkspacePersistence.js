@@ -255,6 +255,48 @@
     return next;
   }
 
+  function listUserWorkspacePatchSlices(patch = {}) {
+    const sourcePatch = patch && typeof patch === 'object' ? patch : {};
+    const slices = [];
+    if (Object.prototype.hasOwnProperty.call(sourcePatch, 'userSettings')) slices.push('userSettings');
+    if (Object.prototype.hasOwnProperty.call(sourcePatch, 'learningStore')) slices.push('learningStore');
+    if (Object.prototype.hasOwnProperty.call(sourcePatch, 'draftWorkspace') || Object.prototype.hasOwnProperty.call(sourcePatch, 'draft')) slices.push('draftWorkspace');
+    if (Object.prototype.hasOwnProperty.call(sourcePatch, 'savedAssessments') || Object.prototype.hasOwnProperty.call(sourcePatch, 'assessments')) slices.push('savedAssessments');
+    return slices;
+  }
+
+  function normaliseUserWorkspacePatch(patch = {}) {
+    const sourcePatch = patch && typeof patch === 'object' ? patch : {};
+    const nextPatch = {};
+    if (Object.prototype.hasOwnProperty.call(sourcePatch, 'userSettings')) {
+      nextPatch.userSettings = normaliseUserSettingsSection(sourcePatch.userSettings);
+    }
+    if (Object.prototype.hasOwnProperty.call(sourcePatch, 'learningStore')) {
+      nextPatch.learningStore = normaliseLearningStoreSection(sourcePatch.learningStore);
+    }
+    if (Object.prototype.hasOwnProperty.call(sourcePatch, 'draftWorkspace')) {
+      nextPatch.draftWorkspace = normaliseDraftWorkspaceSection(sourcePatch.draftWorkspace, null);
+    } else if (Object.prototype.hasOwnProperty.call(sourcePatch, 'draft')) {
+      nextPatch.draftWorkspace = buildDraftWorkspaceSection(sourcePatch.draft, {
+        lastSavedAt: Number(sourcePatch.draftLastSavedAt || 0),
+        recoverySnapshotAt: Number(sourcePatch.draftRecoveryAt || 0)
+      });
+    }
+    if (Object.prototype.hasOwnProperty.call(sourcePatch, 'savedAssessments')) {
+      nextPatch.savedAssessments = normaliseSavedAssessmentsSection(sourcePatch.savedAssessments, []);
+    } else if (Object.prototype.hasOwnProperty.call(sourcePatch, 'assessments')) {
+      nextPatch.savedAssessments = buildSavedAssessmentsSection(sourcePatch.assessments);
+    }
+    return nextPatch;
+  }
+
+  function mergeUserWorkspacePatchSlices(currentPatch = {}, patch = {}) {
+    return {
+      ...normaliseUserWorkspacePatch(currentPatch),
+      ...normaliseUserWorkspacePatch(patch)
+    };
+  }
+
   function serializeUserWorkspaceState(state = {}) {
     const normalised = normaliseUserWorkspaceState(state);
     return {
@@ -280,6 +322,9 @@
     buildDraftWorkspaceSection,
     normaliseUserWorkspaceState,
     applyUserWorkspacePatch,
+    listUserWorkspacePatchSlices,
+    normaliseUserWorkspacePatch,
+    mergeUserWorkspacePatchSlices,
     serializeUserWorkspaceState
   };
 

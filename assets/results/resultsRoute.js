@@ -3374,6 +3374,7 @@ function buildLocalReviewSubmissionFromQueueItem(item = {}) {
   return {
     reviewId: String(item?.id || '').trim(),
     reviewStatus: String(item?.reviewStatus || '').trim().toLowerCase(),
+    reviewRevision: Math.max(1, Number(item?.reviewRevision || 1)),
     submittedAt: Number(item?.submittedAt || 0),
     submittedByUsername: String(item?.submittedBy || '').trim().toLowerCase(),
     submittedByDisplayName: String(item?.submittedByDisplayName || '').trim(),
@@ -3384,6 +3385,7 @@ function buildLocalReviewSubmissionFromQueueItem(item = {}) {
     reviewNote: String(item?.reviewNote || '').trim(),
     reviewedBy: String(item?.reviewedBy || '').trim().toLowerCase(),
     reviewedAt: Number(item?.reviewedAt || 0),
+    updatedAt: Number(item?.updatedAt || 0),
     escalatedTo: String(item?.escalatedTo || '').trim().toLowerCase(),
     escalatedBy: String(item?.escalatedBy || '').trim().toLowerCase(),
     escalatedAt: Number(item?.escalatedAt || 0),
@@ -3405,7 +3407,23 @@ async function fetchReviewTargets(action = 'submit') {
   return response.json();
 }
 
-async function patchReviewQueueItem(reviewId, patch = {}) {
+async function buildResultsReviewQueueError(response, fallbackMessage) {
+  const text = await response.text();
+  let parsed = null;
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch {}
+  if (typeof AuthService !== 'undefined' && typeof AuthService.buildApiError === 'function') {
+    return AuthService.buildApiError(response, parsed, text || fallbackMessage);
+  }
+  const error = new Error(parsed?.error?.message || fallbackMessage);
+  error.status = Number(response?.status || 0);
+  error.code = String(parsed?.error?.code || '').trim();
+  if (parsed?.latestItem) error.latestItem = parsed.latestItem;
+  return error;
+}
+
+async function patchReviewQueueItem(reviewId, patch = {}, expectedReviewRevision = 1) {
   const response = await fetch('/api/review-queue', {
     method: 'PATCH',
     headers: {
@@ -3414,10 +3432,11 @@ async function patchReviewQueueItem(reviewId, patch = {}) {
     },
     body: JSON.stringify({
       id: reviewId,
+      expectedReviewRevision,
       ...patch
     })
   });
-  if (!response.ok) throw new Error('Review update failed.');
+  if (!response.ok) throw await buildResultsReviewQueueError(response, 'Review update failed.');
   return response.json();
 }
 
@@ -3429,6 +3448,15 @@ function renderResultsReviewSubmitBanner(assessment, r) {
   const reviewStatus = String(reviewSubmission.reviewStatus || '').trim().toLowerCase();
   const assignedReviewerLabel = escapeHtml(getResultsReviewActorLabel(reviewSubmission));
   const reviewScopeLabel = escapeHtml(getResultsReviewScopeLabel(reviewSubmission.reviewScope));
+  const reviewQueueUpdatedAt = Number(reviewSubmission.updatedAt || reviewSubmission.reviewedAt || reviewSubmission.submittedAt || 0);
+  const reviewFreshnessMarkup = reviewQueueUpdatedAt
+    ? `Last queue update ${typeof renderLiveTimestampValue === 'function'
+        ? renderLiveTimestampValue(reviewQueueUpdatedAt, { tagName: 'strong', mode: 'absolute', includeSeconds: true, fallback: 'Unknown time' })
+        : `<strong>${escapeHtml(typeof formatOperationalDateTime === 'function' ? formatOperationalDateTime(reviewQueueUpdatedAt, { includeSeconds: true, fallback: 'Unknown time' }) : 'Unknown time')}</strong>`}
+      · ${typeof renderLiveTimestampValue === 'function'
+        ? renderLiveTimestampValue(reviewQueueUpdatedAt, { tagName: 'strong', mode: 'relative', fallback: 'just now', staleAfterMs: 120000, staleClass: 'live-timestamp--stale' })
+        : `<strong>${escapeHtml(typeof formatRelativePilotTime === 'function' ? formatRelativePilotTime(reviewQueueUpdatedAt, 'just now') : 'just now')}</strong>`}`
+    : '';
   if (isReviewAwaitingDecision(reviewStatus)) {
     const reviewActionButtons = [];
     if (reviewSubmission.currentUserCanReview) {
@@ -3451,6 +3479,7 @@ function renderResultsReviewSubmitBanner(assessment, r) {
       <div class="review-submit-banner__body">
         <strong>${reviewSubmission.currentUserCanReview ? 'Assigned to you' : label}</strong>
         <span>${copy}</span>
+        ${reviewFreshnessMarkup ? `<span class="review-submit-banner__meta">${reviewFreshnessMarkup}</span>` : ''}
       </div>
       ${actionButtons}
     </div>`;
@@ -3462,6 +3491,7 @@ function renderResultsReviewSubmitBanner(assessment, r) {
     return `<div class="review-submit-banner review-submit-banner--approved" id="review-submit-banner" role="status">
       <strong>Approved</strong>
       <span>Reviewed by ${reviewedBy}${reviewedLabel ? ` on ${reviewedLabel}` : ''}.</span>
+      ${reviewFreshnessMarkup ? `<span class="review-submit-banner__meta">${reviewFreshnessMarkup}</span>` : ''}
     </div>`;
   }
   if (reviewStatus === 'changes_requested') {
@@ -3469,6 +3499,7 @@ function renderResultsReviewSubmitBanner(assessment, r) {
       <div class="review-submit-banner__body">
         <strong>Changes requested</strong>
         <span>${escapeHtml(reviewSubmission.reviewNote || 'Your reviewer has asked for changes before approving this assessment.')}</span>
+        ${reviewFreshnessMarkup ? `<span class="review-submit-banner__meta">${reviewFreshnessMarkup}</span>` : ''}
       </div>
       <button type="button" class="btn btn--warning btn--sm" id="btn-revise-assessment">
         Revise Assessment
@@ -3484,6 +3515,7 @@ function renderResultsReviewSubmitBanner(assessment, r) {
     <div class="review-submit-banner__body">
       <strong>This result ${triggerLabel}.</strong>
       <span>Submit it to your reviewer for management sign-off.</span>
+      ${reviewFreshnessMarkup ? `<span class="review-submit-banner__meta">${reviewFreshnessMarkup}</span>` : ''}
     </div>
     <button type="button" class="btn btn--primary btn--sm" id="btn-submit-review">
       Submit for Review
@@ -4024,6 +4056,40 @@ function renderReviewMeetingRoom(assessment) {
 }
 
 function bindReviewBannerActions(assessment, { isShared = false } = {}) {
+  const applyReviewQueueItem = (item = {}) => {
+    const nextSubmission = buildLocalReviewSubmissionFromQueueItem(item || {});
+    updateAssessmentRecord(assessment.id, rec => ({
+      ...rec,
+      reviewSubmission: {
+        ...(rec.reviewSubmission || {}),
+        ...nextSubmission
+      }
+    }));
+    return nextSubmission;
+  };
+  const handleReviewQueueUpdateFailure = (error, fallbackMessage) => {
+    if (error?.code === 'WRITE_CONFLICT' && error.latestItem) {
+      applyReviewQueueItem(error.latestItem);
+      UI.toast('This review item changed in another tab or session. Loaded the latest status.', 'warning');
+      renderResults(assessment.id, isShared || assessment._shared);
+      return true;
+    }
+    UI.toast(fallbackMessage, 'danger');
+    return false;
+  };
+  const handleReviewQueueInvalidated = (event) => {
+    const changedAssessmentId = String(event?.detail?.assessmentId || '').trim();
+    if (changedAssessmentId && changedAssessmentId !== String(assessment?.id || '').trim()) return;
+    const latestAssessment = typeof getAssessmentById === 'function'
+      ? (getAssessmentById(assessment.id) || assessment)
+      : assessment;
+    void refreshReviewStatus(latestAssessment, latestAssessment?.results || assessment?.results);
+  };
+  window.addEventListener('rq:review-queue-invalidated', handleReviewQueueInvalidated);
+  window.AppShellPage?.registerCleanup?.(() => {
+    window.removeEventListener('rq:review-queue-invalidated', handleReviewQueueInvalidated);
+  });
+
   document.getElementById('btn-revise-assessment')?.addEventListener('click', () => {
     openAssessmentForRevision(assessment, { targetStep: '/wizard/3' });
   });
@@ -4102,6 +4168,10 @@ function bindReviewBannerActions(assessment, { isShared = false } = {}) {
               ...buildLocalReviewSubmissionFromQueueItem(item || {})
             }
           }));
+          window.AppCrossTabSync?.broadcastReviewQueueChanged?.({
+            assessmentId: String(assessment.id || '').trim(),
+            reviewId: String(item?.id || '').trim()
+          });
           modal.close();
           UI.toast('Assessment submitted for review.', 'success');
           renderResults(assessment.id, isShared || assessment._shared);
@@ -4126,18 +4196,16 @@ function bindReviewBannerActions(assessment, { isShared = false } = {}) {
     try {
       const { item } = await patchReviewQueueItem(reviewId, {
         reviewStatus: 'approved'
+      }, Number(assessment?.reviewSubmission?.reviewRevision || 1));
+      applyReviewQueueItem(item || {});
+      window.AppCrossTabSync?.broadcastReviewQueueChanged?.({
+        assessmentId: String(assessment.id || '').trim(),
+        reviewId: String(item?.id || reviewId).trim()
       });
-      updateAssessmentRecord(assessment.id, rec => ({
-        ...rec,
-        reviewSubmission: {
-          ...(rec.reviewSubmission || {}),
-          ...buildLocalReviewSubmissionFromQueueItem(item || {})
-        }
-      }));
       UI.toast('Assessment approved.', 'success');
       renderResults(assessment.id, isShared || assessment._shared);
-    } catch {
-      UI.toast('Could not approve this assessment right now.', 'danger');
+    } catch (error) {
+      if (handleReviewQueueUpdateFailure(error, 'Could not approve this assessment right now.')) return;
       button.disabled = false;
       button.textContent = 'Approve';
     }
@@ -4178,19 +4246,20 @@ function bindReviewBannerActions(assessment, { isShared = false } = {}) {
         const { item } = await patchReviewQueueItem(reviewId, {
           reviewStatus: 'changes_requested',
           reviewNote: reason
+        }, Number(assessment?.reviewSubmission?.reviewRevision || 1));
+        applyReviewQueueItem(item || {});
+        window.AppCrossTabSync?.broadcastReviewQueueChanged?.({
+          assessmentId: String(assessment.id || '').trim(),
+          reviewId: String(item?.id || reviewId).trim()
         });
-        updateAssessmentRecord(assessment.id, rec => ({
-          ...rec,
-          reviewSubmission: {
-            ...(rec.reviewSubmission || {}),
-            ...buildLocalReviewSubmissionFromQueueItem(item || {})
-          }
-        }));
         modal.close();
         UI.toast('Changes requested.', 'success');
         renderResults(assessment.id, isShared || assessment._shared);
-      } catch {
-        UI.toast('Could not send the change request right now.', 'danger');
+      } catch (error) {
+        if (handleReviewQueueUpdateFailure(error, 'Could not send the change request right now.')) {
+          modal.close();
+          return;
+        }
         if (confirmButton) {
           confirmButton.disabled = false;
           confirmButton.textContent = 'Send Request';
@@ -4241,19 +4310,20 @@ function bindReviewBannerActions(assessment, { isShared = false } = {}) {
           const { item } = await patchReviewQueueItem(reviewId, {
             reviewStatus: 'escalated',
             escalatedTo: target
+          }, Number(assessment?.reviewSubmission?.reviewRevision || 1));
+          applyReviewQueueItem(item || {});
+          window.AppCrossTabSync?.broadcastReviewQueueChanged?.({
+            assessmentId: String(assessment.id || '').trim(),
+            reviewId: String(item?.id || reviewId).trim()
           });
-          updateAssessmentRecord(assessment.id, rec => ({
-            ...rec,
-            reviewSubmission: {
-              ...(rec.reviewSubmission || {}),
-              ...buildLocalReviewSubmissionFromQueueItem(item || {})
-            }
-          }));
           modal.close();
           UI.toast('Assessment escalated.', 'success');
           renderResults(assessment.id, isShared || assessment._shared);
-        } catch {
-          UI.toast('Could not escalate this assessment right now.', 'danger');
+        } catch (error) {
+          if (handleReviewQueueUpdateFailure(error, 'Could not escalate this assessment right now.')) {
+            modal.close();
+            return;
+          }
           if (confirmButton) {
             confirmButton.disabled = false;
             confirmButton.textContent = 'Escalate';
@@ -4281,6 +4351,7 @@ async function refreshReviewStatus(assessment, r) {
     const hasChanged = [
       'reviewId',
       'reviewStatus',
+      'reviewRevision',
       'submittedAt',
       'submittedByUsername',
       'assignedReviewerUsername',
@@ -4290,6 +4361,7 @@ async function refreshReviewStatus(assessment, r) {
       'reviewNote',
       'reviewedBy',
       'reviewedAt',
+      'updatedAt',
       'escalatedTo',
       'escalatedBy',
       'escalatedAt',

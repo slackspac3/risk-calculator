@@ -24,6 +24,51 @@
       : 'Unknown date';
   }
 
+  function formatAdminHomeSyncTimestamp(value) {
+    return typeof formatOperationalDateTime === 'function'
+      ? formatOperationalDateTime(value, { includeSeconds: true, fallback: 'Not synced yet' })
+      : 'Not synced yet';
+  }
+
+  function formatAdminHomeDataAge(value) {
+    return typeof formatRelativePilotTime === 'function'
+      ? formatRelativePilotTime(value, 'not loaded yet')
+      : 'not loaded yet';
+  }
+
+  function renderAdminHomeLiveTimestamp(value, options = {}) {
+    return typeof renderLiveTimestampValue === 'function'
+      ? renderLiveTimestampValue(value, options)
+      : escapeAdminHomeText(
+          options.mode === 'absolute'
+            ? formatAdminHomeSyncTimestamp(value)
+            : formatAdminHomeDataAge(value)
+        );
+  }
+
+  function renderReviewQueueFreshnessMeta(scope = 'admin') {
+    const meta = typeof window.AppReviewQueueSync?.getSurfaceMeta === 'function'
+      ? window.AppReviewQueueSync.getSurfaceMeta(scope)
+      : { lastLoadedAt: 0, stale: false, error: '' };
+    const notice = typeof window.AppReviewQueueSync?.getNotice === 'function'
+      ? window.AppReviewQueueSync.getNotice()
+      : null;
+    const lastLoadedAt = Number(meta?.lastLoadedAt || 0);
+    const stale = !!meta?.stale;
+    const statusCopy = stale
+      ? 'Review queue changed elsewhere. The latest items are being reloaded.'
+      : meta?.error
+        ? String(meta.error || 'Could not refresh the review queue right now.')
+        : notice?.status === 'resolved' && Number(notice?.resolvedAt || 0) >= lastLoadedAt
+          ? 'Review queue changed elsewhere and this view reloaded the latest state.'
+          : 'This panel reloads when review ownership or status changes in another tab.';
+    return `<div class="review-queue-sync-meta ${stale ? 'review-queue-sync-meta--stale' : ''}">
+      <span>Last synced ${renderAdminHomeLiveTimestamp(lastLoadedAt, { tagName: 'strong', mode: 'absolute', includeSeconds: true, fallback: 'Not synced yet' })}</span>
+      <span>Data age ${renderAdminHomeLiveTimestamp(lastLoadedAt, { tagName: 'strong', mode: 'relative', fallback: 'not loaded yet', staleAfterMs: 120000, staleClass: 'live-timestamp--stale' })}</span>
+      <span>${escapeAdminHomeText(statusCopy)}</span>
+    </div>`;
+  }
+
   const AdminHomeSection = {
     render({
       settings,
@@ -167,7 +212,8 @@
             ${UI.dashboardSectionCard({
               title: 'Review queue',
               description: 'Assessments submitted for management sign-off.',
-              body: `<div id="admin-review-queue-list">
+              body: `<div id="admin-review-queue-freshness">${renderReviewQueueFreshnessMeta('admin')}</div>
+              <div id="admin-review-queue-list">
                 <div class="form-help">Loading review queue…</div>
               </div>`
             })}
@@ -257,7 +303,9 @@
 
       async function loadReviewQueue() {
         const listEl = document.getElementById('admin-review-queue-list');
+        const freshnessEl = document.getElementById('admin-review-queue-freshness');
         if (!listEl) return;
+        if (freshnessEl) freshnessEl.innerHTML = renderReviewQueueFreshnessMeta('admin');
         try {
           const sessionToken = typeof AuthService !== 'undefined' && typeof AuthService.getApiSessionToken === 'function'
             ? AuthService.getApiSessionToken()
@@ -268,10 +316,15 @@
           });
           if (!res.ok) throw new Error('Failed to load queue');
           const { items } = await res.json();
+          window.AppReviewQueueSync?.markSurfaceLoaded?.('admin', {
+            count: Array.isArray(items) ? items.length : 0
+          });
+          if (freshnessEl) freshnessEl.innerHTML = renderReviewQueueFreshnessMeta('admin');
           if (!items || !items.length) {
             listEl.innerHTML = '<div class="form-help">No assessments are currently waiting for review.</div>';
             return;
           }
+          const queueItemById = new Map((Array.isArray(items) ? items : []).map(item => [String(item?.id || ''), item]));
           const localAssessments = typeof getAssessments === 'function' ? getAssessments() : [];
           const assessmentById = new Map((Array.isArray(localAssessments) ? localAssessments : []).map(item => [String(item?.id || ''), item]));
           listEl.innerHTML = items.map(item => `
@@ -342,6 +395,7 @@
                   ...(current.reviewSubmission || {}),
                   reviewId: queueItem.id || '',
                   reviewStatus: queueItem.reviewStatus || '',
+                  reviewRevision: Math.max(1, Number(queueItem.reviewRevision || 1)),
                   submittedAt: queueItem.submittedAt || 0,
                   submittedByUsername: queueItem.submittedBy || '',
                   submittedByDisplayName: queueItem.submittedByDisplayName || '',
@@ -352,6 +406,7 @@
                   reviewNote: queueItem.reviewNote || '',
                   reviewedBy: queueItem.reviewedBy || currentUsername,
                   reviewedAt: queueItem.reviewedAt || Date.now(),
+                  updatedAt: queueItem.updatedAt || 0,
                   escalatedTo: queueItem.escalatedTo || '',
                   escalatedBy: queueItem.escalatedBy || '',
                   escalatedAt: queueItem.escalatedAt || 0,
@@ -401,9 +456,27 @@
                 'Content-Type': 'application/json',
                 'x-session-token': nextSessionToken
               },
-              body: JSON.stringify({ id, reviewedBy: currentUsername, ...patch })
+              body: JSON.stringify({
+                id,
+                reviewedBy: currentUsername,
+                expectedReviewRevision: Math.max(1, Number(queueItemById.get(String(id))?.reviewRevision || 1)),
+                ...patch
+              })
             });
-            if (!response.ok) throw new Error('Action failed');
+            if (!response.ok) {
+              const text = await response.text();
+              let parsed = null;
+              try {
+                parsed = text ? JSON.parse(text) : null;
+              } catch {}
+              if (typeof AuthService !== 'undefined' && typeof AuthService.buildApiError === 'function') {
+                throw AuthService.buildApiError(response, parsed, text || 'Action failed');
+              }
+              const error = new Error(parsed?.error?.message || 'Action failed');
+              error.code = String(parsed?.error?.code || '').trim();
+              if (parsed?.latestItem) error.latestItem = parsed.latestItem;
+              throw error;
+            }
             return response.json();
           }
 
@@ -423,17 +496,40 @@
             return response.json();
           }
 
+          async function handleQueueActionFailure(error, {
+            reviewId = '',
+            fallbackMessage = 'Action failed.'
+          } = {}) {
+            if (error?.code === 'WRITE_CONFLICT' && error.latestItem) {
+              queueItemById.set(String(error.latestItem.id || reviewId), error.latestItem);
+              await syncLocalReviewDecision(error.latestItem);
+              UI.toast('This review item changed in another tab or session. Loaded the latest status.', 'warning');
+              await loadReviewQueue();
+              return true;
+            }
+            UI.toast(fallbackMessage, 'danger');
+            return false;
+          }
+
           listEl.querySelectorAll('[data-queue-action="approve"]').forEach(btn => {
             btn.addEventListener('click', async () => {
               btn.disabled = true;
               try {
                 const { item } = await patchQueueItem(btn.dataset.queueId, { reviewStatus: 'approved' });
+                queueItemById.set(String(item?.id || btn.dataset.queueId), item);
                 await syncLocalReviewDecision(item);
+                window.AppCrossTabSync?.broadcastReviewQueueChanged?.({
+                  assessmentId: String(item?.assessmentId || '').trim(),
+                  reviewId: String(item?.id || btn.dataset.queueId).trim()
+                });
                 UI.toast('Assessment approved.', 'success');
                 loadReviewQueue();
                 loadDriftAlerts();
-              } catch {
-                UI.toast('Could not approve. Try again in a moment.', 'danger');
+              } catch (error) {
+                if (await handleQueueActionFailure(error, {
+                  reviewId: btn.dataset.queueId,
+                  fallbackMessage: 'Could not approve. Try again in a moment.'
+                })) return;
                 btn.disabled = false;
               }
             });
@@ -472,13 +568,24 @@
                     reviewStatus: 'changes_requested',
                     reviewNote: reason
                   });
+                  queueItemById.set(String(item?.id || btn.dataset.queueId), item);
                   await syncLocalReviewDecision(item);
+                  window.AppCrossTabSync?.broadcastReviewQueueChanged?.({
+                    assessmentId: String(item?.assessmentId || '').trim(),
+                    reviewId: String(item?.id || btn.dataset.queueId).trim()
+                  });
                   modal.close();
                   UI.toast('Changes requested.', 'success');
                   loadReviewQueue();
                   loadDriftAlerts();
-                } catch {
-                  UI.toast('Could not send request. Try again.', 'danger');
+                } catch (error) {
+                  if (await handleQueueActionFailure(error, {
+                    reviewId: btn.dataset.queueId,
+                    fallbackMessage: 'Could not send request. Try again.'
+                  })) {
+                    modal.close();
+                    return;
+                  }
                   if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = 'Send Request'; }
                 }
               });
@@ -528,13 +635,24 @@
                       reviewStatus: 'escalated',
                       escalatedTo: target
                     });
+                    queueItemById.set(String(item?.id || btn.dataset.queueId), item);
                     await syncLocalReviewDecision(item);
+                    window.AppCrossTabSync?.broadcastReviewQueueChanged?.({
+                      assessmentId: String(item?.assessmentId || '').trim(),
+                      reviewId: String(item?.id || btn.dataset.queueId).trim()
+                    });
                     modal.close();
                     UI.toast('Assessment escalated.', 'success');
                     loadReviewQueue();
                     loadDriftAlerts();
-                  } catch {
-                    UI.toast('Could not escalate this assessment right now.', 'danger');
+                  } catch (error) {
+                    if (await handleQueueActionFailure(error, {
+                      reviewId: btn.dataset.queueId,
+                      fallbackMessage: 'Could not escalate this assessment right now.'
+                    })) {
+                      modal.close();
+                      return;
+                    }
                     if (confirmButton) {
                       confirmButton.disabled = false;
                       confirmButton.textContent = 'Escalate';
@@ -547,12 +665,23 @@
             });
           });
         } catch {
+          window.AppReviewQueueSync?.markSurfaceLoadFailed?.('admin', 'Could not refresh the review queue right now.');
+          if (freshnessEl) freshnessEl.innerHTML = renderReviewQueueFreshnessMeta('admin');
           listEl.innerHTML = '<div class="form-help">Could not load the review queue right now.</div>';
         }
       }
 
       loadReviewQueue();
       loadDriftAlerts();
+      const handleReviewQueueInvalidated = () => {
+        const freshnessEl = document.getElementById('admin-review-queue-freshness');
+        if (freshnessEl) freshnessEl.innerHTML = renderReviewQueueFreshnessMeta('admin');
+        void loadReviewQueue();
+      };
+      window.addEventListener('rq:review-queue-invalidated', handleReviewQueueInvalidated);
+      window.AppShellPage?.registerCleanup?.(() => {
+        window.removeEventListener('rq:review-queue-invalidated', handleReviewQueueInvalidated);
+      });
     }
   };
 

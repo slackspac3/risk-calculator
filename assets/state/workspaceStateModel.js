@@ -10,6 +10,15 @@
         }
       })()
     : null;
+  const workspacePersistenceApi = typeof require === 'function'
+    ? (() => {
+        try {
+          return require('./userWorkspacePersistence.js');
+        } catch {
+          return null;
+        }
+      })()
+    : null;
 
   const createSimulation = (overrides = {}) => {
     if (storeApi?.createSimulationState) return storeApi.createSimulationState(overrides);
@@ -33,12 +42,15 @@
   };
 
   function applyWorkspaceSyncQueuedTransition(state, patch = {}) {
+    const mergePatch = workspacePersistenceApi?.mergeUserWorkspacePatchSlices
+      || globalScope.mergeUserWorkspacePatchSlices
+      || ((currentPatch, nextPatch) => ({
+        ...(currentPatch && typeof currentPatch === 'object' ? currentPatch : {}),
+        ...(nextPatch && typeof nextPatch === 'object' ? nextPatch : {})
+      }));
     return {
       ...state,
-      userStateSyncPending: {
-        ...(state?.userStateSyncPending || {}),
-        ...(patch && typeof patch === 'object' ? patch : {})
-      }
+      userStateSyncPending: mergePatch(state?.userStateSyncPending || {}, patch && typeof patch === 'object' ? patch : {})
     };
   }
 

@@ -221,6 +221,7 @@ const AdminAiFeedbackSection = (() => {
   function renderSection({ settings }) {
     const tuning = getTuning(settings);
     const dashboard = getDashboardModel(settings);
+    const snapshotLoadedAt = Date.now();
     const profile = dashboard.profile || {};
     const liveTierSummary = dashboard.thresholds || {
       function: { minEvents: 3, minUsers: 2 },
@@ -247,6 +248,17 @@ const AdminAiFeedbackSection = (() => {
           <button class="btn btn--ghost" id="btn-export-ai-feedback-dashboard" type="button">Export feedback snapshot</button>
           <button class="btn btn--ghost" id="btn-reset-ai-feedback-dashboard" type="button">Reset feedback &amp; tuning</button>
         </div>
+      </div>
+      <div class="review-queue-sync-meta review-queue-sync-meta--compact" id="admin-ai-feedback-freshness">
+        <span>Dashboard refreshed ${typeof renderLiveTimestampValue === 'function'
+          ? renderLiveTimestampValue(snapshotLoadedAt, { tagName: 'strong', mode: 'absolute', includeSeconds: true, fallback: 'Unknown time' })
+          : `<strong>${escape(typeof formatOperationalDateTime === 'function' ? formatOperationalDateTime(snapshotLoadedAt, { includeSeconds: true, fallback: 'Unknown time' }) : 'Unknown time')}</strong>`}</span>
+        <span>Data age ${typeof renderLiveTimestampValue === 'function'
+          ? renderLiveTimestampValue(snapshotLoadedAt, { tagName: 'strong', mode: 'relative', fallback: 'just now', staleAfterMs: 120000, staleClass: 'live-timestamp--stale' })
+          : `<strong>${escape(typeof formatRelativePilotTime === 'function' ? formatRelativePilotTime(snapshotLoadedAt, 'just now') : 'just now')}</strong>`}</span>
+        <span>Latest feedback event ${typeof renderLiveTimestampValue === 'function'
+          ? renderLiveTimestampValue(dashboard.latestAt, { tagName: 'strong', mode: 'relative', fallback: 'no signal yet', staleAfterMs: 300000, staleClass: 'live-timestamp--stale' })
+          : `<strong>${escape(formatRelative(dashboard.latestAt))}</strong>`}</span>
       </div>
       <div class="admin-overview-grid" style="margin-top:var(--sp-4)">
         ${renderMetricCard('Feedback events', String(dashboard.totalEvents || 0), `Updated ${formatRelative(dashboard.latestAt)}`)}

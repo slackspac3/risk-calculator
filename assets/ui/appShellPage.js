@@ -100,8 +100,14 @@
     setPage(html) {
       const root = document.getElementById('main-content');
       runPageCleanupHandlers();
-      root.innerHTML = `${html}
+      const passiveNoticeMarkup = typeof window.buildPassiveStateNoticeMarkup === 'function'
+        ? window.buildPassiveStateNoticeMarkup()
+        : '';
+      root.innerHTML = `<div id="app-passive-state-notice">${passiveNoticeMarkup}</div>${html}
         <div class="app-platform-version" aria-label="Platform version">${PLATFORM_VERSION_LABEL}</div>`;
+      if (typeof window.refreshLiveTimestampNodes === 'function') {
+        window.refreshLiveTimestampNodes(root);
+      }
       const routePageClass = getRoutePageClass(window.location.hash.replace('#', ''));
       const pageNode = root.querySelector('.page');
       if (pageNode) {

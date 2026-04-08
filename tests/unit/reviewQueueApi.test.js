@@ -261,6 +261,7 @@ test('review queue submission uses the session actor, stores the assignee, and r
   assert.equal(postRes.payload.item.assignedReviewerUsername, 'function-admin');
   assert.equal(postRes.payload.item.assignedReviewerDisplayName, 'Function Admin');
   assert.equal(postRes.payload.item.reviewScope, 'function');
+  assert.equal(postRes.payload.item.reviewRevision, 1);
   assert.equal(postRes.payload.item.sharedAssessment.scenarioTitle, 'Tolerance breach');
   const auditEntries = JSON.parse(kvStore.get('risk_calculator_audit_log') || '[]');
   assert.equal(auditEntries.length, 1);
@@ -305,6 +306,8 @@ test('review queue GET is visible to the submitter and assigned reviewer, but on
       assignedReviewerRole: 'function_admin',
       reviewScope: 'function',
       reviewStatus: 'pending',
+      reviewRevision: 3,
+      updatedAt: Date.now(),
       sharedAssessment: {
         id: 'a-1',
         scenarioTitle: 'In-scope review',
@@ -327,7 +330,9 @@ test('review queue GET is visible to the submitter and assigned reviewer, but on
       assignedReviewerDisplayName: 'Other BU Admin',
       assignedReviewerRole: 'bu_admin',
       reviewScope: 'business_unit',
-      reviewStatus: 'pending'
+      reviewStatus: 'pending',
+      reviewRevision: 1,
+      updatedAt: Date.now()
     }
   ]));
 
@@ -394,12 +399,14 @@ test('review queue GET is visible to the submitter and assigned reviewer, but on
     },
     body: {
       id: 'rq-1',
-      reviewStatus: 'approved'
+      reviewStatus: 'approved',
+      expectedReviewRevision: 3
     }
   }, patchRes);
 
   assert.equal(patchRes.statusCode, 200);
   assert.equal(patchRes.payload.item.reviewedBy, 'function-admin');
+  assert.equal(patchRes.payload.item.reviewRevision, 4);
 });
 
 test('BU heads can escalate in-scope items to holding-company reviewers without becoming the assignee', async () => {
@@ -418,7 +425,9 @@ test('BU heads can escalate in-scope items to holding-company reviewers without 
       assignedReviewerDisplayName: 'Function Admin',
       assignedReviewerRole: 'function_admin',
       reviewScope: 'function',
-      reviewStatus: 'pending'
+      reviewStatus: 'pending',
+      reviewRevision: 2,
+      updatedAt: Date.now()
     }
   ]));
 
@@ -466,7 +475,8 @@ test('BU heads can escalate in-scope items to holding-company reviewers without 
     },
     body: {
       id: 'rq-1',
-      reviewStatus: 'approved'
+      reviewStatus: 'approved',
+      expectedReviewRevision: 2
     }
   }, forbiddenApproveRes);
 
@@ -482,7 +492,8 @@ test('BU heads can escalate in-scope items to holding-company reviewers without 
     body: {
       id: 'rq-1',
       reviewStatus: 'escalated',
-      escalatedTo: 'function-admin'
+      escalatedTo: 'function-admin',
+      expectedReviewRevision: 2
     }
   }, invalidEscalationRes);
 
@@ -498,7 +509,8 @@ test('BU heads can escalate in-scope items to holding-company reviewers without 
     body: {
       id: 'rq-1',
       reviewStatus: 'escalated',
-      escalatedTo: 'holding-admin'
+      escalatedTo: 'holding-admin',
+      expectedReviewRevision: 2
     }
   }, escalationRes);
 
@@ -507,9 +519,61 @@ test('BU heads can escalate in-scope items to holding-company reviewers without 
   assert.equal(escalationRes.payload.item.escalatedTo, 'holding-admin');
   assert.equal(escalationRes.payload.item.escalatedBy, 'bu-admin');
   assert.equal(escalationRes.payload.item.reviewScope, 'holding_company');
+  assert.equal(escalationRes.payload.item.reviewRevision, 3);
   const auditEntries = JSON.parse(kvStore.get('risk_calculator_audit_log') || '[]');
   assert.equal(auditEntries.length, 1);
   assert.equal(auditEntries[0].eventType, 'review_escalated');
   assert.equal(auditEntries[0].actorUsername, 'bu-admin');
   assert.equal(auditEntries[0].details.escalatedTo, 'holding-admin');
+});
+
+test('review queue rejects stale review updates with the latest item payload', async () => {
+  kvStore.set('risk_calculator_review_queue', JSON.stringify([
+    {
+      id: 'rq-1',
+      assessmentId: 'a-1',
+      submittedBy: 'analyst',
+      submittedByDisplayName: 'Analyst',
+      submittedAt: Date.now(),
+      buId: 'g42',
+      buName: 'G42',
+      departmentEntityId: 'technology',
+      scenarioTitle: 'Stale review revision',
+      assignedReviewerUsername: 'function-admin',
+      assignedReviewerDisplayName: 'Function Admin',
+      assignedReviewerRole: 'function_admin',
+      reviewScope: 'function',
+      reviewStatus: 'pending',
+      reviewRevision: 5,
+      updatedAt: Date.now()
+    }
+  ]));
+
+  const functionAdminToken = buildSessionToken({
+    username: 'function-admin',
+    role: 'function_admin',
+    businessUnitEntityId: 'g42',
+    departmentEntityId: 'technology',
+    sv: 1,
+    exp: Date.now() + 60_000
+  });
+
+  const stalePatchRes = createRes();
+  await handler({
+    method: 'PATCH',
+    headers: {
+      'content-type': 'application/json',
+      'x-session-token': functionAdminToken
+    },
+    body: {
+      id: 'rq-1',
+      reviewStatus: 'approved',
+      expectedReviewRevision: 4
+    }
+  }, stalePatchRes);
+
+  assert.equal(stalePatchRes.statusCode, 409);
+  assert.equal(stalePatchRes.payload.error.code, 'WRITE_CONFLICT');
+  assert.equal(stalePatchRes.payload.latestItem.reviewRevision, 5);
+  assert.equal(stalePatchRes.payload.latestItem.reviewStatus, 'pending');
 });

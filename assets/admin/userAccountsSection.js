@@ -2,6 +2,7 @@ const AdminUserAccountsSection = (() => {
   let latestContext = null;
 
   function renderSection({ settings, companyEntities, companyStructure, managedAccounts }) {
+    const snapshotLoadedAt = Date.now();
     return renderSettingsSection({
       title: 'User Accounts',
       scope: 'admin-settings',
@@ -12,6 +13,15 @@ const AdminUserAccountsSection = (() => {
         description: 'Review assigned role, business unit, and function before applying access changes.',
         table: `<div class="admin-table-toolbar">
           <input class="form-input" id="admin-user-search" type="search" placeholder="Search name, username, role, BU, or function" style="min-width:min(320px,100%);max-width:420px">
+        </div>
+        <div class="review-queue-sync-meta review-queue-sync-meta--compact" id="managed-accounts-freshness">
+          <span>Directory refreshed ${typeof renderLiveTimestampValue === 'function'
+            ? renderLiveTimestampValue(snapshotLoadedAt, { tagName: 'strong', mode: 'absolute', includeSeconds: true, fallback: 'Unknown time' })
+            : `<strong>${escapeHtml(typeof formatOperationalDateTime === 'function' ? formatOperationalDateTime(snapshotLoadedAt, { includeSeconds: true, fallback: 'Unknown time' }) : 'Unknown time')}</strong>`}</span>
+          <span>Data age ${typeof renderLiveTimestampValue === 'function'
+            ? renderLiveTimestampValue(snapshotLoadedAt, { tagName: 'strong', mode: 'relative', fallback: 'just now', staleAfterMs: 120000, staleClass: 'live-timestamp--stale' })
+            : `<strong>${escapeHtml(typeof formatRelativePilotTime === 'function' ? formatRelativePilotTime(snapshotLoadedAt, 'just now') : 'just now')}</strong>`}</span>
+          <span>This table reflects the latest confirmed shared account directory loaded for this admin session.</span>
         </div>
         <table class="data-table data-table--dense data-table--workbench">
           <thead>
@@ -176,6 +186,25 @@ const AdminUserAccountsSection = (() => {
     if (!departments.some(entity => entity.id === currentValue)) departmentEl.value = '';
   }
 
+  async function _refreshManagedAccountSnapshot() {
+    const [accounts] = await Promise.all([
+      typeof AuthService?.refreshManagedAccounts === 'function'
+        ? AuthService.refreshManagedAccounts().catch(() => (typeof AuthService?.getManagedAccounts === 'function' ? AuthService.getManagedAccounts() : []))
+        : Promise.resolve(typeof AuthService?.getManagedAccounts === 'function' ? AuthService.getManagedAccounts() : []),
+      typeof loadSharedAdminSettings === 'function'
+        ? loadSharedAdminSettings().catch(() => null)
+        : Promise.resolve(null)
+    ]);
+    return Array.isArray(accounts) ? accounts : [];
+  }
+
+  function _broadcastManagedAccountChange(detail = {}) {
+    window.AppCrossTabSync?.broadcastManagedAccountsChanged?.({
+      updatedAt: Date.now(),
+      ...detail
+    });
+  }
+
   async function _applyManagedAccountAccess(button) {
     const username = button.dataset.username || '';
     const displayName = button.dataset.displayName || username;
@@ -221,6 +250,11 @@ ${changeSummary.changed.join(' ')}`);
         button.textContent = 'Apply Access';
         return false;
       }
+      const refreshedAccounts = await _refreshManagedAccountSnapshot();
+      const verifiedAccount = refreshedAccounts.find(account => String(account?.username || '').trim().toLowerCase() === username);
+      if (!verifiedAccount) {
+        throw new Error('Updated account could not be reloaded after saving.');
+      }
     } catch (error) {
       AppState.adminNewUserStatus = 'User access could not be updated. Check the assigned role and scope, then try again.';
       const resultEl = document.getElementById('admin-new-user-result');
@@ -232,6 +266,7 @@ ${changeSummary.changed.join(' ')}`);
     }
     row.dataset.dirty = 'false';
     button.textContent = 'Applied';
+    _broadcastManagedAccountChange({ username, action: 'access_updated' });
     AppState.adminNewUserStatus = `Applied ${role === 'bu_admin' ? 'BU admin' : role === 'function_admin' ? 'function admin' : 'standard user'} access for ${displayName}.`;
     const resultEl = document.getElementById('admin-new-user-result');
     if (resultEl) resultEl.textContent = AppState.adminNewUserStatus;
@@ -252,9 +287,33 @@ ${changeSummary.changed.join(' ')}`);
   function bind(context) {
     latestContext = context;
     const { companyStructure, rerenderCurrentAdminSection } = context;
+    if (typeof clearManagedAccountsStaleNotice === 'function') clearManagedAccountsStaleNotice();
     document.getElementById('admin-new-user-bu')?.addEventListener('change', () => _renderAdminNewUserDepartments(companyStructure));
     document.getElementById('admin-new-user-role')?.addEventListener('change', () => _renderAdminNewUserDepartments(companyStructure));
     _renderAdminNewUserDepartments(companyStructure);
+
+    const handleManagedAccountsInvalidated = (event) => {
+      const detail = event?.detail && typeof event.detail === 'object' ? event.detail : {};
+      const hasDirtyRows = Array.from(document.querySelectorAll('.managed-account-row')).some(row => row.dataset.dirty === 'true');
+      if (hasDirtyRows) {
+        if (typeof setManagedAccountsStaleNotice === 'function') {
+          setManagedAccountsStaleNotice({
+            username: detail.username || '',
+            updatedAt: Number(detail.updatedAt || Date.now()),
+            detectedAt: Date.now(),
+            action: detail.action || ''
+          });
+        }
+        UI.toast('Managed accounts changed in another tab. Finish or discard local edits, then reload this section.', 'warning', 5000);
+        return;
+      }
+      if (typeof clearManagedAccountsStaleNotice === 'function') clearManagedAccountsStaleNotice();
+      rerenderCurrentAdminSection();
+    };
+    window.addEventListener('rq:managed-accounts-invalidated', handleManagedAccountsInvalidated);
+    window.AppShellPage?.registerCleanup?.(() => {
+      window.removeEventListener('rq:managed-accounts-invalidated', handleManagedAccountsInvalidated);
+    });
 
 
     document.getElementById('admin-user-search')?.addEventListener('input', event => {
@@ -292,9 +351,14 @@ ${changeSummary.changed.join(' ')}`);
         const username = button.dataset.username || '';
         const displayName = button.dataset.displayName || username;
         if (!await UI.confirm(`Reset ${displayName} to a first-time user state? This will clear their stored context, memory, assessments, and session settings in this browser.`)) return;
-        clearUserPersistentState(username);
-        UI.toast(`${displayName} was reset.`, 'success');
-        rerenderCurrentAdminSection();
+        try {
+          await clearUserPersistentState(username);
+          _broadcastManagedAccountChange({ username, action: 'state_reset' });
+          UI.toast(`${displayName} was reset.`, 'success');
+          rerenderCurrentAdminSection();
+        } catch (error) {
+          UI.toast('User reset failed. Try again in a moment.', 'danger');
+        }
       });
     });
 
@@ -305,8 +369,14 @@ ${changeSummary.changed.join(' ')}`);
         if (!await UI.confirm(`Issue a new password for ${displayName}? The old password will stop working.`)) return;
         try {
           const result = await AuthService.resetManagedPassword(username);
+          const refreshedAccounts = await _refreshManagedAccountSnapshot();
+          const verifiedAccount = refreshedAccounts.find(account => String(account?.username || '').trim().toLowerCase() === username);
+          if (!verifiedAccount) {
+            throw new Error('Managed account could not be reloaded after password reset.');
+          }
           AppState.adminVisiblePasswords[username] = result.password || '';
           AppState.adminNewUserStatus = `Password reset for ${displayName}: username ${username} / password ${result.password}`;
+          _broadcastManagedAccountChange({ username, action: 'password_reset' });
           UI.toast(`Password reset for ${username}.`, 'success');
           rerenderCurrentAdminSection();
         } catch (error) {
@@ -344,7 +414,13 @@ ${changeSummary.changed.join(' ')}`);
             UI.toast('The account was removed, but shared ownership settings could not be saved.', 'warning');
             return;
           }
-          clearUserPersistentState(username);
+          await clearUserPersistentState(username);
+          const refreshedAccounts = await _refreshManagedAccountSnapshot();
+          const accountStillExists = refreshedAccounts.some(account => String(account?.username || '').trim().toLowerCase() === username);
+          if (accountStillExists) {
+            throw new Error('Deleted account still appears in the shared directory.');
+          }
+          _broadcastManagedAccountChange({ username, action: 'deleted' });
           UI.toast(`${displayName} deleted.`, 'success');
           rerenderCurrentAdminSection();
         } catch (error) {
@@ -448,8 +524,14 @@ Function: ${departmentLabel}`);
           button.textContent = 'Add User';
           return;
         }
+        const refreshedAccounts = await _refreshManagedAccountSnapshot();
+        const verifiedAccount = refreshedAccounts.find(entry => String(entry?.username || '').trim().toLowerCase() === String(account.username || '').trim().toLowerCase());
+        if (!verifiedAccount) {
+          throw new Error('Managed account could not be reloaded after creation.');
+        }
         AppState.adminVisiblePasswords[account.username] = account.password || '';
         AppState.adminNewUserStatus = `Created ${account.displayName}: username ${account.username} / password ${account.password}`;
+        _broadcastManagedAccountChange({ username: account.username, action: 'created' });
         UI.toast(`Created ${account.username}.`, 'success');
         rerenderCurrentAdminSection();
       } catch (error) {

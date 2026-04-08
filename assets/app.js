@@ -235,6 +235,339 @@ function formatOperationalDateTime(value, {
   }
 }
 
+function resolveLiveTimestampDisplayText(value, {
+  mode = 'relative',
+  includeSeconds = true,
+  dateOnly = false,
+  fallback = 'Unknown time'
+} = {}) {
+  const safeValue = Number(value || 0);
+  if (!safeValue) return fallback;
+  if (mode === 'absolute') {
+    return formatOperationalDateTime(safeValue, { includeSeconds, dateOnly, fallback });
+  }
+  return formatRelativePilotTime(safeValue, fallback);
+}
+
+function renderLiveTimestampValue(value, {
+  mode = 'relative',
+  includeSeconds = true,
+  dateOnly = false,
+  fallback = 'Unknown time',
+  tagName = 'span',
+  className = '',
+  staleAfterMs = 0,
+  staleClass = ''
+} = {}) {
+  const safeTimestamp = Number(value || 0);
+  const resolvedTag = String(tagName || '').trim().toLowerCase() === 'strong' ? 'strong' : 'span';
+  const baseClass = String(className || '').trim();
+  const resolvedStaleClass = String(staleClass || '').trim();
+  const isStale = safeTimestamp > 0 && Number(staleAfterMs || 0) > 0 && (Date.now() - safeTimestamp) > Number(staleAfterMs || 0);
+  const combinedClass = [baseClass, isStale ? resolvedStaleClass : ''].filter(Boolean).join(' ');
+  const text = resolveLiveTimestampDisplayText(safeTimestamp, { mode, includeSeconds, dateOnly, fallback });
+  return `<${resolvedTag}
+    data-live-timestamp="true"
+    data-live-timestamp-value="${escapeHtml(String(safeTimestamp))}"
+    data-live-timestamp-mode="${escapeHtml(String(mode || 'relative'))}"
+    data-live-timestamp-fallback="${escapeHtml(String(fallback || 'Unknown time'))}"
+    data-live-timestamp-include-seconds="${includeSeconds ? 'true' : 'false'}"
+    data-live-timestamp-date-only="${dateOnly ? 'true' : 'false'}"
+    data-live-timestamp-class="${escapeHtml(baseClass)}"
+    data-live-timestamp-stale-after-ms="${escapeHtml(String(Number(staleAfterMs || 0)))}"
+    data-live-timestamp-stale-class="${escapeHtml(resolvedStaleClass)}"
+    class="${escapeHtml(combinedClass)}">${escapeHtml(text)}</${resolvedTag}>`;
+}
+
+function refreshLiveTimestampNodes(root = document) {
+  const host = root && typeof root.querySelectorAll === 'function' ? root : document;
+  host.querySelectorAll('[data-live-timestamp="true"]').forEach((node) => {
+    const safeTimestamp = Number(node.dataset.liveTimestampValue || 0);
+    const mode = String(node.dataset.liveTimestampMode || 'relative').trim().toLowerCase();
+    const fallback = String(node.dataset.liveTimestampFallback || 'Unknown time');
+    const includeSeconds = node.dataset.liveTimestampIncludeSeconds !== 'false';
+    const dateOnly = node.dataset.liveTimestampDateOnly === 'true';
+    const baseClass = String(node.dataset.liveTimestampClass || '').trim();
+    const staleAfterMs = Number(node.dataset.liveTimestampStaleAfterMs || 0);
+    const staleClass = String(node.dataset.liveTimestampStaleClass || '').trim();
+    const isStale = safeTimestamp > 0 && staleAfterMs > 0 && (Date.now() - safeTimestamp) > staleAfterMs;
+    node.textContent = resolveLiveTimestampDisplayText(safeTimestamp, { mode, includeSeconds, dateOnly, fallback });
+    node.className = [baseClass, isStale ? staleClass : ''].filter(Boolean).join(' ');
+  });
+}
+
+const LIVE_TIMESTAMP_TICK_INTERVAL_MS = 30 * 1000;
+let _liveTimestampTickHandle = 0;
+
+function bindLiveTimestampTicker() {
+  if (typeof window === 'undefined' || _liveTimestampTickHandle) return;
+  _liveTimestampTickHandle = window.setInterval(() => {
+    refreshLiveTimestampNodes(document);
+  }, LIVE_TIMESTAMP_TICK_INTERVAL_MS);
+}
+
+function hasUnsafeWorkspaceEdits() {
+  return !!(
+    AppState.draftDirty
+    || AppState.userStateSyncInFlight
+    || AppState.userStateSyncPending
+    || AppState.userStateSyncTimer
+  );
+}
+
+function listWorkspacePatchSlices(patch = {}) {
+  if (typeof listUserWorkspacePatchSlices === 'function') {
+    return listUserWorkspacePatchSlices(patch);
+  }
+  const sourcePatch = patch && typeof patch === 'object' ? patch : {};
+  const slices = [];
+  if (Object.prototype.hasOwnProperty.call(sourcePatch, 'userSettings')) slices.push('userSettings');
+  if (Object.prototype.hasOwnProperty.call(sourcePatch, 'learningStore')) slices.push('learningStore');
+  if (Object.prototype.hasOwnProperty.call(sourcePatch, 'draftWorkspace') || Object.prototype.hasOwnProperty.call(sourcePatch, 'draft')) slices.push('draftWorkspace');
+  if (Object.prototype.hasOwnProperty.call(sourcePatch, 'savedAssessments') || Object.prototype.hasOwnProperty.call(sourcePatch, 'assessments')) slices.push('savedAssessments');
+  return slices;
+}
+
+function formatWorkspaceSliceSummary(changedSlices = []) {
+  const labels = Array.from(new Set((Array.isArray(changedSlices) ? changedSlices : [])
+    .map(slice => WORKSPACE_SLICE_LABELS[String(slice || '').trim()] || '')
+    .filter(Boolean)));
+  if (!labels.length) return 'Saved workspace content';
+  if (labels.length === 1) return labels[0];
+  if (labels.length === 2) return `${labels[0]} and ${labels[1]}`;
+  return `${labels.slice(0, -1).join(', ')}, and ${labels[labels.length - 1]}`;
+}
+
+function getAdminSurfaceNoticeCopy(route = '') {
+  const safeRoute = String(route || '').trim();
+  if (/^#\/admin\/settings\/users/.test(safeRoute)) {
+    return {
+      title: 'Latest access settings available',
+      body: 'User scope settings changed in another tab or session. Load the latest version before saving more access changes on this screen.'
+    };
+  }
+  if (/^#\/admin\/settings\/feedback/.test(safeRoute)) {
+    return {
+      title: 'Latest feedback tuning settings available',
+      body: 'Feedback and tuning settings changed in another tab or session. Load the latest version before saving more tuning changes on this screen.'
+    };
+  }
+  if (/^#\/admin\/docs/.test(safeRoute)) {
+    return {
+      title: 'Latest document library settings available',
+      body: 'The document library changed in another tab or session. Refresh this view before curating more references or saving another library change.'
+    };
+  }
+  return {
+    title: 'Latest platform settings available',
+    body: 'Platform settings changed in another tab or session. Load the latest version before saving more edits on this screen.'
+  };
+}
+
+function buildPassiveStateNoticeModel() {
+  const route = String(window.location.hash || '').trim();
+  const notices = [];
+  const currentUsername = String(AuthService.getCurrentUser()?.username || AppState.userStateCache.username || '').trim().toLowerCase();
+
+  if ((/^#\/admin\/settings/.test(route) || /^#\/admin\/docs/.test(route)) && AppState.adminSettingsStaleNotice) {
+    const copy = getAdminSurfaceNoticeCopy(route);
+    notices.push({
+      tone: 'warning',
+      title: copy.title,
+      body: copy.body,
+      meta: AppState.adminSettingsStaleNotice.updatedAt
+        ? `Changed ${formatRelativePilotTime(AppState.adminSettingsStaleNotice.updatedAt)}`
+        : 'Changed elsewhere'
+    });
+  }
+
+  if (/^#\/admin\/settings\/users/.test(route) && AppState.managedAccountsStaleNotice) {
+    notices.push({
+      tone: 'warning',
+      title: 'Latest account directory available',
+      body: 'Managed user access or password state changed in another tab or session. Finish or discard local edits, then reload this section before applying more account changes.',
+      meta: AppState.managedAccountsStaleNotice.updatedAt
+        ? `Changed ${formatRelativePilotTime(AppState.managedAccountsStaleNotice.updatedAt)}`
+        : 'Changed elsewhere'
+    });
+  }
+
+  if (/^#\/(dashboard|settings|wizard|results)/.test(route) && AppState.workspaceStaleNotice) {
+    const noticeUsername = String(AppState.workspaceStaleNotice.username || '').trim().toLowerCase();
+    if (!noticeUsername || !currentUsername || noticeUsername === currentUsername) {
+      const sliceSummary = formatWorkspaceSliceSummary(AppState.workspaceStaleNotice.changedSlices || []);
+      notices.push({
+        tone: 'warning',
+        title: 'Saved workspace changed elsewhere',
+        body: `${sliceSummary.charAt(0).toUpperCase()}${sliceSummary.slice(1)} changed in another tab or session. Current edits stay local here until you reload or finish syncing.`,
+        meta: AppState.workspaceStaleNotice.updatedAt
+          ? `Latest saved version ${formatRelativePilotTime(AppState.workspaceStaleNotice.updatedAt)}`
+          : 'Latest saved version available'
+      });
+    }
+  }
+
+  return notices;
+}
+
+function renderPassiveStateNoticeMarkup(notice) {
+  if (!notice) return '';
+  return `<div class="passive-state-banner passive-state-banner--${escapeHtml(String(notice.tone || 'warning'))}" role="status">
+    <div class="passive-state-banner__body">
+      <strong>${escapeHtml(String(notice.title || 'Latest version available'))}</strong>
+      <span>${escapeHtml(String(notice.body || 'This page changed elsewhere.'))}</span>
+    </div>
+    ${notice.meta ? `<div class="passive-state-banner__meta">${escapeHtml(String(notice.meta))}</div>` : ''}
+  </div>`;
+}
+
+function buildPassiveStateNoticeMarkup() {
+  return buildPassiveStateNoticeModel().map(renderPassiveStateNoticeMarkup).join('');
+}
+
+function refreshPassiveStateNotice() {
+  const host = document.getElementById('app-passive-state-notice');
+  if (!host) return;
+  host.innerHTML = buildPassiveStateNoticeMarkup();
+  refreshLiveTimestampNodes(host);
+}
+
+function setAdminSettingsStaleNotice(notice = null) {
+  AppState.adminSettingsStaleNotice = notice && typeof notice === 'object'
+    ? {
+        revision: Number(notice.revision || 0),
+        updatedAt: Number(notice.updatedAt || 0),
+        detectedAt: Number(notice.detectedAt || Date.now())
+      }
+    : null;
+  refreshPassiveStateNotice();
+}
+
+function clearAdminSettingsStaleNotice(revision = 0) {
+  const notice = AppState.adminSettingsStaleNotice;
+  if (!notice) return;
+  if (!Number(revision || 0) || Number(revision || 0) >= Number(notice.revision || 0)) {
+    AppState.adminSettingsStaleNotice = null;
+    refreshPassiveStateNotice();
+  }
+}
+
+function setManagedAccountsStaleNotice(notice = null) {
+  AppState.managedAccountsStaleNotice = notice && typeof notice === 'object'
+    ? {
+        username: String(notice.username || '').trim().toLowerCase(),
+        updatedAt: Number(notice.updatedAt || 0),
+        detectedAt: Number(notice.detectedAt || Date.now()),
+        action: String(notice.action || '').trim().toLowerCase()
+      }
+    : null;
+  refreshPassiveStateNotice();
+}
+
+function clearManagedAccountsStaleNotice() {
+  if (!AppState.managedAccountsStaleNotice) return;
+  AppState.managedAccountsStaleNotice = null;
+  refreshPassiveStateNotice();
+}
+
+function setWorkspaceStaleNotice(notice = null) {
+  AppState.workspaceStaleNotice = notice && typeof notice === 'object'
+    ? {
+        username: String(notice.username || AuthService.getCurrentUser()?.username || AppState.userStateCache.username || '').trim().toLowerCase(),
+        revision: Number(notice.revision || 0),
+        updatedAt: Number(notice.updatedAt || 0),
+        detectedAt: Number(notice.detectedAt || Date.now()),
+        changedSlices: Array.isArray(notice.changedSlices)
+          ? notice.changedSlices
+          : listWorkspacePatchSlices(notice.changedSlices || notice.patch || {})
+      }
+    : null;
+  refreshPassiveStateNotice();
+}
+
+function clearWorkspaceStaleNotice({ username = '', revision = 0 } = {}) {
+  const notice = AppState.workspaceStaleNotice;
+  if (!notice) return;
+  const safeUsername = String(username || AuthService.getCurrentUser()?.username || AppState.userStateCache.username || '').trim().toLowerCase();
+  const noticeUsername = String(notice.username || '').trim().toLowerCase();
+  if (safeUsername && noticeUsername && safeUsername !== noticeUsername) return;
+  if (!Number(revision || 0) || Number(revision || 0) >= Number(notice.revision || 0)) {
+    AppState.workspaceStaleNotice = null;
+    refreshPassiveStateNotice();
+  }
+}
+
+function markReviewQueueSurfaceInvalidated(payload = {}) {
+  const detectedAt = Date.now();
+  AppState.reviewQueueStaleNotice = {
+    reviewId: String(payload.reviewId || '').trim(),
+    assessmentId: String(payload.assessmentId || '').trim(),
+    updatedAt: Number(payload.updatedAt || 0),
+    detectedAt,
+    status: 'stale'
+  };
+  Object.values(REVIEW_QUEUE_SURFACE_KEYS).forEach((key) => {
+    AppState[key] = buildReviewQueueSurfaceMeta({
+      ...(AppState[key] || {}),
+      lastInvalidatedAt: detectedAt,
+      stale: Number(AppState[key]?.lastLoadedAt || 0) < detectedAt
+    });
+  });
+}
+
+function markReviewQueueSurfaceLoaded(scope = 'admin', details = {}) {
+  const surfaceKey = REVIEW_QUEUE_SURFACE_KEYS[scope] || REVIEW_QUEUE_SURFACE_KEYS.admin;
+  const loadedAt = Date.now();
+  AppState[surfaceKey] = buildReviewQueueSurfaceMeta({
+    ...(AppState[surfaceKey] || {}),
+    lastLoadedAt: loadedAt,
+    lastResolvedAt: loadedAt,
+    stale: false,
+    count: Number(details.count || 0),
+    error: ''
+  });
+  if (AppState.reviewQueueStaleNotice?.status === 'stale') {
+    AppState.reviewQueueStaleNotice = {
+      ...AppState.reviewQueueStaleNotice,
+      status: 'resolved',
+      resolvedAt: loadedAt
+    };
+  } else if (AppState.reviewQueueStaleNotice?.status === 'resolved') {
+    AppState.reviewQueueStaleNotice = null;
+  }
+  return AppState[surfaceKey];
+}
+
+function markReviewQueueSurfaceLoadFailed(scope = 'admin', errorMessage = '') {
+  const surfaceKey = REVIEW_QUEUE_SURFACE_KEYS[scope] || REVIEW_QUEUE_SURFACE_KEYS.admin;
+  AppState[surfaceKey] = buildReviewQueueSurfaceMeta({
+    ...(AppState[surfaceKey] || {}),
+    error: String(errorMessage || '').trim()
+  });
+  return AppState[surfaceKey];
+}
+
+function getReviewQueueSurfaceMeta(scope = 'admin') {
+  const surfaceKey = REVIEW_QUEUE_SURFACE_KEYS[scope] || REVIEW_QUEUE_SURFACE_KEYS.admin;
+  return buildReviewQueueSurfaceMeta(AppState[surfaceKey] || {});
+}
+
+if (typeof window !== 'undefined') {
+  window.buildPassiveStateNoticeMarkup = buildPassiveStateNoticeMarkup;
+  window.refreshPassiveStateNotice = refreshPassiveStateNotice;
+  window.renderLiveTimestampValue = renderLiveTimestampValue;
+  window.refreshLiveTimestampNodes = refreshLiveTimestampNodes;
+  window.setManagedAccountsStaleNotice = setManagedAccountsStaleNotice;
+  window.clearManagedAccountsStaleNotice = clearManagedAccountsStaleNotice;
+  window.AppReviewQueueSync = {
+    markSurfaceInvalidated: markReviewQueueSurfaceInvalidated,
+    markSurfaceLoaded: markReviewQueueSurfaceLoaded,
+    markSurfaceLoadFailed: markReviewQueueSurfaceLoadFailed,
+    getSurfaceMeta: getReviewQueueSurfaceMeta,
+    getNotice: () => AppState.reviewQueueStaleNotice
+  };
+}
+
 function renderPilotWarningBanner(kind = 'poc', {
   text = '',
   title = '',
@@ -526,6 +859,12 @@ const AppState = {
   userStateSyncInFlight: false,
   userStateLastConflict: null,
   userSettingsSavedAt: 0,
+  adminSettingsStaleNotice: null,
+  managedAccountsStaleNotice: null,
+  workspaceStaleNotice: null,
+  reviewQueueStaleNotice: null,
+  adminReviewQueueMeta: { lastLoadedAt: 0, lastInvalidatedAt: 0, lastResolvedAt: 0, stale: false, count: 0, error: '' },
+  dashboardReviewInboxMeta: { lastLoadedAt: 0, lastInvalidatedAt: 0, lastResolvedAt: 0, stale: false, count: 0, error: '' },
   auditLogCache: { loaded: false, loading: false, entries: [], summary: null, error: '', lastLoadedAt: 0 },
   clientRuntimeErrors: [],
   stateTransitionLog: [],
@@ -538,6 +877,29 @@ const AppState = {
 function applyWorkspaceRuntimeState(nextState) {
   Object.assign(AppState, nextState || {});
   return AppState;
+}
+
+const WORKSPACE_SLICE_LABELS = Object.freeze({
+  userSettings: 'personal settings',
+  learningStore: 'AI feedback memory',
+  draftWorkspace: 'draft workspace',
+  savedAssessments: 'saved assessments'
+});
+const REVIEW_QUEUE_SURFACE_KEYS = Object.freeze({
+  admin: 'adminReviewQueueMeta',
+  dashboard: 'dashboardReviewInboxMeta'
+});
+
+function buildReviewQueueSurfaceMeta(overrides = {}) {
+  return {
+    lastLoadedAt: 0,
+    lastInvalidatedAt: 0,
+    lastResolvedAt: 0,
+    stale: false,
+    count: 0,
+    error: '',
+    ...((overrides && typeof overrides === 'object') ? overrides : {})
+  };
 }
 
 function cloneSerializableState(value, fallback = null) {
@@ -745,9 +1107,70 @@ function buildComparableAdminSettingsSnapshot(settings = {}) {
   });
 }
 
+const CROSS_TAB_SYNC_CHANNEL_NAME = 'risk_calculator_sync';
+const CROSS_TAB_SYNC_EVENT_TYPES = Object.freeze({
+  settingsChanged: 'settings_changed',
+  userStateChanged: 'user_state_changed',
+  reviewQueueChanged: 'review_queue_changed',
+  managedAccountsChanged: 'managed_accounts_changed'
+});
+const CROSS_TAB_WINDOW_EVENTS = Object.freeze({
+  settingsChanged: 'rq:admin-settings-invalidated',
+  userStateChanged: 'rq:user-state-invalidated',
+  reviewQueueChanged: 'rq:review-queue-invalidated',
+  managedAccountsChanged: 'rq:managed-accounts-invalidated'
+});
+const CROSS_TAB_SYNC_SOURCE_ID = `rq_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+let _crossTabSyncBound = false;
+let _crossTabSyncChannel = null;
+
+function getCrossTabSyncChannel() {
+  if (typeof window === 'undefined' || typeof window.BroadcastChannel !== 'function') return null;
+  if (_crossTabSyncChannel) return _crossTabSyncChannel;
+  _crossTabSyncChannel = new window.BroadcastChannel(CROSS_TAB_SYNC_CHANNEL_NAME);
+  return _crossTabSyncChannel;
+}
+
+function dispatchCrossTabWindowEvent(eventName, detail = {}) {
+  if (typeof window === 'undefined' || !String(eventName || '').trim()) return;
+  window.dispatchEvent(new CustomEvent(eventName, { detail }));
+}
+
+function broadcastCrossTabSyncEvent(eventType, payload = {}) {
+  const channel = getCrossTabSyncChannel();
+  if (!channel || !String(eventType || '').trim()) return false;
+  channel.postMessage({
+    sourceId: CROSS_TAB_SYNC_SOURCE_ID,
+    eventType,
+    payload: payload && typeof payload === 'object' ? payload : {},
+    sentAt: Date.now()
+  });
+  return true;
+}
+
+const AppCrossTabSync = {
+  broadcastSettingsChanged(payload = {}) {
+    return broadcastCrossTabSyncEvent(CROSS_TAB_SYNC_EVENT_TYPES.settingsChanged, payload);
+  },
+  broadcastUserStateChanged(payload = {}) {
+    return broadcastCrossTabSyncEvent(CROSS_TAB_SYNC_EVENT_TYPES.userStateChanged, payload);
+  },
+  broadcastReviewQueueChanged(payload = {}) {
+    return broadcastCrossTabSyncEvent(CROSS_TAB_SYNC_EVENT_TYPES.reviewQueueChanged, payload);
+  },
+  broadcastManagedAccountsChanged(payload = {}) {
+    return broadcastCrossTabSyncEvent(CROSS_TAB_SYNC_EVENT_TYPES.managedAccountsChanged, payload);
+  }
+};
+
+if (typeof window !== 'undefined') {
+  window.AppCrossTabSync = AppCrossTabSync;
+}
+
 function applySharedSettingsLocally(settings = {}) {
   const normalised = normaliseAdminSettings(settings);
   updateAdminSettingsState(normalised);
+  clearAdminSettingsStaleNotice(Number(normalised?._meta?.revision || 0));
   try {
     localStorage.setItem(GLOBAL_ADMIN_STORAGE_KEY, JSON.stringify(normalised));
   } catch {}
@@ -772,6 +1195,10 @@ function applyUserStateSnapshotLocally(username, state = {}) {
   };
   updateUserStateCache(nextCache);
   AppState.userSettingsSavedAt = Number(nextCache._meta?.updatedAt || AppState.userSettingsSavedAt || 0);
+  clearWorkspaceStaleNotice({
+    username: safeUsername,
+    revision: Number(nextCache._meta?.revision || 0)
+  });
   try {
     if (nextCache.userSettings) {
       localStorage.setItem(buildUserStorageKey(USER_SETTINGS_STORAGE_PREFIX, safeUsername), JSON.stringify(nextCache.userSettings));
@@ -810,6 +1237,80 @@ async function loadSharedAdminSettings() {
 
 function syncSharedAdminSettings(settings, audit = null) {
   return window.AppSharedStateClient.syncSharedAdminSettings(settings, audit);
+}
+
+function bindCrossTabSync() {
+  if (_crossTabSyncBound || typeof window === 'undefined') return;
+  _crossTabSyncBound = true;
+  const channel = getCrossTabSyncChannel();
+  if (!channel) return;
+  channel.addEventListener('message', (event) => {
+    const message = event?.data && typeof event.data === 'object' ? event.data : {};
+    if (String(message.sourceId || '') === CROSS_TAB_SYNC_SOURCE_ID) return;
+    const eventType = String(message.eventType || '').trim();
+    const payload = message.payload && typeof message.payload === 'object' ? message.payload : {};
+
+    if (eventType === CROSS_TAB_SYNC_EVENT_TYPES.settingsChanged) {
+      dispatchCrossTabWindowEvent(CROSS_TAB_WINDOW_EVENTS.settingsChanged, payload);
+      const currentRoute = String(window.location.hash || '');
+      if (/^#\/admin\/settings/.test(currentRoute) || /^#\/admin\/docs/.test(currentRoute)) {
+        setAdminSettingsStaleNotice({
+          revision: Number(payload.revision || 0),
+          updatedAt: Number(payload.updatedAt || Date.now()),
+          detectedAt: Date.now()
+        });
+        const copy = getAdminSurfaceNoticeCopy(currentRoute);
+        UI.toast(copy.body, 'warning', 5000);
+        return;
+      }
+      refreshAuthenticatedContextFromServer({ force: true, rerender: true }).catch(error => {
+        console.warn('cross-tab settings refresh failed:', error?.message || error);
+      });
+      return;
+    }
+
+    if (eventType === CROSS_TAB_SYNC_EVENT_TYPES.userStateChanged) {
+      dispatchCrossTabWindowEvent(CROSS_TAB_WINDOW_EVENTS.userStateChanged, payload);
+      const currentUsername = String(AuthService.getCurrentUser()?.username || AppState.userStateCache.username || '').trim().toLowerCase();
+      if (!currentUsername || String(payload.username || '').trim().toLowerCase() !== currentUsername) return;
+      if (hasUnsafeWorkspaceEdits()) {
+        setWorkspaceStaleNotice({
+          username: currentUsername,
+          revision: Number(payload.revision || 0),
+          updatedAt: Number(payload.updatedAt || Date.now()),
+          detectedAt: Date.now(),
+          changedSlices: payload.changedSlices
+        });
+        UI.toast('Your saved workspace changed in another tab. Save or reload before making more edits here.', 'warning', 5000);
+        return;
+      }
+      loadSharedUserState(currentUsername)
+        .then(() => Router.render?.())
+        .catch(error => console.warn('cross-tab user-state refresh failed:', error?.message || error));
+      return;
+    }
+
+    if (eventType === CROSS_TAB_SYNC_EVENT_TYPES.reviewQueueChanged) {
+      markReviewQueueSurfaceInvalidated(payload);
+      dispatchCrossTabWindowEvent(CROSS_TAB_WINDOW_EVENTS.reviewQueueChanged, payload);
+      return;
+    }
+
+    if (eventType === CROSS_TAB_SYNC_EVENT_TYPES.managedAccountsChanged) {
+      dispatchCrossTabWindowEvent(CROSS_TAB_WINDOW_EVENTS.managedAccountsChanged, payload);
+      AuthService.refreshManagedAccounts?.().catch(error => console.warn('cross-tab managed-account refresh failed:', error?.message || error));
+      const currentUsername = String(AuthService.getCurrentUser()?.username || '').trim().toLowerCase();
+      if (currentUsername && (!payload.username || String(payload.username || '').trim().toLowerCase() === currentUsername)) {
+        refreshAuthenticatedContextFromServer({
+          force: true,
+          rerender: !AppState.draftDirty,
+          allowWorkspaceReload: !AppState.draftDirty && !AppState.userStateSyncInFlight
+        }).catch(error => {
+          console.warn('cross-tab managed-account context refresh failed:', error?.message || error);
+        });
+      }
+    }
+  });
 }
 
 function getSafeRetryAfterMs(error) {
@@ -2585,7 +3086,7 @@ async function refreshAuthenticatedContextFromServer(options = {}) {
   if (!currentUser?.username) return false;
 
   const force = options.force === true;
-  const allowWorkspaceReload = options.allowWorkspaceReload !== false && !AppState.draftDirty && !AppState.userStateSyncInFlight;
+  const allowWorkspaceReload = options.allowWorkspaceReload !== false && !hasUnsafeWorkspaceEdits();
   const shouldRerender = options.rerender !== false && allowWorkspaceReload;
   const now = Date.now();
 
@@ -2697,6 +3198,7 @@ function queueSharedUserStateSync(patch = {}, username = AuthService.getCurrentU
     const pendingPatch = AppState.userStateSyncPending ? { ...AppState.userStateSyncPending } : null;
     applyWorkspaceRuntimeState(applyWorkspaceSyncClearedTransition(AppState));
     if (!pendingPatch || !Object.keys(pendingPatch).length) return;
+    const changedSlices = listWorkspacePatchSlices(pendingPatch);
     applyWorkspaceRuntimeState(applyWorkspaceSyncStartedTransition(AppState));
     updateWizardSaveState();
     updateWorkspaceSyncState();
@@ -2711,6 +3213,12 @@ function queueSharedUserStateSync(patch = {}, username = AuthService.getCurrentU
     )
       .then(data => {
         applyUserStateSnapshotLocally(safeUsername, data?.state || {});
+        AppCrossTabSync.broadcastUserStateChanged({
+          username: safeUsername,
+          revision: Number(data?.state?._meta?.revision || 0),
+          updatedAt: Number(data?.state?._meta?.updatedAt || Date.now()),
+          changedSlices
+        });
         applyWorkspaceRuntimeState(applyWorkspaceSyncFinishedTransition(AppState, data?.state?._meta || {}));
         updateWizardSaveState();
         updateWorkspaceSyncState();
@@ -2963,9 +3471,9 @@ function buildUserStorageKey(prefix, username = getCurrentUserOrThrow().username
   return `${prefix}__${username}`;
 }
 
-function clearUserPersistentState(username) {
+async function clearUserPersistentState(username) {
   const safeUsername = String(username || '').trim().toLowerCase();
-  if (!safeUsername) return;
+  if (!safeUsername) return null;
   try {
     localStorage.removeItem(buildUserStorageKey(USER_SETTINGS_STORAGE_PREFIX, safeUsername));
     localStorage.removeItem(buildUserStorageKey(ASSESSMENTS_STORAGE_PREFIX, safeUsername));
@@ -2976,11 +3484,12 @@ function clearUserPersistentState(username) {
     sessionStorage.removeItem(buildUserStorageKey(SESSION_LLM_HEALTH_STORAGE_PREFIX, safeUsername));
     sessionStorage.removeItem(buildUserStorageKey(SESSION_PILOT_AI_WARNING_STORAGE_PREFIX, safeUsername));
   } catch {}
-  const expectedMeta = buildExpectedMeta(AppState.userStateCache.username === safeUsername ? AppState.userStateCache._meta : {});
-  if (AppState.userStateCache.username === safeUsername) {
-    resetUserStateCache(safeUsername);
+  let expectedMeta = buildExpectedMeta(AppState.userStateCache.username === safeUsername ? AppState.userStateCache._meta : {});
+  if (AppState.userStateCache.username !== safeUsername) {
+    const currentState = await requestUserState('GET', safeUsername);
+    expectedMeta = buildExpectedMeta(currentState?.state?._meta);
   }
-  requestUserState('PUT', safeUsername, {
+  const result = await requestUserState('PUT', safeUsername, {
     state: {
       userSettings: null,
       assessments: [],
@@ -2990,7 +3499,17 @@ function clearUserPersistentState(username) {
       draft: null
     },
     expectedMeta
-  }, { category: 'user_admin', eventType: 'user_state_reset', target: safeUsername }).catch(error => console.warn('clearUserPersistentState sync failed:', error.message));
+  }, { category: 'user_admin', eventType: 'user_state_reset', target: safeUsername });
+  if (AppState.userStateCache.username === safeUsername) {
+    applyUserStateSnapshotLocally(safeUsername, result?.state || {});
+  }
+  AppCrossTabSync.broadcastUserStateChanged({
+    username: safeUsername,
+    revision: Number(result?.state?._meta?.revision || 0),
+    updatedAt: Number(result?.state?._meta?.updatedAt || Date.now()),
+    changedSlices: ['userSettings', 'learningStore', 'draftWorkspace', 'savedAssessments']
+  });
+  return result?.state || null;
 }
 
 function getUserSettingsDefaults(globalSettings = getAdminSettings()) {
@@ -3444,6 +3963,10 @@ async function saveAdminSettings(settings, options = {}) {
     } else {
       applySharedSettingsLocally(merged);
     }
+    AppCrossTabSync.broadcastSettingsChanged({
+      revision: Number(getAdminSettings()._meta?.revision || 0),
+      updatedAt: Number(getAdminSettings()._meta?.updatedAt || Date.now())
+    });
     return true;
   };
 
@@ -10990,8 +11513,10 @@ async function init() {
   }
   BenchmarkService.init(AppState.benchmarkList);
   activateAuthenticatedState();
+  bindLiveTimestampTicker();
   bindWorkspaceStorageSync();
   bindServerContextRefresh();
+  bindCrossTabSync();
 
   window.AppRoutes.register(Router);
 

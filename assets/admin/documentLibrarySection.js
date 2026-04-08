@@ -43,6 +43,8 @@ const AdminDocumentLibrarySection = (() => {
   function renderRoute() {
     if (!requireAdmin()) return;
     const docList = getDocList();
+    const snapshotLoadedAt = Date.now();
+    const settingsUpdatedAt = Number(getAdminSettings()?._meta?.updatedAt || 0);
     // Bulk-ingest all stored documents into RAGService on admin load
     if (typeof RAGService !== 'undefined' && RAGService.addDocument) {
       const storedDocs = getDocList ? getDocList() : (AppState.docList || []);
@@ -75,6 +77,17 @@ const AdminDocumentLibrarySection = (() => {
         <div class="admin-workbench-strip__meta">
           <span class="badge badge--neutral">${docList.filter(doc => String(doc.lastUpdated || '').startsWith(String(new Date().getFullYear()))).length} updated this year</span>
         </div>
+      </div>
+      <div class="review-queue-sync-meta review-queue-sync-meta--compact">
+        <span>Library view refreshed ${typeof renderLiveTimestampValue === 'function'
+          ? renderLiveTimestampValue(snapshotLoadedAt, { tagName: 'strong', mode: 'absolute', includeSeconds: true, fallback: 'Unknown time' })
+          : `<strong>${escapeHtml(typeof formatOperationalDateTime === 'function' ? formatOperationalDateTime(snapshotLoadedAt, { includeSeconds: true, fallback: 'Unknown time' }) : 'Unknown time')}</strong>`}</span>
+        <span>Data age ${typeof renderLiveTimestampValue === 'function'
+          ? renderLiveTimestampValue(snapshotLoadedAt, { tagName: 'strong', mode: 'relative', fallback: 'just now', staleAfterMs: 120000, staleClass: 'live-timestamp--stale' })
+          : `<strong>${escapeHtml(typeof formatRelativePilotTime === 'function' ? formatRelativePilotTime(snapshotLoadedAt, 'just now') : 'just now')}</strong>`}</span>
+        <span>Latest shared library update ${typeof renderLiveTimestampValue === 'function'
+          ? renderLiveTimestampValue(settingsUpdatedAt, { tagName: 'strong', mode: 'relative', fallback: 'not recorded yet', staleAfterMs: 300000, staleClass: 'live-timestamp--stale' })
+          : `<strong>${escapeHtml(typeof formatRelativePilotTime === 'function' ? formatRelativePilotTime(settingsUpdatedAt, 'not recorded yet') : 'not recorded yet')}</strong>`}</span>
       </div>
       ${UI.adminTableCard({
         title: 'Documents in the library',
