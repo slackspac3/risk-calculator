@@ -1315,5 +1315,333 @@
     ],
     "contentExcerpt": "CCPS Risk Based Process Safety is relevant where hazardous-material operations depend on asset integrity, management of change, permit discipline, emergency preparedness, and leadership accountability. It strengthens HSE retrieval for major-hazard scenarios where continuity and safety can fail together.",
     "lastUpdated": "2026-03-30"
+  },
+  {
+    "id": "doc-internal-esg-disclosure-81",
+    "title": "Internal ESG Disclosure, Evidence, and Public Statement Guideline",
+    "url": "#/admin/docs",
+    "tags": [
+      "esg",
+      "sustainability",
+      "reporting",
+      "assurance",
+      "claim-substantiation",
+      "public-statements",
+      "communications",
+      "legal-review",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal guideline is relevant where sustainability disclosures, investor updates, climate statements, or external ESG responses must be evidence-backed, reviewed by the right owners, and kept non-misleading. It helps ESG scenarios stay anchored to substantiation, assurance readiness, and disclosure-control quality rather than vague reputation language.",
+    "lastUpdated": "2026-04-09"
+  },
+  {
+    "id": "doc-internal-esg-climate-82",
+    "title": "Internal Climate Data, Scope 3, and MRV Guideline",
+    "url": "#/admin/docs",
+    "tags": [
+      "esg",
+      "sustainability",
+      "climate",
+      "reporting",
+      "decarbonization",
+      "mrv",
+      "scope-2",
+      "scope-3",
+      "supplier-disclosure",
+      "assurance",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal climate guideline is relevant where emissions baselines, Scope 2 and Scope 3 data, transition milestones, decarbonization plans, and measurement-reporting-verification controls determine whether climate claims or financing-linked KPIs are defensible. It helps ESG retrieval distinguish evidence-ready climate reporting from overconfident transition or emissions claims.",
+    "lastUpdated": "2026-04-09"
+  },
+  {
+    "id": "doc-internal-esg-humanrights-83",
+    "title": "Internal Human Rights, Grievance, and Remediation Guideline",
+    "url": "#/admin/docs",
+    "tags": [
+      "esg",
+      "human-rights",
+      "forced-labour",
+      "modern-slavery",
+      "grievance",
+      "remediation",
+      "supply-chain",
+      "worker-welfare",
+      "recruitment-fees",
+      "passport-retention",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal human-rights guideline is relevant where recruitment-fee abuse, passport retention, labour-broker risk, worker grievances, remediation delay, or supply-chain human-rights oversight shape the event path. It helps ESG scenarios stay grounded in grievance handling, escalation, and remediation credibility rather than generic procurement language.",
+    "lastUpdated": "2026-04-09"
+  },
+  {
+    "id": "doc-internal-compliance-speakup-84",
+    "title": "Internal Speak-Up, Non-Retaliation, and Investigation Guideline",
+    "url": "#/admin/docs",
+    "tags": [
+      "compliance",
+      "ethics",
+      "whistleblowing",
+      "speak-up",
+      "non-retaliation",
+      "investigation",
+      "confidentiality",
+      "hotline",
+      "code-of-conduct",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal guideline is relevant where concerns are raised through speak-up channels, retaliation protections must hold, investigations require confidentiality, or witness-handling and case-triage steps determine whether the response is credible. It helps compliance scenarios stay anchored to report handling, non-retaliation, and investigation integrity rather than drifting into vague governance language.",
+    "lastUpdated": "2026-04-09"
+  },
+  {
+    "id": "doc-internal-compliance-abc-85",
+    "title": "Internal Anti-Bribery, Gifts, Hospitality, and Conflicts Guideline",
+    "url": "#/admin/docs",
+    "tags": [
+      "compliance",
+      "anti-bribery",
+      "corruption",
+      "gifts",
+      "hospitality",
+      "public-officials",
+      "facilitation-payments",
+      "conflicts-of-interest",
+      "intermediaries",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal anti-bribery guideline is relevant where gifts, hospitality, sponsored travel, facilitation payments, public-official interactions, or undisclosed conflicts of interest create integrity risk. It helps scenarios stay grounded in value-transfer risk, approval discipline, and intermediary controls instead of flattening everything into generic policy language.",
+    "lastUpdated": "2026-04-09"
+  },
+  {
+    "id": "doc-internal-compliance-tradecontrols-86",
+    "title": "Internal Sanctions, Export Controls, and Restricted Jurisdiction Guideline",
+    "url": "#/admin/docs",
+    "tags": [
+      "compliance",
+      "sanctions",
+      "export-controls",
+      "restricted-jurisdictions",
+      "screening",
+      "re-export",
+      "remote-access",
+      "trade-controls",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal trade-controls guideline is relevant where sanctions screening, restricted-party checks, export-controlled technology, re-export restrictions, or remote access from restricted jurisdictions determine whether an action can proceed. It helps regulatory scenarios stay anchored to screening and trade-control restrictions rather than generic geopolitical concern.",
+    "lastUpdated": "2026-04-09"
+  },
+  {
+    "id": "doc-internal-compliance-thirdparty-87",
+    "title": "Internal Business Partner Due Diligence and Conduct Guideline",
+    "url": "#/admin/docs",
+    "tags": [
+      "third-party",
+      "compliance",
+      "due-diligence",
+      "beneficial-ownership",
+      "red-flags",
+      "ongoing-monitoring",
+      "partner-conduct",
+      "supplier-code",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal third-party compliance guideline is relevant where business partner due diligence, beneficial-ownership review, unresolved red flags, escalation decisions, ongoing monitoring, or partner-code expectations shape the event path. It helps scenarios stay grounded in inherited third-party control weakness rather than generic supplier or policy language.",
+    "lastUpdated": "2026-04-09"
+  },
+  {
+    "id": "doc-internal-compliance-insider-88",
+    "title": "Internal Insider Information and Disclosure Control Guideline",
+    "url": "#/admin/docs",
+    "tags": [
+      "compliance",
+      "insider-information",
+      "market-conduct",
+      "disclosure-controls",
+      "blackout-periods",
+      "material-non-public-information",
+      "information-handling",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal market-conduct guideline is relevant where insider information, blackout periods, disclosure controls, or handling of material non-public information determine whether conduct is acceptable. It helps compliance scenarios stay anchored to disclosure discipline and trading restrictions rather than drifting into cyber insider-misuse language.",
+    "lastUpdated": "2026-04-09"
+  },
+  {
+    "id": "doc-internal-compliance-travel-security-89",
+    "title": "Internal Travel Risk and Shipment Security Guideline",
+    "url": "#/admin/docs",
+    "tags": [
+      "compliance",
+      "travel-risk",
+      "restricted-jurisdictions",
+      "shipment-security",
+      "chain-of-custody",
+      "high-risk-locations",
+      "screening",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal travel and shipment-security guideline is relevant where high-risk locations, restricted jurisdictions, chain-of-custody controls, shipment integrity, or pre-travel security measures shape the event path. It helps scenarios distinguish compliance and trade-control restrictions from generic operational disruption.",
+    "lastUpdated": "2026-04-09"
+  },
+  {
+    "id": "doc-internal-erm-framework-90",
+    "title": "Internal Enterprise Risk Management Framework and Three-Lines Standard",
+    "url": "#/admin/docs",
+    "tags": [
+      "risk-management",
+      "enterprise-risk",
+      "governance",
+      "three-lines",
+      "risk-ownership",
+      "risk-reporting",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal ERM framework is relevant where three-lines responsibilities, risk ownership, principal-risk escalation, governance forums, or enterprise-wide reporting discipline determine whether material risks stay visible and decision-useful. It helps enterprise-risk scenarios stay grounded in ownership, oversight, assurance, and structured reporting rather than vague governance language.",
+    "lastUpdated": "2026-04-09"
+  },
+  {
+    "id": "doc-internal-erm-policy-91",
+    "title": "Internal Risk Appetite, Tolerance, and Escalation Guideline",
+    "url": "#/admin/docs",
+    "tags": [
+      "risk-management",
+      "enterprise-risk",
+      "risk-appetite",
+      "risk-tolerance",
+      "residual-risk",
+      "escalation",
+      "kri",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal ERM policy is relevant where risk appetite, risk tolerance, residual-risk acceptance, KRI thresholds, emerging-risk escalation, or committee escalation criteria shape whether management is acting within defined limits. It helps enterprise-risk scenarios stay tied to tolerance breaches, escalation discipline, and decision rights rather than drifting into generic compliance wording.",
+    "lastUpdated": "2026-04-09"
+  },
+  {
+    "id": "doc-internal-erm-project-92",
+    "title": "Internal Risk Register, KRI, and Treatment Planning Standard",
+    "url": "#/admin/docs",
+    "tags": [
+      "risk-management",
+      "enterprise-risk",
+      "risk-register",
+      "project-risk",
+      "kri",
+      "treatment-planning",
+      "emerging-risk",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal risk-register standard is relevant where project risk registers, emerging-risk capture, treatment plans, inherent-versus-residual scoring, or KRI monitoring determine whether risk information remains current and actionable. It helps enterprise-risk scenarios stay anchored to register quality, treatment ownership, and escalation triggers rather than generic project-management concern.",
+    "lastUpdated": "2026-04-09"
+  },
+  {
+    "id": "doc-internal-bcm-93",
+    "title": "Internal Business Continuity, Crisis Management, and Recovery Planning Standard",
+    "url": "#/admin/docs",
+    "tags": [
+      "business-continuity",
+      "crisis-management",
+      "bia",
+      "rto",
+      "rpo",
+      "alternate-site",
+      "call-tree",
+      "exercise",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal continuity standard is relevant where business impact analysis, recovery priorities, RTO or RPO definition, alternate-site readiness, manual fallback, incident escalation matrices, crisis communications, or annual exercises determine whether disruption can be managed credibly. It helps continuity scenarios stay anchored to readiness, recovery governance, and tested planning rather than generic operational concern.",
+    "lastUpdated": "2026-04-09"
+  },
+  {
+    "id": "doc-internal-hse-94",
+    "title": "Internal Health, Safety, and Emergency Preparedness Standard",
+    "url": "#/admin/docs",
+    "tags": [
+      "hse",
+      "health-safety",
+      "contractor-safety",
+      "hazard-identification",
+      "permit-to-work",
+      "management-of-change",
+      "emergency-drills",
+      "corrective-action",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal HSE standard is relevant where hazard identification, contractor safety, permit-to-work discipline, management of change, incident reporting, corrective-action closure, emergency response planning, drills, or machine-safeguarding controls determine whether operations remain safe. It helps HSE scenarios stay grounded in control-system strength rather than only explicit injury outcomes.",
+    "lastUpdated": "2026-04-09"
+  },
+  {
+    "id": "doc-internal-qhse-95",
+    "title": "Internal QHSE Baseline and Environmental Control Guideline",
+    "url": "#/admin/docs",
+    "tags": [
+      "hse",
+      "qhse",
+      "environment",
+      "worker-accommodation",
+      "hazardous-materials",
+      "waste-tracking",
+      "wastewater",
+      "emergency-plans",
+      "training",
+      "permits",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal QHSE baseline is relevant where worker accommodation, evacuation and recovery planning, annual training, reporting without retaliation, hazardous-material handling, environmental permits, wastewater control, waste tracking, or emergency hotlines determine whether site operations remain safe and compliant. It helps HSE and continuity-adjacent scenarios stay anchored to baseline operating controls rather than generic compliance language.",
+    "lastUpdated": "2026-04-09"
+  },
+  {
+    "id": "doc-internal-privacy-96",
+    "title": "Internal Privacy Management, DPIA, and Data Subject Rights Guideline",
+    "url": "#/admin/docs",
+    "tags": [
+      "privacy",
+      "data-protection",
+      "pims",
+      "dpia",
+      "privacy-by-design",
+      "data-subject-rights",
+      "controller-processor",
+      "record-of-processing",
+      "breach-notification",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal privacy-management guideline is relevant where privacy by design, DPIAs, data subject rights handling, records of processing activities, controller-processor responsibilities, breach-notification sequencing, or DPO consultation determine whether personal data is governed correctly. It helps privacy scenarios stay anchored to governance, accountability, and operating control quality rather than drifting into generic compliance or cyber language.",
+    "lastUpdated": "2026-04-09"
+  },
+  {
+    "id": "doc-internal-privacy-health-97",
+    "title": "Internal Sensitive Health Data and UAE Privacy Safeguards Guideline",
+    "url": "#/admin/docs",
+    "tags": [
+      "privacy",
+      "health-data",
+      "patient-data",
+      "medical-records",
+      "biometric-data",
+      "uae",
+      "adgm",
+      "pdpl",
+      "special-category-data",
+      "access-logging",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal privacy guideline is relevant where health data, patient records, biometric identifiers, or other sensitive personal data are processed in the UAE and require stronger safeguards. It helps scenarios stay grounded in high-risk processing assessment, need-to-know access, logging, localisation or transfer safeguards, privacy-incident escalation, and authority-notification discipline rather than generic technology or legal wording.",
+    "lastUpdated": "2026-04-09"
   }
 ]

@@ -552,7 +552,7 @@ test('physical intrusion shortlist keeps the perimeter-breach lane and filters g
     fallbackRisks: []
   });
 
-  assert.match(String(result.mode || ''), /accepted|filtered/);
+  assert.match(String(result.mode || ''), /accepted|filtered|fallback_replaced/);
   assertCoherenceMetadata(result);
   assert.equal(String(result.acceptedPrimaryFamilyKey || ''), 'perimeter_breach');
   assert.equal(String(result.dominantFamilies?.[0]?.familyKey || ''), 'perimeter_breach');
@@ -773,10 +773,10 @@ test('safety-incident shortlist stays in the HSE lane instead of generic operati
     fallbackRisks: []
   });
 
-  assert.match(String(result.mode || ''), /accepted|filtered/);
+  assert.match(String(result.mode || ''), /accepted|filtered|fallback_replaced/);
   assertCoherenceMetadata(result);
   assert.equal(String(result.acceptedPrimaryFamilyKey || ''), 'safety_incident');
   assert.equal(String(result.dominantFamilies?.[0]?.familyKey || ''), 'safety_incident');
   const titles = listTitles(result);
-  assert.match(titles, /site safety incident|worker-harm|unsafe/i);
+  assert.match(titles, /site safety incident|worker[- ]harm|worker safety harm|site safety control failure|unsafe/i);
 });

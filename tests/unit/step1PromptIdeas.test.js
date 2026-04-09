@@ -367,6 +367,300 @@ test('supplier labour scenario stays in ESG prompt ideas instead of drifting int
   assert.equal(labels.includes('Single-source shortfall'), false);
 });
 
+test('sustainability-linked KPI evidence gaps stay in ESG prompt ideas instead of drifting into finance', () => {
+  const internals = loadStep1Internals();
+  const event = 'A sustainability-linked loan KPI cannot be evidenced and the claimed margin step-down is under assurance challenge.';
+  const draft = {
+    step1Path: 'guided',
+    guidedInput: {
+      event,
+      asset: 'Published sustainability KPI and financing-linked metrics',
+      cause: 'Weak substantiation and assurance evidence',
+      impact: 'Disclosure credibility and stakeholder challenge'
+    }
+  };
+
+  const lens = internals.getStep1PreferredScenarioLens({}, draft, event);
+  assert.equal(lens.key, 'esg');
+  assert.equal(lens.functionKey, 'strategic');
+
+  const suggestions = internals.buildStep1GuidedPromptSuggestions(draft, {
+    recommendedExamples: [
+      { promptLabel: 'Payment control failure', event: 'A payment-control issue causes avoidable financial loss.', functionKey: 'finance' }
+    ]
+  });
+  const labels = suggestions.map((item) => item.label);
+  assert.ok(labels.includes('Greenwashing / Disclosure Gap'));
+  assert.equal(labels.includes('Payment control failure'), false);
+});
+
+test('labour-broker grievance wording stays in ESG prompt ideas instead of generic supplier governance', () => {
+  const internals = loadStep1Internals();
+  const event = 'Worker grievances reveal recruitment fees and passport retention in a labour-broker layer.';
+  const draft = {
+    step1Path: 'guided',
+    guidedInput: {
+      event,
+      asset: 'Sub-tier workforce and labour-broker arrangements',
+      cause: 'Weak human-rights due diligence and delayed remediation',
+      impact: 'Human-rights scrutiny and remediation pressure'
+    }
+  };
+
+  const lens = internals.getStep1PreferredScenarioLens({}, draft, event);
+  assert.equal(lens.key, 'esg');
+  assert.equal(lens.functionKey, 'strategic');
+
+  const suggestions = internals.buildStep1GuidedPromptSuggestions(draft, {
+    recommendedExamples: [
+      { promptLabel: 'Supplier control weakness', event: 'Weak supplier governance creates inherited risk.', functionKey: 'procurement' }
+    ]
+  });
+  const labels = suggestions.map((item) => item.label);
+  assert.ok(labels.includes('Forced Labour / Modern Slavery'));
+  assert.equal(labels.includes('Supplier control weakness'), false);
+});
+
+test('whistleblower retaliation wording stays in compliance prompt ideas instead of cyber insider wording', () => {
+  const internals = loadStep1Internals();
+  const event = 'A whistleblower reports misconduct and then faces retaliation while the investigation protocol is not followed.';
+  const draft = {
+    step1Path: 'guided',
+    guidedInput: {
+      event,
+      asset: 'Speak-up and investigation process',
+      cause: 'Retaliation and process non-compliance',
+      impact: 'Control breakdown and scrutiny'
+    }
+  };
+
+  const lens = internals.getStep1PreferredScenarioLens({}, draft, event);
+  assert.equal(lens.key, 'compliance');
+  assert.equal(lens.functionKey, 'compliance');
+
+  const suggestions = internals.buildStep1GuidedPromptSuggestions(draft, {
+    recommendedExamples: [
+      { promptLabel: 'Malicious insider misuse', event: 'An employee misuses privileged access.', functionKey: 'technology' }
+    ]
+  });
+  const labels = suggestions.map((item) => item.label);
+  assert.ok(labels.includes('Policy Breach'));
+  assert.equal(labels.includes('Malicious insider misuse'), false);
+});
+
+test('privacy-governance wording stays in privacy governance prompt ideas instead of generic cyber or policy examples', () => {
+  const internals = loadStep1Internals();
+  const event = 'A data protection impact assessment is not completed for large-scale biometric processing, data subject rights requests are delayed, and the DPO is not consulted.';
+  const draft = {
+    step1Path: 'guided',
+    guidedInput: {
+      event,
+      asset: 'Biometric and sensitive personal data processing',
+      cause: 'DPIA and privacy-governance controls are incomplete',
+      impact: 'Regulatory scrutiny and control breakdown'
+    }
+  };
+
+  const lens = internals.getStep1PreferredScenarioLens({}, draft, event);
+  assert.equal(lens.key, 'compliance');
+  assert.equal(lens.functionKey, 'compliance');
+
+  const suggestions = internals.buildStep1GuidedPromptSuggestions(draft, {
+    recommendedExamples: [
+      { promptLabel: 'Malicious insider misuse', event: 'An employee misuses privileged access.', functionKey: 'technology' },
+      { promptLabel: 'Policy breach', event: 'A general policy requirement is not followed.', functionKey: 'compliance' }
+    ]
+  });
+  const labels = suggestions.map((item) => item.label);
+  assert.ok(labels.includes('Privacy Governance Weakness'));
+  assert.equal(labels.includes('Malicious insider misuse'), false);
+  assert.equal(labels.includes('Policy breach'), false);
+});
+
+test('UAE health-data privacy wording stays in privacy governance prompt ideas instead of drifting into generic healthcare cyber wording', () => {
+  const internals = loadStep1Internals();
+  const event = 'Patient-data processing proceeds without the required high-risk assessment, medical-records access logging is weak, and local safeguards for sensitive data are incomplete.';
+  const draft = {
+    step1Path: 'guided',
+    guidedInput: {
+      event,
+      asset: 'Patient and medical records',
+      cause: 'Sensitive-data privacy safeguards are incomplete',
+      impact: 'Regulatory scrutiny and control breakdown'
+    }
+  };
+
+  const model = internals.buildStep1GuidedPromptIdeaModel(draft, {
+    recommendedExamples: [
+      { promptLabel: 'Cloud exposure', event: 'A cloud control weakness exposes a service.', functionKey: 'technology' }
+    ]
+  });
+
+  assert.equal(model.state, 'high_confidence_family');
+  assert.ok(model.promptSuggestions.some((item) => item.label === 'Privacy Governance Weakness'));
+  assert.equal(model.promptSuggestions.some((item) => item.label === 'Cloud exposure'), false);
+});
+
+test('public-official hospitality wording stays in bribery prompt ideas instead of generic compliance', () => {
+  const internals = loadStep1Internals();
+  const event = 'Sponsored travel and hospitality for a public official proceed without the required anti-bribery approvals.';
+  const draft = {
+    step1Path: 'guided',
+    guidedInput: {
+      event,
+      asset: 'Commercial relationship and approval path',
+      cause: 'Improper hospitality and approval bypass',
+      impact: 'Legal and integrity exposure'
+    }
+  };
+
+  const lens = internals.getStep1PreferredScenarioLens({}, draft, event);
+  assert.equal(lens.key, 'fraud-integrity');
+  assert.equal(lens.functionKey, 'finance');
+
+  const suggestions = internals.buildStep1GuidedPromptSuggestions(draft, {
+    recommendedExamples: [
+      { promptLabel: 'Policy breach', event: 'A general policy requirement is not followed.', functionKey: 'compliance' }
+    ]
+  });
+  const labels = suggestions.map((item) => item.label);
+  assert.ok(labels.includes('Bribery Exposure'));
+  assert.equal(labels.includes('Policy breach'), false);
+});
+
+test('restricted-jurisdiction trade-control wording stays in sanctions prompt ideas instead of generic policy breach', () => {
+  const internals = loadStep1Internals();
+  const event = 'Remote technical access from a restricted jurisdiction was enabled for export-controlled systems before screening clearance was completed.';
+  const draft = {
+    step1Path: 'guided',
+    guidedInput: {
+      event,
+      asset: 'Export-controlled systems and remote access path',
+      cause: 'Trade-control screening and clearance gap',
+      impact: 'Regulatory and legal exposure'
+    }
+  };
+
+  const lens = internals.getStep1PreferredScenarioLens({}, draft, event);
+  assert.equal(lens.key, 'regulatory');
+  assert.equal(lens.functionKey, 'compliance');
+
+  const suggestions = internals.buildStep1GuidedPromptSuggestions(draft, {
+    recommendedExamples: [
+      { promptLabel: 'Policy breach', event: 'A general policy requirement is not followed.', functionKey: 'compliance' }
+    ]
+  });
+  const labels = suggestions.map((item) => item.label);
+  assert.ok(labels.includes('Sanctions Screening Failure'));
+  assert.equal(labels.includes('Policy breach'), false);
+});
+
+test('risk appetite and KRI escalation wording stays in general enterprise-risk prompt ideas instead of generic compliance', () => {
+  const internals = loadStep1Internals();
+  const event = 'KRIs move above tolerance and escalation to the risk committee does not happen while residual risk remains outside appetite.';
+  const draft = {
+    step1Path: 'guided',
+    guidedInput: {
+      event,
+      asset: 'KRI dashboard and residual-risk profile',
+      cause: 'Escalation and reporting discipline are weak',
+      impact: 'Material risk remains outside tolerance'
+    }
+  };
+
+  const lens = internals.getStep1PreferredScenarioLens({}, draft, event);
+  assert.equal(lens.key, 'general');
+  assert.equal(lens.functionKey, 'general');
+
+  const suggestions = internals.buildStep1GuidedPromptSuggestions(draft, {
+    recommendedExamples: [
+      { promptLabel: 'Policy breach', event: 'A general policy requirement is not followed.', functionKey: 'compliance' }
+    ]
+  });
+  const labels = suggestions.map((item) => item.label);
+  assert.ok(labels.includes('Risk Appetite Breach') || labels.includes('Risk Governance Gap'));
+  assert.equal(labels.includes('Policy breach'), false);
+});
+
+test('project risk register and treatment-plan wording stays in a clear enterprise-risk prompt state', () => {
+  const internals = loadStep1Internals();
+  const event = 'The project risk register is stale, treatment plans are overdue, and emerging risks are not being aggregated into reporting.';
+  const model = internals.buildStep1GuidedPromptIdeaModel({
+    step1Path: 'guided',
+    guidedInput: {
+      event,
+      asset: 'Project risk register and treatment planning',
+      cause: '',
+      impact: ''
+    }
+  }, {
+    recommendedExamples: [
+      { promptLabel: 'Programme delivery delay', event: 'A delivery dependency delays go-live.', functionKey: 'strategic' }
+    ]
+  });
+
+  assert.equal(model.state, 'high_confidence_family');
+  assert.ok(model.promptSuggestions.some((item) => item.label === 'Risk Governance Gap' || item.label === 'Risk Appetite Breach' || item.label === 'KRI Monitoring Failure'));
+  assert.equal(model.promptSuggestions.some((item) => item.label === 'Programme delivery delay'), false);
+
+  const html = internals.renderStep1GuidedPromptIdeaPanel(model);
+  assert.ok(html.includes('Likely local direction: General enterprise risk'));
+});
+
+test('BIA and call-tree wording stays in the business continuity prompt lane', () => {
+  const internals = loadStep1Internals();
+  const event = 'The business impact analysis is stale, RTOs are not defined, and the incident escalation call tree has not been exercised.';
+  const draft = {
+    step1Path: 'guided',
+    guidedInput: {
+      event,
+      asset: 'Critical service recovery arrangements',
+      cause: 'Continuity governance and testing are stale',
+      impact: 'Recovery decisions may be delayed during disruption'
+    }
+  };
+
+  const lens = internals.getStep1PreferredScenarioLens({}, draft, event);
+  assert.equal(lens.key, 'business-continuity');
+  assert.equal(lens.functionKey, 'operations');
+
+  const suggestions = internals.buildStep1GuidedPromptSuggestions(draft, {
+    recommendedExamples: [
+      { promptLabel: 'Operational service delay', event: 'A workflow issue delays service delivery.', functionKey: 'operations' }
+    ]
+  });
+  const labels = suggestions.map((item) => item.label);
+  assert.ok(labels.includes('Continuity Planning Gap'));
+  assert.equal(labels.includes('Operational service delay'), false);
+});
+
+test('permit-to-work and overdue-drill wording stays in the HSE prompt lane before any incident occurs', () => {
+  const internals = loadStep1Internals();
+  const event = 'Permit-to-work controls are bypassed, emergency drills are overdue, and contractor safety corrective actions remain open.';
+  const draft = {
+    step1Path: 'guided',
+    guidedInput: {
+      event,
+      asset: 'Site operations and contractor work',
+      cause: 'Weak permit discipline and emergency preparedness',
+      impact: 'Unsafe operations could continue without effective barriers'
+    }
+  };
+
+  const lens = internals.getStep1PreferredScenarioLens({}, draft, event);
+  assert.equal(lens.key, 'hse');
+  assert.equal(lens.functionKey, 'hse');
+
+  const suggestions = internals.buildStep1GuidedPromptSuggestions(draft, {
+    recommendedExamples: [
+      { promptLabel: 'Policy breach', event: 'A general policy requirement is not followed.', functionKey: 'compliance' }
+    ]
+  });
+  const labels = suggestions.map((item) => item.label);
+  assert.ok(labels.includes('Safety Control Weakness'));
+  assert.equal(labels.includes('Policy breach'), false);
+});
+
 test('ambiguous privacy-versus-disclosure wording stays soft instead of forcing a hard disclosure prompt', () => {
   const internals = loadStep1Internals();
   const event = 'Customer records were kept too long in breach of privacy obligations, with possible external visibility.';

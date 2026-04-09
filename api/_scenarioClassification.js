@@ -39,6 +39,9 @@ const EXTRA_HINT_ALIASES = Object.freeze({
   technology: 'cyber',
   'cyber risk': 'cyber',
   'business continuity': 'business_continuity',
+  'business continuity management': 'business_continuity',
+  bcm: 'business_continuity',
+  'crisis management': 'business_continuity',
   continuity: 'business_continuity',
   'business-continuity': 'business_continuity',
   operations: 'operational',
@@ -66,6 +69,7 @@ const EXTRA_HINT_ALIASES = Object.freeze({
   'transformation-delivery': 'strategic_transformation',
   esg: 'esg_hse_people',
   hse: 'esg_hse_people',
+  qhse: 'esg_hse_people',
   people: 'esg_hse_people',
   workforce: 'esg_hse_people',
   labour: 'esg_hse_people',
@@ -81,7 +85,10 @@ const EXTRA_HINT_ALIASES = Object.freeze({
   ai: 'general',
   'ai risk': 'general',
   'model risk': 'general',
-  'responsible ai': 'general'
+  'responsible ai': 'general',
+  erm: 'general',
+  'enterprise risk': 'general',
+  'risk management': 'general'
 });
 
 const LENS_LABELS = Object.freeze({
@@ -292,6 +299,21 @@ function getFamilyExtraMatches(familyKey = '', text = '') {
       push({ text: 'internal policy or control-process breach', strength: 'strong' });
     }
   }
+  if (familyKey === 'risk_governance_gap') {
+    if (hasExplicitRiskGovernanceSignals(raw)) {
+      push({ text: 'enterprise-risk governance pattern', strength: 'strong' });
+    }
+  }
+  if (familyKey === 'privacy_governance_gap') {
+    if (hasExplicitPrivacyGovernanceSignals(raw)) {
+      push({ text: 'privacy governance or sensitive-data oversight failure', strength: 'strong' });
+    }
+  }
+  if (familyKey === 'continuity_planning_gap') {
+    if (hasExplicitContinuityPlanningSignals(raw)) {
+      push({ text: 'continuity planning or crisis-readiness gap', strength: 'strong' });
+    }
+  }
   if (familyKey === 'privacy_non_compliance') {
     if (hasExplicitPrivacyObligationSignals(raw)) {
       push({ text: 'privacy obligation failure', strength: 'strong' });
@@ -345,6 +367,11 @@ function getFamilyExtraMatches(familyKey = '', text = '') {
   if (familyKey === 'environmental_spill') {
     if (hasExplicitEnvironmentalSpillSignals(raw)) {
       push({ text: 'explicit environmental spill or release', strength: 'strong' });
+    }
+  }
+  if (familyKey === 'safety_control_weakness') {
+    if (hasExplicitSafetyControlWeaknessSignals(raw)) {
+      push({ text: 'explicit HSE control or emergency-readiness weakness', strength: 'strong' });
     }
   }
   if (familyKey === 'workforce_fatigue_staffing_weakness') {
@@ -631,6 +658,12 @@ function hasExplicitRecoveryCoordinationSignals(text = '') {
       && /(not aligned|breaks down|fails?|delayed|delay|poor coordination|coordination breakdown)/i.test(text));
 }
 
+function hasExplicitContinuityPlanningSignals(text = '') {
+  return /(business impact analysis (?:is )?(?:outdated|stale|missing|not current)|\bbia\b(?: is)? (?:outdated|stale|missing|not current)|rto(?:s)? (?:are )?(?:undefined|not defined|missing|outdated)|rpo(?:s)? (?:are )?(?:undefined|not defined|missing|outdated)|recovery priorities (?:are )?(?:undefined|not defined)|alternate (?:site|workspace) (?:is )?(?:not approved|missing|unavailable)|manual fallback (?:is )?(?:not documented|missing)|(?:business continuity|continuity|disaster recovery|recovery|crisis communication) plan(?:ning)? (?:is )?(?:missing|stale|outdated|not tested|not exercised)|call tree (?:is )?(?:outdated|missing)|incident escalation matrix (?:is )?(?:missing|outdated)|(?:continuity|dr|recovery) exercise(?:s)? (?:are )?(?:overdue|not completed|not performed))/i.test(text)
+    || ((/(business impact analysis|\bbia\b|rto|rpo|alternate site|alternate workspace|manual fallback|continuity plan|business continuity plan|disaster recovery plan|dr plan|recovery plan|call tree|incident escalation matrix|crisis communication plan|exercise|testing|recovery priorities)/i.test(text))
+      && /(outdated|stale|missing|not current|not defined|undefined|not documented|not tested|overdue|not approved|incomplete|absent|not exercised|lapsed)/i.test(text));
+}
+
 function hasExplicitContinuityGapSignals(text = '') {
   return hasExplicitDrGapSignals(text) || hasExplicitFailoverSignals(text);
 }
@@ -652,9 +685,9 @@ function hasExplicitOtResilienceSignals(text = '') {
 }
 
 function hasExplicitForcedLabourSignals(text = '') {
-  return /(forced labour|forced labor|modern slavery|child labour|child labor|human rights abuse|labour exploitation|exploitative labour practices?)/i.test(text)
-    || ((/(supplier|sub-tier|workforce|labou?r practices?|human rights)/i.test(text))
-      && /(forced labour|modern slavery|child labour|worker exploitation|exploitative)/i.test(text));
+  return /(forced labour|forced labor|modern slavery|child labour|child labor|human rights abuse|labour exploitation|exploitative labour practices?|recruitment fees?|passports? held|passport retention|passport confiscation|withheld passports?|debt bondage)/i.test(text)
+    || ((/(supplier|sub-tier|workforce|labou?r practices?|human rights|labou?r brokers?|labou?r agents?|grievance|recruitment fees?|passport)/i.test(text))
+      && /(forced labour|modern slavery|child labour|worker exploitation|exploitative|recruitment fees?|passports? held|passport retention|passport confiscation|debt bondage|labou?r brokers?|labou?r agents?)/i.test(text));
 }
 
 function hasExplicitSafetyIncidentSignals(text = '') {
@@ -667,6 +700,12 @@ function hasExplicitEnvironmentalSpillSignals(text = '') {
   return /(environmental spill|release to environment|environmental discharge|harmful material release|pollution event|loss of containment|contamination)/i.test(text)
     || ((/(containment|spill|release|discharge|contamination|pollution)/i.test(text))
       && /(environment|surrounding environment|harmful material|material)/i.test(text));
+}
+
+function hasExplicitSafetyControlWeaknessSignals(text = '') {
+  return /(permit to work (?:is )?(?:missing|bypassed|not followed)|management of change (?:is )?(?:missing|bypassed|not followed)|corrective actions? (?:remain )?overdue|hazard identification (?:is )?(?:incomplete|missing)|hazard controls? (?:are )?(?:missing|weak)|machine guards? (?:are )?missing|interlocks? (?:are )?(?:missing|not functioning)|emergency stop devices? (?:are )?(?:unavailable|missing)|emergency drills? (?:are )?(?:overdue|not executed)|emergency response plan (?:is )?(?:missing|outdated)|contractor safety controls? (?:are )?weak|unsafe worker accommodation|unsafe dormitory conditions)/i.test(text)
+    || ((/(permit to work|management of change|corrective action|hazard identification|hazard controls?|machine guards?|interlocks?|emergency stop devices?|emergency drills?|emergency response plan|contractor safety|worker accommodation|dormitory)/i.test(text))
+      && /(missing|bypassed|not followed|overdue|incomplete|weak|unsafe|unavailable|outdated|lapsed|not executed)/i.test(text));
 }
 
 function hasExplicitWorkforceFatigueSignals(text = '') {
@@ -706,9 +745,9 @@ function hasExplicitLogisticsDisruptionSignals(text = '') {
 }
 
 function hasExplicitSupplierControlWeaknessSignals(text = '') {
-  return /(supplier control weakness|weak supplier controls?|weak control processes|supplier assurance gap|cannot evidence adequate assurance|insufficient supplier assurance|weak supplier governance|poor supplier governance|weak control posture at supplier|assurance evidence is incomplete)/i.test(text)
-    || ((/(supplier|vendor|third-party|third party)/i.test(text))
-      && /(weak controls?|control processes?|assurance|cannot evidence|insufficient assurance|governance weakness|control posture)/i.test(text)
+  return /(supplier control weakness|weak supplier controls?|weak control processes|supplier assurance gap|cannot evidence adequate assurance|insufficient supplier assurance|weak supplier governance|poor supplier governance|weak control posture at supplier|assurance evidence is incomplete|business partner due diligence|beneficial ownership checks missing|beneficial ownership red flags|approved through escalation|unresolved red flags|red flags remained unresolved)/i.test(text)
+    || ((/(supplier|vendor|third-party|third party|business partner|beneficial ownership)/i.test(text))
+      && /(weak controls?|control processes?|assurance|cannot evidence|insufficient assurance|governance weakness|control posture|red flags?|approved through escalation|beneficial ownership)/i.test(text)
       && !hasExplicitVendorAccessWeaknessSignals(text)
       && !hasExplicitThirdPartyAccessCompromiseSignals(text));
 }
@@ -742,9 +781,22 @@ function hasExplicitPrivacyObligationSignals(text = '') {
 }
 
 function hasExplicitPolicyBreachSignals(text = '') {
-  return /(policy breach|policy violation|required internal control process|internal governance requirement breached|control process is not followed|policy expectations|control non-compliance)/i.test(text)
-    || ((/(policy|internal control|governance requirement|control process)/i.test(text))
-      && /(breach|violation|not followed|not met|failure|non-compliance)/i.test(text));
+  return /(policy breach|policy violation|required internal control process|internal governance requirement breached|control process is not followed|policy expectations|control non-compliance|whistleblowing process not followed|whistleblower|whistleblower retaliation|retaliation against a reporter|non-retaliation commitment breached|speak-?up concern mishandled|investigation protocol|code of conduct breach|compliance investigation protocol not followed|conflict of interest is not disclosed|insider information policy|insider information|inside information|blackout period|blackout period breached|material non-public information|material non public information|material non-public information handled improperly|disclosure controls)/i.test(text)
+    || ((/(policy|internal control|governance requirement|control process|whistleblowing|whistleblower|speak-?up|retaliation|investigation protocol|code of conduct|conflict of interest|insider information|inside information|material non-public information|material non public information|blackout period|disclosure controls)/i.test(text))
+      && /(breach|violation|not followed|not met|failure|non-compliance|mishandled|improper|not disclosed)/i.test(text));
+}
+
+function hasExplicitRiskGovernanceSignals(text = '') {
+  return /(risk appetite|risk tolerance|outside tolerance|above tolerance|residual risk|inherent risk|risk owner|risk register|project risk register|risk treatment plan|risk treatment owner|key risk indicator|\bkri\b|\bkris\b|emerging risk|risk committee|erm committee|principal risk|risk reporting cadence|three lines|three lines model)/i.test(text)
+    || ((/(enterprise risk|risk management|risk register|risk owner|risk treatment|risk reporting|risk appetite|risk tolerance|residual risk|emerging risk|\bkri\b|\bkris\b)/i.test(text))
+      && /(escalat|report|monitor|track|threshold|tolerance|accept|ownership|register|treatment|committee|cadence|aggregation|breach|outdated|stale|overdue)/i.test(text));
+}
+
+function hasExplicitPrivacyGovernanceSignals(text = '') {
+  return /(privacy by design|data protection impact assessment|privacy impact assessment|\bdpia\b|data subject rights|subject access request|subject access requests are delayed|right to erasure|erasure request|rectification request|portability request|record of processing activities|record of processing activities is incomplete|\bropa\b|controller and processor responsibilities|controller and processor responsibilities are unclear|processor responsibilities unclear|data processing agreement missing|data processing agreement has not been updated|privacy incident response|supervisory authority notification delayed|72[- ]hour notification|dpo not consulted|health data processing not assessed|high-risk biometric processing|high-risk assessment is not completed|patient data safeguards are incomplete|local safeguards for sensitive data are incomplete|medical[- ]records access logging is weak)/i.test(text)
+    || ((/(privacy|data protection|personal data|health data|patient data|medical records|biometric data|sensitive data|special category data)/i.test(text))
+      && /(privacy by design|assessment|impact assessment|rights request|subject access|erasure|rectification|portability|processor|controller|processing agreement|record of processing|supervisory authority|breach notification|dpo|access logging|localisation|safeguards|high-risk assessment)/i.test(text)
+      && /(missing|not done|not completed|unclear|delayed|incomplete|weak|not followed|overdue|not assessed|not documented)/i.test(text));
 }
 
 function hasExplicitThirdPartyPathAbsentSignals(text = '') {
@@ -769,7 +821,9 @@ function hasExplicitGreenwashingSignals(text = '') {
   return /(greenwashing|sustainability disclosure|climate disclosure|claim substantiation|esg disclosure gap|public sustainability claims?|unsupported sustainability claims?)/i.test(text)
     || ((/(sustainability|climate|esg)/i.test(text))
       && /(claim|claims|disclosure|statement)/i.test(text)
-      && /(cannot be evidenced|cannot be supported|unsupported|not supported|differ materially|materially differ|actual operating practice|actual practice)/i.test(text));
+      && /(cannot be evidenced|cannot be supported|cannot be verified|unsupported|not supported|not reconciled|does not reconcile|differ materially|materially differ|actual operating practice|actual practice|assurance prep|assurance review|assurance challenge)/i.test(text))
+    || ((/(scope 2|scope 3|supplier emissions|supplier data|activity factors|renewable energy attributes|transition plan|transition milestone|public transition claims|sustainability-linked loan|sustainability-linked financing|margin step-down|kpi)/i.test(text))
+      && /(cannot be evidenced|cannot be supported|cannot be verified|unsupported|not supported|not reconciled|does not reconcile|evidence gap|assurance prep|assurance review|assurance challenge|differ materially|materially differ)/i.test(text));
 }
 
 function hasExplicitRecordsRetentionSignals(text = '') {
@@ -791,9 +845,9 @@ function hasExplicitRegulatoryFilingSignals(text = '') {
 }
 
 function hasExplicitSanctionsSignals(text = '') {
-  return /(sanctions breach|sanctions restrictions|sanctions screening|screening control failure|restricted-party|restricted party|prohibited transaction|entity list|export control breach)/i.test(text)
-    || ((/(sanctions|screening|restricted party|entity list|export control)/i.test(text))
-      && /(breach|failure|despite|proceeds|restriction|prohibited transaction)/i.test(text));
+  return /(sanctions breach|sanctions restrictions|sanctions screening|screening control failure|restricted-party|restricted party|prohibited transaction|entity list|export control breach|denied party screening|restricted jurisdiction|restricted jurisdictions|remote technical environment|work from home in a restricted jurisdiction|export-controlled technology|re-export)/i.test(text)
+    || ((/(sanctions|screening|restricted party|entity list|export control|restricted jurisdiction|denied party|re-export)/i.test(text))
+      && /(breach|failure|despite|proceeds|restriction|prohibited transaction|without clearance|without approval|missing clearance)/i.test(text));
 }
 
 function hasExplicitLicensingSignals(text = '') {
@@ -858,10 +912,11 @@ function applyPrecedence(scoredFamilies = [], text = '', meta = {}) {
   const criticalDependency = byKey.get('critical_service_dependency_failure');
   const drGap = byKey.get('dr_gap');
   const failoverFailure = byKey.get('failover_failure');
+  const continuityPlanning = byKey.get('continuity_planning_gap');
   const recoveryCoordination = byKey.get('recovery_coordination_failure');
   const perimeterBreach = byKey.get('perimeter_breach');
   const otResilienceFailure = byKey.get('ot_resilience_failure');
-  const continuityFamilies = ['dr_gap', 'failover_failure', 'recovery_coordination_failure', 'crisis_escalation']
+  const continuityFamilies = ['dr_gap', 'failover_failure', 'continuity_planning_gap', 'recovery_coordination_failure', 'crisis_escalation']
     .map((key) => byKey.get(key))
     .filter(Boolean);
   if (availability && hasAvailabilityAttackSignals(text)) {
@@ -881,12 +936,18 @@ function applyPrecedence(scoredFamilies = [], text = '', meta = {}) {
   }
 
   const privacy = byKey.get('privacy_non_compliance');
+  const privacyGovernance = byKey.get('privacy_governance_gap');
   const disclosure = byKey.get('data_disclosure');
   const policyBreach = byKey.get('policy_breach');
+  const riskGovernance = byKey.get('risk_governance_gap');
   const regulatoryFiling = byKey.get('regulatory_filing_failure');
   const sanctionsBreach = byKey.get('sanctions_breach');
   const licensingIssue = byKey.get('licensing_permit_issue');
   const contractLiability = byKey.get('contract_liability');
+  if (riskGovernance && policyBreach && hasExplicitRiskGovernanceSignals(text) && riskGovernance.score >= policyBreach.score - 2) {
+    policyBreach.score -= 6;
+    applied.push('risk_governance_gap beats generic policy_breach when appetite, KRI, register, or residual-risk governance is explicit');
+  }
   if (policyBreach && hasExplicitPolicyBreachSignals(text)) {
     penalise(
       ['regulatory_filing_failure', 'sanctions_breach', 'licensing_permit_issue', 'contract_liability'],
@@ -898,6 +959,18 @@ function applyPrecedence(scoredFamilies = [], text = '', meta = {}) {
       }
     );
   }
+  if (privacyGovernance && policyBreach && hasExplicitPrivacyGovernanceSignals(text) && privacyGovernance.score >= policyBreach.score - 2) {
+    policyBreach.score -= 6;
+    applied.push('privacy_governance_gap beats generic policy_breach when DPIA, rights, processor, or sensitive-data oversight wording is explicit');
+  }
+  if (privacyGovernance && privacy && hasExplicitPrivacyGovernanceSignals(text) && !hasExplicitRecordsRetentionSignals(text) && !hasExplicitCrossBorderTransferSignals(text) && privacyGovernance.score >= privacy.score - 2) {
+    privacy.score -= 5;
+    applied.push('privacy_governance_gap beats generic privacy non-compliance when the primary issue is governance, rights handling, or privacy-by-design');
+  }
+  if (privacyGovernance && regulatoryFiling && hasExplicitPrivacyGovernanceSignals(text) && !hasExplicitDisclosureSignals(text) && privacyGovernance.score >= regulatoryFiling.score - 2) {
+    regulatoryFiling.score -= 5;
+    applied.push('privacy_governance_gap beats regulatory_filing_failure when authority-notification wording is part of a broader privacy-governance failure');
+  }
   if (privacy && disclosure && hasExplicitPrivacyObligationSignals(text) && !hasExplicitDisclosureSignals(text) && privacy.score >= disclosure.score - 3) {
     disclosure.score -= 7;
     applied.push('privacy_non_compliance beats data_disclosure when obligation failure is primary');
@@ -907,6 +980,10 @@ function applyPrecedence(scoredFamilies = [], text = '', meta = {}) {
     applied.push('privacy_non_compliance beats generic policy_breach when privacy obligations are explicit');
   }
   const retention = byKey.get('records_retention_non_compliance');
+  if (retention && privacyGovernance && hasExplicitRecordsRetentionSignals(text) && retention.score >= privacyGovernance.score - 2) {
+    privacyGovernance.score -= 5;
+    applied.push('records_retention_non_compliance beats privacy_governance_gap when retention obligations are explicit');
+  }
   if (retention && privacy && hasExplicitRecordsRetentionSignals(text) && retention.score >= privacy.score - 2) {
     privacy.score -= 5;
     applied.push('records_retention_non_compliance beats generic privacy non-compliance when retention obligations are explicit');
@@ -916,6 +993,10 @@ function applyPrecedence(scoredFamilies = [], text = '', meta = {}) {
     applied.push('records_retention_non_compliance beats generic policy_breach when retention obligations are explicit');
   }
   const crossBorder = byKey.get('cross_border_transfer_non_compliance');
+  if (crossBorder && privacyGovernance && hasExplicitCrossBorderTransferSignals(text) && crossBorder.score >= privacyGovernance.score - 2) {
+    privacyGovernance.score -= 5;
+    applied.push('cross_border_transfer_non_compliance beats privacy_governance_gap when transfer obligations are explicit');
+  }
   if (crossBorder && privacy && hasExplicitCrossBorderTransferSignals(text) && crossBorder.score >= privacy.score - 2) {
     privacy.score -= 5;
     applied.push('cross_border_transfer_non_compliance beats generic privacy non-compliance when transfer obligations are explicit');
@@ -975,6 +1056,14 @@ function applyPrecedence(scoredFamilies = [], text = '', meta = {}) {
   const logisticsDisruption = byKey.get('logistics_disruption');
   const vendorAccessWeakness = byKey.get('vendor_access_weakness');
   const programmeDelivery = byKey.get('programme_delivery_slippage');
+  if (delivery && riskGovernance && hasExplicitDeliverySlippageSignals(text)) {
+    riskGovernance.score -= 12;
+    applied.push('delivery_slippage beats enterprise-risk governance when an actual supplier delivery miss is explicit');
+  }
+  if (programmeDelivery && riskGovernance && /(programme delivery slip|project delivery delay|deployment delayed|milestone slip|go-live delay|dependent projects delayed)/i.test(text)) {
+    riskGovernance.score -= 10;
+    applied.push('programme_delivery_slippage beats enterprise-risk governance when a live programme delay is explicit');
+  }
   if (delivery && singleSource && hasExplicitDelaySignals(text) && delivery.score >= singleSource.score - 2) {
     singleSource.score -= 5;
     applied.push('delivery_slippage beats single_source_dependency when actual delay is explicit');
@@ -1086,6 +1175,10 @@ function applyPrecedence(scoredFamilies = [], text = '', meta = {}) {
       }
     );
   }
+  if (privacyGovernance && supplierControlWeakness && hasExplicitPrivacyGovernanceSignals(text) && privacyGovernance.score >= supplierControlWeakness.score - 2) {
+    supplierControlWeakness.score -= 6;
+    applied.push('privacy_governance_gap beats supplier_control_weakness when processor or controller wording is part of a privacy-accountability failure');
+  }
 
   const thirdPartyAccessCompromise = byKey.get('third_party_access_compromise');
   if (thirdPartyAccessCompromise && hasExplicitThirdPartyAccessCompromiseSignals(text)) {
@@ -1126,8 +1219,20 @@ function applyPrecedence(scoredFamilies = [], text = '', meta = {}) {
   const forcedLabour = byKey.get('forced_labour_modern_slavery');
   const safetyIncident = byKey.get('safety_incident');
   const environmentalSpill = byKey.get('environmental_spill');
+  const safetyControlWeakness = byKey.get('safety_control_weakness');
   const workforceFatigue = byKey.get('workforce_fatigue_staffing_weakness');
   const criticalStaffDependency = byKey.get('critical_staff_dependency');
+  if (continuityPlanning && hasExplicitContinuityPlanningSignals(text)) {
+    penalise(
+      ['risk_governance_gap', 'policy_breach', 'process_breakdown', 'service_delivery_failure', 'platform_instability'],
+      {
+        against: continuityPlanning,
+        penalty: 6,
+        tolerance: 2,
+        label: 'continuity_planning_gap beats generic governance or operational interpretations when BIA, recovery targets, plans, or exercises are explicitly stale or missing'
+      }
+    );
+  }
   if (greenwashing && policyBreach && hasExplicitGreenwashingSignals(text) && greenwashing.score >= policyBreach.score - 2) {
     policyBreach.score -= 6;
     applied.push('greenwashing_disclosure_gap beats generic policy breach when disclosure substantiation is explicit');
@@ -1156,7 +1261,7 @@ function applyPrecedence(scoredFamilies = [], text = '', meta = {}) {
   }
   if (safetyIncident && hasExplicitSafetyIncidentSignals(text)) {
     penalise(
-      ['process_breakdown', 'service_delivery_failure', 'platform_instability'],
+      ['process_breakdown', 'service_delivery_failure', 'platform_instability', 'safety_control_weakness'],
       {
         against: safetyIncident,
         penalty: 6,
@@ -1167,7 +1272,7 @@ function applyPrecedence(scoredFamilies = [], text = '', meta = {}) {
   }
   if (environmentalSpill && hasExplicitEnvironmentalSpillSignals(text)) {
     penalise(
-      ['policy_breach', 'regulatory_filing_failure', 'process_breakdown', 'service_delivery_failure'],
+      ['policy_breach', 'regulatory_filing_failure', 'process_breakdown', 'service_delivery_failure', 'safety_control_weakness'],
       {
         against: environmentalSpill,
         penalty: 6,
@@ -1179,6 +1284,17 @@ function applyPrecedence(scoredFamilies = [], text = '', meta = {}) {
       safetyIncident.score -= 4;
       applied.push('environmental_spill stays primary over safety_incident when release is explicit and worker harm is not');
     }
+  }
+  if (safetyControlWeakness && hasExplicitSafetyControlWeaknessSignals(text)) {
+    penalise(
+      ['policy_breach', 'process_breakdown', 'service_delivery_failure', 'risk_governance_gap'],
+      {
+        against: safetyControlWeakness,
+        penalty: 6,
+        tolerance: 2,
+        label: 'safety_control_weakness beats generic compliance or operational interpretations when permit, hazard, drill, or corrective-action weakness is explicit'
+      }
+    );
   }
   if (workforceFatigue && hasExplicitWorkforceFatigueSignals(text)) {
     penalise(
@@ -1210,40 +1326,40 @@ function applyPrecedence(scoredFamilies = [], text = '', meta = {}) {
   const strongestOperational = [criticalDependency, serviceDelivery, processBreakdown, platformInstability]
     .filter(Boolean)
     .sort((left, right) => right.score - left.score)[0] || null;
-  const strongestContinuity = [failoverFailure, drGap, recoveryCoordination]
+  const strongestContinuity = [failoverFailure, drGap, continuityPlanning, recoveryCoordination]
     .filter(Boolean)
     .sort((left, right) => right.score - left.score)[0] || null;
 
-  if (strongestOperational && !hasExplicitContinuityGapSignals(text) && !hasExplicitRecoveryCoordinationSignals(text)) {
+  if (strongestOperational && !hasExplicitContinuityGapSignals(text) && !hasExplicitRecoveryCoordinationSignals(text) && !hasExplicitContinuityPlanningSignals(text)) {
     penalise(
-      ['dr_gap', 'failover_failure', 'recovery_coordination_failure', 'crisis_escalation'],
+      ['dr_gap', 'failover_failure', 'continuity_planning_gap', 'recovery_coordination_failure', 'crisis_escalation'],
       {
         against: strongestOperational,
         penalty: 6,
         tolerance: 2,
-        label: 'operational service or workflow failure beats business_continuity when explicit DR, failover, or recovery-gap language is absent'
+        label: 'operational service or workflow failure beats business_continuity when explicit DR, failover, recovery-gap, or continuity-planning language is absent'
       }
     );
   }
-  if (strongestOperational && hasFunctioningFallbackSignals(text) && !hasExplicitContinuityGapSignals(text)) {
+  if (strongestOperational && hasFunctioningFallbackSignals(text) && !hasExplicitContinuityGapSignals(text) && !hasExplicitContinuityPlanningSignals(text)) {
     penalise(
-      ['dr_gap', 'failover_failure', 'recovery_coordination_failure', 'crisis_escalation'],
+      ['dr_gap', 'failover_failure', 'continuity_planning_gap', 'recovery_coordination_failure', 'crisis_escalation'],
       {
         against: strongestOperational,
         penalty: 7,
         tolerance: 2,
-        label: 'functioning fallback or recovery controls block continuity promotion when the event path is operational'
+        label: 'functioning fallback or recovery controls block continuity promotion when the event path is operational and continuity planning is not the explicit weakness'
       }
     );
   }
-  if (strongestContinuity && (hasExplicitContinuityGapSignals(text) || hasExplicitRecoveryCoordinationSignals(text))) {
+  if (strongestContinuity && (hasExplicitContinuityGapSignals(text) || hasExplicitRecoveryCoordinationSignals(text) || hasExplicitContinuityPlanningSignals(text))) {
     penalise(
       ['process_breakdown', 'service_delivery_failure', 'platform_instability', 'critical_service_dependency_failure'],
       {
         against: strongestContinuity,
         penalty: 5,
         tolerance: 2,
-        label: 'explicit DR, failover, or recovery-gap language beats generic operational instability'
+        label: 'explicit continuity planning, DR, failover, or recovery-gap language beats generic operational instability'
       }
     );
   }

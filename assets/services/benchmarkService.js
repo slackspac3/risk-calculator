@@ -371,20 +371,22 @@ const BenchmarkService = (() => {
   function _detectScenarioType(query = '') {
     const q = _normalise(query);
     if (/responsible ai|model risk|ai governance|model drift|hallucination|algorithmic bias|training data|ai act/.test(q)) return 'ai-model-risk';
-    if (/data governance|data quality|data lineage|retention|purpose limitation|consent|data residency|master data/.test(q)) return 'data-governance';
+    if (/data governance|data quality|data lineage|record retention|data retention|retention schedule|purpose limitation|consent|data residency|master data/.test(q)) return 'data-governance';
     if (/gpu export|export control|export licence|export license|entity list|ear|bis|semiconductor equipment|china restrictions|sanctions breach/.test(q)) return 'export-control';
     if (/azure ad|entra|identity|credential|account takeover|sso|directory|mailbox compromise|session hijack/.test(q)) return 'identity';
     if (/ransom|encrypt|extortion/.test(q)) return 'ransomware';
     if (/cloud|storage bucket|misconfig|tenant|saas|public exposure/.test(q)) return 'cloud';
-    if (/privacy|data breach|data exposure|pii|phi|privacy incident/.test(q)) return 'data-breach';
+    if (/privacy|data breach|data exposure|pii|phi|privacy incident|breach notification|notifiable breach|personal data exposure/.test(q)) return 'data-breach';
     if (/fraud|financial crime|money laundering|kickback|bribery|corruption|embezzlement|integrity breakdown/.test(q)) return 'fraud-integrity';
     if (/contract dispute|indemnity|licensing dispute|ip ownership|intellectual property|litigation|terms breach/.test(q)) return 'legal-contract';
     if (/geopolitical|market access|sovereign|cross-border restriction|tariff/.test(q)) return 'geopolitical';
-    // Treat labour-rights and supplier-diligence scenarios as procurement-first unless the text is clearly about logistics or continuity.
-    if (/procurement|sourcing|tender|bid|bid rigging|contract award|vendor selection|purchasing|collusion|kickback|conflict of interest|supplier due diligence|modern slavery|forced labor|forced labour|exploitative labor|exploitative labour|human rights/.test(q)) return 'procurement';
+    if (/modern slavery|forced labor|forced labour|exploitative labor|exploitative labour|human rights due diligence|human rights abuse|recruitment fees?|passport retention|withheld passports?|worker grievance|grievance mechanism|remediation plan|labou?r broker/.test(q)) return 'esg';
+    if (/esg|sustainability|climate|emission|scope 1|scope 2|scope 3|carbon|greenwashing|disclosure|sustainability-related financial|ifrs s1|ifrs s2|value chain emissions|nature related|transition plan|transition risk|physical risk|metrics and targets|assurance challenge|sustainability-linked|grievance and remediation/.test(q)) return 'esg';
+    if (/procurement|sourcing|tender|bid|bid rigging|contract award|vendor selection|purchasing|collusion|kickback|conflict of interest|supplier due diligence/.test(q)) return 'procurement';
     if (/supply chain|logistics|inventory|shipment|upstream|sub tier|sub-tier|single source|sole source|dependency/.test(q)) return 'supply-chain';
+    if (/fraud|payment|invoice|wire transfer|payment diversion|treasury|liquidity|capital|financial control|misstatement|journal entry|revenue recognition/.test(q)) return 'financial';
     if (/supplier|vendor|third party|third-party|outsourcing/.test(q)) return 'third-party';
-    if (/business continuity|continuity|disaster recovery|recovery objective|recovery plan|rto|rpo|crisis management/.test(q)) return 'business-continuity';
+    if (/business continuity|continuity|outage|downtime|power event|disaster recovery|recovery objective|recovery plan|rto|rpo|crisis management/.test(q)) return 'business-continuity';
     if (/physical security|executive protection|facility breach|visitor management|badge control|perimeter breach|site intrusion/.test(q)) return 'physical-security';
     if (/\bot\b|operational technology|ics|scada|industrial control|plant network|site systems|control room/.test(q)) return 'ot-resilience';
     if (/workforce|labou?r|staffing pressure|fatigue|attrition|strike|worker welfare|contractor welfare/.test(q)) return 'people-workforce';
@@ -394,9 +396,7 @@ const BenchmarkService = (() => {
     if (/strategy|strategic|market shift|competitive|transformation|portfolio|investment/.test(q)) return 'strategic';
     if (/operational|process failure|capacity|breakdown|service failure|backlog|workflow/.test(q)) return 'operational';
     if (/regulator|regulatory|licen|filing|supervisory|sanction|enforcement/.test(q)) return 'regulatory';
-    if (/fraud|payment|invoice|treasury|liquidity|capital|financial control|misstatement|journal entry|revenue recognition/.test(q)) return 'financial';
     if (/compliance|non-compliance|policy breach|conduct|ethics|assurance|anti bribery|anti-bribery|corruption/.test(q)) return 'compliance';
-    if (/esg|sustainability|climate|emission|carbon|greenwashing|disclosure|nature related|transition plan/.test(q)) return 'esg';
     return 'general';
   }
 
@@ -420,21 +420,62 @@ const BenchmarkService = (() => {
     const raw = Array.isArray(geography) ? geography.join(',') : String(geography || '');
     const text = _normalise(raw);
     const labels = ['Global'];
-    if (/united arab emirates|uae/.test(text)) labels.unshift('United Arab Emirates');
-    if (/middle east/.test(text)) labels.unshift('Middle East');
-    if (/gcc|gulf/.test(text) || /united arab emirates|uae|saudi|qatar|oman|kuwait|bahrain/.test(text)) labels.unshift('GCC');
+    if (/united arab emirates|uae|emirates/.test(text)) labels.unshift('United Arab Emirates');
+    if (/middle east|mena|united arab emirates|uae|emirates|saudi|qatar|oman|kuwait|bahrain/.test(text)) labels.unshift('Middle East');
+    if (/gcc|gulf/.test(text) || /united arab emirates|uae|emirates|saudi|qatar|oman|kuwait|bahrain/.test(text)) labels.unshift('GCC');
+    if (/united states|u\.s\.a|u\.s\.|\busa\b|\bus\b|america|american/.test(text)) labels.unshift('United States');
+    if (/united kingdom|\buk\b|britain|england/.test(text)) labels.unshift('United Kingdom');
+    if (/european union|\beu\b|europe/.test(text)) labels.unshift('European Union');
+    if (/india/.test(text)) labels.unshift('India');
+    if (/apac|asia pacific|india|singapore|australia|japan/.test(text)) labels.unshift('APAC');
+    if (/emea|europe|middle east|africa|united kingdom|\beu\b|gcc|uae|emirates|saudi|qatar|oman|kuwait|bahrain/.test(text)) labels.unshift('EMEA');
     return Array.from(new Set(labels));
   }
 
-  function _score(entry, scenarioType, industry, geographyLabels) {
+  function _scoreQueryOverlap(entry, query = '') {
+    const q = _normalise(query);
+    if (!q) return 0;
+    const referenceText = _normalise([
+      entry?.title,
+      entry?.summary,
+      entry?.sourceTitle
+    ].filter(Boolean).join(' '));
+    if (!referenceText) return 0;
+    const stopwords = new Set([
+      'with', 'from', 'into', 'over', 'under', 'after', 'before', 'across', 'through',
+      'their', 'there', 'where', 'which', 'while', 'because', 'cannot', 'could', 'would',
+      'should', 'being', 'about', 'report', 'reported', 'reports', 'profile', 'global',
+      'united', 'states', 'uae', 'gcc', 'risk', 'management'
+    ]);
+    const queryTokens = Array.from(new Set(
+      q.match(/[a-z0-9][a-z0-9-]+/g) || []
+    )).filter(token => {
+      if (token === 'ifrs' || token === 'esg') return true;
+      return token.length >= 4 && !stopwords.has(token);
+    });
     let score = 0;
+    for (const token of queryTokens) {
+      if (referenceText.includes(token)) score += 1;
+      if (score >= 6) break;
+    }
+    return score;
+  }
+
+  function _score(entry, scenarioType, industry, geographyLabels, query = '') {
+    let score = 0;
+    const entryGeographies = Array.isArray(entry.geographies) ? entry.geographies : [];
+    const labels = Array.isArray(geographyLabels) ? geographyLabels : [];
+    const exactGeographyLabels = labels.filter(label => label !== 'Global');
+    const hasExactGeographyMatch = exactGeographyLabels.some(label => entryGeographies.includes(label));
+    const hasGlobalMatch = labels.includes('Global') && entryGeographies.includes('Global');
     if (entry.scenarioType === scenarioType) score += 10;
     if ((entry.industries || []).includes(industry)) score += 5;
     if ((entry.industries || []).includes('cross-sector')) score += 2;
-    const labels = geographyLabels || [];
-    if (labels.some(label => (entry.geographies || []).includes(label))) score += 6;
-    if ((entry.scope || '') === 'regional' && labels.some(label => label !== 'Global')) score += 3;
+    if (hasExactGeographyMatch) score += 8;
+    if (hasGlobalMatch) score += 2;
+    if ((entry.scope || '') === 'regional' && hasExactGeographyMatch) score += 3;
     if ((entry.scope || '') === 'global') score += 1;
+    score += _scoreQueryOverlap(entry, query);
     return score;
   }
 
@@ -507,7 +548,7 @@ const BenchmarkService = (() => {
     const ranked = _benchmarks
       .map(entry => ({
         ...entry,
-        score: _score(entry, scenarioType, industry, geographyLabels),
+        score: _score(entry, scenarioType, industry, geographyLabels, query),
         scenarioMatch: scenarioType,
         industryMatch: industry,
         geographyMatch: geographyLabels.find(label => (entry.geographies || []).includes(label)) || 'Global'

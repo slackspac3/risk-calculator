@@ -1,7 +1,7 @@
 (function (globalScope) {
   'use strict';
   globalScope.__SCENARIO_TAXONOMY_PROJECTION_DATA__ = {
-  "taxonomyVersion": "phase1.1.4-2026-04-04",
+  "taxonomyVersion": "phase1.1.8-2026-04-09",
   "domains": [
     {
       "key": "cyber",
@@ -125,7 +125,7 @@
   "families": [
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 92,
       "positiveSignals": [
         {
@@ -284,7 +284,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 50,
       "positiveSignals": [
         {
@@ -402,7 +402,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 50,
       "positiveSignals": [
         {
@@ -544,7 +544,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 50,
       "positiveSignals": [
         {
@@ -699,7 +699,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 90,
       "positiveSignals": [
         {
@@ -859,7 +859,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 50,
       "positiveSignals": [
         {
@@ -968,7 +968,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 50,
       "positiveSignals": [
         {
@@ -1148,7 +1148,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 50,
       "positiveSignals": [
         {
@@ -1256,7 +1256,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 50,
       "positiveSignals": [
         {
@@ -1296,6 +1296,34 @@
         {
           "text": "modern slavery",
           "strength": "strong"
+        },
+        {
+          "text": "insider information",
+          "strength": "medium"
+        },
+        {
+          "text": "inside information",
+          "strength": "medium"
+        },
+        {
+          "text": "material non-public",
+          "strength": "medium"
+        },
+        {
+          "text": "material non public",
+          "strength": "medium"
+        },
+        {
+          "text": "blackout period",
+          "strength": "medium"
+        },
+        {
+          "text": "trading window",
+          "strength": "medium"
+        },
+        {
+          "text": "disclosure controls",
+          "strength": "medium"
         }
       ],
       "requiredSignals": [],
@@ -1363,7 +1391,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 50,
       "positiveSignals": [
         {
@@ -1501,7 +1529,7 @@
     },
     {
       "status": "compatibility_only",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 50,
       "positiveSignals": [
         {
@@ -1608,7 +1636,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 50,
       "positiveSignals": [
         {
@@ -1808,7 +1836,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 74,
       "positiveSignals": [
         {
@@ -1975,7 +2003,7 @@
     },
     {
       "status": "compatibility_only",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 50,
       "positiveSignals": [
         {
@@ -2068,7 +2096,7 @@
     },
     {
       "status": "compatibility_only",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 50,
       "positiveSignals": [
         {
@@ -2164,7 +2192,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 73,
       "positiveSignals": [
         {
@@ -2327,7 +2355,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 78,
       "positiveSignals": [
         {
@@ -2517,7 +2545,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 79,
       "positiveSignals": [
         {
@@ -2676,7 +2704,7 @@
     },
     {
       "status": "compatibility_only",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 50,
       "positiveSignals": [
         {
@@ -2769,7 +2797,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 82,
       "positiveSignals": [
         {
@@ -2914,7 +2942,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 81,
       "positiveSignals": [
         {
@@ -3049,8 +3077,285 @@
       "description": "Failover or fallback arrangements are missing, ineffective, or not ready when the primary service path fails."
     },
     {
+      "status": "active",
+      "familyVersion": "phase1.1.8-2026-04-09",
+      "priorityScore": 79,
+      "positiveSignals": [
+        {
+          "text": "business impact analysis outdated",
+          "strength": "medium"
+        },
+        {
+          "text": "business impact analysis is stale",
+          "strength": "medium"
+        },
+        {
+          "text": "bia outdated",
+          "strength": "medium"
+        },
+        {
+          "text": "bia is stale",
+          "strength": "medium"
+        },
+        {
+          "text": "rto not defined",
+          "strength": "medium"
+        },
+        {
+          "text": "rtos are not defined",
+          "strength": "medium"
+        },
+        {
+          "text": "rpo not defined",
+          "strength": "medium"
+        },
+        {
+          "text": "recovery priorities not defined",
+          "strength": "medium"
+        },
+        {
+          "text": "alternate site not approved",
+          "strength": "medium"
+        },
+        {
+          "text": "alternate workspace not approved",
+          "strength": "medium"
+        },
+        {
+          "text": "manual fallback not documented",
+          "strength": "medium"
+        },
+        {
+          "text": "continuity plan not tested",
+          "strength": "medium"
+        },
+        {
+          "text": "business continuity plan not tested",
+          "strength": "medium"
+        },
+        {
+          "text": "disaster recovery plan not tested",
+          "strength": "medium"
+        },
+        {
+          "text": "recovery plan not exercised",
+          "strength": "medium"
+        },
+        {
+          "text": "continuity exercise overdue",
+          "strength": "medium"
+        },
+        {
+          "text": "dr exercise overdue",
+          "strength": "medium"
+        },
+        {
+          "text": "call tree outdated",
+          "strength": "medium"
+        },
+        {
+          "text": "call tree has not been exercised",
+          "strength": "medium"
+        },
+        {
+          "text": "incident escalation call tree",
+          "strength": "medium"
+        },
+        {
+          "text": "incident escalation matrix missing",
+          "strength": "medium"
+        },
+        {
+          "text": "crisis communication plan missing",
+          "strength": "medium"
+        }
+      ],
+      "antiSignals": [
+        {
+          "text": "hostile traffic",
+          "strength": "medium"
+        },
+        {
+          "text": "credential theft",
+          "strength": "medium"
+        },
+        {
+          "text": "supplier delay",
+          "strength": "medium"
+        },
+        {
+          "text": "injury",
+          "strength": "medium"
+        },
+        {
+          "text": "worker harmed",
+          "strength": "medium"
+        },
+        {
+          "text": "spill",
+          "strength": "medium"
+        },
+        {
+          "text": "release to environment",
+          "strength": "medium"
+        },
+        {
+          "text": "restoration delayed",
+          "strength": "medium"
+        }
+      ],
+      "requiredSignals": [
+        {
+          "text": "business impact analysis",
+          "strength": "medium"
+        },
+        {
+          "text": "bia",
+          "strength": "medium"
+        },
+        {
+          "text": "rto",
+          "strength": "medium"
+        },
+        {
+          "text": "rpo",
+          "strength": "medium"
+        },
+        {
+          "text": "alternate site",
+          "strength": "medium"
+        },
+        {
+          "text": "alternate workspace",
+          "strength": "medium"
+        },
+        {
+          "text": "manual fallback",
+          "strength": "medium"
+        },
+        {
+          "text": "continuity plan",
+          "strength": "medium"
+        },
+        {
+          "text": "disaster recovery plan",
+          "strength": "medium"
+        },
+        {
+          "text": "recovery plan",
+          "strength": "medium"
+        },
+        {
+          "text": "call tree",
+          "strength": "medium"
+        },
+        {
+          "text": "incident escalation matrix",
+          "strength": "medium"
+        },
+        {
+          "text": "crisis communication plan",
+          "strength": "medium"
+        },
+        {
+          "text": "exercise",
+          "strength": "medium"
+        }
+      ],
+      "typicalAssets": [
+        "continuity programme",
+        "recovery plan",
+        "crisis management structure"
+      ],
+      "typicalCauses": [
+        "stale BIA",
+        "untested recovery planning",
+        "undefined recovery targets"
+      ],
+      "typicalConsequences": [
+        "recovery strain",
+        "operational disruption",
+        "control_breakdown"
+      ],
+      "preferredRiskThemes": [
+        "continuity planning weakness",
+        "crisis-readiness gap",
+        "recovery-governance drift"
+      ],
+      "defaultMechanisms": [
+        "fallback_gap",
+        "coordination_breakdown"
+      ],
+      "allowedSecondaryFamilies": [
+        "dr_gap",
+        "failover_failure",
+        "recovery_coordination_failure"
+      ],
+      "canCoExistWith": [
+        "dr_gap",
+        "failover_failure"
+      ],
+      "canEscalateTo": [
+        "dr_gap",
+        "recovery_coordination_failure"
+      ],
+      "cannotBePrimaryWith": [
+        "service_delivery_failure",
+        "platform_instability"
+      ],
+      "forbiddenDriftFamilies": [
+        "identity_compromise",
+        "payment_control_failure"
+      ],
+      "defaultOverlays": [
+        "recovery_strain",
+        "operational_disruption",
+        "control_breakdown"
+      ],
+      "overlaysThatMustNeverPromotePrimary": [
+        "reputational_damage"
+      ],
+      "overlaysThatMayPromoteOnlyWithExplicitSignals": [
+        "direct_monetary_loss",
+        "regulatory_scrutiny",
+        "data_exposure",
+        "customer_harm"
+      ],
+      "examplePhrases": [
+        "The business impact analysis is stale, RTOs are undefined, and the call tree has not been exercised.",
+        "Alternate site arrangements are not approved and recovery plans have not been tested for the critical service."
+      ],
+      "counterExamples": [
+        "hostile traffic floods the public website",
+        "a contractor safety incident injures a worker during site activity"
+      ],
+      "promptIdeaTemplates": [
+        "Business continuity planning is stale for a critical service",
+        "Crisis escalation and recovery-readiness assumptions are not current"
+      ],
+      "shortlistSeedThemes": [
+        "continuity planning gap",
+        "BIA and recovery target weakness",
+        "crisis-readiness drift"
+      ],
+      "fallbackNarrativePatterns": [
+        "Keep the scenario in the business continuity lane when BIA quality, RTO or RPO definition, alternate-site readiness, call trees, or continuity exercises are the visible weakness.",
+        "Do not flatten stale continuity planning into generic operational issues unless a separate outage or workflow breakdown clearly happens first."
+      ],
+      "preferredFamilyKey": "",
+      "legacyKey": "business-continuity",
+      "lensKey": "business-continuity",
+      "lensLabel": "Business continuity",
+      "functionKey": "operations",
+      "estimatePresetKey": "businessContinuity",
+      "key": "continuity_planning_gap",
+      "label": "Continuity planning gap",
+      "domain": "business_continuity",
+      "description": "Business continuity planning, crisis readiness, or recovery governance is stale, untested, or undefined before a live disruption becomes the primary event."
+    },
+    {
       "status": "compatibility_only",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 50,
       "positiveSignals": [
         {
@@ -3142,7 +3447,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 76,
       "positiveSignals": [
         {
@@ -3281,7 +3586,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 50,
       "positiveSignals": [
         {
@@ -3383,7 +3688,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 50,
       "positiveSignals": [
         {
@@ -3480,7 +3785,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 84,
       "positiveSignals": [
         {
@@ -3661,7 +3966,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 50,
       "positiveSignals": [
         {
@@ -3758,7 +4063,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 50,
       "positiveSignals": [
         {
@@ -3865,7 +4170,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 50,
       "positiveSignals": [
         {
@@ -3986,7 +4291,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 50,
       "positiveSignals": [
         {
@@ -4004,6 +4309,46 @@
         {
           "text": "improper payment",
           "strength": "medium"
+        },
+        {
+          "text": "facilitation payment",
+          "strength": "medium"
+        },
+        {
+          "text": "improper hospitality",
+          "strength": "medium"
+        },
+        {
+          "text": "improper gift",
+          "strength": "medium"
+        },
+        {
+          "text": "gifts and entertainment",
+          "strength": "medium"
+        },
+        {
+          "text": "gift and entertainment",
+          "strength": "medium"
+        },
+        {
+          "text": "sponsored travel",
+          "strength": "medium"
+        },
+        {
+          "text": "hospitality offered to a public official",
+          "strength": "medium"
+        },
+        {
+          "text": "public official",
+          "strength": "medium"
+        },
+        {
+          "text": "intermediary onboarding shortcut",
+          "strength": "medium"
+        },
+        {
+          "text": "undisclosed conflict of interest in supplier selection",
+          "strength": "medium"
         }
       ],
       "antiSignals": [
@@ -4017,6 +4362,14 @@
         },
         {
           "text": "website outage",
+          "strength": "medium"
+        },
+        {
+          "text": "whistleblowing retaliation",
+          "strength": "medium"
+        },
+        {
+          "text": "non-retaliation",
           "strength": "medium"
         }
       ],
@@ -4038,7 +4391,8 @@
       "defaultMechanisms": [],
       "allowedSecondaryFamilies": [
         "approval_override",
-        "collusion"
+        "collusion",
+        "policy_breach"
       ],
       "canCoExistWith": [],
       "canEscalateTo": [],
@@ -4063,15 +4417,26 @@
       ],
       "examplePhrases": [
         "bribery allegation in contract award",
-        "kickback scheme around approvals"
+        "kickback scheme around approvals",
+        "sponsored travel and hospitality for a public official proceeds without the required anti-bribery approvals"
       ],
       "counterExamples": [
         "public site down from hostile traffic",
         "supplier misses a logistics commitment"
       ],
-      "promptIdeaTemplates": [],
-      "shortlistSeedThemes": [],
-      "fallbackNarrativePatterns": [],
+      "promptIdeaTemplates": [
+        "Bribery / corruption",
+        "Public-official interaction bypasses anti-bribery controls and creates integrity risk"
+      ],
+      "shortlistSeedThemes": [
+        "bribery exposure",
+        "improper hospitality",
+        "public-official integrity risk"
+      ],
+      "fallbackNarrativePatterns": [
+        "Keep bribery, gifts, hospitality, facilitation payments, or public-official conduct on the integrity event path rather than collapsing it into generic policy breach.",
+        "Treat any policy or approval gap as secondary if the text explicitly points to corrupt or improper-value transfer risk."
+      ],
       "preferredFamilyKey": "",
       "legacyKey": "fraud-integrity",
       "lensKey": "fraud-integrity",
@@ -4085,7 +4450,7 @@
     },
     {
       "status": "compatibility_only",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 50,
       "positiveSignals": [
         {
@@ -4183,7 +4548,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 50,
       "positiveSignals": [
         {
@@ -4280,7 +4645,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 72,
       "positiveSignals": [
         {
@@ -4301,6 +4666,94 @@
         },
         {
           "text": "control process is not followed",
+          "strength": "strong"
+        },
+        {
+          "text": "whistleblowing process not followed",
+          "strength": "strong"
+        },
+        {
+          "text": "whistleblower",
+          "strength": "strong"
+        },
+        {
+          "text": "whistleblower retaliation",
+          "strength": "strong"
+        },
+        {
+          "text": "retaliation",
+          "strength": "strong"
+        },
+        {
+          "text": "retaliation against a reporter",
+          "strength": "strong"
+        },
+        {
+          "text": "non-retaliation commitment breached",
+          "strength": "strong"
+        },
+        {
+          "text": "speak-up concern mishandled",
+          "strength": "strong"
+        },
+        {
+          "text": "speak up concern mishandled",
+          "strength": "strong"
+        },
+        {
+          "text": "investigation protocol",
+          "strength": "strong"
+        },
+        {
+          "text": "code of conduct breach",
+          "strength": "strong"
+        },
+        {
+          "text": "ethics and compliance policy",
+          "strength": "medium"
+        },
+        {
+          "text": "compliance investigation protocol not followed",
+          "strength": "strong"
+        },
+        {
+          "text": "conflict of interest is not disclosed",
+          "strength": "strong"
+        },
+        {
+          "text": "insider information policy",
+          "strength": "strong"
+        },
+        {
+          "text": "insider information",
+          "strength": "medium"
+        },
+        {
+          "text": "inside information",
+          "strength": "medium"
+        },
+        {
+          "text": "material non-public information",
+          "strength": "strong"
+        },
+        {
+          "text": "material non public information",
+          "strength": "strong"
+        },
+        {
+          "text": "blackout period",
+          "strength": "strong"
+        },
+        {
+          "text": "blackout period breached",
+          "strength": "strong"
+        },
+        {
+          "text": "disclosure controls",
+          "strength": "medium"
+        },
+        {
+          "text": "material non-public information handled improperly",
           "strength": "strong"
         },
         {
@@ -4362,6 +4815,26 @@
           "strength": "strong"
         },
         {
+          "text": "public official",
+          "strength": "strong"
+        },
+        {
+          "text": "facilitation payment",
+          "strength": "strong"
+        },
+        {
+          "text": "kickback",
+          "strength": "strong"
+        },
+        {
+          "text": "gifts and entertainment",
+          "strength": "strong"
+        },
+        {
+          "text": "gift and entertainment",
+          "strength": "strong"
+        },
+        {
           "text": "contractual liability",
           "strength": "strong"
         },
@@ -4390,6 +4863,38 @@
         {
           "text": "governance",
           "strength": "weak"
+        },
+        {
+          "text": "whistleblowing",
+          "strength": "weak"
+        },
+        {
+          "text": "whistleblower",
+          "strength": "weak"
+        },
+        {
+          "text": "retaliation",
+          "strength": "weak"
+        },
+        {
+          "text": "code of conduct",
+          "strength": "weak"
+        },
+        {
+          "text": "conflict of interest",
+          "strength": "weak"
+        },
+        {
+          "text": "insider information",
+          "strength": "weak"
+        },
+        {
+          "text": "material non-public information",
+          "strength": "weak"
+        },
+        {
+          "text": "blackout period",
+          "strength": "weak"
         }
       ],
       "typicalAssets": [
@@ -4414,13 +4919,15 @@
       "defaultMechanisms": [],
       "allowedSecondaryFamilies": [
         "regulatory_filing_failure",
-        "privacy_non_compliance"
+        "privacy_non_compliance",
+        "bribery_corruption"
       ],
       "canCoExistWith": [
         "supplier_control_weakness"
       ],
       "canEscalateTo": [],
       "cannotBePrimaryWith": [
+        "privacy_governance_gap",
         "privacy_non_compliance",
         "records_retention_non_compliance",
         "cross_border_transfer_non_compliance",
@@ -4428,7 +4935,8 @@
         "sanctions_breach",
         "licensing_permit_issue",
         "contract_liability",
-        "greenwashing_disclosure_gap"
+        "greenwashing_disclosure_gap",
+        "bribery_corruption"
       ],
       "forbiddenDriftFamilies": [
         "availability_attack",
@@ -4449,15 +4957,27 @@
       ],
       "examplePhrases": [
         "a required internal control process is not followed, breaching policy expectations",
-        "an internal governance requirement is breached because the control process was not followed"
+        "an internal governance requirement is breached because the control process was not followed",
+        "a whistleblowing concern is mishandled and the reporter faces retaliation despite a non-retaliation commitment",
+        "a conflict of interest is not disclosed before the approval decision proceeds"
       ],
       "counterExamples": [
         "personal data is transferred across borders without required safeguards",
         "a supplier agreement breach creates contractual liability and indemnity exposure"
       ],
-      "promptIdeaTemplates": [],
-      "shortlistSeedThemes": [],
-      "fallbackNarrativePatterns": [],
+      "promptIdeaTemplates": [
+        "Policy breach",
+        "A speak-up, investigation, or conflict-disclosure process is not followed"
+      ],
+      "shortlistSeedThemes": [
+        "policy breach",
+        "speak-up mishandling",
+        "conflict disclosure failure"
+      ],
+      "fallbackNarrativePatterns": [
+        "Keep the scenario in the compliance lane when the wording is about ethics policy, investigations, non-retaliation, or conflict-disclosure obligations rather than a more specific privacy, sanctions, or bribery family.",
+        "Do not treat insider-information or public-official wording as generic policy breach if the text clearly points to market-conduct or bribery exposure."
+      ],
       "preferredFamilyKey": "",
       "legacyKey": "compliance",
       "lensKey": "compliance",
@@ -4471,7 +4991,654 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
+      "priorityScore": 74,
+      "positiveSignals": [
+        {
+          "text": "risk appetite",
+          "strength": "strong"
+        },
+        {
+          "text": "risk tolerance",
+          "strength": "strong"
+        },
+        {
+          "text": "outside tolerance",
+          "strength": "strong"
+        },
+        {
+          "text": "above tolerance",
+          "strength": "strong"
+        },
+        {
+          "text": "residual risk",
+          "strength": "strong"
+        },
+        {
+          "text": "inherent risk",
+          "strength": "medium"
+        },
+        {
+          "text": "risk owner",
+          "strength": "strong"
+        },
+        {
+          "text": "risk register",
+          "strength": "strong"
+        },
+        {
+          "text": "project risk register",
+          "strength": "strong"
+        },
+        {
+          "text": "risk treatment plan",
+          "strength": "strong"
+        },
+        {
+          "text": "risk treatment owner",
+          "strength": "medium"
+        },
+        {
+          "text": "key risk indicator",
+          "strength": "strong"
+        },
+        {
+          "text": "kri",
+          "strength": "medium"
+        },
+        {
+          "text": "emerging risk",
+          "strength": "strong"
+        },
+        {
+          "text": "risk committee",
+          "strength": "strong"
+        },
+        {
+          "text": "erm committee",
+          "strength": "strong"
+        },
+        {
+          "text": "principal risk",
+          "strength": "medium"
+        },
+        {
+          "text": "risk reporting cadence",
+          "strength": "strong"
+        },
+        {
+          "text": "risk aggregation",
+          "strength": "medium"
+        },
+        {
+          "text": "three lines",
+          "strength": "medium"
+        },
+        {
+          "text": "three lines model",
+          "strength": "strong"
+        },
+        {
+          "text": "risk taxonomy",
+          "strength": "medium"
+        }
+      ],
+      "antiSignals": [
+        {
+          "text": "ddos",
+          "strength": "strong"
+        },
+        {
+          "text": "botnet",
+          "strength": "strong"
+        },
+        {
+          "text": "dark web credentials",
+          "strength": "strong"
+        },
+        {
+          "text": "exfiltration",
+          "strength": "strong"
+        },
+        {
+          "text": "supplier delay",
+          "strength": "strong"
+        },
+        {
+          "text": "missed delivery date",
+          "strength": "strong"
+        },
+        {
+          "text": "shipment delay",
+          "strength": "strong"
+        },
+        {
+          "text": "go-live delay",
+          "strength": "strong"
+        },
+        {
+          "text": "milestone slip",
+          "strength": "strong"
+        },
+        {
+          "text": "public official",
+          "strength": "strong"
+        },
+        {
+          "text": "facilitation payment",
+          "strength": "strong"
+        },
+        {
+          "text": "whistleblower",
+          "strength": "strong"
+        },
+        {
+          "text": "retaliation",
+          "strength": "strong"
+        },
+        {
+          "text": "lawful basis",
+          "strength": "strong"
+        },
+        {
+          "text": "cross-border transfer",
+          "strength": "strong"
+        },
+        {
+          "text": "regulatory filing",
+          "strength": "strong"
+        },
+        {
+          "text": "sanctions restrictions",
+          "strength": "strong"
+        },
+        {
+          "text": "required permit",
+          "strength": "strong"
+        },
+        {
+          "text": "contractual liability",
+          "strength": "strong"
+        },
+        {
+          "text": "forced labour",
+          "strength": "strong"
+        },
+        {
+          "text": "greenwashing",
+          "strength": "strong"
+        },
+        {
+          "text": "material non-public information",
+          "strength": "strong"
+        }
+      ],
+      "requiredSignals": [
+        {
+          "text": "risk appetite",
+          "strength": "weak"
+        },
+        {
+          "text": "risk tolerance",
+          "strength": "weak"
+        },
+        {
+          "text": "outside tolerance",
+          "strength": "weak"
+        },
+        {
+          "text": "above tolerance",
+          "strength": "weak"
+        },
+        {
+          "text": "residual risk",
+          "strength": "weak"
+        },
+        {
+          "text": "risk owner",
+          "strength": "weak"
+        },
+        {
+          "text": "risk register",
+          "strength": "weak"
+        },
+        {
+          "text": "project risk register",
+          "strength": "weak"
+        },
+        {
+          "text": "risk treatment",
+          "strength": "weak"
+        },
+        {
+          "text": "key risk indicator",
+          "strength": "weak"
+        },
+        {
+          "text": "kri",
+          "strength": "weak"
+        },
+        {
+          "text": "emerging risk",
+          "strength": "weak"
+        },
+        {
+          "text": "risk committee",
+          "strength": "weak"
+        },
+        {
+          "text": "erm committee",
+          "strength": "weak"
+        },
+        {
+          "text": "risk reporting",
+          "strength": "weak"
+        },
+        {
+          "text": "three lines",
+          "strength": "weak"
+        }
+      ],
+      "typicalAssets": [
+        "risk register",
+        "KRI dashboard",
+        "risk reporting cadence",
+        "treatment-plan governance"
+      ],
+      "typicalCauses": [
+        "weak ERM governance",
+        "late escalation of material risk",
+        "stale risk ownership or reporting"
+      ],
+      "typicalConsequences": [
+        "control breakdown",
+        "operational disruption"
+      ],
+      "preferredRiskThemes": [
+        "risk appetite breach",
+        "KRI escalation failure",
+        "residual risk acceptance gap",
+        "risk register and reporting drift"
+      ],
+      "defaultMechanisms": [],
+      "allowedSecondaryFamilies": [
+        "policy_breach",
+        "programme_delivery_slippage",
+        "portfolio_execution_drift",
+        "benefits_realisation_failure"
+      ],
+      "canCoExistWith": [
+        "policy_breach",
+        "programme_delivery_slippage",
+        "portfolio_execution_drift",
+        "benefits_realisation_failure"
+      ],
+      "canEscalateTo": [
+        "programme_delivery_slippage",
+        "portfolio_execution_drift"
+      ],
+      "cannotBePrimaryWith": [],
+      "forbiddenDriftFamilies": [
+        "availability_attack",
+        "identity_compromise",
+        "delivery_slippage",
+        "greenwashing_disclosure_gap"
+      ],
+      "defaultOverlays": [
+        "control_breakdown"
+      ],
+      "overlaysThatMustNeverPromotePrimary": [
+        "reputational_damage"
+      ],
+      "overlaysThatMayPromoteOnlyWithExplicitSignals": [
+        "direct_monetary_loss",
+        "regulatory_scrutiny",
+        "data_exposure",
+        "customer_harm"
+      ],
+      "examplePhrases": [
+        "KRIs move above tolerance and escalation does not happen in time",
+        "residual risk is accepted without the required ERM committee escalation",
+        "project risk registers and treatment plans are not maintained for a material programme risk"
+      ],
+      "counterExamples": [
+        "a public official receives sponsored travel without anti-bribery approval",
+        "a key vendor misses the committed delivery date for a rollout"
+      ],
+      "promptIdeaTemplates": [
+        "Risk Appetite / Escalation Gap",
+        "Risk Governance Gap"
+      ],
+      "shortlistSeedThemes": [
+        "risk appetite breach",
+        "KRI monitoring failure",
+        "residual risk acceptance gap",
+        "risk register reporting drift"
+      ],
+      "fallbackNarrativePatterns": [
+        "Keep the scenario in the general enterprise-risk lane when the wording is about risk appetite, tolerance, KRIs, risk registers, reporting cadence, or residual-risk acceptance rather than a more specific incident family.",
+        "Do not flatten enterprise-risk governance wording into generic compliance if the core issue is risk ownership, escalation, aggregation, or treatment discipline."
+      ],
+      "preferredFamilyKey": "",
+      "legacyKey": "general",
+      "lensKey": "general",
+      "lensLabel": "General enterprise risk",
+      "functionKey": "general",
+      "estimatePresetKey": "general",
+      "key": "risk_governance_gap",
+      "label": "Risk governance gap",
+      "domain": "strategic_transformation",
+      "description": "Enterprise-risk governance, appetite, reporting, or escalation discipline weakens, leaving material risk outside tolerance or insufficiently managed."
+    },
+    {
+      "status": "active",
+      "familyVersion": "phase1.1.8-2026-04-09",
+      "priorityScore": 80,
+      "positiveSignals": [
+        {
+          "text": "privacy by design",
+          "strength": "strong"
+        },
+        {
+          "text": "data protection impact assessment",
+          "strength": "strong"
+        },
+        {
+          "text": "privacy impact assessment",
+          "strength": "strong"
+        },
+        {
+          "text": "dpia",
+          "strength": "strong"
+        },
+        {
+          "text": "data subject rights",
+          "strength": "strong"
+        },
+        {
+          "text": "subject access request",
+          "strength": "strong"
+        },
+        {
+          "text": "subject access requests are delayed",
+          "strength": "strong"
+        },
+        {
+          "text": "privacy governance gap",
+          "strength": "strong"
+        },
+        {
+          "text": "record of processing activities",
+          "strength": "strong"
+        },
+        {
+          "text": "record of processing activities is incomplete",
+          "strength": "strong"
+        },
+        {
+          "text": "ropa",
+          "strength": "strong"
+        },
+        {
+          "text": "controller and processor responsibilities",
+          "strength": "strong"
+        },
+        {
+          "text": "controller and processor responsibilities are unclear",
+          "strength": "strong"
+        },
+        {
+          "text": "processor responsibilities unclear",
+          "strength": "strong"
+        },
+        {
+          "text": "data processing agreement missing",
+          "strength": "strong"
+        },
+        {
+          "text": "data processing agreement has not been updated",
+          "strength": "strong"
+        },
+        {
+          "text": "privacy incident response",
+          "strength": "strong"
+        },
+        {
+          "text": "supervisory authority notification delayed",
+          "strength": "strong"
+        },
+        {
+          "text": "72-hour notification",
+          "strength": "medium"
+        },
+        {
+          "text": "dpo not consulted",
+          "strength": "medium"
+        },
+        {
+          "text": "high-risk biometric processing",
+          "strength": "strong"
+        },
+        {
+          "text": "high-risk assessment is not completed",
+          "strength": "strong"
+        },
+        {
+          "text": "health data processing not assessed",
+          "strength": "strong"
+        },
+        {
+          "text": "patient data safeguards are incomplete",
+          "strength": "strong"
+        },
+        {
+          "text": "local safeguards for sensitive data are incomplete",
+          "strength": "strong"
+        },
+        {
+          "text": "medical records access logging is weak",
+          "strength": "strong"
+        },
+        {
+          "text": "medical-records access logging is weak",
+          "strength": "strong"
+        }
+      ],
+      "antiSignals": [
+        {
+          "text": "ddos",
+          "strength": "strong"
+        },
+        {
+          "text": "website flood",
+          "strength": "strong"
+        },
+        {
+          "text": "supplier slippage",
+          "strength": "medium"
+        },
+        {
+          "text": "bribery",
+          "strength": "strong"
+        },
+        {
+          "text": "greenwashing",
+          "strength": "medium"
+        },
+        {
+          "text": "exfiltration",
+          "strength": "strong"
+        },
+        {
+          "text": "leaked data",
+          "strength": "strong"
+        },
+        {
+          "text": "stolen data",
+          "strength": "strong"
+        },
+        {
+          "text": "exposed records",
+          "strength": "strong"
+        }
+      ],
+      "requiredSignals": [
+        {
+          "text": "privacy",
+          "strength": "weak"
+        },
+        {
+          "text": "data protection",
+          "strength": "weak"
+        },
+        {
+          "text": "personal data",
+          "strength": "weak"
+        },
+        {
+          "text": "dpia",
+          "strength": "weak"
+        },
+        {
+          "text": "subject access",
+          "strength": "weak"
+        },
+        {
+          "text": "dpo",
+          "strength": "weak"
+        },
+        {
+          "text": "controller",
+          "strength": "weak"
+        },
+        {
+          "text": "processor",
+          "strength": "weak"
+        },
+        {
+          "text": "biometric",
+          "strength": "weak"
+        },
+        {
+          "text": "sensitive data",
+          "strength": "weak"
+        },
+        {
+          "text": "health data",
+          "strength": "weak"
+        },
+        {
+          "text": "patient data",
+          "strength": "weak"
+        },
+        {
+          "text": "medical records",
+          "strength": "weak"
+        }
+      ],
+      "typicalAssets": [
+        "privacy management system",
+        "record of processing activities",
+        "data subject rights workflow",
+        "sensitive personal data"
+      ],
+      "typicalCauses": [
+        "missing DPIA",
+        "weak privacy-by-design controls",
+        "unclear controller-processor accountability",
+        "delayed privacy incident governance"
+      ],
+      "typicalConsequences": [
+        "regulatory scrutiny",
+        "legal exposure",
+        "control breakdown"
+      ],
+      "preferredRiskThemes": [
+        "privacy governance failure",
+        "DPIA or privacy-by-design gap",
+        "data subject rights handling weakness",
+        "sensitive-data oversight gap"
+      ],
+      "defaultMechanisms": [
+        "unlawful_processing"
+      ],
+      "allowedSecondaryFamilies": [
+        "privacy_non_compliance",
+        "records_retention_non_compliance",
+        "cross_border_transfer_non_compliance",
+        "policy_breach",
+        "regulatory_filing_failure"
+      ],
+      "canCoExistWith": [
+        "privacy_non_compliance",
+        "records_retention_non_compliance",
+        "cross_border_transfer_non_compliance"
+      ],
+      "canEscalateTo": [
+        "regulatory_filing_failure",
+        "data_disclosure"
+      ],
+      "cannotBePrimaryWith": [
+        "data_disclosure"
+      ],
+      "forbiddenDriftFamilies": [
+        "availability_attack",
+        "delivery_slippage",
+        "bribery_corruption",
+        "third_party_access_compromise"
+      ],
+      "defaultOverlays": [
+        "regulatory_scrutiny",
+        "legal_exposure",
+        "control_breakdown"
+      ],
+      "overlaysThatMustNeverPromotePrimary": [
+        "data_exposure",
+        "service_outage"
+      ],
+      "overlaysThatMayPromoteOnlyWithExplicitSignals": [
+        "direct_monetary_loss",
+        "regulatory_scrutiny",
+        "data_exposure",
+        "customer_harm"
+      ],
+      "examplePhrases": [
+        "A DPIA was not completed for large-scale biometric processing",
+        "Data subject rights requests are delayed because privacy governance is weak",
+        "Patient-data processing proceeds without the privacy-by-design and logging controls the organisation requires"
+      ],
+      "counterExamples": [
+        "Hostile traffic slows the public website",
+        "A key supplier misses committed delivery dates"
+      ],
+      "promptIdeaTemplates": [
+        "Privacy Governance Gap",
+        "Sensitive Data Oversight Gap"
+      ],
+      "shortlistSeedThemes": [
+        "privacy governance weakness",
+        "DPIA gap",
+        "data subject rights handling failure",
+        "health-data privacy safeguard gap"
+      ],
+      "fallbackNarrativePatterns": [
+        "Keep the scenario in the privacy-governance lane when the wording is about DPIAs, privacy by design, data subject rights, records of processing, controller-processor accountability, or sensitive-data oversight rather than an actual disclosure event.",
+        "Let records retention or cross-border transfer take precedence only when those more specific obligation failures are explicit."
+      ],
+      "preferredFamilyKey": "",
+      "legacyKey": "compliance",
+      "lensKey": "compliance",
+      "lensLabel": "Compliance",
+      "functionKey": "compliance",
+      "estimatePresetKey": "dataGovernance",
+      "key": "privacy_governance_gap",
+      "label": "Privacy governance gap",
+      "domain": "compliance",
+      "description": "Privacy management controls are missing, weak, or not followed for high-risk personal or sensitive data processing."
+    },
+    {
+      "status": "active",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 82,
       "positiveSignals": [
         {
@@ -4646,7 +5813,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 76,
       "positiveSignals": [
         {
@@ -4831,7 +5998,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 77,
       "positiveSignals": [
         {
@@ -5028,7 +6195,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 81,
       "positiveSignals": [
         {
@@ -5191,7 +6358,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 84,
       "positiveSignals": [
         {
@@ -5212,6 +6379,34 @@
         },
         {
           "text": "restricted party",
+          "strength": "strong"
+        },
+        {
+          "text": "denied party screening",
+          "strength": "strong"
+        },
+        {
+          "text": "restricted jurisdiction",
+          "strength": "strong"
+        },
+        {
+          "text": "restricted jurisdictions",
+          "strength": "strong"
+        },
+        {
+          "text": "remote technical environment",
+          "strength": "strong"
+        },
+        {
+          "text": "work from home in a restricted jurisdiction",
+          "strength": "strong"
+        },
+        {
+          "text": "export-controlled technology",
+          "strength": "strong"
+        },
+        {
+          "text": "re-export",
           "strength": "strong"
         },
         {
@@ -5281,6 +6476,14 @@
         {
           "text": "entity list",
           "strength": "weak"
+        },
+        {
+          "text": "export control",
+          "strength": "weak"
+        },
+        {
+          "text": "restricted jurisdiction",
+          "strength": "weak"
         }
       ],
       "typicalAssets": [
@@ -5327,15 +6530,26 @@
       ],
       "examplePhrases": [
         "a transaction proceeds despite sanctions restrictions and screening control failure",
-        "restricted-party screening is missed and a prohibited transaction proceeds"
+        "restricted-party screening is missed and a prohibited transaction proceeds",
+        "export-controlled access is enabled from a restricted jurisdiction without the required trade-control clearance"
       ],
       "counterExamples": [
         "general geopolitical concern rises but no sanctions control fails",
         "a mandatory filing is submitted late"
       ],
-      "promptIdeaTemplates": [],
-      "shortlistSeedThemes": [],
-      "fallbackNarrativePatterns": [],
+      "promptIdeaTemplates": [
+        "Sanctions breach",
+        "Trade-control restrictions are bypassed for a restricted jurisdiction or prohibited party"
+      ],
+      "shortlistSeedThemes": [
+        "sanctions screening failure",
+        "export-control breach",
+        "restricted-jurisdiction access"
+      ],
+      "fallbackNarrativePatterns": [
+        "Keep the scenario in the regulatory trade-controls lane when sanctions, export controls, denied-party screening, or restricted-jurisdiction restrictions are explicit.",
+        "Do not collapse export-control or restricted-jurisdiction wording into generic policy breach unless no trade-control trigger is actually stated."
+      ],
       "preferredFamilyKey": "",
       "legacyKey": "regulatory",
       "lensKey": "regulatory",
@@ -5349,7 +6563,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 82,
       "positiveSignals": [
         {
@@ -5515,7 +6729,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 80,
       "positiveSignals": [
         {
@@ -5673,7 +6887,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 74,
       "positiveSignals": [
         {
@@ -5850,7 +7064,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 73,
       "positiveSignals": [
         {
@@ -6035,7 +7249,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 83,
       "positiveSignals": [
         {
@@ -6228,7 +7442,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 84,
       "positiveSignals": [
         {
@@ -6407,7 +7621,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 77,
       "positiveSignals": [
         {
@@ -6445,6 +7659,50 @@
         {
           "text": "assurance evidence is incomplete",
           "strength": "medium"
+        },
+        {
+          "text": "business partner due diligence",
+          "strength": "strong"
+        },
+        {
+          "text": "business partner",
+          "strength": "medium"
+        },
+        {
+          "text": "beneficial ownership checks missing",
+          "strength": "strong"
+        },
+        {
+          "text": "beneficial ownership red flags",
+          "strength": "strong"
+        },
+        {
+          "text": "beneficial ownership screening incomplete",
+          "strength": "strong"
+        },
+        {
+          "text": "unresolved red flags",
+          "strength": "strong"
+        },
+        {
+          "text": "red flags remained unresolved",
+          "strength": "strong"
+        },
+        {
+          "text": "approved through escalation",
+          "strength": "strong"
+        },
+        {
+          "text": "approved through escalation despite red flags",
+          "strength": "strong"
+        },
+        {
+          "text": "ongoing monitoring gap",
+          "strength": "medium"
+        },
+        {
+          "text": "business partner code of conduct not evidenced",
+          "strength": "medium"
         }
       ],
       "antiSignals": [
@@ -6474,6 +7732,14 @@
         },
         {
           "text": "supplier insolvency",
+          "strength": "strong"
+        },
+        {
+          "text": "restricted party",
+          "strength": "strong"
+        },
+        {
+          "text": "sanctions restrictions",
           "strength": "strong"
         }
       ],
@@ -6532,7 +7798,8 @@
       ],
       "examplePhrases": [
         "a supplier has weak control processes and cannot evidence adequate assurance over critical services",
-        "weak supplier governance creates inherited assurance risk without an actual compromise event"
+        "weak supplier governance creates inherited assurance risk without an actual compromise event",
+        "a business partner is approved through escalation even though beneficial ownership red flags remain unresolved"
       ],
       "counterExamples": [
         "a vendor access path is compromised and used to reach internal systems",
@@ -6564,7 +7831,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 84,
       "positiveSignals": [
         {
@@ -6754,7 +8021,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 82,
       "positiveSignals": [
         {
@@ -6925,7 +8192,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 50,
       "positiveSignals": [
         {
@@ -7059,7 +8326,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 50,
       "positiveSignals": [
         {
@@ -7156,7 +8423,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 50,
       "positiveSignals": [
         {
@@ -7252,7 +8519,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 50,
       "positiveSignals": [
         {
@@ -7348,7 +8615,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 50,
       "positiveSignals": [
         {
@@ -7450,7 +8717,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 75,
       "positiveSignals": [
         {
@@ -7579,7 +8846,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 85,
       "positiveSignals": [
         {
@@ -7588,6 +8855,14 @@
         },
         {
           "text": "forced labor",
+          "strength": "medium"
+        },
+        {
+          "text": "forced labour practices",
+          "strength": "medium"
+        },
+        {
+          "text": "forced labor practices",
           "strength": "medium"
         },
         {
@@ -7620,6 +8895,50 @@
         },
         {
           "text": "labour exploitation",
+          "strength": "medium"
+        },
+        {
+          "text": "recruitment fees",
+          "strength": "medium"
+        },
+        {
+          "text": "passport retention",
+          "strength": "medium"
+        },
+        {
+          "text": "passports held",
+          "strength": "medium"
+        },
+        {
+          "text": "passport confiscation",
+          "strength": "medium"
+        },
+        {
+          "text": "withheld passports",
+          "strength": "medium"
+        },
+        {
+          "text": "labour broker",
+          "strength": "medium"
+        },
+        {
+          "text": "labour agent abuse",
+          "strength": "medium"
+        },
+        {
+          "text": "debt bondage",
+          "strength": "medium"
+        },
+        {
+          "text": "worker grievance",
+          "strength": "medium"
+        },
+        {
+          "text": "grievance mechanism",
+          "strength": "medium"
+        },
+        {
+          "text": "remediation delayed",
           "strength": "medium"
         }
       ],
@@ -7667,6 +8986,14 @@
           "strength": "medium"
         },
         {
+          "text": "forced labour practices",
+          "strength": "medium"
+        },
+        {
+          "text": "forced labor practices",
+          "strength": "medium"
+        },
+        {
           "text": "modern slavery",
           "strength": "medium"
         },
@@ -7689,6 +9016,22 @@
         {
           "text": "labour exploitation",
           "strength": "medium"
+        },
+        {
+          "text": "recruitment fees",
+          "strength": "medium"
+        },
+        {
+          "text": "passport retention",
+          "strength": "medium"
+        },
+        {
+          "text": "passports held",
+          "strength": "medium"
+        },
+        {
+          "text": "debt bondage",
+          "strength": "medium"
         }
       ],
       "typicalAssets": [
@@ -7699,7 +9042,9 @@
       "typicalCauses": [
         "weak due diligence",
         "poor labour oversight",
-        "human-rights control failure"
+        "human-rights control failure",
+        "labour-broker layer not reached",
+        "grievance escalation did not trigger remediation"
       ],
       "typicalConsequences": [
         "regulatory scrutiny",
@@ -7751,15 +9096,27 @@
       ],
       "examplePhrases": [
         "sub-tier suppliers are found to be using forced labour conditions",
-        "modern slavery allegations emerge in a supplier workforce after due diligence missed the abuse"
+        "modern slavery allegations emerge in a supplier workforce after due diligence missed the abuse",
+        "recruitment fees and passport retention are found in the labour-broker layer",
+        "worker grievances reveal abusive labour practices and delayed remediation"
       ],
       "counterExamples": [
         "a supplier misses delivery dates and documentation standards",
         "payment approval control fails"
       ],
-      "promptIdeaTemplates": [],
-      "shortlistSeedThemes": [],
-      "fallbackNarrativePatterns": [],
+      "promptIdeaTemplates": [
+        "Worker exploitation is discovered in the supply chain after weak due diligence",
+        "Recruitment-fee abuse or passport retention exposes a human-rights control failure"
+      ],
+      "shortlistSeedThemes": [
+        "forced labour / modern slavery",
+        "human-rights due diligence failure",
+        "supplier remediation pressure"
+      ],
+      "fallbackNarrativePatterns": [
+        "Keep the scenario anchored to human-rights abuse, labour-broker weakness, grievances, and remediation credibility when worker exploitation is explicit.",
+        "Do not collapse labour-abuse wording into generic procurement or supplier-governance language."
+      ],
       "preferredFamilyKey": "",
       "legacyKey": "esg",
       "lensKey": "esg",
@@ -7773,7 +9130,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 83,
       "positiveSignals": [
         {
@@ -7817,6 +9174,10 @@
           "strength": "medium"
         },
         {
+          "text": "cannot be verified",
+          "strength": "medium"
+        },
+        {
           "text": "claims are unsupported",
           "strength": "medium"
         },
@@ -7843,6 +9204,82 @@
         {
           "text": "workload geography mismatch",
           "strength": "medium"
+        },
+        {
+          "text": "scope 3 emissions not evidenced",
+          "strength": "medium"
+        },
+        {
+          "text": "scope 3 emissions claims",
+          "strength": "medium"
+        },
+        {
+          "text": "scope 3 reduction claims",
+          "strength": "medium"
+        },
+        {
+          "text": "supplier emissions data not reconciled",
+          "strength": "medium"
+        },
+        {
+          "text": "supplier emissions do not reconcile",
+          "strength": "medium"
+        },
+        {
+          "text": "supplier data does not reconcile",
+          "strength": "medium"
+        },
+        {
+          "text": "activity factors do not reconcile",
+          "strength": "medium"
+        },
+        {
+          "text": "transition milestone claim unsupported",
+          "strength": "medium"
+        },
+        {
+          "text": "transition plan claim unsupported",
+          "strength": "medium"
+        },
+        {
+          "text": "public transition claims",
+          "strength": "medium"
+        },
+        {
+          "text": "sustainability-linked loan kpi",
+          "strength": "medium"
+        },
+        {
+          "text": "sustainability-linked loan kpi not evidenced",
+          "strength": "medium"
+        },
+        {
+          "text": "sustainability-linked financing kpi",
+          "strength": "medium"
+        },
+        {
+          "text": "sustainability-linked financing kpi not evidenced",
+          "strength": "medium"
+        },
+        {
+          "text": "margin step-down",
+          "strength": "medium"
+        },
+        {
+          "text": "margin step-down claim unsupported",
+          "strength": "medium"
+        },
+        {
+          "text": "assurance prep found evidence gap",
+          "strength": "medium"
+        },
+        {
+          "text": "assurance challenge",
+          "strength": "medium"
+        },
+        {
+          "text": "under assurance challenge",
+          "strength": "medium"
         }
       ],
       "antiSignals": [
@@ -7860,6 +9297,10 @@
         },
         {
           "text": "internal environmental reporting process",
+          "strength": "medium"
+        },
+        {
+          "text": "internal transition programme",
           "strength": "medium"
         },
         {
@@ -7907,6 +9348,54 @@
         {
           "text": "renewable energy attributes",
           "strength": "medium"
+        },
+        {
+          "text": "scope 3 emissions not evidenced",
+          "strength": "medium"
+        },
+        {
+          "text": "scope 3 emissions claims",
+          "strength": "medium"
+        },
+        {
+          "text": "scope 3 reduction claims",
+          "strength": "medium"
+        },
+        {
+          "text": "supplier emissions data not reconciled",
+          "strength": "medium"
+        },
+        {
+          "text": "supplier data does not reconcile",
+          "strength": "medium"
+        },
+        {
+          "text": "activity factors do not reconcile",
+          "strength": "medium"
+        },
+        {
+          "text": "transition milestone claim unsupported",
+          "strength": "medium"
+        },
+        {
+          "text": "sustainability-linked loan kpi",
+          "strength": "medium"
+        },
+        {
+          "text": "sustainability-linked loan kpi not evidenced",
+          "strength": "medium"
+        },
+        {
+          "text": "sustainability-linked financing kpi",
+          "strength": "medium"
+        },
+        {
+          "text": "margin step-down",
+          "strength": "medium"
+        },
+        {
+          "text": "margin step-down claim unsupported",
+          "strength": "medium"
         }
       ],
       "typicalAssets": [
@@ -7916,7 +9405,10 @@
       "typicalCauses": [
         "weak evidence",
         "claim gap",
-        "claim-practice mismatch"
+        "claim-practice mismatch",
+        "assurance evidence gap",
+        "supplier-emissions data mismatch",
+        "transition milestone overstatement"
       ],
       "typicalConsequences": [
         "regulatory scrutiny",
@@ -7961,15 +9453,28 @@
       ],
       "examplePhrases": [
         "public sustainability claims cannot be evidenced and differ materially from actual operating practice",
-        "a sustainability disclosure cannot be supported credibly"
+        "a sustainability disclosure cannot be supported credibly",
+        "scope 3 emissions reduction claims cannot be reconciled to supplier activity data",
+        "a sustainability-linked financing KPI cannot be evidenced in assurance preparation"
       ],
       "counterExamples": [
         "an internal environmental reporting process was not followed",
+        "an internal transition programme milestone slips without any external claim",
         "admin credentials used to access tenant"
       ],
-      "promptIdeaTemplates": [],
-      "shortlistSeedThemes": [],
-      "fallbackNarrativePatterns": [],
+      "promptIdeaTemplates": [
+        "A public sustainability, climate, or financing-linked KPI claim cannot be evidenced",
+        "Disclosure confidence is running ahead of the evidence for emissions, transition, or impact claims"
+      ],
+      "shortlistSeedThemes": [
+        "greenwashing / disclosure gap",
+        "claim-evidence mismatch",
+        "disclosure credibility pressure"
+      ],
+      "fallbackNarrativePatterns": [
+        "Keep the scenario in the ESG disclosure lane when public claims, transition milestones, supplier-emissions data, or financing-linked KPIs cannot be evidenced.",
+        "Do not flatten unsupported sustainability claims into generic compliance unless the event is only an internal process miss with no external statement."
+      ],
       "preferredFamilyKey": "",
       "legacyKey": "esg",
       "lensKey": "esg",
@@ -7983,7 +9488,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 81,
       "positiveSignals": [
         {
@@ -8117,10 +9622,12 @@
       ],
       "defaultMechanisms": [],
       "allowedSecondaryFamilies": [
+        "safety_control_weakness",
         "workforce_fatigue_staffing_weakness",
         "environmental_spill"
       ],
       "canCoExistWith": [
+        "safety_control_weakness",
         "workforce_fatigue_staffing_weakness",
         "environmental_spill"
       ],
@@ -8173,7 +9680,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 80,
       "positiveSignals": [
         {
@@ -8353,7 +9860,244 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
+      "priorityScore": 79,
+      "positiveSignals": [
+        {
+          "text": "permit to work missing",
+          "strength": "medium"
+        },
+        {
+          "text": "permit to work bypassed",
+          "strength": "medium"
+        },
+        {
+          "text": "management of change not followed",
+          "strength": "medium"
+        },
+        {
+          "text": "corrective actions overdue",
+          "strength": "medium"
+        },
+        {
+          "text": "hazard identification incomplete",
+          "strength": "medium"
+        },
+        {
+          "text": "hazard controls missing",
+          "strength": "medium"
+        },
+        {
+          "text": "machine guards missing",
+          "strength": "medium"
+        },
+        {
+          "text": "interlocks not functioning",
+          "strength": "medium"
+        },
+        {
+          "text": "emergency stop devices unavailable",
+          "strength": "medium"
+        },
+        {
+          "text": "emergency drills overdue",
+          "strength": "medium"
+        },
+        {
+          "text": "emergency response plan missing",
+          "strength": "medium"
+        },
+        {
+          "text": "contractor safety controls weak",
+          "strength": "medium"
+        },
+        {
+          "text": "unsafe worker accommodation",
+          "strength": "medium"
+        },
+        {
+          "text": "unsafe dormitory conditions",
+          "strength": "medium"
+        }
+      ],
+      "antiSignals": [
+        {
+          "text": "injury",
+          "strength": "medium"
+        },
+        {
+          "text": "worker harmed",
+          "strength": "medium"
+        },
+        {
+          "text": "safety incident",
+          "strength": "medium"
+        },
+        {
+          "text": "spill",
+          "strength": "medium"
+        },
+        {
+          "text": "release to environment",
+          "strength": "medium"
+        },
+        {
+          "text": "staff exhaustion",
+          "strength": "medium"
+        },
+        {
+          "text": "understaffing",
+          "strength": "medium"
+        },
+        {
+          "text": "ddos",
+          "strength": "medium"
+        },
+        {
+          "text": "credential theft",
+          "strength": "medium"
+        }
+      ],
+      "requiredSignals": [
+        {
+          "text": "permit to work",
+          "strength": "medium"
+        },
+        {
+          "text": "management of change",
+          "strength": "medium"
+        },
+        {
+          "text": "corrective action",
+          "strength": "medium"
+        },
+        {
+          "text": "hazard identification",
+          "strength": "medium"
+        },
+        {
+          "text": "hazard controls",
+          "strength": "medium"
+        },
+        {
+          "text": "machine guards",
+          "strength": "medium"
+        },
+        {
+          "text": "interlocks",
+          "strength": "medium"
+        },
+        {
+          "text": "emergency drills",
+          "strength": "medium"
+        },
+        {
+          "text": "emergency response plan",
+          "strength": "medium"
+        },
+        {
+          "text": "contractor safety",
+          "strength": "medium"
+        },
+        {
+          "text": "worker accommodation",
+          "strength": "medium"
+        },
+        {
+          "text": "dormitory",
+          "strength": "medium"
+        }
+      ],
+      "typicalAssets": [
+        "site operation",
+        "safety control",
+        "emergency readiness"
+      ],
+      "typicalCauses": [
+        "weak permit discipline",
+        "hazard-control gaps",
+        "overdue corrective actions"
+      ],
+      "typicalConsequences": [
+        "operational disruption",
+        "control_breakdown",
+        "regulatory_scrutiny"
+      ],
+      "preferredRiskThemes": [
+        "HSE control weakness",
+        "emergency-readiness gap",
+        "unsafe control environment"
+      ],
+      "defaultMechanisms": [
+        "process_bypass",
+        "coordination_breakdown"
+      ],
+      "allowedSecondaryFamilies": [
+        "safety_incident",
+        "environmental_spill",
+        "workforce_fatigue_staffing_weakness"
+      ],
+      "canCoExistWith": [
+        "workforce_fatigue_staffing_weakness"
+      ],
+      "canEscalateTo": [
+        "safety_incident",
+        "environmental_spill"
+      ],
+      "cannotBePrimaryWith": [],
+      "forbiddenDriftFamilies": [
+        "availability_attack",
+        "identity_compromise"
+      ],
+      "defaultOverlays": [
+        "operational_disruption",
+        "control_breakdown",
+        "regulatory_scrutiny"
+      ],
+      "overlaysThatMustNeverPromotePrimary": [
+        "reputational_damage"
+      ],
+      "overlaysThatMayPromoteOnlyWithExplicitSignals": [
+        "direct_monetary_loss",
+        "regulatory_scrutiny",
+        "data_exposure",
+        "customer_harm"
+      ],
+      "examplePhrases": [
+        "Permit-to-work and management-of-change controls are bypassed while corrective actions remain overdue.",
+        "Emergency drills are overdue and machine guards are missing on contractor-operated equipment."
+      ],
+      "counterExamples": [
+        "a worker is injured during the incident",
+        "hostile traffic knocks the customer portal offline"
+      ],
+      "promptIdeaTemplates": [
+        "Critical HSE controls are weak before an incident occurs",
+        "Emergency-readiness and permit-to-work discipline are not holding"
+      ],
+      "shortlistSeedThemes": [
+        "safety control weakness",
+        "permit-to-work weakness",
+        "management-of-change failure"
+      ],
+      "fallbackNarrativePatterns": [
+        "Keep the scenario in the HSE lane when permit-to-work, management-of-change, emergency drills, contractor safety, or corrective-action discipline is the visible problem before harm occurs.",
+        "Do not promote the scenario into safety incident or environmental spill unless injury, worker harm, or a release is explicitly stated."
+      ],
+      "preferredFamilyKey": "",
+      "legacyKey": "hse",
+      "lensKey": "hse",
+      "lensLabel": "HSE",
+      "functionKey": "hse",
+      "estimatePresetKey": "hse",
+      "key": "safety_control_weakness",
+      "label": "Safety control weakness",
+      "domain": "esg_hse_people",
+      "description": "Permit-to-work, management-of-change, hazard-control, emergency-preparedness, or corrective-action weaknesses create unsafe operating exposure before an injury or spill becomes the primary event."
+    },
+    {
+      "status": "active",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 78,
       "positiveSignals": [
         {
@@ -8560,7 +10304,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 77,
       "positiveSignals": [
         {
@@ -8752,7 +10496,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 80,
       "positiveSignals": [
         {
@@ -8899,7 +10643,7 @@
     },
     {
       "status": "compatibility_only",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 50,
       "positiveSignals": [
         {
@@ -8996,7 +10740,7 @@
     },
     {
       "status": "active",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 81,
       "positiveSignals": [
         {
@@ -9174,7 +10918,7 @@
     },
     {
       "status": "compatibility_only",
-      "familyVersion": "phase1.1.4-2026-04-04",
+      "familyVersion": "phase1.1.8-2026-04-09",
       "priorityScore": 50,
       "positiveSignals": [
         {

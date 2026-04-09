@@ -1772,10 +1772,10 @@
     ],
     "scope": "global",
     "sourceType": "official",
-    "sourceTitle": "IFRS S1/S2, GRI, and CSRD/ESRS sustainability disclosure guidance",
-    "sourceUrl": "",
+    "sourceTitle": "IFRS S1, GRI, CSRD/ESRS, and UAE sustainability disclosure guidance",
+    "sourceUrl": "https://www.ifrs.org/issued-standards/ifrs-sustainability-standards-navigator/ifrs-s1-general-requirements-for-disclosure-of-sustainability-related-financial-information/",
     "lastUpdated": "2025-06-15",
-    "summary": "Directional starting profile aligned to ESG disclosure, governance, and sustainability-control expectations. Emphasis is on disclosure remediation, stakeholder scrutiny, financing pressure, and long-tail reputation impact.",
+    "summary": "Directional starting profile aligned to IFRS-style sustainability disclosure requirements across governance, strategy, risk management, and metrics or targets. Emphasis is on incomplete evidence trails, disclosure remediation, financing pressure, and long-tail reputation impact once reporting cannot be supported.",
     "suggestedInputs": {
       "TEF": {
         "min": 0.15,
@@ -1984,9 +1984,9 @@
     "scope": "global",
     "sourceType": "official",
     "sourceTitle": "IFRS S2, TCFD, GHG Protocol, and ISO 14064-1 climate disclosure guidance",
-    "sourceUrl": "",
+    "sourceUrl": "https://www.ifrs.org/issued-standards/ifrs-sustainability-standards-navigator/ifrs-s2-climate-related-disclosures/",
     "lastUpdated": "2026-03-30",
-    "summary": "Directional starting profile for weak climate disclosures, emissions-data quality problems, and transition-claim challenge. Emphasis is on restatement effort, assurance gaps, financing pressure, and stakeholder scrutiny.",
+    "summary": "Directional starting profile for weak climate disclosures, emissions-data quality problems, and transition-claim challenge. Emphasis is on IFRS-style governance, strategy, risk management, and metrics-or-target failures across physical risk, transition risk, and value-chain emissions reporting.",
     "suggestedInputs": {
       "TEF": { "min": 0.12, "likely": 0.55, "max": 2.2 },
       "controlStrength": { "min": 0.34, "likely": 0.52, "max": 0.74 },
@@ -2388,6 +2388,162 @@
         "regulatoryLegal": { "min": 15000, "likely": 70000, "max": 320000 },
         "thirdPartyLiability": { "min": 0, "likely": 30000, "max": 180000 },
         "reputationContract": { "min": 140000, "likely": 520000, "max": 2100000 }
+      }
+    }
+  },
+  {
+    "id": "bm-databreach-us-ibm-2025",
+    "title": "United States data breach cost profile",
+    "scenarioType": "data-breach",
+    "geographies": ["United States", "Global"],
+    "industries": ["cross-sector", "technology", "public sector", "financial services"],
+    "scope": "regional",
+    "sourceType": "industry",
+    "sourceTitle": "IBM Cost of a Data Breach 2025: United States",
+    "sourceUrl": "https://www.ibm.com/think/topics/data-breach",
+    "lastUpdated": "2025-11-12",
+    "summary": "IBM reported average United States breach cost of USD 10.22M in 2025, keeping the US well above the global average and reinforcing higher remediation, business disruption, and legal exposure assumptions.",
+    "suggestedInputs": {
+      "TEF": { "min": 0.35, "likely": 1, "max": 2.7 },
+      "controlStrength": { "min": 0.44, "likely": 0.62, "max": 0.8 },
+      "threatCapability": { "min": 0.52, "likely": 0.7, "max": 0.86 },
+      "lossComponents": {
+        "incidentResponse": { "min": 360000, "likely": 1100000, "max": 2900000 },
+        "businessInterruption": { "min": 520000, "likely": 1650000, "max": 4300000 },
+        "dataBreachRemediation": { "min": 320000, "likely": 980000, "max": 2600000 },
+        "regulatoryLegal": { "min": 180000, "likely": 640000, "max": 2400000 },
+        "thirdPartyLiability": { "min": 50000, "likely": 190000, "max": 800000 },
+        "reputationContract": { "min": 220000, "likely": 780000, "max": 2600000 }
+      }
+    }
+  },
+  {
+    "id": "bm-identity-us-ic3-2024",
+    "title": "United States email-account-compromise and identity-takeover profile",
+    "scenarioType": "identity",
+    "geographies": ["United States", "Global"],
+    "industries": ["cross-sector", "financial services", "technology"],
+    "scope": "regional",
+    "sourceType": "official",
+    "sourceTitle": "FBI IC3 2024 Annual Report and business email compromise alerts",
+    "sourceUrl": "https://www.ic3.gov/AnnualReport/Reports/2024_IC3Report.pdf",
+    "lastUpdated": "2025-04-23",
+    "summary": "IC3 continues to show email account compromise, impersonation, and credential-enabled transfer fraud as major US loss drivers, supporting higher event frequency and response assumptions for mailbox-led takeover scenarios.",
+    "suggestedInputs": {
+      "TEF": { "min": 0.7, "likely": 2, "max": 5.2 },
+      "controlStrength": { "min": 0.42, "likely": 0.6, "max": 0.78 },
+      "threatCapability": { "min": 0.56, "likely": 0.74, "max": 0.88 },
+      "lossComponents": {
+        "incidentResponse": { "min": 120000, "likely": 360000, "max": 980000 },
+        "businessInterruption": { "min": 160000, "likely": 520000, "max": 1550000 },
+        "dataBreachRemediation": { "min": 80000, "likely": 260000, "max": 780000 },
+        "regulatoryLegal": { "min": 40000, "likely": 160000, "max": 760000 },
+        "thirdPartyLiability": { "min": 25000, "likely": 110000, "max": 520000 },
+        "reputationContract": { "min": 70000, "likely": 250000, "max": 920000 }
+      }
+    }
+  },
+  {
+    "id": "bm-financial-bec-us-2024",
+    "title": "United States payment-diversion and business-email-compromise profile",
+    "scenarioType": "financial",
+    "geographies": ["United States", "Global"],
+    "industries": ["cross-sector", "financial services", "technology"],
+    "scope": "regional",
+    "sourceType": "official",
+    "sourceTitle": "FBI IC3 2024 Annual Report and BEC: The $55 Billion Scam PSA",
+    "sourceUrl": "https://www.ic3.gov/PSA/2024/PSA240911",
+    "lastUpdated": "2024-09-11",
+    "summary": "FBI warnings and IC3 reporting show payment diversion and business email compromise remain major United States loss drivers, with persistent impersonation, invoice manipulation, and wire-transfer redirection patterns.",
+    "suggestedInputs": {
+      "TEF": { "min": 0.6, "likely": 2.1, "max": 7.3 },
+      "controlStrength": { "min": 0.34, "likely": 0.52, "max": 0.74 },
+      "threatCapability": { "min": 0.48, "likely": 0.68, "max": 0.84 },
+      "lossComponents": {
+        "incidentResponse": { "min": 50000, "likely": 180000, "max": 520000 },
+        "businessInterruption": { "min": 60000, "likely": 230000, "max": 850000 },
+        "dataBreachRemediation": { "min": 0, "likely": 10000, "max": 50000 },
+        "regulatoryLegal": { "min": 40000, "likely": 160000, "max": 780000 },
+        "thirdPartyLiability": { "min": 60000, "likely": 220000, "max": 1000000 },
+        "reputationContract": { "min": 80000, "likely": 280000, "max": 1000000 }
+      }
+    }
+  },
+  {
+    "id": "bm-businesscontinuity-outage-us-2025",
+    "title": "United States outage severity and continuity-loss profile",
+    "scenarioType": "business-continuity",
+    "geographies": ["United States", "Global"],
+    "industries": ["cross-sector", "technology", "financial services", "manufacturing", "healthcare"],
+    "scope": "industry",
+    "sourceType": "industry",
+    "sourceTitle": "Uptime Institute Annual Outage Analysis 2025",
+    "sourceUrl": "https://intelligence.uptimeinstitute.com/resource/annual-outage-analysis-2025",
+    "lastUpdated": "2025-06-04",
+    "summary": "Uptime reported that more than half of recent major outages cost over USD 100K and about one in five exceeded USD 1M, reinforcing stronger interruption and crisis-response assumptions for severe continuity events.",
+    "suggestedInputs": {
+      "TEF": { "min": 0.25, "likely": 1.1, "max": 4.6 },
+      "controlStrength": { "min": 0.34, "likely": 0.52, "max": 0.74 },
+      "threatCapability": { "min": 0.26, "likely": 0.44, "max": 0.66 },
+      "lossComponents": {
+        "incidentResponse": { "min": 80000, "likely": 250000, "max": 720000 },
+        "businessInterruption": { "min": 350000, "likely": 1250000, "max": 4500000 },
+        "dataBreachRemediation": { "min": 0, "likely": 5000, "max": 30000 },
+        "regulatoryLegal": { "min": 25000, "likely": 90000, "max": 380000 },
+        "thirdPartyLiability": { "min": 10000, "likely": 60000, "max": 260000 },
+        "reputationContract": { "min": 120000, "likely": 420000, "max": 1500000 }
+      }
+    }
+  },
+  {
+    "id": "bm-esg-disclosure-uae-ifrs-2025",
+    "title": "UAE sustainability disclosure and evidence-trail profile",
+    "scenarioType": "esg",
+    "geographies": ["United Arab Emirates", "GCC", "Global"],
+    "industries": ["cross-sector", "financial services", "technology", "manufacturing", "consumer"],
+    "scope": "regional",
+    "sourceType": "regulatory",
+    "sourceTitle": "UAE sustainability-disclosure principles, IFRS S1/S2 structure, and exchange ESG guidance",
+    "sourceUrl": "https://www.sca.gov.ae/ar/services/minor-services/awareness-material/the-uae-sfwg-launches-sustainability-related-disclosures-principles.aspx",
+    "lastUpdated": "2025-07-09",
+    "summary": "Directional starting profile for UAE sustainability reporting that cannot be supported across governance, strategy, risk management, and metrics or targets. Emphasis is on evidence-trail weakness, disclosure remediation, and funding or stakeholder challenge once reporting cannot be reconciled.",
+    "suggestedInputs": {
+      "TEF": { "min": 0.12, "likely": 0.55, "max": 2.3 },
+      "controlStrength": { "min": 0.36, "likely": 0.54, "max": 0.76 },
+      "threatCapability": { "min": 0.22, "likely": 0.38, "max": 0.58 },
+      "lossComponents": {
+        "incidentResponse": { "min": 35000, "likely": 115000, "max": 340000 },
+        "businessInterruption": { "min": 40000, "likely": 190000, "max": 760000 },
+        "dataBreachRemediation": { "min": 0, "likely": 0, "max": 15000 },
+        "regulatoryLegal": { "min": 50000, "likely": 210000, "max": 920000 },
+        "thirdPartyLiability": { "min": 0, "likely": 15000, "max": 100000 },
+        "reputationContract": { "min": 180000, "likely": 620000, "max": 2300000 }
+      }
+    }
+  },
+  {
+    "id": "bm-esg-greenwashing-us-2024",
+    "title": "United States sustainability-claims and greenwashing profile",
+    "scenarioType": "esg",
+    "geographies": ["United States", "Global"],
+    "industries": ["cross-sector", "financial services", "technology", "consumer"],
+    "scope": "regional",
+    "sourceType": "regulatory",
+    "sourceTitle": "FTC Green Guides, SEC ESG enforcement actions, and IFRS-style evidence expectations",
+    "sourceUrl": "https://www.ftc.gov/business-guidance/resources/environmental-claims-summary-green-guides",
+    "lastUpdated": "2024-09-20",
+    "summary": "Directional starting profile for United States sustainability or climate claims that cannot be substantiated. Emphasis is on weak evidence trails, overstated screening or climate assertions, remediation cost, and enforcement or investor challenge once claims are tested.",
+    "suggestedInputs": {
+      "TEF": { "min": 0.12, "likely": 0.5, "max": 2.2 },
+      "controlStrength": { "min": 0.34, "likely": 0.52, "max": 0.74 },
+      "threatCapability": { "min": 0.22, "likely": 0.38, "max": 0.58 },
+      "lossComponents": {
+        "incidentResponse": { "min": 40000, "likely": 125000, "max": 360000 },
+        "businessInterruption": { "min": 45000, "likely": 190000, "max": 760000 },
+        "dataBreachRemediation": { "min": 0, "likely": 0, "max": 15000 },
+        "regulatoryLegal": { "min": 80000, "likely": 320000, "max": 1500000 },
+        "thirdPartyLiability": { "min": 0, "likely": 20000, "max": 140000 },
+        "reputationContract": { "min": 260000, "likely": 860000, "max": 3300000 }
       }
     }
   }

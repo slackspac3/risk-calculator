@@ -560,11 +560,11 @@ function hasCounterpartyCreditSignals(text = '') {
 }
 
 function hasSupplierLabourSignals(text = '') {
-  return /(exploitative labor|exploitative labour|forced labor|forced labour|child labor|child labour|modern slavery|labor practice|labour practice|worker exploitation|worker abuse|human rights|living wage)/.test(String(text || '').toLowerCase());
+  return /(exploitative labor|exploitative labour|forced labor|forced labour|child labor|child labour|modern slavery|labor practice|labour practice|worker exploitation|worker abuse|human rights|living wage|recruitment fees?|passports? held|passport retention|passport confiscation|withheld passports?|debt bondage|labou?r brokers?|labou?r agents?|grievance)/.test(String(text || '').toLowerCase());
 }
 
 function hasEsgDisclosureSignals(text = '') {
-  return /(esg|sustainability|greenwashing|climate disclosure|sustainability disclosure|carbon|emission|net zero|scope 1|scope 2|scope 3|social impact)/.test(String(text || '').toLowerCase());
+  return /(esg|sustainability|greenwashing|climate disclosure|sustainability disclosure|carbon|emission|net zero|scope 1|scope 2|scope 3|social impact|claim substantiation|renewable energy attributes|supplier emissions|supplier data|activity factors|transition plan|transition milestone|sustainability-linked loan|sustainability-linked financing|margin step-down|assurance prep|assurance review|assurance challenge|kpi)/.test(String(text || '').toLowerCase());
 }
 
 function collectScenarioSecondaryKeys({

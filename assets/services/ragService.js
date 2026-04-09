@@ -73,21 +73,27 @@ const RAGService = (() => {
     },
     {
       key: 'human-rights-diligence',
-      patterns: ['human rights', 'modern slavery', 'forced labour', 'forced labor', 'exploitative labour', 'exploitative labor', 'child labour', 'child labor', 'labour practices', 'labor practices', 'worker welfare'],
+      patterns: ['human rights', 'modern slavery', 'forced labour', 'forced labor', 'exploitative labour', 'exploitative labor', 'child labour', 'child labor', 'labour practices', 'labor practices', 'worker welfare', 'recruitment fees', 'passport retention', 'withheld passports', 'labour broker', 'labor broker', 'remediation', 'worker grievance'],
       docTags: ['human-rights', 'procurement', 'supply-chain', 'esg', 'compliance'],
       docIds: ['doc-oecd-rbc-48', 'doc-ungp-49', 'doc-iso20400-29', 'doc-ilo-osh-54']
     },
     {
       key: 'anti-bribery-integrity',
-      patterns: ['bribery', 'corruption', 'kickback', 'kick back', 'collusion', 'conflict of interest', 'facilitation payment'],
+      patterns: ['bribery', 'corruption', 'kickback', 'kick back', 'collusion', 'conflict of interest', 'facilitation payment', 'gifts and entertainment', 'gift and entertainment', 'hospitality', 'sponsored travel', 'public official', 'intermediary onboarding'],
       docTags: ['compliance', 'procurement', 'anti-bribery', 'governance'],
-      docIds: ['doc-iso37001-57', 'doc-worldbank-proc-47', 'doc-uncitral-proc-46']
+      docIds: ['doc-iso37001-57', 'doc-worldbank-proc-47', 'doc-uncitral-proc-46', 'doc-internal-compliance-abc-85', 'doc-internal-compliance-thirdparty-87']
+    },
+    {
+      key: 'speak-up-investigation',
+      patterns: ['whistleblowing', 'whistleblower', 'speak up', 'speak-up', 'non-retaliation', 'retaliation', 'report concern', 'reporting concern', 'ethics concern', 'compliance investigation', 'witness interview', 'investigation protocol', 'code of conduct'],
+      docTags: ['compliance', 'ethics', 'investigation', 'governance'],
+      docIds: ['doc-iso37301-26', 'doc-internal-compliance-speakup-84']
     },
     {
       key: 'business-continuity-crisis',
-      patterns: ['business continuity', 'continuity', 'crisis management', 'recovery', 'downtime', 'outage', 'incident communications', 'emergency response', 'business impact analysis', 'bia', 'rto', 'rpo', 'incident management', 'service restoration', 'service resumption', 'tabletop exercise', 'alternate workspace', 'manual fallback', 'relocation decision', 'alternate processing'],
+      patterns: ['business continuity', 'continuity', 'crisis management', 'recovery', 'downtime', 'outage', 'incident communications', 'emergency response', 'business impact analysis', 'bia', 'rto', 'rpo', 'incident management', 'service restoration', 'service resumption', 'tabletop exercise', 'alternate workspace', 'alternate site', 'manual fallback', 'relocation decision', 'alternate processing', 'call tree', 'incident escalation matrix', 'crisis communication plan', 'recovery plan', 'continuity exercise'],
       docTags: ['business-continuity', 'resilience', 'crisis-management', 'operational'],
-      docIds: ['doc-bcp-10', 'doc-iso22301-20', 'doc-iso22313-21', 'doc-nfpa1600-32', 'doc-iso22361-51', 'doc-nist-80034-75', 'doc-iso22317-76', 'doc-iso22320-77']
+      docIds: ['doc-bcp-10', 'doc-iso22301-20', 'doc-iso22313-21', 'doc-nfpa1600-32', 'doc-iso22361-51', 'doc-nist-80034-75', 'doc-iso22317-76', 'doc-iso22320-77', 'doc-internal-bcm-93']
     },
     {
       key: 'vendor-access-governance',
@@ -96,10 +102,28 @@ const RAGService = (() => {
       docIds: ['doc-3p-08', 'doc-iso27036-22', 'doc-nist-800161-53']
     },
     {
+      key: 'trade-controls-compliance',
+      patterns: ['sanctions screening', 'restricted party', 'denied party', 'entity list', 'export control', 'export-controlled', 're-export', 'restricted jurisdiction', 'remote technical environment', 'work from home in a restricted jurisdiction', 'shipment security', 'high-risk location'],
+      docTags: ['regulatory', 'compliance', 'trade-controls', 'screening'],
+      docIds: ['doc-bis-export-09', 'doc-ofac-11', 'doc-internal-compliance-tradecontrols-86', 'doc-internal-compliance-travel-security-89']
+    },
+    {
+      key: 'business-partner-integrity',
+      patterns: ['business partner due diligence', 'business partner code of conduct', 'beneficial ownership', 'beneficial owner', 'red flags', 'approved through escalation', 'ongoing monitoring', 'partner onboarding shortcut', 'third-party screening'],
+      docTags: ['third-party', 'compliance', 'due-diligence', 'governance'],
+      docIds: ['doc-iso37301-26', 'doc-iso37001-57', 'doc-internal-compliance-thirdparty-87']
+    },
+    {
+      key: 'insider-information-governance',
+      patterns: ['insider information', 'inside information', 'material non-public', 'material non public', 'blackout period', 'trading window', 'disclosure controls', 'inside information list'],
+      docTags: ['compliance', 'governance', 'market-conduct', 'disclosure'],
+      docIds: ['doc-iso37301-26', 'doc-internal-compliance-insider-88']
+    },
+    {
       key: 'hse-incident',
-      patterns: ['health and safety', 'worker safety', 'contractor safety', 'injury', 'fatality', 'near miss', 'spill', 'environmental release', 'hazard', 'site shutdown', 'process safety', 'loss of containment', 'permit to work', 'management of change', 'psychological safety', 'fatigue', 'contractor management'],
+      patterns: ['health and safety', 'worker safety', 'contractor safety', 'injury', 'fatality', 'near miss', 'spill', 'environmental release', 'hazard', 'site shutdown', 'process safety', 'loss of containment', 'permit to work', 'management of change', 'psychological safety', 'fatigue', 'contractor management', 'corrective action', 'hazard identification', 'machine guard', 'interlock', 'emergency stop', 'emergency drill', 'emergency response plan', 'worker accommodation', 'dormitory safety'],
       docTags: ['hse', 'environment', 'health-safety', 'operations', 'business-continuity'],
-      docIds: ['doc-iso45001-30', 'doc-iso14001-31', 'doc-abu-dhabi-ehsms-44', 'doc-uae-fire-life-45', 'doc-ilo-osh-54', 'doc-iso45003-78', 'doc-api-rp754-79', 'doc-ccps-rbps-80']
+      docIds: ['doc-iso45001-30', 'doc-iso14001-31', 'doc-abu-dhabi-ehsms-44', 'doc-uae-fire-life-45', 'doc-ilo-osh-54', 'doc-iso45003-78', 'doc-api-rp754-79', 'doc-ccps-rbps-80', 'doc-internal-hse-94', 'doc-internal-qhse-95']
     },
     {
       key: 'sustainability-disclosure',
@@ -121,9 +145,9 @@ const RAGService = (() => {
     },
     {
       key: 'data-governance',
-      patterns: ['data governance', 'data lineage', 'data quality', 'retention', 'purpose limitation', 'consent', 'data residency', 'master data', 'lawful basis', 'records retained too long', 'transfer safeguards', 'troubleshooting logs', 'overseas diagnostics'],
+      patterns: ['data governance', 'data lineage', 'data quality', 'retention', 'purpose limitation', 'consent', 'data residency', 'master data', 'lawful basis', 'records retained too long', 'transfer safeguards', 'troubleshooting logs', 'overseas diagnostics', 'privacy by design', 'dpia', 'data protection impact assessment', 'privacy impact assessment', 'data subject rights', 'subject access request', 'right to erasure', 'rectification request', 'portability request', 'record of processing activities', 'ropa', 'controller', 'processor', 'data processing agreement', 'supervisory authority', 'breach notification', '72-hour notification', 'dpo', 'patient data', 'medical records', 'health data', 'special category data', 'biometric data', 'uae health data', 'adgm data protection'],
       docTags: ['data-governance', 'privacy', 'compliance', 'controls'],
-      docIds: ['doc-iso27701-19', 'doc-gdpr-06', 'doc-data-05', 'doc-cls-07']
+      docIds: ['doc-iso27701-19', 'doc-gdpr-06', 'doc-data-05', 'doc-cls-07', 'doc-hipaa-39', 'doc-internal-privacy-96', 'doc-internal-privacy-health-97']
     },
     {
       key: 'fraud-integrity',
@@ -174,19 +198,25 @@ const RAGService = (() => {
       docIds: ['doc-coso-erm-25', 'doc-iso31010-50', 'doc-transformation-delivery-71']
     },
     {
+      key: 'enterprise-risk-governance',
+      patterns: ['risk appetite', 'risk tolerance', 'outside tolerance', 'above tolerance', 'residual risk', 'inherent risk', 'risk owner', 'risk register', 'project risk register', 'risk treatment plan', 'risk treatment owner', 'key risk indicator', 'kri', 'emerging risk', 'risk committee', 'erm committee', 'risk reporting cadence', 'principal risk', 'three lines', 'three lines model'],
+      docTags: ['risk-management', 'enterprise-risk', 'governance', 'risk-appetite', 'risk-register', 'kri'],
+      docIds: ['doc-internal-erm-framework-90', 'doc-internal-erm-policy-91', 'doc-internal-erm-project-92', 'doc-iso31000-24', 'doc-coso-erm-25', 'doc-iso31010-50']
+    },
+    {
       key: 'risk-method',
-      patterns: ['risk assessment', 'risk techniques', 'risk method', 'control baseline', 'enterprise risk', 'scenario analysis'],
+      patterns: ['risk assessment', 'risk techniques', 'risk method', 'control baseline', 'enterprise risk', 'scenario analysis', 'risk appetite', 'risk tolerance', 'residual risk', 'key risk indicator', 'kri', 'risk register'],
       docTags: ['risk-management', 'enterprise-risk', 'governance', 'controls'],
-      docIds: ['doc-iso31000-24', 'doc-coso-erm-25', 'doc-iso31010-50', 'doc-nist-rmf-14']
+      docIds: ['doc-iso31000-24', 'doc-coso-erm-25', 'doc-iso31010-50', 'doc-nist-rmf-14', 'doc-internal-erm-framework-90', 'doc-internal-erm-policy-91', 'doc-internal-erm-project-92']
     }
   ];
 
   const TOPIC_RULES = [
     {
       key: 'privacy',
-      patterns: ['privacy', 'personal data', 'pii', 'phi', 'data protection', 'gdpr', 'pdpl', 'data subject', 'biometric', 'health data'],
+      patterns: ['privacy', 'personal data', 'pii', 'phi', 'data protection', 'gdpr', 'pdpl', 'data subject', 'biometric', 'health data', 'patient data', 'medical records', 'privacy by design', 'dpia', 'data protection impact assessment', 'subject access request', 'record of processing activities', 'controller', 'processor', 'breach notification', 'supervisory authority', 'adgm', 'uae health data'],
       docTags: ['privacy', 'data-protection', 'pims'],
-      docIds: ['doc-iso27018-18', 'doc-iso27701-19', 'doc-data-05', 'doc-gdpr-06', 'doc-cls-07']
+      docIds: ['doc-iso27018-18', 'doc-iso27701-19', 'doc-data-05', 'doc-gdpr-06', 'doc-cls-07', 'doc-hipaa-39', 'doc-internal-privacy-96', 'doc-internal-privacy-health-97']
     },
     {
       key: 'ai-model-risk',
@@ -196,15 +226,21 @@ const RAGService = (() => {
     },
     {
       key: 'data-governance',
-      patterns: ['data governance', 'data lineage', 'data quality', 'retention', 'purpose limitation', 'consent', 'data residency', 'lawful basis', 'records retained too long', 'transfer safeguards', 'overseas diagnostics'],
+      patterns: ['data governance', 'data lineage', 'data quality', 'retention', 'purpose limitation', 'consent', 'data residency', 'lawful basis', 'records retained too long', 'transfer safeguards', 'overseas diagnostics', 'privacy by design', 'dpia', 'data protection impact assessment', 'data subject rights', 'subject access request', 'record of processing activities', 'controller', 'processor', 'data processing agreement', 'breach notification', 'supervisory authority', 'patient data', 'medical records', 'health data', 'biometric data'],
       docTags: ['data-governance', 'privacy', 'controls', 'compliance'],
-      docIds: ['doc-iso27701-19', 'doc-gdpr-06', 'doc-data-05', 'doc-cls-07']
+      docIds: ['doc-iso27701-19', 'doc-gdpr-06', 'doc-data-05', 'doc-cls-07', 'doc-hipaa-39', 'doc-internal-privacy-96', 'doc-internal-privacy-health-97']
     },
     {
       key: 'fraud-integrity',
-      patterns: ['fraud', 'financial crime', 'kickback', 'bribery', 'corruption', 'integrity', 'embezzlement', 'money laundering'],
+      patterns: ['fraud', 'financial crime', 'kickback', 'bribery', 'corruption', 'integrity', 'embezzlement', 'money laundering', 'public official', 'hospitality', 'facilitation payment'],
       docTags: ['fraud-integrity', 'financial', 'anti-bribery', 'compliance'],
-      docIds: ['doc-iso37001-57', 'doc-uae-amlcft-12', 'doc-coso-ic-33']
+      docIds: ['doc-iso37001-57', 'doc-uae-amlcft-12', 'doc-coso-ic-33', 'doc-internal-compliance-abc-85']
+    },
+    {
+      key: 'compliance',
+      patterns: ['whistleblowing', 'non-retaliation', 'ethics and compliance', 'code of conduct', 'compliance investigation', 'gifts and entertainment', 'conflict of interest', 'business partner due diligence', 'sanctions screening', 'export control', 'insider information'],
+      docTags: ['compliance', 'governance', 'controls', 'ethics'],
+      docIds: ['doc-iso37301-26', 'doc-iso37001-57', 'doc-internal-compliance-speakup-84', 'doc-internal-compliance-abc-85', 'doc-internal-compliance-tradecontrols-86', 'doc-internal-compliance-thirdparty-87', 'doc-internal-compliance-insider-88']
     },
     {
       key: 'legal-contract',
@@ -214,15 +250,15 @@ const RAGService = (() => {
     },
     {
       key: 'geopolitical',
-      patterns: ['geopolitical', 'market access', 'export control', 'sanctions', 'sovereign', 'cross-border restriction', 'entity list'],
+      patterns: ['geopolitical', 'market access', 'export control', 'sanctions', 'sovereign', 'cross-border restriction', 'entity list', 'restricted jurisdiction', 'denied party'],
       docTags: ['geopolitical', 'regulatory', 'strategic', 'supply-chain'],
-      docIds: ['doc-bis-export-09', 'doc-ofac-11']
+      docIds: ['doc-bis-export-09', 'doc-ofac-11', 'doc-internal-compliance-tradecontrols-86']
     },
     {
       key: 'business-continuity',
-      patterns: ['business continuity', 'continuity', 'resilience', 'disruption', 'downtime', 'outage', 'disaster recovery', 'recovery', 'crisis management', 'business impact analysis', 'bia', 'rto', 'rpo', 'incident management', 'service restoration', 'resumption', 'tabletop'],
+      patterns: ['business continuity', 'continuity', 'resilience', 'disruption', 'downtime', 'outage', 'disaster recovery', 'recovery', 'crisis management', 'business impact analysis', 'bia', 'rto', 'rpo', 'incident management', 'service restoration', 'resumption', 'tabletop', 'alternate site', 'alternate workspace', 'manual fallback', 'call tree', 'incident escalation matrix', 'crisis communication plan', 'continuity exercise'],
       docTags: ['business-continuity', 'resilience', 'bcp', 'dr', 'crisis-management'],
-      docIds: ['doc-iso22301-20', 'doc-iso22313-21', 'doc-bcp-10', 'doc-nfpa1600-32', 'doc-iso22361-51', 'doc-nist-80034-75', 'doc-iso22317-76', 'doc-iso22320-77']
+      docIds: ['doc-iso22301-20', 'doc-iso22313-21', 'doc-bcp-10', 'doc-nfpa1600-32', 'doc-iso22361-51', 'doc-nist-80034-75', 'doc-iso22317-76', 'doc-iso22320-77', 'doc-internal-bcm-93']
     },
     {
       key: 'supply-chain',
@@ -250,9 +286,9 @@ const RAGService = (() => {
     },
     {
       key: 'hse',
-      patterns: ['hse', 'health and safety', 'worker safety', 'contractor safety', 'injury', 'spill', 'hazard', 'environmental', 'process safety', 'loss of containment', 'permit to work', 'management of change', 'psychological safety', 'fatigue', 'major hazard'],
+      patterns: ['hse', 'qhse', 'health and safety', 'worker safety', 'contractor safety', 'injury', 'spill', 'hazard', 'environmental', 'process safety', 'loss of containment', 'permit to work', 'management of change', 'psychological safety', 'fatigue', 'major hazard', 'corrective action', 'hazard identification', 'machine guard', 'interlock', 'emergency drill', 'worker accommodation', 'hazardous waste'],
       docTags: ['hse', 'environment', 'health-safety', 'operations'],
-      docIds: ['doc-iso45001-30', 'doc-iso14001-31', 'doc-abu-dhabi-ehsms-44', 'doc-uae-fire-life-45', 'doc-ilo-osh-54', 'doc-iso45003-78', 'doc-api-rp754-79', 'doc-ccps-rbps-80']
+      docIds: ['doc-iso45001-30', 'doc-iso14001-31', 'doc-abu-dhabi-ehsms-44', 'doc-uae-fire-life-45', 'doc-ilo-osh-54', 'doc-iso45003-78', 'doc-api-rp754-79', 'doc-ccps-rbps-80', 'doc-internal-hse-94', 'doc-internal-qhse-95']
     },
     {
       key: 'physical-security',
@@ -280,9 +316,9 @@ const RAGService = (() => {
     },
     {
       key: 'risk-management',
-      patterns: ['risk management', 'risk appetite', 'risk assessment', 'governance', 'rmf', 'nist', 'control baseline', 'enterprise risk'],
+      patterns: ['risk management', 'risk appetite', 'risk tolerance', 'risk assessment', 'governance', 'rmf', 'nist', 'control baseline', 'enterprise risk', 'residual risk', 'risk register', 'key risk indicator', 'kri', 'emerging risk', 'risk treatment plan'],
       docTags: ['risk-management', 'enterprise-risk', 'governance', 'controls', 'rmf', 'nist'],
-      docIds: ['doc-nist-rmf-14', 'doc-nist-80053-13', 'doc-iso31000-24', 'doc-iso27005-16', 'doc-iso-02', 'doc-iso31010-50']
+      docIds: ['doc-nist-rmf-14', 'doc-nist-80053-13', 'doc-iso31000-24', 'doc-iso27005-16', 'doc-iso-02', 'doc-iso31010-50', 'doc-internal-erm-framework-90', 'doc-internal-erm-policy-91', 'doc-internal-erm-project-92']
     },
     {
       key: 'cloud',

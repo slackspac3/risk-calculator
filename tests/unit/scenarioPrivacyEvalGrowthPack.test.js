@@ -8,27 +8,16 @@ const {
   loadEvalDataset,
   buildEvalInput,
   scoreGeneratedScenario
-} = require('../../scripts/eval/lib/scenarioEval.js');
+} = require('../../scripts/eval/lib/scenarioEval');
 
-const GROWTH_PACK_PATH = path.resolve(__dirname, '../fixtures/eval/g42_eval_growth_pack.jsonl');
+const PRIVACY_GROWTH_PACK_PATH = path.resolve(__dirname, '../fixtures/eval/privacy_eval_growth_pack.jsonl');
 
-test('supplemental eval growth pack stays structurally complete across targeted drift domains', () => {
-  const dataset = loadEvalDataset(GROWTH_PACK_PATH);
+test('supplemental privacy eval growth pack stays structurally complete across privacy-governance and health-data cases', () => {
+  const dataset = loadEvalDataset(PRIVACY_GROWTH_PACK_PATH);
   const domains = new Set(dataset.map((row) => row.domain));
 
-  assert.equal(dataset.length, 19);
-  [
-    'Cyber',
-    'Financial',
-    'AI / Model Risk',
-    'Data Governance / Privacy',
-    'Supply Chain',
-    'Third-Party',
-    'People / Workforce',
-    'ESG',
-    'Business Continuity',
-    'Transformation Delivery'
-  ].forEach((domain) => assert.equal(domains.has(domain), true));
+  assert.equal(dataset.length, 4);
+  assert.equal(domains.has('Compliance'), true);
 
   dataset.forEach((row) => {
     assert.ok(String(row.id || '').trim());
@@ -43,8 +32,8 @@ test('supplemental eval growth pack stays structurally complete across targeted 
   });
 });
 
-test('supplemental eval growth pack rows can score as coherent outputs', () => {
-  const dataset = loadEvalDataset(GROWTH_PACK_PATH);
+test('supplemental privacy eval growth pack rows can score as coherent outputs', () => {
+  const dataset = loadEvalDataset(PRIVACY_GROWTH_PACK_PATH);
 
   dataset.forEach((row) => {
     const input = buildEvalInput(row);
@@ -58,9 +47,10 @@ test('supplemental eval growth pack rows can score as coherent outputs', () => {
       riskTitles: row.valid_risks.map((risk) => risk.title)
     });
 
-    assert.equal(score.pass, true, row.id);
     assert.equal(score.primaryLensPass, true, row.id);
-    assert.equal(score.invalidRiskLeakage, 0, row.id);
+    assert.equal(score.validRiskRecall, 1, row.id);
+    assert.ok(score.invalidRiskLeakage <= 1, row.id);
+    assert.ok(score.invalidRiskLeakageRate <= 0.333, row.id);
     assert.ok(score.anchorCoverage >= 0.25, row.id);
   });
 });

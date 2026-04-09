@@ -25,7 +25,7 @@ function assertConfidenceMetadata(classification = {}) {
 }
 
 test('canonical phase 1.1 taxonomy exposes the exact domain, overlay, mechanism, and family shape', () => {
-  assert.equal(SCENARIO_TAXONOMY.taxonomyVersion, 'phase1.1.4-2026-04-04');
+  assert.equal(SCENARIO_TAXONOMY.taxonomyVersion, 'phase1.1.8-2026-04-09');
   assert.deepEqual(
     SCENARIO_TAXONOMY_DOMAINS.map((item) => item.key),
     [
@@ -88,8 +88,8 @@ test('canonical phase 1.1 taxonomy exposes the exact domain, overlay, mechanism,
     ]
   );
 
-  assert.equal(SCENARIO_TAXONOMY_FAMILIES.length, 63);
-  assert.equal(SCENARIO_TAXONOMY_ACTIVE_FAMILIES.length, 55);
+  assert.equal(SCENARIO_TAXONOMY_FAMILIES.length, 67);
+  assert.equal(SCENARIO_TAXONOMY_ACTIVE_FAMILIES.length, 59);
   assert.deepEqual(
     SCENARIO_TAXONOMY_FAMILIES
       .filter((family) => family.status === 'compatibility_only')
@@ -213,6 +213,51 @@ test('canonical classification survives bounded paraphrase wording across high-d
       text: 'Scope 2 reduction claims are unsupported because renewable energy attributes do not match the workload geography.',
       expectedFamily: 'greenwashing_disclosure_gap',
       expectedLens: 'esg'
+    },
+    {
+      text: 'Scope 3 emissions claims cannot be evidenced because supplier data does not reconcile to activity assumptions.',
+      expectedFamily: 'greenwashing_disclosure_gap',
+      expectedLens: 'esg'
+    },
+    {
+      text: 'Worker grievances reveal recruitment fees and passport retention in a labour-broker layer.',
+      expectedFamily: 'forced_labour_modern_slavery',
+      expectedLens: 'esg'
+    },
+    {
+      text: 'A whistleblower reports misconduct and then faces retaliation while the investigation process is mishandled.',
+      expectedFamily: 'policy_breach',
+      expectedLens: 'compliance'
+    },
+    {
+      text: 'Sponsored travel and hospitality for a public official proceed without anti-bribery approval.',
+      expectedFamily: 'bribery_corruption',
+      expectedLens: 'fraud-integrity'
+    },
+    {
+      text: 'Remote technical access from a restricted jurisdiction is enabled for export-controlled systems before screening clearance is complete.',
+      expectedFamily: 'sanctions_breach',
+      expectedLens: 'regulatory'
+    },
+    {
+      text: 'A business partner is approved through escalation even though beneficial ownership red flags remain unresolved.',
+      expectedFamily: 'supplier_control_weakness',
+      expectedLens: 'third-party'
+    },
+    {
+      text: 'Material non-public information is handled during a blackout period before disclosure controls are complete.',
+      expectedFamily: 'policy_breach',
+      expectedLens: 'compliance'
+    },
+    {
+      text: 'A DPIA is not completed for large-scale biometric processing and the DPO is not consulted before the rollout proceeds.',
+      expectedFamily: 'privacy_governance_gap',
+      expectedLens: 'compliance'
+    },
+    {
+      text: 'Patient data safeguards are incomplete, medical-records access logging is weak, and high-risk health-data processing is not assessed.',
+      expectedFamily: 'privacy_governance_gap',
+      expectedLens: 'compliance'
     }
   ];
 
@@ -281,7 +326,7 @@ test('mixed identity scenarios keep the identity event path primary while surfac
   assert.ok(classification.secondaryFamilies.some((family) => ['data_disclosure', 'cloud_control_failure'].includes(family.key)));
   assert.ok(classification.overlays.some((overlay) => overlay.key === 'data_exposure'));
   assert.ok(Array.isArray(classification.matchedAntiSignals));
-  assert.equal(classification.taxonomyVersion, 'phase1.1.4-2026-04-04');
+  assert.equal(classification.taxonomyVersion, 'phase1.1.8-2026-04-09');
 });
 
 test('consequence-heavy ambiguous text does not create fake precision', () => {
@@ -332,6 +377,19 @@ test('privacy-obligation wording near disclosure stays moderated rather than hig
   assertConfidenceMetadata(classification);
 });
 
+test('privacy-governance wording stays in a dedicated governance lane rather than collapsing into generic privacy or policy breach', () => {
+  const classification = classifyScenario(
+    'A data protection impact assessment is not completed for large-scale biometric and health-data processing, data subject rights requests are delayed, and the DPO is not consulted.',
+    { scenarioLensHint: 'cyber' }
+  );
+
+  assert.equal(classification.primaryFamily?.key, 'privacy_governance_gap');
+  assert.equal(buildScenarioLens(classification).key, 'compliance');
+  assert.equal(classification.secondaryFamilies.some((family) => family.key === 'policy_breach'), false);
+  assert.ok(classification.reasonCodes.includes('PRECEDENCE_RULE_APPLIED'));
+  assertConfidenceMetadata(classification);
+});
+
 test('supplier delay with transformation spillover calibrates below high confidence when lanes compete closely', () => {
   const classification = classifyScenario(
     'A vendor delivery miss and internal integration slippage together threaten the transformation timeline for a critical rollout.'
@@ -349,5 +407,40 @@ test('greenwashing near-miss policy wording stays moderated rather than overconf
 
   assert.notEqual(classification.primaryFamily?.key, 'greenwashing_disclosure_gap');
   assert.notEqual(classification.confidenceBand, 'high');
+  assertConfidenceMetadata(classification);
+});
+
+test('risk appetite and KRI escalation wording stays in the general enterprise-risk lane', () => {
+  const classification = classifyScenario(
+    'KRIs move above tolerance and escalation to the risk committee does not happen while residual risk remains outside appetite.',
+    { scenarioLensHint: 'compliance' }
+  );
+
+  assert.equal(classification.primaryFamily?.key, 'risk_governance_gap');
+  assert.equal(buildScenarioLens(classification).key, 'general');
+  assert.equal(classification.secondaryFamilies.some((family) => family.key === 'policy_breach'), false);
+  assertConfidenceMetadata(classification);
+});
+
+test('residual-risk acceptance wording stays in enterprise-risk governance rather than generic policy breach', () => {
+  const classification = classifyScenario(
+    'Residual risk above tolerance is accepted before the ERM committee reviews the treatment plan.',
+    { scenarioLensHint: 'strategic' }
+  );
+
+  assert.equal(classification.primaryFamily?.key, 'risk_governance_gap');
+  assert.equal(buildScenarioLens(classification).key, 'general');
+  assert.equal(classification.secondaryFamilies.some((family) => family.key === 'policy_breach'), false);
+  assertConfidenceMetadata(classification);
+});
+
+test('explicit supplier delay does not get overwritten by enterprise-risk governance wording', () => {
+  const classification = classifyScenario(
+    'A key vendor misses committed delivery dates and, separately, the project risk register is stale and overdue for update.',
+    { scenarioLensHint: 'general' }
+  );
+
+  assert.equal(classification.primaryFamily?.key, 'delivery_slippage');
+  assert.notEqual(buildScenarioLens(classification).key, 'general');
   assertConfidenceMetadata(classification);
 });

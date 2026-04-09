@@ -86,6 +86,61 @@ test('licensing wording stays regulatory-led rather than generic concern', () =>
   assert.equal(classification.secondaryFamilies.some((family) => family.key === 'policy_breach'), false);
 });
 
+test('whistleblowing retaliation wording stays compliance-led rather than drifting into cyber insider wording', () => {
+  const classification = classifyScenario(
+    'A whistleblower reports misconduct and then faces retaliation while the investigation protocol is not followed.',
+    { scenarioLensHint: 'cyber' }
+  );
+
+  assert.equal(classification.primaryFamily?.key, 'policy_breach');
+  assert.equal(buildScenarioLens(classification).key, 'compliance');
+  assert.equal(classification.secondaryFamilies.some((family) => family.key === 'insider_misuse'), false);
+});
+
+test('public-official hospitality wording stays bribery-led rather than generic policy breach', () => {
+  const classification = classifyScenario(
+    'Sponsored travel and hospitality for a public official proceed without the required anti-bribery approvals.',
+    { scenarioLensHint: 'compliance' }
+  );
+
+  assert.equal(classification.primaryFamily?.key, 'bribery_corruption');
+  assert.equal(buildScenarioLens(classification).key, 'fraud-integrity');
+  assert.equal(classification.secondaryFamilies.some((family) => family.key === 'policy_breach'), false);
+});
+
+test('restricted-jurisdiction export-control wording stays regulatory-led rather than generic policy breach', () => {
+  const classification = classifyScenario(
+    'Remote technical access from a restricted jurisdiction was enabled for export-controlled systems before screening clearance was completed.',
+    { scenarioLensHint: 'compliance' }
+  );
+
+  assert.equal(classification.primaryFamily?.key, 'sanctions_breach');
+  assert.equal(buildScenarioLens(classification).key, 'regulatory');
+  assert.equal(classification.secondaryFamilies.some((family) => family.key === 'policy_breach'), false);
+});
+
+test('business-partner due-diligence red flags stay third-party-led rather than generic policy breach', () => {
+  const classification = classifyScenario(
+    'A business partner was approved through escalation even though beneficial ownership red flags remained unresolved.',
+    { scenarioLensHint: 'compliance' }
+  );
+
+  assert.equal(classification.primaryFamily?.key, 'supplier_control_weakness');
+  assert.equal(buildScenarioLens(classification).key, 'third-party');
+  assert.equal(classification.secondaryFamilies.some((family) => family.key === 'policy_breach'), false);
+});
+
+test('insider-information blackout wording stays compliance-led rather than cyber insider misuse', () => {
+  const classification = classifyScenario(
+    'An employee handles material non-public information during a blackout period before disclosure controls are complete.',
+    { scenarioLensHint: 'cyber' }
+  );
+
+  assert.equal(classification.primaryFamily?.key, 'policy_breach');
+  assert.equal(buildScenarioLens(classification).key, 'compliance');
+  assert.equal(classification.secondaryFamilies.some((family) => family.key === 'insider_misuse'), false);
+});
+
 test('contract liability stays legal-contract-led when contractual obligation language is explicit', () => {
   const classification = classifyScenario(
     'A supplier agreement breach creates contractual liability and indemnity exposure.',

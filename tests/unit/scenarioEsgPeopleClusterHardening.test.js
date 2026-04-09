@@ -32,6 +32,42 @@ test('greenwashing stays ESG-led when public sustainability claims are unsupport
   assert.ok(classification.reasonCodes.includes('PRECEDENCE_RULE_APPLIED'));
 });
 
+test('scope 3 evidence gaps stay ESG-led rather than generic compliance', () => {
+  const classification = classifyScenario(
+    'Scope 3 reduction claims cannot be evidenced because supplier emissions data and activity factors do not reconcile.',
+    { scenarioLensHint: 'compliance' }
+  );
+
+  assert.equal(classification.primaryFamily?.key, 'greenwashing_disclosure_gap');
+  assert.equal(buildScenarioLens(classification).key, 'esg');
+  assert.equal(classification.secondaryFamilies.some((family) => family.key === 'policy_breach'), false);
+  assert.ok(classification.reasonCodes.includes('PRECEDENCE_RULE_APPLIED'));
+});
+
+test('sustainability-linked financing KPI evidence gaps stay ESG-led instead of financial', () => {
+  const classification = classifyScenario(
+    'A sustainability-linked loan KPI cannot be evidenced and the claimed margin step-down is under assurance challenge.',
+    { scenarioLensHint: 'financial' }
+  );
+
+  assert.equal(classification.primaryFamily?.key, 'greenwashing_disclosure_gap');
+  assert.equal(buildScenarioLens(classification).key, 'esg');
+  assert.equal(classification.secondaryFamilies.some((family) => ['payment_control_failure', 'counterparty_default'].includes(family.key)), false);
+  assert.ok(classification.reasonCodes.includes('PRECEDENCE_RULE_APPLIED'));
+});
+
+test('labour-broker recruitment fee and passport retention wording stays ESG-led', () => {
+  const classification = classifyScenario(
+    'Worker grievances reveal recruitment fees and passport retention in a labour-broker layer, and remediation is delayed.',
+    { scenarioLensHint: 'third-party' }
+  );
+
+  assert.equal(classification.primaryFamily?.key, 'forced_labour_modern_slavery');
+  assert.equal(buildScenarioLens(classification).key, 'esg');
+  assert.equal(classification.secondaryFamilies.some((family) => ['supplier_control_weakness', 'supplier_concentration_risk'].includes(family.key)), false);
+  assert.ok(classification.overlays.some((overlay) => overlay.key === 'legal_exposure'));
+});
+
 test('safety harm stays HSE-led rather than generic operational', () => {
   const classification = classifyScenario(
     'Unsafe operating conditions lead to a site safety incident with potential worker harm.',
@@ -98,4 +134,14 @@ test('internal environmental reporting process failure does not become greenwash
 
   assert.notEqual(classification.primaryFamily?.key, 'greenwashing_disclosure_gap');
   assert.ok(classification.reasonCodes.includes('INSUFFICIENT_PRIMARY_SIGNAL'));
+});
+
+test('internal transition-programme slippage without any external claim does not become greenwashing', () => {
+  const classification = classifyScenario(
+    'An internal transition programme milestone slipped and the implementation schedule is under pressure, but no public climate claim has been made.',
+    { scenarioLensHint: 'esg' }
+  );
+
+  assert.notEqual(classification.primaryFamily?.key, 'greenwashing_disclosure_gap');
+  assert.ok(classification.reasonCodes.includes('INSUFFICIENT_PRIMARY_SIGNAL') || buildScenarioLens(classification).key !== 'esg');
 });

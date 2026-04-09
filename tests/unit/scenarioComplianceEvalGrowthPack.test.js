@@ -8,27 +8,18 @@ const {
   loadEvalDataset,
   buildEvalInput,
   scoreGeneratedScenario
-} = require('../../scripts/eval/lib/scenarioEval.js');
+} = require('../../scripts/eval/lib/scenarioEval');
 
-const GROWTH_PACK_PATH = path.resolve(__dirname, '../fixtures/eval/g42_eval_growth_pack.jsonl');
+const COMPLIANCE_GROWTH_PACK_PATH = path.resolve(__dirname, '../fixtures/eval/compliance_eval_growth_pack.jsonl');
 
-test('supplemental eval growth pack stays structurally complete across targeted drift domains', () => {
-  const dataset = loadEvalDataset(GROWTH_PACK_PATH);
+test('supplemental compliance eval growth pack stays structurally complete across high-drift compliance domains', () => {
+  const dataset = loadEvalDataset(COMPLIANCE_GROWTH_PACK_PATH);
   const domains = new Set(dataset.map((row) => row.domain));
 
-  assert.equal(dataset.length, 19);
-  [
-    'Cyber',
-    'Financial',
-    'AI / Model Risk',
-    'Data Governance / Privacy',
-    'Supply Chain',
-    'Third-Party',
-    'People / Workforce',
-    'ESG',
-    'Business Continuity',
-    'Transformation Delivery'
-  ].forEach((domain) => assert.equal(domains.has(domain), true));
+  assert.equal(dataset.length, 5);
+  ['Compliance', 'Fraud / Integrity', 'Regulatory', 'Third-Party'].forEach((domain) => {
+    assert.equal(domains.has(domain), true);
+  });
 
   dataset.forEach((row) => {
     assert.ok(String(row.id || '').trim());
@@ -43,8 +34,8 @@ test('supplemental eval growth pack stays structurally complete across targeted 
   });
 });
 
-test('supplemental eval growth pack rows can score as coherent outputs', () => {
-  const dataset = loadEvalDataset(GROWTH_PACK_PATH);
+test('supplemental compliance eval growth pack rows can score as coherent outputs', () => {
+  const dataset = loadEvalDataset(COMPLIANCE_GROWTH_PACK_PATH);
 
   dataset.forEach((row) => {
     const input = buildEvalInput(row);
