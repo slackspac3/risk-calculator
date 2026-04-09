@@ -2665,26 +2665,31 @@ function renderStep1ImportPathCard({
 
 function renderStep1InsightWorkbench(draft, scenarioMemoryState, activePath = 'guided') {
   const disclosureKey = getDisclosureStateKey('/wizard/1', 'review ai reasoning and context');
-  const hasAiSummary = !!String(draft?.intakeSummary || '').trim();
-  const hasAlignment = !!(draft?.aiAlignment && typeof draft.aiAlignment === 'object');
-  const hasCrossReference = true;
-  const hasScenarioMemory = true;
-  const activeCount = [hasAiSummary, hasAlignment, hasCrossReference, hasScenarioMemory].filter(Boolean).length;
+  const alignmentMarkup = activePath === 'guided' ? '' : renderStep1AiAlignmentCard(draft.aiAlignment);
+  const crossReferenceMarkup = renderStep1ScenarioCrossReferenceBand(draft);
+  const scenarioMemoryMarkup = renderStep1ScenarioMemoryBand(draft, scenarioMemoryState);
+  const intakeSummaryMarkup = activePath === 'guided' ? '' : renderStep1AiIntakeSummary(draft);
+  const activeCount = [alignmentMarkup, crossReferenceMarkup, scenarioMemoryMarkup, intakeSummaryMarkup]
+    .filter(section => String(section || '').trim().length > 0)
+    .length;
   const summaryLabel = activeCount
     ? `${activeCount} support view${activeCount === 1 ? '' : 's'} available`
-    : 'Optional';
+    : 'No extra context yet';
   return `<details class="wizard-disclosure wizard-disclosure--support wizard-secondary-workbench" data-disclosure-state-key="${escapeHtml(disclosureKey)}" ${getDisclosureOpenState(disclosureKey, false) ? 'open' : ''}>
-    <summary>Review AI reasoning and related context <span class="badge badge--neutral">${escapeHtml(summaryLabel)}</span></summary>
+    <summary>Review AI reasoning and related context <span class="badge badge--neutral" id="step1-insight-summary-count">${escapeHtml(summaryLabel)}</span></summary>
     <div class="wizard-disclosure-body wizard-secondary-workbench__body">
-      ${activePath === 'guided' ? '' : renderStep1AiAlignmentCard(draft.aiAlignment)}
+      <div id="step1-insight-empty-state" class="form-help"${activeCount ? ' hidden' : ''}>Extra reasoning appears here only when the platform has AI checks, similar past scenarios, or portfolio overlap worth showing.</div>
+      <div id="step1-insight-alignment-host">
+        ${alignmentMarkup}
+      </div>
       <div id="scenario-cross-reference-host">
-        ${renderStep1ScenarioCrossReferenceBand(draft)}
+        ${crossReferenceMarkup}
       </div>
       <div id="scenario-memory-host">
-        ${renderStep1ScenarioMemoryBand(draft, scenarioMemoryState)}
+        ${scenarioMemoryMarkup}
       </div>
       <div id="intake-output">
-        ${activePath === 'guided' ? '' : renderStep1AiIntakeSummary(draft)}
+        ${intakeSummaryMarkup}
       </div>
     </div>
   </details>`;
@@ -3944,6 +3949,29 @@ function createStep1GeographySyncHandler({ buList, settings }) {
 let _scenarioMemoryDebounce = null;
 let _scenarioCrossReferenceDebounce = null;
 
+function getStep1InsightWorkbenchActiveCount() {
+  return ['step1-insight-alignment-host', 'scenario-cross-reference-host', 'scenario-memory-host', 'intake-output']
+    .map((id) => document.getElementById(id))
+    .filter(Boolean)
+    .filter((node) => String(node.innerHTML || '').replace(/\s+/g, '').trim().length > 0)
+    .length;
+}
+
+function refreshStep1InsightWorkbenchSummary() {
+  const label = document.getElementById('step1-insight-summary-count');
+  const emptyState = document.getElementById('step1-insight-empty-state');
+  if (!label && !emptyState) return;
+  const activeCount = getStep1InsightWorkbenchActiveCount();
+  if (label) {
+    label.textContent = activeCount
+      ? `${activeCount} support view${activeCount === 1 ? '' : 's'} available`
+      : 'No extra context yet';
+  }
+  if (emptyState) {
+    emptyState.hidden = activeCount > 0;
+  }
+}
+
 function refreshStep1ScenarioCrossReferenceHost({ includeAi = true, force = false, narrativeOverride = '' } = {}) {
   const host = document.getElementById('scenario-cross-reference-host');
   const context = getStep1ScenarioCrossReferenceContext({
@@ -3953,6 +3981,7 @@ function refreshStep1ScenarioCrossReferenceHost({ includeAi = true, force = fals
   if (host) {
     host.innerHTML = renderStep1ScenarioCrossReferenceBand(AppState.draft, context);
   }
+  refreshStep1InsightWorkbenchSummary();
   bindStep1ScenarioCrossReferenceActions();
   if (!includeAi || !context.signature || normaliseAssessmentTokens(context.narrative).length < 4 || !context.portfolio.length) return;
   if (!force && String(AppState.draft.scenarioCrossReferenceSignature || '').trim() === String(context.signature || '').trim()) return;
@@ -3962,6 +3991,7 @@ function refreshStep1ScenarioCrossReferenceHost({ includeAi = true, force = fals
   if (host) {
     host.innerHTML = renderStep1ScenarioCrossReferenceBand(AppState.draft, context);
   }
+  refreshStep1InsightWorkbenchSummary();
   bindStep1ScenarioCrossReferenceActions();
   const capturedSignature = context.signature;
   const capturedAssessments = context.assessments.slice();
@@ -4003,6 +4033,7 @@ function refreshStep1ScenarioCrossReferenceHost({ includeAi = true, force = fals
     if (nextHost) {
       nextHost.innerHTML = renderStep1ScenarioCrossReferenceBand(AppState.draft, getStep1ScenarioCrossReferenceContext({ draft: AppState.draft }));
     }
+    refreshStep1InsightWorkbenchSummary();
     bindStep1ScenarioCrossReferenceActions();
   }, 0);
 }
@@ -4013,6 +4044,7 @@ function refreshStep1ScenarioMemoryHost({ includeAi = true } = {}) {
   if (host) {
     host.innerHTML = renderStep1ScenarioMemoryBand(AppState.draft, state);
   }
+  refreshStep1InsightWorkbenchSummary();
   bindStep1ScenarioMemoryActions();
   if (!includeAi || state.matches.length < 2 || !state.signature) return;
   if (String(AppState.draft.scenarioMemoryPrecedentSignature || '').trim() === state.signature) return;
@@ -4020,6 +4052,7 @@ function refreshStep1ScenarioMemoryHost({ includeAi = true } = {}) {
   if (host) {
     host.innerHTML = renderStep1ScenarioMemoryBand(AppState.draft, ensureStep1ScenarioMemoryState(AppState.draft));
   }
+  refreshStep1InsightWorkbenchSummary();
   bindStep1ScenarioMemoryActions();
   const capturedSignature = state.signature;
   const currentScenario = getStep1ScenarioMemoryNarrative(AppState.draft);
@@ -4034,6 +4067,7 @@ function refreshStep1ScenarioMemoryHost({ includeAi = true } = {}) {
     AppState.draft.scenarioMemoryPrecedentLoading = false;
     const nextHost = document.getElementById('scenario-memory-host');
     if (nextHost) nextHost.innerHTML = renderStep1ScenarioMemoryBand(AppState.draft, ensureStep1ScenarioMemoryState(AppState.draft));
+    refreshStep1InsightWorkbenchSummary();
     bindStep1ScenarioMemoryActions();
   }, 0);
 }

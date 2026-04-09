@@ -513,6 +513,8 @@ test('wizard step 1 dry-run examples prefill the scenario and shortlist', async 
     await expect(page.locator('#guided-event')).toContainText('critical supplier');
     await expect(page.locator('#intake-risk-statement')).toContainText('critical supplier');
     await expect(page.locator('.risk-select-checkbox:checked')).toHaveCount(3);
+    await expect(page.getByText(/review ai reasoning and related context/i)).toBeVisible();
+    await expect(page.getByText(/no extra context yet/i)).toBeVisible();
     await expect(page.getByRole('button', { name: /continue to scenario review/i })).toBeVisible();
   });
 });
