@@ -101,7 +101,7 @@
 - Most users should be able to stay in the main estimate path without opening all advanced disclosures.
 
 ### Step 4: Review & Run
-- `renderWizard4()` currently lives in `assets/results/resultsRoute.js`, not a separate `step4.js`.
+- `renderWizard4()` lives in `assets/wizard/step4.js`.
 - This step is a pre-run review surface, not a second results page.
 - It includes:
   - pre-run validation rail

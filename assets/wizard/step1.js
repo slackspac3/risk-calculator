@@ -4423,7 +4423,7 @@ function renderWizard1() {
   const promptIdeaModel = getStep1DisplayedPromptIdeaModel(draft, exampleModel);
 
   setPage(`
-    <main class="page">
+    <main class="page" aria-label="Step 1: AI-Assisted Risk and Context Builder">
       <div class="wizard-layout container container--narrow">
         <div class="wizard-header">
           ${UI.renderStepper(1)}

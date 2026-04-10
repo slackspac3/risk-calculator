@@ -2,6 +2,7 @@
 
 const { requireSession } = require('../_apiAuth');
 const { applyCorsHeaders, getUnexpectedFields, isAllowedOrigin, isPlainObject, parseRequestBody } = require('../_request');
+const { validateBody } = require('../_validation');
 const { checkRateLimit } = require('../_rateLimit');
 const { buildGuidedScenarioDraftWorkflow, normaliseGuidedScenarioDraftInput } = require('../_scenarioDraftWorkflow');
 const { recordAiRouteReuse, withAiRouteMetrics } = require('../_aiRouteMetrics');
@@ -72,6 +73,23 @@ module.exports = async function handler(req, res) {
       error: 'Unexpected request fields',
       fields: unexpectedFields
     });
+    return;
+  }
+
+  const { errors: validationErrors } = validateBody(body, {
+    riskStatement:         { type: 'string', maxLength: 5000 },
+    scenarioLensHint:      { type: 'string', maxLength: 200 },
+    geography:             { type: 'string', maxLength: 500 },
+    traceLabel:            { type: 'string', maxLength: 200 },
+    guidedInput:           { type: 'object' },
+    businessUnit:          { type: 'object' },
+    adminSettings:         { type: 'object' },
+    applicableRegulations: { type: 'array', maxItems: 100, itemType: 'string', itemMaxLength: 200 },
+    citations:             { type: 'array', maxItems: 50 },
+    priorMessages:         { type: 'array', maxItems: 50 }
+  });
+  if (validationErrors.length) {
+    res.status(400).json({ error: validationErrors[0], validationErrors });
     return;
   }
 

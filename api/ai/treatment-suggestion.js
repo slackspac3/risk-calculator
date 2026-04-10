@@ -2,6 +2,7 @@
 
 const { requireSession } = require('../_apiAuth');
 const { applyCorsHeaders, getUnexpectedFields, isAllowedOrigin, isPlainObject, parseRequestBody } = require('../_request');
+const { validateBody } = require('../_validation');
 const { checkRateLimit } = require('../_rateLimit');
 const { buildTreatmentSuggestionWorkflow, normaliseTreatmentSuggestionInput } = require('../_treatmentSuggestionWorkflow');
 const { recordAiRouteReuse, withAiRouteMetrics } = require('../_aiRouteMetrics');
@@ -69,6 +70,20 @@ module.exports = async function handler(req, res) {
       error: 'Unexpected request fields',
       fields: unexpectedFields
     });
+    return;
+  }
+
+  const { errors: validationErrors } = validateBody(body, {
+    improvementRequest: { type: 'string', maxLength: 5000 },
+    traceLabel:         { type: 'string', maxLength: 200 },
+    baselineAssessment: { type: 'object' },
+    businessUnit:       { type: 'object' },
+    adminSettings:      { type: 'object' },
+    citations:          { type: 'array', maxItems: 50 },
+    priorMessages:      { type: 'array', maxItems: 50 }
+  });
+  if (validationErrors.length) {
+    res.status(400).json({ error: validationErrors[0], validationErrors });
     return;
   }
 

@@ -1648,7 +1648,7 @@ function renderWizard3() {
   const v = (key, def) => p[key] != null ? p[key] : def;
 
   setPage(`
-    <main class="page">
+    <main class="page" aria-label="Step 3: Estimate the Scenario">
       <div class="wizard-layout container container--narrow">
         <div class="wizard-header">
           ${UI.renderStepper(3)}

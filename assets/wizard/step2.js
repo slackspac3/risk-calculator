@@ -287,7 +287,7 @@ function renderWizard2() {
     buId: draft.buId
   });
   setPage(`
-    <main class="page">
+    <main class="page" aria-label="Step 2: Refine the Scenario">
       <div class="wizard-layout container container--narrow">
         <div class="wizard-header">
           ${UI.renderStepper(2)}

@@ -2,6 +2,7 @@
 
 const { requireSession } = require('../_apiAuth');
 const { applyCorsHeaders, getUnexpectedFields, isAllowedOrigin, isPlainObject, parseRequestBody } = require('../_request');
+const { validateBody } = require('../_validation');
 const { checkRateLimit } = require('../_rateLimit');
 const { withAiRouteMetrics } = require('../_aiRouteMetrics');
 const { buildParameterChallengeRecordWorkflow } = require('../_reviewChallengeWorkflow');
@@ -29,6 +30,17 @@ module.exports = async function handler(req, res) {
   if (!isPlainObject(body)) return void res.status(400).json({ error: 'Invalid JSON body' });
   const unexpectedFields = getUnexpectedFields(body, ALLOWED_FIELDS);
   if (unexpectedFields.length) return void res.status(400).json({ error: 'Unexpected request fields', fields: unexpectedFields });
+  const { errors: validationErrors } = validateBody(body, {
+    parameterKey:      { type: 'string', maxLength: 200 },
+    parameterLabel:    { type: 'string', maxLength: 500 },
+    currentValueLabel: { type: 'string', maxLength: 500 },
+    scenarioSummary:   { type: 'string', maxLength: 5000 },
+    reviewerConcern:   { type: 'string', maxLength: 3000 },
+    currentAle:        { type: 'string', maxLength: 200 },
+    traceLabel:        { type: 'string', maxLength: 200 },
+    allowedParams:     { type: 'array', maxItems: 50 }
+  });
+  if (validationErrors.length) return void res.status(400).json({ error: validationErrors[0], validationErrors });
   const result = await withAiRouteMetrics('parameter-challenge', () => buildParameterChallengeRecordWorkflow({
     parameterKey: typeof body.parameterKey === 'string' ? body.parameterKey : '',
     parameterLabel: typeof body.parameterLabel === 'string' ? body.parameterLabel : '',

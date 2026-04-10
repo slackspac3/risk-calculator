@@ -148,13 +148,14 @@ const UI = (() => {
       { n: 3, label: 'FAIR Inputs' },
       { n: 4, label: 'Review & Run' }
     ];
-    return `<nav class="stepper" aria-label="Assessment steps">
+    return `<nav class="stepper" aria-label="Assessment steps" role="list">
       ${steps.map((s, i) => {
         const state = s.n < currentStep ? 'complete' : s.n === currentStep ? 'active' : '';
         const connState = s.n < currentStep ? 'complete' : s.n === currentStep ? 'active' : '';
+        const ariaLabel = s.n < currentStep ? `Step ${s.n}: ${s.label} (completed)` : s.n === currentStep ? `Step ${s.n}: ${s.label} (current)` : `Step ${s.n}: ${s.label}`;
         return `
-          ${i > 0 ? `<div class="step-connector ${connState}"></div>` : ''}
-          <div class="step-item">
+          ${i > 0 ? `<div class="step-connector ${connState}" aria-hidden="true"></div>` : ''}
+          <div class="step-item" role="listitem" aria-label="${ariaLabel}">
             <div class="step-dot-wrap">
               <div class="step-dot ${state}" aria-current="${s.n === currentStep ? 'step' : 'false'}">
                 ${s.n < currentStep ? '✓' : s.n}
