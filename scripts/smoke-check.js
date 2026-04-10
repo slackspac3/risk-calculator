@@ -23,6 +23,7 @@ function extractAssetVersions(indexHtml) {
 }
 
 const indexHtml = read('index.html');
+const releaseBootstrapJs = read('assets/releaseBootstrap.js');
 const appJs = read('assets/app.js');
 const appRoutesJs = read('assets/appRoutes.js');
 const exportJs = read('assets/services/exportService.js');
@@ -53,7 +54,8 @@ const seededAssessments = read('data/pilot-seed/demo-assessments.sample.json');
 
 const versions = extractAssetVersions(indexHtml);
 expect(versions.length === 1, `Expected one frontend asset version, found: ${versions.join(', ') || 'none'}`);
-expect(indexHtml.includes('window.__RISK_CALCULATOR_RELEASE__'), 'index.html is missing the release metadata bootstrap');
+expect(indexHtml.includes('assets/releaseBootstrap.js'), 'index.html is missing the release metadata bootstrap asset');
+expect(releaseBootstrapJs.includes('__RISK_CALCULATOR_RELEASE__'), 'releaseBootstrap.js is missing the release metadata bootstrap');
 expect(nvmrc === '24', `.nvmrc must pin Node 24 for the pilot release flow. Found: ${nvmrc || 'empty'}`);
 expect(nodeVersionFile === '24', `.node-version must pin Node 24 for the pilot release flow. Found: ${nodeVersionFile || 'empty'}`);
 expect(appJs.includes('function getReleaseInfo()'), 'app.js is missing getReleaseInfo helper');
