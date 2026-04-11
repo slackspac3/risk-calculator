@@ -290,13 +290,13 @@ test('review mediation accepts a mixed identity-plus-disclosure scenario without
     traceLabel: 'Review mediation'
   });
 
-  assert.equal(result.mode, 'deterministic_fallback');
-  assert.equal(result.reviewerCoherence.mode, 'fallback_replaced');
+  assert.equal(result.mode, 'live');
+  assert.equal(result.reviewerCoherence.mode, 'accepted');
   assert.equal(result.reviewerCoherence.acceptedPrimaryFamilyKey, 'third_party_access_compromise');
-  assert.equal(result.reviewerCoherence.confidenceBand, 'low');
+  assert.equal(result.reviewerCoherence.confidenceBand, 'high');
   assertReviewerCoherenceMetadata(result);
   assert.match(result.reconciliationSummary, /third-party access compromise|vendor access/i);
-  assert.match(result.reconciliationSummary, /later disclosure|later extract|later extraction/i);
+  assert.match(result.reconciliationSummary, /later disclosure|later extract|later extraction|customer-record extraction/i);
 });
 
 test('review mediation replaces workforce-fatigue outputs that flatten into generic operational capacity language', async () => {

@@ -11,6 +11,7 @@ const {
 
 const AI_MAX_RETRIES = 2;
 const AI_TIMEOUT_MS = 30000;
+const AI_DEFAULT_MAX_PROMPT_CHARS = 28000;
 
 function buildPromptPayload(systemPrompt, userPrompt, options = {}) {
   const priorMessages = (Array.isArray(options.priorMessages) ? options.priorMessages : [])
@@ -23,7 +24,7 @@ function buildPromptPayload(systemPrompt, userPrompt, options = {}) {
     .slice(-20);
   return {
     systemPrompt: sanitizeAiText(systemPrompt, { maxChars: 6000 }),
-    userPrompt: sanitizeAiText(userPrompt, { maxChars: Number(options.maxPromptChars || 18000) }),
+    userPrompt: sanitizeAiText(userPrompt, { maxChars: Number(options.maxPromptChars || AI_DEFAULT_MAX_PROMPT_CHARS) }),
     priorMessages
   };
 }

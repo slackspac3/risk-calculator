@@ -36,6 +36,9 @@ What not to do:
 - `#/admin/settings/access`
   - system access and pilot AI readiness
   - verify the live path in the current browser session before AI-quality-dependent activity
+- `#/admin/settings/audit`
+  - retained audit log
+  - AI request failures now surface the failure stage and prompt-truncation status directly in the main row summary, without opening details first
 - `#/admin/settings/feedback`
   - AI Feedback & Tuning
   - review draft, shortlist, and per-risk signal before changing shared tuning
@@ -62,6 +65,7 @@ Current baseline areas that deserve explicit review:
 - Open `System Access` at `#/admin/settings/access`.
 - Confirm the active runtime is live AI in the current browser session.
 - If the session is in local fallback, do not treat the AI output as pilot-quality sign-off material.
+- If an admin context action failed earlier in the session, inspect `Compass failure diagnostics` there as well. It now shows prompt footprint, truncation status, response preview, and attempt history for the browser session.
 
 ### Weekly admin quality review
 - Open `AI Feedback & Tuning`.
@@ -133,6 +137,11 @@ This matters because a weak output can come from:
 - real model drift
 
 Do not assume all weak output is a prompt problem.
+
+For the current PoC:
+- entity and company-context admin flows temporarily run with a higher prompt ceiling to reduce premature clipping of inherited context
+- if you still see weak or malformed output, check `Admin > Audit Log` for `failure stage` and `prompt truncated ... chars`
+- the longer-term fix is prompt compaction and instruction-first prompt shaping, tracked in [future-fixes.md](./future-fixes.md)
 
 ## User access and governance
 

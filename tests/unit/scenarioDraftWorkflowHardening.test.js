@@ -26,6 +26,40 @@ test('evaluateGuidedDraftCandidate rejects consequence-led rewrites that drop th
   assert.match(String(result.reason || ''), /missing-event-anchor|weak-critical-anchor-overlap|narrow-anchor-coverage|weak-event-anchor-coverage/);
 });
 
+test('evaluateGuidedDraftCandidate rejects OT template drift for cross-border health-data scenarios', () => {
+  const seedNarrative = 'Sensitive health data is transferred across borders for analytics without a completed transfer assessment, but there is no evidence the data was exposed.';
+  const result = workflowUtils.evaluateGuidedDraftCandidate(
+    'Sensitive health data is transferred across borders for analytics without a completed transfer assessment, but there is no evidence the data was exposed. This points to an OT and site-resilience issue that sits between cyber, operations, and safety. The area most exposed is the industrial-control, telemetry, and site-recovery path around the affected operating environment.',
+    {
+      seedNarrative,
+      guidedInput: {
+        event: seedNarrative
+      },
+      scenarioLensHint: 'compliance'
+    }
+  );
+
+  assert.equal(result.accepted, false);
+  assert.equal(result.reason, 'unsupported-ot-template-drift');
+});
+
+test('evaluateGuidedDraftCandidate rejects supplier-delivery template drift for payroll processor incidents', () => {
+  const seedNarrative = 'A third-party payroll processor applies a configuration change that misroutes salary payments, exposing bank details to the wrong employees and delaying correction because incident ownership is unclear.';
+  const result = workflowUtils.evaluateGuidedDraftCandidate(
+    'A third-party payroll processor applies a configuration change that misroutes salary payments, exposing bank details to the wrong employees and delaying correction because incident ownership is unclear. This points to a supplier-dependency and delivery issue rather than a weak sourcing-governance or contract-award decision. The area most exposed is the infrastructure deployment, milestone plan, and dependent business projects waiting on the supplier delivery path.',
+    {
+      seedNarrative,
+      guidedInput: {
+        event: seedNarrative
+      },
+      scenarioLensHint: 'third-party'
+    }
+  );
+
+  assert.equal(result.accepted, false);
+  assert.equal(result.reason, 'unsupported-supplier-template-drift');
+});
+
 test('guided Step 1 prompt support stays compact while preserving the strongest anchors', () => {
   const seedNarrative = 'Key vendor delivery slips are blocking a dependent rollout and delaying committed milestones.';
   const input = {

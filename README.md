@@ -118,6 +118,8 @@ The product is assistant-driven, not chat-first. AI is used to:
 Current AI behavior:
 - the browser is now a thin client for the key AI workflows rather than the authoritative orchestration layer
 - server routes own prompt construction, structured-output repair, quality gates, readiness evaluation, and fallback policy for the main guided, register, treatment, and reviewer/challenge flows
+- browser-side admin context drafting and refinement currently use a temporary `28000`-character prompt ceiling for the PoC so long inherited context blocks are less likely to clip before send
+- the longer-term fix is prompt shaping rather than prompt growth alone; that backlog is tracked in [docs/future-fixes.md](./docs/future-fixes.md)
 - `Build scenario draft` remains the single authoritative Step 1 intelligence call; guided prompt ideas and pre-build preview are now deterministic/local so they do not add extra hosted backend traffic
 - Step 1 pre-draft hinting is now projection-first:
   - the browser ranks competing taxonomy families, lenses, confidence, and separation before showing prompt ideas or a preferred local lens
@@ -212,6 +214,9 @@ Operational expectation:
 - do not treat fallback-generated AI guidance as pilot-quality AI output
 - verify the server-reported mode in `System Access` before AI-dependent review, demo, or sign-off activity
 - if the platform is intentionally being exercised in deterministic fallback or manual mode, be explicit about that in the session context
+- when AI drafting or refinement fails, use `Admin > System Access` for full Compass failure diagnostics and `Admin > Audit Log` for the short inline summary:
+  - the audit row now exposes failure stage and whether the prompt was truncated before send
+  - the diagnostics panel still carries the full prompt footprint, response preview, and attempt history
 
 ## Results And Exports
 

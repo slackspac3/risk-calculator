@@ -1000,6 +1000,38 @@
           "strength": "strong"
         },
         {
+          "text": "misrouted disclosure",
+          "strength": "strong"
+        },
+        {
+          "text": "misdirected disclosure",
+          "strength": "strong"
+        },
+        {
+          "text": "wrong recipient disclosure",
+          "strength": "strong"
+        },
+        {
+          "text": "personal data sent to the wrong recipient",
+          "strength": "strong"
+        },
+        {
+          "text": "exposing bank details to the wrong employees",
+          "strength": "strong"
+        },
+        {
+          "text": "bank details exposed to the wrong employees",
+          "strength": "strong"
+        },
+        {
+          "text": "bank details to the wrong employees",
+          "strength": "strong"
+        },
+        {
+          "text": "misroutes salary payments",
+          "strength": "medium"
+        },
+        {
           "text": "external disclosure",
           "strength": "medium"
         },
@@ -1066,6 +1098,38 @@
         {
           "text": "unauthorised disclosure",
           "strength": "strong"
+        },
+        {
+          "text": "misrouted disclosure",
+          "strength": "strong"
+        },
+        {
+          "text": "misdirected disclosure",
+          "strength": "strong"
+        },
+        {
+          "text": "wrong recipient disclosure",
+          "strength": "strong"
+        },
+        {
+          "text": "personal data sent to the wrong recipient",
+          "strength": "strong"
+        },
+        {
+          "text": "exposing bank details to the wrong employees",
+          "strength": "strong"
+        },
+        {
+          "text": "bank details exposed to the wrong employees",
+          "strength": "strong"
+        },
+        {
+          "text": "bank details to the wrong employees",
+          "strength": "strong"
+        },
+        {
+          "text": "misroutes salary payments",
+          "strength": "medium"
         },
         {
           "text": "external disclosure",

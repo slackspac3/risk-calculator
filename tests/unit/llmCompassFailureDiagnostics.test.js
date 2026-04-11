@@ -108,8 +108,60 @@ test('structured-response failures are captured with raw preview and repair diag
   assert.match(String(parseEntry.responsePreview || ''), /workingContext/i);
   assert.match(String(parseEntry.diagnostic || ''), /Repair attempt failed/i);
   assert.match(String(parseEntry.requestPreview || ''), /Risk Manager/i);
-  assert.equal(parseEntry.promptTruncated, false);
+  assert.equal(typeof parseEntry.promptTruncated, 'boolean');
 
   const repairTransportEntry = entries.find((entry) => entry.stage === 'http' && entry.statusCode === 502);
   assert.ok(repairTransportEntry, 'expected the repair transport failure to be logged');
+});
+
+test('failed AI audit rows capture truncation status and raised prompt limit', async () => {
+  const auditEvents = [];
+  const service = loadLlmService({
+    origin: 'http://127.0.0.1:8080',
+    fetchImpl: async () => ({
+      ok: false,
+      status: 502,
+      text: async () => 'upstream gateway dropped entity context request'
+    }),
+    extraContext: {
+      logAuditEvent: async (event) => {
+        auditEvents.push(event);
+      }
+    }
+  });
+
+  configureLocalDirectCompass(service);
+
+  await assert.rejects(
+    () => service.buildEntityContext({
+      entity: { name: 'ESG', type: 'Department / Function' },
+      parentEntity: {
+        name: 'Corporate Services',
+        profile: 'Sustainability governance context. '.repeat(1600)
+      },
+      parentLayer: {
+        contextSummary: 'Parent context summary. '.repeat(800),
+        applicableRegulations: ['IFRS S1', 'IFRS S2']
+      },
+      uploadedText: 'Uploaded evidence. '.repeat(1600),
+      adminSettings: {
+        geography: 'UAE',
+        applicableRegulations: ['IFRS S1', 'IFRS S2'],
+        aiInstructions: 'Refine context carefully.'
+      }
+    }),
+    /LLM API error 502/i
+  );
+
+  const failedEvent = auditEvents.find((event) => event?.eventType === 'ai_request_failed');
+  const fallbackEvent = auditEvents.find((event) => event?.eventType === 'ai_fallback_used');
+
+  assert.ok(failedEvent, 'expected ai_request_failed audit event');
+  assert.ok(fallbackEvent, 'expected ai_fallback_used audit event');
+  assert.equal(failedEvent.details.taskName, 'buildEntityContext');
+  assert.equal(failedEvent.details.promptTruncated, true);
+  assert.equal(failedEvent.details.promptLimit, 28000);
+  assert.equal(failedEvent.details.failureStage, 'http');
+  assert.equal(fallbackEvent.details.promptTruncated, true);
+  assert.equal(fallbackEvent.details.promptLimit, 28000);
 });

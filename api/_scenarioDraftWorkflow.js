@@ -572,6 +572,26 @@ function hasEsgDisclosureSignals(text = '') {
   return /(esg|sustainability|greenwashing|climate disclosure|sustainability disclosure|carbon|emission|net zero|scope 1|scope 2|scope 3|social impact|claim substantiation|renewable energy attributes|supplier emissions|supplier data|activity factors|transition plan|transition milestone|sustainability-linked loan|sustainability-linked financing|margin step-down|assurance prep|assurance review|assurance challenge|kpi)/.test(String(text || '').toLowerCase());
 }
 
+function hasOtTemplateTerms(text = '') {
+  return /(?:^|\b)ot(?:$|\b)|operational technology|industrial control|\bics\b|scada|plant network|site systems|control room|edge computing room|telemetry|site-recovery|backup power transfer|gateway clocks|actuator timing|reject gate/i.test(String(text || ''));
+}
+
+function hasSupplierDeliveryTemplateTerms(text = '') {
+  return /(supplier-dependency and delivery issue|supplier delivery slippage|delivery-critical supplier|supplier delivery path|dependent business projects|milestone plan|project slippage|workaround cost|re-sequence the deployment|supplier miss pushing back deployment activity)/i.test(String(text || ''));
+}
+
+function hasSourceOtSignals(text = '') {
+  return /(?:^|\b)ot(?:$|\b)|operational technology|industrial control|\bics\b|scada|plant network|site systems|control room|edge computing room|sensor alerts|manual overrides?|telemetry/i.test(String(text || ''));
+}
+
+function hasSourceDeliveryProgrammeSignals(text = '') {
+  return /(delivery date|delivery commitment|deliverable|shipment|shipping|logistics|deployment|rollout|go-live|milestone|programme|program|project|installation|hardware|equipment|material|commissioning)/i.test(String(text || ''));
+}
+
+function hasSourcePrivacyEsgConductSignals(text = '') {
+  return /(cross-border|cross border|transfer assessment|health data|patient data|medical records|personal data|retention|deletion periods|greenwashing|sustainability claims|emissions|whistleblower|retaliation|investigation protocol|payroll|salary payments?|bank details|wrong employees|processor)/i.test(String(text || ''));
+}
+
 function collectScenarioSecondaryKeys({
   primaryKey = 'general',
   hintKey = '',
@@ -1005,6 +1025,13 @@ function buildFallbackRiskCards(classification = {}, input = {}) {
       { title: 'Recovery strain and backlog growth after service saturation', category: 'Business Continuity', description: 'Once services are slowed or unavailable, mitigation, customer backlog, and recovery pressure can grow faster than teams can absorb.' }
     ];
   }
+  if (primaryFamilyKey === 'data_disclosure') {
+    return [
+      { title: 'Sensitive data disclosed to the wrong party', category: 'Cyber', description: 'Sensitive records or payment details can be exposed to the wrong recipient through misrouting, weak access control, or third-party processing failure.' },
+      { title: 'Third-party processing failure creating disclosure and remediation pressure', category: 'Third-party', description: 'A processor or supplier-handled workflow can create disclosure, notification, and assurance pressure when information is sent to the wrong people.' },
+      { title: 'Containment and notification burden after wrong-recipient exposure', category: 'Compliance', description: 'Once data reaches the wrong party, management may need rapid containment, notification decisions, and evidence that the disclosure path has been closed.' }
+    ];
+  }
   if (primaryFamilyKey === 'payment_control_failure') {
     return [
       { title: 'Unauthorized funds transfer through payment-control weakness', category: 'Financial', description: 'Weak payment approval or release controls can allow an unauthorized transfer, direct loss, and a broader control challenge.' },
@@ -1186,6 +1213,20 @@ function buildScenarioExpansion(input = {}, classification = classifyScenario(in
       }),
       'The most likely progression is malicious traffic saturating internet-facing services until legitimate users experience severe slowdown, service failure, or full unavailability.',
       'This should be assessed for customer-facing outage, mitigation and response strain, backlog growth, and whether recovery controls can restore availability before wider business disruption escalates.'
+    ].join(' ');
+  } else if (primaryFamilyKey === 'data_disclosure') {
+    scenarioExpansion = [
+      buildScenarioLead({
+        geography,
+        businessUnit,
+        asset: asset || 'the sensitive-data or records path in scope',
+        cause: cause || 'misdirected disclosure, weak access control, or data sent to the wrong party',
+        impact: impact || 'regulatory scrutiny, remediation burden, and stakeholder harm',
+        scenarioLabel: 'data disclosure scenario'
+      }),
+      ensureSentence(statement),
+      'The most likely progression is sensitive information being exposed to the wrong party, followed by containment, investigation, notification decisions, and challenge over how the data-handling controls failed.',
+      'This should be assessed for the scope of exposed information, whether the disclosure came through a third-party or internal control failure, and the operational, regulatory, and trust consequences of delayed correction.'
     ].join(' ');
   } else if (classification.key === 'business-continuity') {
     if (hasCriticalMessagingServiceSignals(intakeText) && !hasExplicitCyberCompromiseSignals(intakeText)) {
@@ -2417,8 +2458,24 @@ function evaluateGuidedDraftCandidate(candidate = '', {
   const expectedLens = classifiedExpectedLens && classifiedExpectedLens !== 'general'
     ? classifiedExpectedLens
     : (normaliseScenarioHintKey(scenarioLensHint) || classifiedExpectedLens || 'general');
+  const sourceText = [
+    seedNarrative,
+    guidedInput?.event,
+    guidedInput?.asset,
+    guidedInput?.cause,
+    guidedInput?.impact
+  ].filter(Boolean).join(' ');
   if (explicitLeadLens && !isCompatibleScenarioLens(expectedLens, explicitLeadLens)) {
     return { accepted: false, reason: 'explicit-lens-drift', narrative: cleanedCandidate };
+  }
+  if (hasOtTemplateTerms(cleanedCandidate)
+    && !hasSourceOtSignals(sourceText)
+    && hasSourcePrivacyEsgConductSignals(sourceText)) {
+    return { accepted: false, reason: 'unsupported-ot-template-drift', narrative: cleanedCandidate };
+  }
+  if (hasSupplierDeliveryTemplateTerms(cleanedCandidate)
+    && !hasSourceDeliveryProgrammeSignals(sourceText)) {
+    return { accepted: false, reason: 'unsupported-supplier-template-drift', narrative: cleanedCandidate };
   }
   const anchorGroups = buildGuidedDraftAnchorGroups({ guidedInput }, seedNarrative);
   const anchorMetrics = scoreGuidedDraftAnchorGroups(cleanedCandidate, anchorGroups);

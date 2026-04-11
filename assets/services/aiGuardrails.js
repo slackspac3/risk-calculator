@@ -2,7 +2,7 @@
 
 (function attachAIGuardrails(globalScope) {
   const DEFAULT_MAX_TEXT_CHARS = 20000;
-  const DEFAULT_MAX_PROMPT_CHARS = 18000;
+  const DEFAULT_MAX_PROMPT_CHARS = 28000;
   const SUGGESTED_PREFIX = 'Suggested draft: ';
 
   function sanitizeText(value = '', { maxChars = DEFAULT_MAX_TEXT_CHARS } = {}) {

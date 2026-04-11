@@ -1591,7 +1591,7 @@ function inferStoredScenarioFunctionKey(source = {}) {
   if (/hse|ehs|health|safety|environment|workplace safety|injury|spill|worker welfare|labou?r/.test(haystack)) return 'hse';
   if (/strategy|strategic|enterprise|portfolio|transformation|market|growth|investment|esg|sustainability|geopolitical|sanctions|market access|sovereign|merger|acquisition|joint venture|integration/.test(haystack)) return 'strategic';
   if (/technology|cyber|security|identity|cloud|infrastructure|it\b|digital|phishing|ransomware|breach|ai\b|model risk|responsible ai|machine learning|llm|algorithm/.test(haystack)) return 'technology';
-  if (/operations|resilience|continuity|service delivery|manufacturing|logistics|facilities|workforce|process failure|backlog|physical security|executive protection|industrial control|ot\b|ics|scada|site systems/.test(haystack)) return 'operations';
+  if (/operations|resilience|continuity|service delivery|manufacturing|logistics|facilities|workforce|process failure|backlog|physical security|executive protection|industrial control|(?:^|\b)ot(?:$|\b)|\bics\b|scada|site systems/.test(haystack)) return 'operations';
   return 'general';
 }
 
@@ -3054,13 +3054,46 @@ async function logAuditEvent(event = {}) {
   }
 }
 
-function formatAuditDetails(details = {}) {
+function formatAuditDetailSummaryValue(key = '', value = '', details = {}) {
+  const safeKey = String(key || '').trim().toLowerCase();
+  if (safeKey === 'prompttruncated') {
+    const limit = Number(details?.promptLimit || 0) || 0;
+    return value
+      ? `prompt truncated${limit ? ` at ${limit} chars` : ''}`
+      : 'prompt sent untruncated';
+  }
+  if (safeKey === 'failurestage') return `failure stage: ${formatFilterLabel(value, 'Unknown')}`;
+  if (safeKey === 'statuscode') return `status code: ${value}`;
+  return `${key}: ${Array.isArray(value) ? value.join(', ') : String(value)}`;
+}
+
+function formatAuditDetails(details = {}, entry = {}) {
   if (!details || typeof details !== 'object') return '';
-  return Object.entries(details)
+  const isAiEvent = String(entry?.category || '').trim().toLowerCase() === 'ai'
+    || /^ai_/i.test(String(entry?.eventType || '').trim());
+  const priority = isAiEvent
+    ? ['taskName', 'failureStage', 'promptTruncated', 'message', 'reason', 'entityName', 'websiteUrl', 'statusCode', 'promptLimit']
+    : [];
+  const priorityMap = new Map(priority.map((key, index) => [String(key).toLowerCase(), index]));
+  const entries = Object.entries(details)
     .filter(([, value]) => value !== undefined && value !== null && value !== '')
+    .filter(([key]) => {
+      if (!isAiEvent) return true;
+      const safeKey = String(key || '').trim().toLowerCase();
+      return !(safeKey === 'promptlimit' && Object.prototype.hasOwnProperty.call(details, 'promptTruncated'));
+    })
+    .map(([key, value], index) => ({ key, value, index }))
+    .sort((left, right) => {
+      if (!isAiEvent) return left.index - right.index;
+      const leftRank = priorityMap.has(String(left.key).toLowerCase()) ? priorityMap.get(String(left.key).toLowerCase()) : Number.MAX_SAFE_INTEGER;
+      const rightRank = priorityMap.has(String(right.key).toLowerCase()) ? priorityMap.get(String(right.key).toLowerCase()) : Number.MAX_SAFE_INTEGER;
+      if (leftRank !== rightRank) return leftRank - rightRank;
+      return left.index - right.index;
+    })
     .slice(0, 3)
-    .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : String(value)}`)
+    .map(({ key, value }) => formatAuditDetailSummaryValue(key, value, details))
     .join(' · ');
+  return entries;
 }
 
 function buildAdminImpactAssessment(currentSettings = DEFAULT_ADMIN_SETTINGS, nextSettings = DEFAULT_ADMIN_SETTINGS) {
@@ -8485,8 +8518,19 @@ function composeGuidedNarrative(guidedInput = {}, { lensLabel = '', lensKey = ''
     if (!text) return '';
     return text.charAt(0).toLowerCase() + text.slice(1);
   };
+  const hasExplicitOtSignals = (text = '') => /(?:^|\b)ot(?:$|\b)|operational technology|industrial control|\bics\b|scada|plant network|site systems|control room|edge computing room|temperature alarms?|power fluctuation|airflow settings|workload throttling|edge gateways?|heatwave|power quality fluctuations?|telemetry gaps?|manual field verification|timing mismatch|edge controller|configuration baseline|false rejects?|supervised mode|failover logic|backup power transfer|restart priorities|regional grid disturbance|gateway clocks?|telemetry replay|control confirmations?|state reconstruction|edge inference|actuator timing|reject gate|restart instability/.test(text);
+  const hasSupplierDeliverySignals = (text = '') => /(supplier delay|miss(?:es|ed)? (?:committed )?delivery dates?|missed delivery date|delivery commitments? missed|late delivery|delivery slippage|shipment slipped|delayed deployment|delayed installation)/.test(text)
+    || ((/(supplier|vendor)/.test(text))
+      && /(delivery|deliverable|shipment|shipping|logistics|hardware|equipment|material|installation|rollout|go-live|milestone|programme|program|project|commissioning)/.test(text)
+      && /(delay|delayed|late|missed|slippage|blocked|blocking)/.test(text));
   const inferScenarioContext = () => {
     const text = [event, asset, cause, impact, resolvedLensKey, resolvedLensLabel].filter(Boolean).join(' ').toLowerCase();
+    const hasCrossBorderPrivacy = (/(cross-border transfer|cross border transfer|transferred across borders|across borders|international transfer|transfer assessment|transfer impact assessment|without required safeguards|missing safeguards|without a completed transfer assessment|sensitive health data|health data|patient data|medical records|localisation controls?)/.test(text))
+      && /(transfer|cross-border|cross border|across borders|safeguards|assessment|localisation|processing|analytics)/.test(text);
+    const hasRecordsRetention = /(records retention|retention schedule|retained beyond required deletion periods|required deletion periods|deletion obligations? not met|retention breach|purge tooling|purge capability|records are being retained beyond)/.test(text);
+    const hasGreenwashing = /(greenwashing|sustainability disclosure|climate disclosure|public sustainability claims?|emissions reductions?|claim substantiation|esg disclosure gap|supplier data .* does not reconcile|cannot be substantiated|cannot be evidenced|does not reconcile to activity assumptions)/.test(text);
+    const hasWhistleblowerGovernance = /(whistleblower|speak-?up|retaliation|investigation protocol|governance reporting.*understated|non-retaliation)/.test(text);
+    const hasPayrollProcessorFailure = /(payroll|salary payments?|bank details|wrong employees|payroll processor|processor applies a configuration change|misroutes salary payments|incident ownership is unclear|employee bank-detail handling)/.test(text);
     if (/ai\b|model risk|responsible ai|hallucination|bias|drift|algorithm|llm|training data/.test(text)) {
       return {
         positioning: 'This points to an AI-governance and model-risk issue rather than a generic technology problem.',
@@ -8494,6 +8538,51 @@ function composeGuidedNarrative(guidedInput = {}, { lensLabel = '', lensKey = ''
         driver: 'weak guardrails, limited monitoring of model behaviour, or poor control over how outputs are reviewed and used',
         impact: 'unsafe decisions, regulatory scrutiny, customer or internal harm, and lower trust in AI-enabled operations',
         followOn: 'Once the model starts producing unsafe or low-trust outputs, management usually has to stabilise usage, review governance, and explain how the model was allowed to operate that way.'
+      };
+    }
+    if (hasCrossBorderPrivacy) {
+      return {
+        positioning: 'This points to a cross-border transfer and privacy-safeguards issue rather than an OT, cyber-attack, or generic supplier problem.',
+        affected: 'the sensitive-data transfer path, transfer-assessment discipline, and localisation or safeguards controls around the analytics activity in scope',
+        driver: 'missing transfer assessment, weak safeguards, or incomplete localisation and privacy review before the transfer proceeded',
+        impact: 'regulatory scrutiny, remediation burden, and pressure to evidence how sensitive data can be transferred lawfully',
+        followOn: 'Once a cross-border transfer proceeds without the required assessment or safeguards, management usually has to contain the processing, evidence the legal basis, and decide whether notification or remediation is required.'
+      };
+    }
+    if (hasRecordsRetention) {
+      return {
+        positioning: 'This points to a records-retention and deletion-obligation issue rather than a generic supplier-delay or project-delivery problem.',
+        affected: 'the governed records lifecycle, deletion controls, and remediation path around the affected customer or employee data in scope',
+        driver: 'retention controls not being executed on time, weak purge capability, or poor ownership of deletion obligations',
+        impact: 'regulatory challenge, remediation cost, and pressure to prove that governed data can be deleted when required',
+        followOn: 'Once records are kept beyond required deletion periods, management usually has to restore control over the data lifecycle, evidence remediation, and decide whether wider privacy obligations have already been compromised.'
+      };
+    }
+    if (hasGreenwashing) {
+      return {
+        positioning: 'This points to an ESG disclosure and claim-substantiation issue rather than an OT, continuity, or generic supplier-performance problem.',
+        affected: 'the sustainability-claim evidence base, supplier-data reconciliation, and disclosure-governance path around the public statement in scope',
+        driver: 'weak claim substantiation, unreconciled supplier data, or inadequate review of how the public statement was evidenced',
+        impact: 'stakeholder challenge, disclosure remediation, regulatory pressure, and lower trust in the governance behind the claim',
+        followOn: 'Once a public sustainability claim cannot be evidenced, management usually has to revisit the statement, validate the supplier-data basis, and decide how quickly the disclosure and assurance posture must be corrected.'
+      };
+    }
+    if (hasWhistleblowerGovernance) {
+      return {
+        positioning: 'This points to a speak-up, retaliation, and investigation-governance issue rather than a cyber or operational event.',
+        affected: 'the whistleblowing, investigation, and governance-reporting path around the misconduct case in scope',
+        driver: 'weak non-retaliation controls, mishandled investigation protocol, or poor escalation and governance challenge over the case',
+        impact: 'regulatory scrutiny, remediation burden, and lower trust in the integrity of the speak-up process',
+        followOn: 'Once retaliation or investigation mishandling becomes visible, management usually has to protect the reporter, repair the investigation process, and revisit how the case was governed and reported.'
+      };
+    }
+    if (hasPayrollProcessorFailure) {
+      return {
+        positioning: 'This points to a third-party payroll processing and data-handling failure rather than a supplier delivery or milestone issue.',
+        affected: 'the payroll processing, employee bank-detail handling, and incident-ownership path around the processor-managed service',
+        driver: 'misconfigured processor change, weak third-party oversight, or unclear incident ownership slowing correction',
+        impact: 'misdirected salary payments, confidentiality breach, remediation effort, and employee-trust or regulatory challenge',
+        followOn: 'Once payroll data or payments are misrouted, management usually has to contain the disclosure, correct the payment path, and decide who owns notification, remediation, and processor challenge.'
       };
     }
     if (/data governance|data quality|data lineage|lineage metadata|data retention|retention schedule|records retained too long|purpose limitation|privacy|data protection|personal data|consent|residency|master data|de-?identification|data minimi[sz]ation|secondary use|free-text fields?|live identifiers?|passport details|identity graph|identity views|suppression flags?|record resurrection|deletion propagation|derived datasets?|offshore support queue|development environment/.test(text)) {
@@ -8658,8 +8747,7 @@ function composeGuidedNarrative(guidedInput = {}, { lensLabel = '', lensKey = ''
         followOn: 'Once upstream constraints begin to propagate across tiers, management usually has to decide which builds to prioritise, what visibility can be demanded, and whether the current sequence is still realistic.'
       };
     }
-    if (/(supplier|vendor|third[- ]party|third party)/.test(text)
-      && /(delivery date|delivery commitment|delay|delayed|deployment|go-live|rollout|milestone|dependent business project|dependent project|programme|program|project)/.test(text)
+    if (hasSupplierDeliverySignals(text)
       && !/(procurement|sourcing|tender|bid|contract award|vendor selection|critical spend|award decision|single[- ]source|sole source|supplier concentration)/.test(text)) {
       return {
         positioning: 'This points to a supplier-dependency and delivery issue rather than a weak sourcing-governance or contract-award decision.',
@@ -8715,7 +8803,7 @@ function composeGuidedNarrative(guidedInput = {}, { lensLabel = '', lensKey = ''
         followOn: 'Once physical controls are shown to be weak, management usually has to stabilise access, reassess site posture, and decide whether broader facilities controls need urgent remediation.'
       };
     }
-    if (/ot\b|industrial control|ics|scada|plant network|site systems|control room|edge computing room|temperature alarms?|power fluctuation|airflow settings|workload throttling|edge gateways?|heatwave|power quality fluctuations?|telemetry gaps?|manual field verification|timing mismatch|edge controller|configuration baseline|false rejects?|supervised mode|failover logic|backup power transfer|restart priorities|regional grid disturbance|gateway clocks?|telemetry replay|control confirmations?|state reconstruction|edge inference|actuator timing|reject gate|restart instability/.test(text)) {
+    if (hasExplicitOtSignals(text) && !hasCrossBorderPrivacy && !hasGreenwashing && !hasPayrollProcessorFailure && !hasWhistleblowerGovernance) {
       return {
         positioning: 'This points to an OT and site-resilience issue that sits between cyber, operations, and safety.',
         affected: 'the industrial-control, telemetry, and site-recovery path around the affected operating environment',

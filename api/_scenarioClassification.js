@@ -242,8 +242,8 @@ function getFamilyExtraMatches(familyKey = '', text = '') {
     }
   }
   if (familyKey === 'data_disclosure') {
-    if (/(leaked data|data (?:is )?extracted|data extraction|records extracted|stolen data|data exfiltration|exfiltrat|exposed records)/.test(raw)) {
-      push({ text: 'explicit data extraction pattern', strength: 'strong' });
+    if (hasExplicitDisclosureSignals(raw)) {
+      push({ text: 'explicit data disclosure or wrong-recipient exposure', strength: 'strong' });
     }
   }
   if (familyKey === 'payment_control_failure') {
@@ -616,7 +616,14 @@ function hasExplicitFraudSignals(text = '') {
 }
 
 function hasExplicitDisclosureSignals(text = '') {
-  return /(exfiltration|data breach|personal data breach|unauthori[sz]ed disclosure|external disclosure|leaked data|exposed records|stolen data|data exposure|leak(?:ed)? records)/i.test(text);
+  const value = String(text || '');
+  const explicitDisclosure = /(exfiltration|data breach|personal data breach|unauthori[sz]ed disclosure|external disclosure|leaked data|exposed records|stolen data|data exposure|leak(?:ed)? records|misrouted disclosure|misdirected disclosure|sent to the wrong (?:employee|employees|recipient|recipients)|shared with the wrong (?:employee|employees|recipient|recipients)|bank details to the wrong employees|wrong employees? can see bank details|salary data .* wrong employees?|personal data .* wrong recipients?)/i;
+  if (!explicitDisclosure.test(value)) return false;
+  if (/(no evidence (?:that |the )?(?:data|records|information) (?:was |were )?(?:exposed|disclosed|leaked)|there is no evidence (?:the )?(?:data|records|information) (?:was |were )?(?:exposed|disclosed|leaked)|no actual disclosure|not exposed|not disclosed|without exposure|without any exposure)/i.test(value)
+    && !/(misrouted disclosure|misdirected disclosure|sent to the wrong (?:employee|employees|recipient|recipients)|shared with the wrong (?:employee|employees|recipient|recipients)|bank details to the wrong employees|wrong employees? can see bank details)/i.test(value)) {
+    return false;
+  }
+  return true;
 }
 
 function hasAvailabilityAttackSignals(text = '') {
@@ -687,7 +694,7 @@ function hasExplicitPerimeterBreachSignals(text = '') {
 
 function hasExplicitOtResilienceSignals(text = '') {
   return /(ot resilience failure|industrial control instability|industrial control environment becomes unstable|operational technology environment becomes unstable|ics instability|scada disruption|control room instability)/i.test(text)
-    || ((/(\bot\b|operational technology|industrial control|ics|scada|control room|site systems)/i.test(text))
+    || ((/(?:^|\b)ot(?:$|\b)|operational technology|industrial control|\bics\b|scada|control room|site systems/i.test(text))
       && /(unstable|instability|outage|fails?|failure|cannot be sustained safely|resilience)/i.test(text));
 }
 
@@ -741,8 +748,9 @@ function hasExplicitSupplierConcentrationSignals(text = '') {
 
 function hasExplicitDeliverySlippageSignals(text = '') {
   return /(supplier delay|miss(?:es|ed)? (?:committed )?delivery dates?|missed delivery date|delivery commitments? missed|late delivery|delayed deployment|delayed installation|delivery slippage|dependent projects? delayed)/i.test(text)
-    || ((/(supplier|vendor|delivery|shipment)/i.test(text))
-      && /(delay|delayed|late|missed|slippage)/i.test(text));
+    || ((/(supplier|vendor)/i.test(text))
+      && /(delivery|deliverable|shipment|shipping|logistics|hardware|equipment|material|installation|rollout|go-live|milestone|programme|program|project)/i.test(text)
+      && /(delay|delayed|late|missed|slippage|blocked|blocking)/i.test(text));
 }
 
 function hasExplicitLogisticsDisruptionSignals(text = '') {
@@ -999,6 +1007,17 @@ function applyPrecedence(scoredFamilies = [], text = '', meta = {}) {
     policyBreach.score -= 5;
     applied.push('records_retention_non_compliance beats generic policy_breach when retention obligations are explicit');
   }
+  if (retention && hasExplicitRecordsRetentionSignals(text)) {
+    penalise(
+      ['delivery_slippage', 'programme_delivery_slippage', 'supplier_control_weakness'],
+      {
+        against: retention,
+        penalty: 6,
+        tolerance: 2,
+        label: 'records_retention_non_compliance beats supplier or programme-delay interpretations when deletion obligations are explicit'
+      }
+    );
+  }
   const crossBorder = byKey.get('cross_border_transfer_non_compliance');
   if (crossBorder && privacyGovernance && hasExplicitCrossBorderTransferSignals(text) && crossBorder.score >= privacyGovernance.score - 2) {
     privacyGovernance.score -= 5;
@@ -1011,6 +1030,17 @@ function applyPrecedence(scoredFamilies = [], text = '', meta = {}) {
   if (crossBorder && policyBreach && hasExplicitCrossBorderTransferSignals(text) && crossBorder.score >= policyBreach.score - 2) {
     policyBreach.score -= 5;
     applied.push('cross_border_transfer_non_compliance beats generic policy_breach when transfer obligations are explicit');
+  }
+  if (crossBorder && hasExplicitCrossBorderTransferSignals(text)) {
+    penalise(
+      ['delivery_slippage', 'programme_delivery_slippage', 'supplier_control_weakness', 'data_disclosure'],
+      {
+        against: crossBorder,
+        penalty: 6,
+        tolerance: 2,
+        label: 'cross_border_transfer_non_compliance beats supplier-delay or disclosure drift when transfer safeguards are the explicit issue'
+      }
+    );
   }
   if (regulatoryFiling && hasExplicitRegulatoryFilingSignals(text)) {
     penalise(
@@ -1053,6 +1083,18 @@ function applyPrecedence(scoredFamilies = [], text = '', meta = {}) {
         penalty: 6,
         tolerance: 2,
         label: 'contract_liability beats generic compliance or disclosure drift when contractual obligation language is explicit'
+      }
+    );
+  }
+
+  if (disclosure && hasExplicitDisclosureSignals(text) && !hasExplicitFraudSignals(text)) {
+    penalise(
+      ['delivery_slippage', 'programme_delivery_slippage', 'supplier_control_weakness', 'payment_control_failure'],
+      {
+        against: disclosure,
+        penalty: 6,
+        tolerance: 2,
+        label: 'data_disclosure beats supplier-delay or payment-control interpretations when information is explicitly exposed to the wrong party'
       }
     );
   }

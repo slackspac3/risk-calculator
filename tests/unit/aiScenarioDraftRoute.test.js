@@ -313,6 +313,58 @@ test('scenario-draft route keeps counterparty default fallback in the credit-los
   assert.doesNotMatch(titles, /payment fraud|responsible ai|cyber/i);
 });
 
+test('scenario-draft route keeps payroll disclosure fallback out of supplier-delivery drift', async () => {
+  process.env.ALLOWED_ORIGIN = 'https://slackspac3.github.io';
+  process.env.SESSION_SIGNING_SECRET = 'test-signing-secret';
+  process.env.KV_REST_API_URL = 'https://example.test/kv';
+  process.env.KV_REST_API_TOKEN = 'test-token';
+  global.fetch = async (url) => {
+    if (String(url).includes('/kv')) {
+      return {
+        ok: true,
+        json: async () => ({ result: null })
+      };
+    }
+    throw new Error(`Unexpected fetch in payroll disclosure fallback scenario-draft test: ${url}`);
+  };
+
+  const handler = loadFresh('../../api/ai/scenario-draft');
+  const token = buildSessionToken({
+    username: 'analyst',
+    role: 'user',
+    exp: Date.now() + 60_000
+  });
+  const res = createRes();
+
+  await handler({
+    method: 'POST',
+    body: JSON.stringify({
+      riskStatement: 'A third-party payroll processor applies a configuration change that misroutes salary payments, exposing bank details to the wrong employees and delaying correction because incident ownership is unclear.',
+      guidedInput: {
+        event: 'A third-party payroll processor applies a configuration change that misroutes salary payments, exposing bank details to the wrong employees and delaying correction because incident ownership is unclear.',
+        asset: 'Payroll processing and employee payment data',
+        cause: 'Third-party configuration change and unclear incident ownership',
+        impact: 'Misdirected salary payments and bank-detail disclosure'
+      }
+    }),
+    headers: {
+      origin: 'https://slackspac3.github.io',
+      'x-session-token': token
+    },
+    socket: { remoteAddress: '127.0.0.1' }
+  }, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.payload.mode, 'deterministic_fallback');
+  assert.equal(res.payload.scenarioLens?.key, 'cyber');
+  assert.equal(res.payload.aiAlignment?.taxonomy?.primaryFamilyKey, 'data_disclosure');
+  assert.match(String(res.payload.draftNarrative || ''), /data disclosure|wrong party|data-handling controls/i);
+  assert.doesNotMatch(String(res.payload.draftNarrative || ''), /supplier-dependency and delivery issue|infrastructure deployment|milestone plan|dependent business projects/i);
+  const titles = (Array.isArray(res.payload.risks) ? res.payload.risks : []).map((risk) => String(risk?.title || '')).join(' | ');
+  assert.match(titles, /disclosure|bank|payroll|data/i);
+  assert.doesNotMatch(titles, /supplier miss|deployment|milestone/i);
+});
+
 test('scenario-draft route keeps supplier labour fallback in the ESG lane instead of cyber or pure procurement drift', async () => {
   process.env.ALLOWED_ORIGIN = 'https://slackspac3.github.io';
   process.env.SESSION_SIGNING_SECRET = 'test-signing-secret';

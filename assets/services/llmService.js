@@ -12,6 +12,7 @@
 const LLMService = (() => {
   const AI_MAX_RETRIES = 2;
   const AI_TIMEOUT_MS = 30000;
+  const AI_DEFAULT_MAX_PROMPT_CHARS = 28000;
   const AI_QUALITY_GATE_MAX_PROMPT_CHARS = 22000;
   const AI_QUALITY_GATE_MAX_COMPLETION_TOKENS = 2200;
 
@@ -50,14 +51,17 @@ const LLMService = (() => {
     const guardrails = _guardrails();
     if (guardrails?.buildPromptPayload) {
       return {
-        ...guardrails.buildPromptPayload(systemPrompt, userPrompt, { maxChars: Number(options.maxPromptChars || 18000) }),
+        ...guardrails.buildPromptPayload(systemPrompt, userPrompt, { maxChars: Number(options.maxPromptChars || AI_DEFAULT_MAX_PROMPT_CHARS) }),
         priorMessages
       };
     }
+    const safeSystemPrompt = _sanitizeAiText(systemPrompt, { maxChars: Math.min(6000, Number(options.maxPromptChars || AI_DEFAULT_MAX_PROMPT_CHARS)) });
+    const remaining = Math.max(2000, Number(options.maxPromptChars || AI_DEFAULT_MAX_PROMPT_CHARS) - safeSystemPrompt.length);
+    const safeUserPrompt = _sanitizeAiText(userPrompt, { maxChars: remaining });
     return {
-      systemPrompt: _sanitizeAiText(systemPrompt, { maxChars: 6000 }),
-      userPrompt: _sanitizeAiText(userPrompt, { maxChars: Number(options.maxPromptChars || 18000) }),
-      truncated: false,
+      systemPrompt: safeSystemPrompt,
+      userPrompt: safeUserPrompt,
+      truncated: String(systemPrompt || '').length > safeSystemPrompt.length || String(userPrompt || '').length > safeUserPrompt.length,
       priorMessages
     };
   }
@@ -185,6 +189,26 @@ const LLMService = (() => {
     nextEntries.push(nextEntry);
     _writeAdminCompassFailureLog(nextEntries);
     return nextEntry;
+  }
+
+  function _attachAiFailureMetadata(error, {
+    taskName = 'ai_request',
+    promptPayload = null,
+    promptLimit = AI_DEFAULT_MAX_PROMPT_CHARS,
+    failureStage = '',
+    statusCode = 0,
+    timeoutMs = 0,
+    maxCompletionTokens = 0
+  } = {}) {
+    const nextError = error instanceof Error ? error : new Error(String(error || 'AI request failed'));
+    nextError.taskName = String(taskName || 'ai_request').trim() || 'ai_request';
+    nextError.promptTruncated = !!promptPayload?.truncated;
+    nextError.promptLimit = Number(promptLimit || AI_DEFAULT_MAX_PROMPT_CHARS) || AI_DEFAULT_MAX_PROMPT_CHARS;
+    nextError.failureStage = String(failureStage || nextError.failureStage || '').trim() || _inferCompassFailureStage(nextError);
+    if (!nextError.statusCode && Number(statusCode || 0)) nextError.statusCode = Number(statusCode || 0);
+    if (!nextError.timeoutMs && Number(timeoutMs || 0)) nextError.timeoutMs = Number(timeoutMs || 0);
+    if (!nextError.maxCompletionTokens && Number(maxCompletionTokens || 0)) nextError.maxCompletionTokens = Number(maxCompletionTokens || 0);
+    return nextError;
   }
 
   function readAdminCompassFailureLog() {
@@ -1872,7 +1896,8 @@ Return corrected JSON only.`;
         if (promptPayload.truncated) {
           _auditAiEvent('ai_prompt_truncated', 'success', {
             taskName: options.taskName || 'ai_request',
-            promptLimit: Number(options.maxPromptChars || 18000)
+            promptLimit: Number(options.maxPromptChars || AI_DEFAULT_MAX_PROMPT_CHARS),
+            promptTruncated: true
           });
         }
         return response;
@@ -1913,14 +1938,50 @@ Return corrected JSON only.`;
       attempts
     });
 
+    const failureStage = _inferCompassFailureStage(lastError);
+    const promptLimit = Number(options.maxPromptChars || AI_DEFAULT_MAX_PROMPT_CHARS);
+    const statusCode = _extractLlmHttpStatus(lastError);
     const message = String(lastError?.message || lastError || '');
     if (lastError?.name === 'AbortError' || /timed out/i.test(message)) {
-      throw new Error('AI assist timed out. Try again, shorten the prompt, or check the model configuration.');
+      throw _attachAiFailureMetadata(
+        new Error('AI assist timed out. Try again, shorten the prompt, or check the model configuration.'),
+        {
+          taskName: options.taskName || 'ai_request',
+          promptPayload,
+          promptLimit,
+          failureStage,
+          statusCode,
+          timeoutMs,
+          maxCompletionTokens
+        }
+      );
     }
     if (/LLM API error 429/i.test(message)) {
-      throw new Error('AI requests are temporarily rate limited. Wait a moment and try again.');
+      throw _attachAiFailureMetadata(
+        new Error('AI requests are temporarily rate limited. Wait a moment and try again.'),
+        {
+          taskName: options.taskName || 'ai_request',
+          promptPayload,
+          promptLimit,
+          failureStage,
+          statusCode,
+          timeoutMs,
+          maxCompletionTokens
+        }
+      );
     }
-    throw _normaliseLLMError(lastError);
+    throw _attachAiFailureMetadata(
+      _normaliseLLMError(lastError),
+      {
+        taskName: options.taskName || 'ai_request',
+        promptPayload,
+        promptLimit,
+        failureStage,
+        statusCode,
+        timeoutMs,
+        maxCompletionTokens
+      }
+    );
   }
 
   async function _streamLLM(systemPrompt, userPrompt, options = {}, onChunk = null) {
@@ -2964,11 +3025,18 @@ ${businessUnit.selectedDepartmentContext}` : ''
   async function _auditAiFallback(taskName, error, details = {}) {
     await _auditAiEvent('ai_request_failed', 'failure', {
       taskName,
+      failureStage: _sanitizeAiText(error?.failureStage || _inferCompassFailureStage(error), { maxChars: 80 }),
+      promptTruncated: typeof error?.promptTruncated === 'boolean' ? error.promptTruncated : undefined,
+      promptLimit: Number(error?.promptLimit || 0) || undefined,
+      statusCode: Number(error?.statusCode || 0) || undefined,
       message: _sanitizeAiText(error?.message || error || 'Unknown AI failure', { maxChars: 240 }),
       ...details
     });
     await _auditAiEvent('ai_fallback_used', 'success', {
       taskName,
+      failureStage: _sanitizeAiText(error?.failureStage || _inferCompassFailureStage(error), { maxChars: 80 }),
+      promptTruncated: typeof error?.promptTruncated === 'boolean' ? error.promptTruncated : undefined,
+      promptLimit: Number(error?.promptLimit || 0) || undefined,
       ...details
     });
   }
@@ -5438,7 +5506,7 @@ ${evidenceMeta.promptBlock}`;
           parentEntityName: String(input.parentEntity?.name || '').trim()
         }
       });
-      const raw = await _callLLM(systemPrompt, userPrompt, { maxCompletionTokens: 700, timeoutMs: 15000, taskName: 'buildEntityContext' });
+      const raw = await _callLLM(systemPrompt, userPrompt, { maxCompletionTokens: 700, timeoutMs: 15000, maxPromptChars: AI_DEFAULT_MAX_PROMPT_CHARS, taskName: 'buildEntityContext' });
       if (!raw) return _decorateAiResult(_withEvidenceMeta(stub, evidenceMeta), evidenceMeta, { contentFields: ['contextSummary', 'riskAppetiteStatement', 'aiInstructions', 'benchmarkStrategy'], fallbackUsed: true, uploadedDocumentName: input.uploadedDocumentName });
       const parsed = await _parseOrRepairStructuredJson(raw, schema, {
         taskName: 'repairBuildEntityContext',
@@ -5602,7 +5670,7 @@ ${evidenceMeta.promptBlock}`;
           entityType: String(input.entity?.type || '').trim()
         }
       });
-      const raw = await _callLLM(systemPrompt, userPrompt, { maxCompletionTokens: 700, timeoutMs: 12000, taskName: 'refineEntityContext' });
+      const raw = await _callLLM(systemPrompt, userPrompt, { maxCompletionTokens: 700, timeoutMs: 12000, maxPromptChars: AI_DEFAULT_MAX_PROMPT_CHARS, taskName: 'refineEntityContext' });
       if (!raw) {
         return {
           ...currentContext,

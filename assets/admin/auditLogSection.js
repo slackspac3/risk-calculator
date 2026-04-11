@@ -194,7 +194,7 @@ const AdminAuditLogSection = (() => {
       return auditEntries.map((entry) => {
         const entryId = escape(entry.id || `${entry.ts || ''}-${entry.eventType || 'event'}`);
         const expanded = expandedEntryIds.has(entry.id || `${entry.ts || ''}-${entry.eventType || 'event'}`);
-        const detailSummary = formatAuditDetails(entry.details) || 'No extra details';
+        const detailSummary = formatAuditDetails(entry.details, entry) || 'No extra details';
         return `<tr class="audit-log-row${expanded ? ' is-expanded' : ''}" data-audit-entry-id="${entryId}">
           <td>${escape(formatLogTimestamp(entry.ts))}</td>
           <td>

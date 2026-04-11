@@ -260,6 +260,11 @@ test('canonical classification survives bounded paraphrase wording across high-d
       text: 'Patient data safeguards are incomplete, medical-records access logging is weak, and high-risk health-data processing is not assessed.',
       expectedFamily: 'privacy_governance_gap',
       expectedLens: 'compliance'
+    },
+    {
+      text: 'A third-party payroll processor applies a configuration change that misroutes salary payments, exposing bank details to the wrong employees and delaying correction because incident ownership is unclear.',
+      expectedFamily: 'data_disclosure',
+      expectedLens: 'cyber'
     }
   ];
 
