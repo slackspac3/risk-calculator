@@ -702,7 +702,9 @@ test('cold login hydrates shared organisation context before the first authentic
     benchmarkStrategy: 'Prefer GCC and UAE benchmark references.',
     typicalDepartments: ['Security']
   };
-  const buAdminUserSettings = buildSeededUserSettings({
+  const buAdminUserSettings = {
+    onboardedAt: '',
+    _overrideKeys: [],
     userProfile: {
       fullName: 'Taylor BU',
       jobTitle: 'BU Risk Lead',
@@ -711,9 +713,10 @@ test('cold login hydrates shared organisation context before the first authentic
       departmentEntityId: '',
       department: '',
       focusAreas: ['Operational resilience'],
+      preferredOutputs: 'Executive summaries',
       workingContext: 'Oversee resilience posture across Digital Services.'
     }
-  });
+  };
 
   await mockSharedApis(page, {
     loginUser: {
@@ -1303,7 +1306,8 @@ test('admin review queue uses the hosted API origin and shows the empty state in
   });
 
   await expectNoClientCrashOnRoute(page, '/#/admin/home', async () => {
-    await expect(page.getByText(/review queue/i)).toBeVisible();
+    await expect(page.locator('.context-panel-title', { hasText: 'Review queue' })).toBeVisible();
+    await expect(page.getByText(/loading review queue/i)).toHaveCount(0);
     await expect(page.getByText(/no assessments are currently waiting for review/i)).toBeVisible();
     await expect(page.getByText(/could not load the review queue right now/i)).toHaveCount(0);
   });
