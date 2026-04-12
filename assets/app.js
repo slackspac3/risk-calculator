@@ -1068,6 +1068,7 @@ const AppState = {
   disclosureState: {},
   resultsBoardroomMode: false,
   adminSettingsCache: null,
+  sharedAdminSettingsLoadedForSession: false,
   userStateCache: {
     username: '',
     userSettings: null,
@@ -1455,7 +1456,9 @@ function applyUserStateSnapshotLocally(username, state = {}) {
 }
 
 async function loadSharedAdminSettings() {
-  return window.AppSharedStateClient.loadSharedAdminSettings();
+  const settings = await window.AppSharedStateClient.loadSharedAdminSettings();
+  AppState.sharedAdminSettingsLoadedForSession = !!settings;
+  return settings;
 }
 
 function syncSharedAdminSettings(settings, audit = null) {
@@ -3955,6 +3958,7 @@ function activateAuthenticatedState() {
   updateAuthSessionState({ currentUser: AuthService.getCurrentUser() });
   if (!AppState.currentUser) {
     clearAdminSettingsState();
+    AppState.sharedAdminSettingsLoadedForSession = false;
     try {
       localStorage.removeItem(GLOBAL_ADMIN_STORAGE_KEY);
       localStorage.removeItem('rq_bu_override');
@@ -4076,6 +4080,25 @@ function ensureDraftShape() {
   };
 }
 
+async function hydrateAuthenticatedWorkspaceContext(username = AuthService.getCurrentUser()?.username || '') {
+  const safeUsername = String(username || '').trim().toLowerCase();
+  const sharedSettings = await loadSharedAdminSettings();
+  const userState = safeUsername ? await loadSharedUserState(safeUsername) : null;
+  return {
+    adminSettingsLoaded: !!sharedSettings,
+    userStateLoaded: !!userState,
+    username: safeUsername
+  };
+}
+
+function shouldUseBundledBusinessUnitFallback(settings = getAdminSettings()) {
+  const isAuthenticated = typeof AuthService?.isAuthenticated === 'function' && AuthService.isAuthenticated();
+  if (!isAuthenticated) return true;
+  const structure = Array.isArray(settings?.companyStructure) ? settings.companyStructure : [];
+  if (structure.length) return true;
+  return AppState.sharedAdminSettingsLoadedForSession === true;
+}
+
 function getBUList() {
   const settings = getAdminSettings();
   const companyStructure = Array.isArray(settings.companyStructure) ? settings.companyStructure : [];
@@ -4083,6 +4106,7 @@ function getBUList() {
   const overrides = getStoredBUOverrides();
 
   if (!companyEntities.length) {
+    if (!shouldUseBundledBusinessUnitFallback(settings)) return [];
     return overrides.length ? overrides : AppState.buList;
   }
 
@@ -10988,8 +11012,11 @@ function renderLogin() {
     const pw = document.getElementById('login-pass').value;
     const result = await AuthService.login(username, pw);
     if (result.success) {
-      await loadSharedUserState(result.user.username);
+      const hydration = await hydrateAuthenticatedWorkspaceContext(result.user.username);
       activateAuthenticatedState();
+      if (!hydration.adminSettingsLoaded) {
+        UI.toast('Shared organisation settings could not be loaded yet. Refresh before starting a new assessment if BU or function context looks wrong.', 'warning', 7000);
+      }
       await showPocUsageNotice();
       UI.toast(`Logged in as ${result.user.displayName}.`, 'success');
       if (userNeedsOrganisationSelection(AuthService.getCurrentUser())) {
@@ -13163,11 +13190,14 @@ function openDocEditor(doc) {
 async function init() {
   try {
     await AuthService.init();
-    await loadSharedAdminSettings();
     if (AuthService.getCurrentUser()?.username) {
-      await loadSharedUserState(AuthService.getCurrentUser().username);
+      await hydrateAuthenticatedWorkspaceContext(AuthService.getCurrentUser().username);
+    } else {
+      await loadSharedAdminSettings();
     }
-    _lastServerContextRefreshAt = Date.now();
+    _lastServerContextRefreshAt = AuthService.getCurrentUser()?.username && !AppState.sharedAdminSettingsLoadedForSession
+      ? 0
+      : Date.now();
     AppState.buList  = await loadJSON('./data/bu.json');
     AppState.docList = await loadJSON('./data/docs.json');
     AppState.benchmarkList = await loadJSON('./data/benchmarks.json');

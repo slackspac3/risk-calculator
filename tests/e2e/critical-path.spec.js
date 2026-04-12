@@ -1,4 +1,8 @@
 const { test, expect } = require('@playwright/test');
+const {
+  applyUserWorkspacePatch,
+  normaliseUserWorkspaceState
+} = require('../../assets/state/userWorkspacePersistence.js');
 
 /**
  * Integration test: wizard step 4 → simulation → results → export.
@@ -104,6 +108,13 @@ async function seedAndMock(page) {
     businessUnitEntityId: 'bu-cloud',
     departmentEntityId: ''
   };
+  let storedState = normaliseUserWorkspaceState({
+    userSettings: SEED_USER_SETTINGS,
+    assessments: [],
+    learningStore: { templates: {} },
+    draft: SEED_DRAFT,
+    _meta: { revision: 1, updatedAt: Date.now() }
+  });
 
   await page.addInitScript(({ session, userSettings, adminSettings }) => {
     sessionStorage.setItem('rq_auth_session', JSON.stringify(session));
@@ -124,35 +135,44 @@ async function seedAndMock(page) {
   });
 
   await page.route('**/api/user-state*', async route => {
-    if (route.request().method() === 'GET') {
+    const request = route.request();
+    if (request.method() === 'GET') {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({
-          state: {
-            userSettings: SEED_USER_SETTINGS,
-            assessments: [],
-            learningStore: { templates: {} },
-            draft: SEED_DRAFT,
-            _meta: { revision: 1, updatedAt: Date.now() }
-          }
-        })
+        body: JSON.stringify({ state: storedState })
       });
       return;
     }
-    // Accept all writes (PATCH/PUT)
+
+    let payload = {};
+    try {
+      payload = request.postDataJSON() || {};
+    } catch {}
+
+    if (request.method() === 'PATCH' && payload && typeof payload.patch === 'object') {
+      const patchedState = applyUserWorkspacePatch(storedState, payload.patch);
+      storedState = normaliseUserWorkspaceState({
+        ...patchedState,
+        _meta: {
+          revision: Number(storedState?._meta?.revision || 0) + 1,
+          updatedAt: Date.now()
+        }
+      });
+    } else if (request.method() === 'PUT' && payload && typeof payload.state === 'object') {
+      storedState = normaliseUserWorkspaceState({
+        ...payload.state,
+        _meta: {
+          revision: Number(storedState?._meta?.revision || 0) + 1,
+          updatedAt: Date.now()
+        }
+      });
+    }
+
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({
-        state: {
-          userSettings: SEED_USER_SETTINGS,
-          assessments: [],
-          learningStore: { templates: {} },
-          draft: null,
-          _meta: { revision: 2, updatedAt: Date.now() }
-        }
-      })
+      body: JSON.stringify({ state: storedState })
     });
   });
 
@@ -212,26 +232,28 @@ test('critical path: step 4 review → run simulation → results with all tabs'
   await page.waitForLoadState('networkidle');
 
   // Step 4 should render with the review surface
-  await expect(page.getByText(/Review & Run/i)).toBeVisible({ timeout: 10000 });
+  await expect(page.getByRole('heading', { name: /Review & Run Simulation/i })).toBeVisible({ timeout: 10000 });
   await expect(page.getByText(/Run Monte Carlo simulation/i)).toBeVisible();
 
   // Verify pre-run summary elements are present
-  await expect(page.getByText(/Review gate/i)).toBeVisible();
-  await expect(page.getByText(/Run trust summary/i)).toBeVisible();
-  await expect(page.getByText(/Run decision/i)).toBeVisible();
+  await expect(page.getByText('Review gate', { exact: true })).toBeVisible();
+  await expect(page.getByText('Run trust summary', { exact: true })).toBeVisible();
+  await expect(page.getByText('Run decision', { exact: true })).toBeVisible();
 
   // Click Run Simulation
   await page.click('#btn-run-sim');
 
   // Simulation progress should appear
   await expect(page.locator('#sim-progress')).not.toHaveClass(/hidden/, { timeout: 5000 });
-  await expect(page.getByText(/Running simulation|Computing|Finalising/i)).toBeVisible({ timeout: 5000 });
+  await expect(page.locator('.sim-progress-title')).toBeVisible({ timeout: 5000 });
+  await expect(page.locator('#sim-progress-text')).toBeVisible({ timeout: 5000 });
 
   // Wait for navigation to results (simulation is 1000 iterations with seed, should be fast)
   await page.waitForURL(/#\/results\//, { timeout: 15000 });
 
   // Results page should render
-  await expect(page.getByText(/executive|Executive/i).first()).toBeVisible({ timeout: 10000 });
+  await expect(page.getByRole('tab', { name: /Executive Summary/i })).toBeVisible({ timeout: 10000 });
+  await expect(page.getByRole('tab', { name: /Executive Summary/i })).toHaveAttribute('aria-selected', 'true');
 
   // Verify all three tabs exist
   const tabBar = page.locator('[role="tablist"], .results-tab-bar');
@@ -244,14 +266,16 @@ test('critical path: step 4 review → run simulation → results with all tabs'
   const techTab = page.getByRole('tab', { name: /technical/i }).or(page.locator('[data-tab="technical"]'));
   if (await techTab.count() > 0) {
     await techTab.first().click();
-    await expect(page.getByText(/challenge|review|assumption/i).first()).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('#results-tab-technical')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('#results-tab-technical').getByText('Technical review priorities', { exact: true })).toBeVisible({ timeout: 5000 });
   }
 
   // Verify appendix tab is clickable
   const appendixTab = page.getByRole('tab', { name: /appendix/i }).or(page.locator('[data-tab="appendix"]'));
   if (await appendixTab.count() > 0) {
     await appendixTab.first().click();
-    await expect(page.getByText(/methodology|evidence|audit/i).first()).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('#results-tab-appendix')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('#results-tab-appendix').getByText('Appendix and evidence', { exact: true })).toBeVisible({ timeout: 5000 });
   }
 
   // No page errors should have occurred

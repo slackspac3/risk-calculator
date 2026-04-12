@@ -67,3 +67,45 @@ test('reconcileUserProfileToManagedScope replaces stale standard-user department
   assert.equal(profile.departmentEntityId, 'group-technology-risk');
   assert.equal(profile.department, 'Group Technology Risk');
 });
+
+test('getNonAdminCapabilityState preserves BU admin role when structure is temporarily unavailable', () => {
+  const currentUser = {
+    username: 'jamie.clarke',
+    displayName: 'Jamie Clarke',
+    role: 'bu_admin',
+    businessUnitEntityId: 'g42',
+    departmentEntityId: ''
+  };
+  const settings = {
+    companyStructure: []
+  };
+  const { getNonAdminCapabilityState } = loadOrgCapabilityInternals({ currentUser, settings });
+
+  const capability = getNonAdminCapabilityState(currentUser, { userProfile: {} }, settings);
+
+  assert.equal(capability.canManageBusinessUnit, true);
+  assert.equal(capability.canManageDepartment, false);
+  assert.equal(capability.managedBusinessId, 'g42');
+  assert.ok(capability.roleLabels.includes('Business unit admin'));
+});
+
+test('getNonAdminCapabilityState preserves function admin role when structure is temporarily unavailable', () => {
+  const currentUser = {
+    username: 'tarun.gupta',
+    displayName: 'Tarun Gupta',
+    role: 'function_admin',
+    businessUnitEntityId: 'g42',
+    departmentEntityId: 'group-technology-risk'
+  };
+  const settings = {
+    companyStructure: []
+  };
+  const { getNonAdminCapabilityState } = loadOrgCapabilityInternals({ currentUser, settings });
+
+  const capability = getNonAdminCapabilityState(currentUser, { userProfile: {} }, settings);
+
+  assert.equal(capability.canManageBusinessUnit, false);
+  assert.equal(capability.canManageDepartment, true);
+  assert.equal(capability.managedDepartmentId, 'group-technology-risk');
+  assert.ok(capability.roleLabels.includes('Function admin'));
+});

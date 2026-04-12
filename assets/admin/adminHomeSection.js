@@ -69,6 +69,19 @@
     </div>`;
   }
 
+  function resolveAdminHomeReviewQueueApiUrl(query = '') {
+    const resolver = (typeof window !== 'undefined' && window?.ApiOriginResolver)
+      || globalThis?.ApiOriginResolver
+      || null;
+    const safeQuery = String(query || '').trim();
+    const path = safeQuery
+      ? `/api/review-queue${safeQuery.startsWith('?') ? safeQuery : `?${safeQuery}`}`
+      : '/api/review-queue';
+    return resolver && typeof resolver.resolveApiUrl === 'function'
+      ? resolver.resolveApiUrl(path)
+      : path;
+  }
+
   const AdminHomeSection = {
     render({
       settings,
@@ -311,7 +324,7 @@
             ? AuthService.getApiSessionToken()
             : '';
           const currentUsername = AuthService.getCurrentUser()?.username || '';
-          const res = await fetch('/api/review-queue', {
+          const res = await fetch(resolveAdminHomeReviewQueueApiUrl(), {
             headers: { 'x-session-token': sessionToken }
           });
           if (!res.ok) throw new Error('Failed to load queue');
@@ -450,7 +463,7 @@
             const nextSessionToken = typeof AuthService !== 'undefined' && typeof AuthService.getApiSessionToken === 'function'
               ? AuthService.getApiSessionToken()
               : '';
-            const response = await fetch('/api/review-queue', {
+            const response = await fetch(resolveAdminHomeReviewQueueApiUrl(), {
               method: 'PATCH',
               headers: {
                 'Content-Type': 'application/json',
@@ -487,7 +500,7 @@
             const nextSessionToken = typeof AuthService !== 'undefined' && typeof AuthService.getApiSessionToken === 'function'
               ? AuthService.getApiSessionToken()
               : '';
-            const response = await fetch(`/api/review-queue?view=targets&action=${encodeURIComponent(safeAction)}`, {
+            const response = await fetch(resolveAdminHomeReviewQueueApiUrl(`view=targets&action=${encodeURIComponent(safeAction)}`), {
               headers: {
                 'x-session-token': nextSessionToken
               }

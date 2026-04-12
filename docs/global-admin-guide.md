@@ -165,19 +165,21 @@ Practical rule:
 Run:
 
 ```bash
-npm run check:syntax
-npm run test:unit
-npm run check:smoke
-npm run test:e2e:smoke
-npm run test:eval:fixture
-node scripts/readme-scan.js
+npm run qa:release
 ```
 
+Do not swap that for raw `npx playwright test`.
+For this static SPA, the package browser scripts provision a clean local static origin on purpose so cold-login, review-queue, and hosted-API-origin defects are not masked by whatever is already running on localhost.
+Also note that `qa:release` now fails on explicit eval thresholds. If the deterministic or live eval is materially weak, that is treated as a release-quality issue, not only an analytics report.
+
 If the change affects help, admin settings, or routes, verify:
+- a cold login still hydrates shared org structure before the first authenticated workspace render
 - the correct admin section opens on refresh
 - the help page reflects the current logged-in role
 - pilot AI readiness state still renders cleanly
 - the AI Feedback & Tuning screen loads without client errors
+- empty review surfaces show “no items” rather than a generic load error
+- browser-side calls to shared APIs are still using the hosted API origin
 
 If the change affects taxonomy, retrieval, or domain grounding, also verify:
 - the affected eval slice still classifies the right primary lens

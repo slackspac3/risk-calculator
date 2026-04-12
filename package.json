@@ -10,14 +10,15 @@
     "check:smoke": "node scripts/smoke-check.js",
     "check:taxonomy-projection": "node scripts/sync-scenario-taxonomy-projection.js --check",
     "sync:taxonomy-projection": "node scripts/sync-scenario-taxonomy-projection.js --write",
-    "test:e2e": "playwright test",
-    "test:e2e:smoke": "playwright test tests/e2e/smoke.spec.js",
+    "qa:release": "node scripts/qa-release.js",
+    "test:e2e": "node scripts/run-playwright-static.js",
+    "test:e2e:smoke": "node scripts/run-playwright-static.js tests/e2e/smoke.spec.js",
     "test:unit": "node --test tests/unit/**/*.test.js",
     "test:eval:fixture": "node --test tests/unit/scenarioEvalHarness.test.js",
     "eval:local": "node scripts/run-eval-local.js",
     "eval:ai": "node scripts/run-eval-ai.js",
     "eval:harvest": "node scripts/harvest-eval-growth-candidates.js",
-    "release:pilot": "npm run check:syntax && npm run test:unit && npm run check:smoke && npm run test:e2e:smoke"
+    "release:pilot": "npm run qa:release"
   },
   "devDependencies": {
     "@playwright/test": "^1.54.2"

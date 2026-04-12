@@ -447,6 +447,9 @@ Do not reinvent these. They already exist.
 - Run `npm run check:smoke` for workflow-affecting UI/state changes.
 - Run `npm run test:unit` when touching shared logic, evaluation scripts, or normalization/model helpers.
 - Run `npm run test:e2e:smoke` for route/auth/discoverability-sensitive changes.
+- Run `npm run qa:release` before pushing release-affecting changes or anything that touches auth, shared settings hydration, review workflow, or browser/API integration seams.
+- Use the package-managed Playwright scripts rather than raw `npx playwright test` for release work, because the repo now treats a clean managed static SPA origin as part of the browser verification contract.
+- Treat eval-threshold failures inside `qa:release` as hard blockers; for this product, weak taxonomy/grounding metrics are release failures, not advisory warnings.
 - Use:
   - `npm run test:eval:fixture`
   - `npm run eval:local`

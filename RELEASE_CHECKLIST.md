@@ -5,9 +5,9 @@ Use this checklist before promoting a new pilot build to GitHub Pages or Vercel-
 ## Release Gate
 
 - Confirm the target release stamp: version, channel, build, and asset version.
-- Run `npm run check:syntax`.
-- Run `npm run check:smoke`.
-- Run `npm run test:e2e:smoke`.
+- Run `npm run qa:release`.
+- Use the package-managed browser scripts, not raw `npx playwright test`, so the SPA is verified against a clean managed static origin.
+- If `qa:release` fails on eval thresholds, treat that as a release blocker rather than a reporting warning.
 - Confirm GitHub Actions `Pilot CI` is green on the release commit.
 - Confirm GitHub Pages deploy is waiting on the validation job and did not bypass it.
 
@@ -16,6 +16,10 @@ Use this checklist before promoting a new pilot build to GitHub Pages or Vercel-
 - Verify the footer or admin diagnostics page shows the expected release stamp.
 - Hard refresh the deployed Pages site and confirm the asset version changed.
 - Open `#/login`, `#/dashboard`, `#/settings`, `#/wizard/1`, and a known `#/results/:id` route.
+- Run one cold-session check from a cleared browser: `logged out boot -> login -> first authenticated render`.
+- Repeat that cold-session check for at least one oversight role and confirm the real company structure appears before any generic fallback.
+- Confirm review surfaces show a true empty state when clear and not a generic load failure.
+- Confirm browser API traffic for shared routes uses the hosted API origin rather than the page origin.
 - Confirm no major client-side console crashes appear in smoke coverage or manual spot checks.
 
 ## Backend

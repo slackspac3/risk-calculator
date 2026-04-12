@@ -6,6 +6,19 @@ const _resultsAiActionCooldowns = typeof AiWorkflowClient !== 'undefined' && AiW
   ? AiWorkflowClient.createActionCooldownStore({ cooldownMs: RESULTS_AI_ACTION_COOLDOWN_MS, maxEntries: 48 })
   : null;
 
+function resolveResultsReviewQueueApiUrl(query = '') {
+  const resolver = (typeof window !== 'undefined' && window?.ApiOriginResolver)
+    || globalThis?.ApiOriginResolver
+    || null;
+  const safeQuery = String(query || '').trim();
+  const path = safeQuery
+    ? `/api/review-queue${safeQuery.startsWith('?') ? safeQuery : `?${safeQuery}`}`
+    : '/api/review-queue';
+  return resolver && typeof resolver.resolveApiUrl === 'function'
+    ? resolver.resolveApiUrl(path)
+    : path;
+}
+
 function setResultsAiActionBusy(button, busyLabel) {
   if (!button) return () => {};
   const idleLabel = String(button.dataset.idleLabel || button.textContent || '').trim() || String(button.textContent || '').trim();
@@ -2917,7 +2930,7 @@ function buildLocalReviewSubmissionFromQueueItem(item = {}) {
 
 async function fetchReviewTargets(action = 'submit') {
   const safeAction = String(action || 'submit').trim().toLowerCase() === 'escalate' ? 'escalate' : 'submit';
-  const response = await fetch(`/api/review-queue?view=targets&action=${encodeURIComponent(safeAction)}`, {
+  const response = await fetch(resolveResultsReviewQueueApiUrl(`view=targets&action=${encodeURIComponent(safeAction)}`), {
     headers: {
       'x-session-token': getResultsSessionToken()
     }
@@ -2943,7 +2956,7 @@ async function buildResultsReviewQueueError(response, fallbackMessage) {
 }
 
 async function patchReviewQueueItem(reviewId, patch = {}, expectedReviewRevision = 1) {
-  const response = await fetch('/api/review-queue', {
+  const response = await fetch(resolveResultsReviewQueueApiUrl(), {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
@@ -3656,7 +3669,7 @@ function bindReviewBannerActions(assessment, { isShared = false } = {}) {
           confirmButton.textContent = 'Submitting…';
         }
         try {
-          const response = await fetch('/api/review-queue', {
+          const response = await fetch(resolveResultsReviewQueueApiUrl(), {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -3858,7 +3871,7 @@ function bindReviewBannerActions(assessment, { isShared = false } = {}) {
 async function refreshReviewStatus(assessment, r) {
   if (!assessment?.id || !assessment?.results) return;
   try {
-    const response = await fetch('/api/review-queue', {
+    const response = await fetch(resolveResultsReviewQueueApiUrl(), {
       headers: { 'x-session-token': getResultsSessionToken() }
     });
     if (!response.ok) return;

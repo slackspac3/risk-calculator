@@ -51,6 +51,32 @@ const releaseChecklist = read('RELEASE_CHECKLIST.md');
 const rollbackPlaybook = read('ROLLBACK_PLAYBOOK.md');
 const seededUsers = read('data/pilot-seed/bootstrap-accounts.sample.json');
 const seededAssessments = read('data/pilot-seed/demo-assessments.sample.json');
+const qaReleaseJs = read('scripts/qa-release.js');
+const playwrightRunnerJs = read('scripts/run-playwright-static.js');
+const evalThresholdsJs = read('scripts/check-eval-thresholds.js');
+
+function collectRelativeBrowserApiFetches(dir) {
+  const matches = [];
+  const visit = (currentDir) => {
+    for (const entry of fs.readdirSync(currentDir, { withFileTypes: true })) {
+      const absolutePath = path.join(currentDir, entry.name);
+      if (entry.isDirectory()) {
+        visit(absolutePath);
+        continue;
+      }
+      if (!entry.isFile() || !absolutePath.endsWith('.js')) continue;
+      const relativePath = path.relative(root, absolutePath);
+      const contents = fs.readFileSync(absolutePath, 'utf8');
+      contents.split('\n').forEach((line, index) => {
+        if (/fetch\(\s*(['"`])\/api\//.test(line)) {
+          matches.push(`${relativePath}:${index + 1}`);
+        }
+      });
+    }
+  };
+  visit(path.join(root, dir));
+  return matches;
+}
 
 const versions = extractAssetVersions(indexHtml);
 expect(versions.length === 1, `Expected one frontend asset version, found: ${versions.join(', ') || 'none'}`);
@@ -65,6 +91,10 @@ expect(appJs.includes('function getSessionLLMHealth()'), 'app.js is missing getS
 expect(appJs.includes('function maybeWarnPilotAiExpectation()'), 'app.js is missing maybeWarnPilotAiExpectation helper');
 expect(String(packageJson.version || '').trim().length > 0, 'package.json must include an application version');
 expect(String(packageJson.engines?.node || '').trim() === '>=24 <25', 'package.json engines.node must pin the supported Node major version.');
+expect(typeof packageJson.scripts?.['qa:release'] === 'string', 'package.json is missing qa:release');
+expect(String(packageJson.scripts?.['release:pilot'] || '').trim() === 'npm run qa:release', 'release:pilot must defer to qa:release so CI and humans use one release gate');
+expect(String(packageJson.scripts?.['test:e2e'] || '').trim().includes('run-playwright-static.js'), 'test:e2e must use the managed static-server Playwright runner');
+expect(String(packageJson.scripts?.['test:e2e:smoke'] || '').trim().includes('run-playwright-static.js'), 'test:e2e:smoke must use the managed static-server Playwright runner');
 expect(appJs.includes(`const APP_ASSET_VERSION = '${versions[0] || ''}'`), 'app.js asset version does not match index.html asset version');
 expect(indexHtml.includes('assets/services/reportPresentation.js'), 'index.html is missing reportPresentation.js');
 expect(indexHtml.includes('assets/services/benchmarkService.js'), 'index.html is missing benchmarkService.js');
@@ -149,9 +179,27 @@ expect(appJs.includes("route: typeof window !== 'undefined'"), 'runtime instrume
 expect(appJs.includes('sourceTypeLabel || ref.sourceType'), 'benchmark reference UI is missing source type labels');
 expect(appJs.includes('item.sourceTypeLabel'), 'input provenance UI is missing source type labels');
 expect(auditLogSectionJs.includes('<th>Route</th>'), 'audit log runtime health table is missing route column');
+expect(qaReleaseJs.includes('check:syntax'), 'qa-release script is missing syntax checks');
+expect(qaReleaseJs.includes('check:taxonomy-projection'), 'qa-release script is missing taxonomy projection checks');
+expect(qaReleaseJs.includes('check:smoke'), 'qa-release script is missing smoke checks');
+expect(qaReleaseJs.includes('test:unit'), 'qa-release script is missing unit tests');
+expect(qaReleaseJs.includes('test:eval:fixture'), 'qa-release script is missing eval fixture checks');
+expect(qaReleaseJs.includes('test:e2e'), 'qa-release script is missing full Playwright coverage');
+expect(qaReleaseJs.includes('eval:local'), 'qa-release script is missing deterministic local eval coverage');
+expect(qaReleaseJs.includes('readme-scan.js'), 'qa-release script is missing documentation consistency checks');
+expect(qaReleaseJs.includes('check-eval-thresholds.js'), 'qa-release script is missing the eval-threshold enforcement step');
+expect(playwrightRunnerJs.includes("Managed static server"), 'managed Playwright runner is missing the deterministic static-server bootstrap');
+expect(playwrightRunnerJs.includes('PLAYWRIGHT_BASE_URL'), 'managed Playwright runner is missing PLAYWRIGHT_BASE_URL wiring');
+expect(playwrightRunnerJs.includes("@playwright/test/cli"), 'managed Playwright runner is missing the Playwright CLI handoff');
+expect(playwrightRunnerJs.includes("127.0.0.1"), 'managed Playwright runner must bind a localhost-only static server');
+expect(evalThresholdsJs.includes('RELEASE_EVAL_THRESHOLD_PROFILES'), 'eval threshold checker is missing named release profiles');
+expect(evalThresholdsJs.includes('fallbackRateMax'), 'eval threshold checker is missing the live fallback-rate gate');
+expect(evalThresholdsJs.includes('retrievalCoverageMin'), 'eval threshold checker is missing retrieval coverage thresholds');
 expect(e2eSmokeSpecJs.includes('Unexpected page errors on'), 'Playwright smoke suite is not checking for client-side crashes');
 expect(e2eSmokeSpecJs.includes('/#/results/example-assessment'), 'Playwright smoke suite is missing results-route coverage');
 expect(e2eSmokeSpecJs.includes('pressing Enter signs in and opens the personal workspace'), 'Playwright smoke suite is missing Enter-to-login coverage');
+expect(e2eSmokeSpecJs.includes('cold login hydrates shared organisation context before the first authenticated workspace render'), 'Playwright smoke suite is missing cold-login workspace hydration coverage');
+expect(e2eSmokeSpecJs.includes('admin review queue uses the hosted API origin and shows the empty state instead of a load failure'), 'Playwright smoke suite is missing hosted-origin review-queue empty-state coverage');
 expect(e2eSmokeSpecJs.includes('business-unit oversight dashboard prioritises review and context actions'), 'Playwright smoke suite is missing BU oversight dashboard coverage');
 expect(e2eSmokeSpecJs.includes('authenticated admin shell renders without crashing'), 'Playwright smoke suite is missing authenticated admin coverage');
 expect(e2eSmokeSpecJs.includes('admin AI feedback and tuning dashboard renders the signal view and tuning controls'), 'Playwright smoke suite is missing admin feedback dashboard coverage');
@@ -161,9 +209,7 @@ expect(e2eSmokeSpecJs.includes('first-run onboarding can launch the sample asses
 expect(e2eSmokeSpecJs.includes('dashboard duplicate assessment creates a new editable draft'), 'Playwright smoke suite is missing dashboard duplicate-assessment coverage');
 expect(e2eSmokeSpecJs.includes('wizard step 1 clear all keeps manually added risks unselected after rerender'), 'Playwright smoke suite is missing wizard clear-all coverage');
 expect(e2eSmokeSpecJs.includes('admin can update user access and the request carries the expected role assignment'), 'Playwright smoke suite is missing admin role update coverage');
-expect(ciWorkflow.includes('npm run check:syntax'), 'Pilot CI workflow is missing syntax checks');
-expect(ciWorkflow.includes('npm run check:smoke'), 'Pilot CI workflow is missing smoke-check.js');
-expect(ciWorkflow.includes('npm run test:e2e:smoke'), 'Pilot CI workflow is missing Playwright smoke coverage');
+expect(ciWorkflow.includes('npm run qa:release'), 'Pilot CI workflow is missing the consolidated qa:release gate');
 expect(ciWorkflow.includes('node-version-file: .nvmrc'), 'Pilot CI workflow must use the repo Node pin.');
 expect(ciWorkflow.includes('actions/checkout@v6'), 'Pilot CI workflow must use actions/checkout@v6.');
 expect(ciWorkflow.includes('actions/setup-node@v6'), 'Pilot CI workflow must use actions/setup-node@v6.');
@@ -177,6 +223,9 @@ expect(rollbackPlaybook.includes('Backend Rollback: Vercel API'), 'Rollback play
 expect(seededUsers.includes('"role": "admin"'), 'Bootstrap seed users file is missing the admin sample account');
 expect(seededUsers.includes('"role": "user"'), 'Bootstrap seed users file is missing the standard-user sample account');
 expect(seededAssessments.includes('"runMetadata"'), 'Sample assessments file is missing persisted run metadata');
+
+const relativeBrowserApiFetches = collectRelativeBrowserApiFetches('assets');
+expect(relativeBrowserApiFetches.length === 0, `Browser assets must use hosted API URLs instead of relative /api fetches. Found: ${relativeBrowserApiFetches.join(', ')}`);
 
 if (!failures.length) {
   notes.push('Smoke check passed.');

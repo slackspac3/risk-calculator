@@ -144,16 +144,18 @@ function getRoleExperienceProfile({ canManageBusinessUnit, canManageDepartment, 
 
 function getNonAdminCapabilityState(user = AuthService.getCurrentUser(), userSettings = getUserSettings(), settings = getAdminSettings()) {
   const safeUsername = String(user?.username || '').trim().toLowerCase();
+  const declaredRole = String(user?.role || '').trim().toLowerCase();
   const structure = Array.isArray(settings.companyStructure) ? settings.companyStructure : [];
   const selection = resolveUserOrganisationSelection(user, userSettings, settings);
   const managedBusiness = structure.find(node => isCompanyEntityType(node.type) && String(node.ownerUsername || '').trim().toLowerCase() === safeUsername) || null;
   const managedDepartment = structure.find(node => isDepartmentEntityType(node.type) && String(node.ownerUsername || '').trim().toLowerCase() === safeUsername) || null;
   const selectedBusiness = getEntityById(structure, selection.businessUnitEntityId);
   const selectedDepartment = getEntityById(structure, selection.departmentEntityId);
-  const canManageBusinessUnit = !!managedBusiness;
-  const canManageDepartment = !!managedDepartment;
-  const managedBusinessId = managedBusiness?.id || '';
-  const managedDepartmentId = managedDepartment?.id || '';
+  const structureUnavailable = !structure.length;
+  const canManageBusinessUnit = !!managedBusiness || (structureUnavailable && declaredRole === 'bu_admin');
+  const canManageDepartment = !!managedDepartment || (structureUnavailable && declaredRole === 'function_admin');
+  const managedBusinessId = managedBusiness?.id || (canManageBusinessUnit ? String(selection.businessUnitEntityId || user?.businessUnitEntityId || '').trim() : '');
+  const managedDepartmentId = managedDepartment?.id || (canManageDepartment ? String(selection.departmentEntityId || user?.departmentEntityId || '').trim() : '');
   const roleKeys = [
     canManageBusinessUnit ? 'bu_admin' : null,
     canManageDepartment ? 'function_admin' : null,

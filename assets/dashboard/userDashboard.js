@@ -19,6 +19,19 @@ const AI_FLAGS_SESSION_ID_KEY = 'rip_flags_session_id';
 const BOARD_BRIEF_FEEDBACK_STORAGE_PREFIX = 'rip_board_brief_feedback';
 const BOARD_BRIEF_SECTION_SEQUENCE = ['headline', 'topRisks', 'portfolioHealth', 'decisionNeeded'];
 
+function resolveDashboardReviewQueueApiUrl(query = '') {
+  const resolver = (typeof window !== 'undefined' && window?.ApiOriginResolver)
+    || globalThis?.ApiOriginResolver
+    || null;
+  const safeQuery = String(query || '').trim();
+  const path = safeQuery
+    ? `/api/review-queue${safeQuery.startsWith('?') ? safeQuery : `?${safeQuery}`}`
+    : '/api/review-queue';
+  return resolver && typeof resolver.resolveApiUrl === 'function'
+    ? resolver.resolveApiUrl(path)
+    : path;
+}
+
 function isAdminWorkspacePreviewEnabled() {
   try {
     return sessionStorage.getItem(ADMIN_WORKSPACE_PREVIEW_SESSION_KEY) === '1';
@@ -2018,7 +2031,7 @@ function renderUserDashboard() {
       const sessionToken = typeof AuthService !== 'undefined' && typeof AuthService.getApiSessionToken === 'function'
         ? AuthService.getApiSessionToken()
         : '';
-      const response = await fetch('/api/review-queue', {
+      const response = await fetch(resolveDashboardReviewQueueApiUrl(), {
         headers: {
           'x-session-token': sessionToken
         }

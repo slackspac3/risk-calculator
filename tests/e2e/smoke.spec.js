@@ -1,5 +1,7 @@
 const { test, expect } = require('@playwright/test');
 
+const HOSTED_API_ORIGIN = 'https://risk-calculator-eight.vercel.app';
+
 function buildSession(user, apiSessionToken = 'test-session-token') {
   return {
     authenticated: true,
@@ -86,7 +88,11 @@ async function mockSharedApis(page, {
   managedAccounts = null,
   auditEntries = null,
   auditSummary = null,
-  onAuditRequest = null
+  onAuditRequest = null,
+  reviewQueueItems = null,
+  reviewQueueTargets = null,
+  reviewQueueRequests = null,
+  orgIntelligenceState = null
 } = {}) {
   if (!skipUsers) await page.route('**/api/users', async route => {
     const request = route.request();
@@ -173,6 +179,60 @@ async function mockSharedApis(page, {
         : { ok: true })
     });
   });
+
+  if (reviewQueueItems !== null || reviewQueueTargets !== null || Array.isArray(reviewQueueRequests)) {
+    await page.route('**/api/review-queue*', async route => {
+      const request = route.request();
+      if (Array.isArray(reviewQueueRequests)) {
+        reviewQueueRequests.push({
+          url: request.url(),
+          method: request.method()
+        });
+      }
+      const url = new URL(request.url());
+      if (request.method() === 'GET' && url.searchParams.get('view') === 'targets') {
+        const targets = Array.isArray(reviewQueueTargets) ? reviewQueueTargets : [];
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            action: String(url.searchParams.get('action') || 'submit').trim().toLowerCase() === 'escalate' ? 'escalate' : 'submit',
+            targets,
+            defaultTargetUsername: String(targets[0]?.username || '')
+          })
+        });
+        return;
+      }
+      if (request.method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            items: Array.isArray(reviewQueueItems) ? reviewQueueItems : []
+          })
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, item: null })
+      });
+    });
+  }
+
+  if (orgIntelligenceState !== null) {
+    await page.route('**/api/org-intelligence', async route => {
+      const request = route.request();
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(request.method() === 'GET'
+          ? orgIntelligenceState
+          : { ok: true, feedback: { updatedAt: Date.now(), events: [] } })
+      });
+    });
+  }
 }
 
 async function expectNoClientCrashOnRoute(page, route, assertion) {
@@ -181,6 +241,14 @@ async function expectNoClientCrashOnRoute(page, route, assertion) {
   await page.goto(route);
   await assertion();
   expect(pageErrors, `Unexpected page errors on ${route}: ${pageErrors.join(' | ')}`).toEqual([]);
+}
+
+function expectHostedApiOriginRequests(requests, label = 'API') {
+  expect(Array.isArray(requests), `${label} request capture must be an array`).toBeTruthy();
+  expect(requests.length, `${label} requests were not observed`).toBeGreaterThan(0);
+  requests.forEach((request) => {
+    expect(new URL(request.url).origin, `${label} request used the wrong origin: ${request.url}`).toBe(HOSTED_API_ORIGIN);
+  });
 }
 
 test('login screen renders', async ({ page }) => {
@@ -618,6 +686,69 @@ test('pressing Enter signs in and opens the personal workspace', async ({ page }
     await expect(
       page.getByText(/personal workspace/i).or(page.getByRole('heading', { name: /let the platform know who you are/i }))
     ).toBeVisible();
+  });
+});
+
+test('cold login hydrates shared organisation context before the first authenticated workspace render', async ({ page }) => {
+  const buAdminSettings = {
+    geography: 'United Arab Emirates',
+    applicableRegulations: ['UAE PDPL'],
+    entityContextLayers: [],
+    companyStructure: [
+      { id: 'holding-g42', name: 'G42 Holding', type: 'Holding company', ownerUsername: '' },
+      { id: 'bu-digital', name: 'Digital Services', type: 'business_unit', parentId: 'holding-g42', ownerUsername: 'taylor.bu' }
+    ],
+    aiInstructions: 'Use British English.',
+    benchmarkStrategy: 'Prefer GCC and UAE benchmark references.',
+    typicalDepartments: ['Security']
+  };
+  const buAdminUserSettings = buildSeededUserSettings({
+    userProfile: {
+      fullName: 'Taylor BU',
+      jobTitle: 'BU Risk Lead',
+      businessUnitEntityId: 'bu-digital',
+      businessUnit: 'Digital Services',
+      departmentEntityId: '',
+      department: '',
+      focusAreas: ['Operational resilience'],
+      workingContext: 'Oversee resilience posture across Digital Services.'
+    }
+  });
+
+  await mockSharedApis(page, {
+    loginUser: {
+      username: 'taylor.bu',
+      displayName: 'Taylor BU',
+      role: 'user',
+      businessUnitEntityId: 'bu-digital',
+      departmentEntityId: ''
+    },
+    userState: {
+      userSettings: buAdminUserSettings,
+      assessments: [],
+      learningStore: { templates: {} },
+      draft: null,
+      _meta: { revision: 1, updatedAt: Date.now() }
+    },
+    settings: buAdminSettings
+  });
+
+  await expectNoClientCrashOnRoute(page, '/#/login', async () => {
+    await page.getByLabel(/username/i).fill('taylor.bu');
+    await page.getByLabel(/password/i).fill('secret');
+    await page.getByLabel(/password/i).press('Enter');
+    await expect(page.getByRole('heading', { name: /PoC data warning/i })).toBeVisible();
+    await page.getByRole('button', { name: /I Understand/i }).click();
+    await expect(page).toHaveURL(/#\/dashboard$/);
+    await expect(page.getByRole('heading', { name: /let the platform know who you are/i })).toBeVisible();
+    await page.locator('#onboard-title').fill('BU Risk Lead');
+    await page.getByRole('button', { name: /^Continue$/ }).click();
+    await expect(page.locator('#onboard-bu')).toBeVisible();
+    await expect(page.locator('#onboard-bu')).toHaveValue('bu-digital');
+    const options = await page.locator('#onboard-bu option').allTextContents();
+    expect(options).toContain('Digital Services');
+    expect(options.some((label) => /technology/i.test(label))).toBeFalsy();
+    expect(options.some((label) => /operations/i.test(label))).toBeFalsy();
   });
 });
 
@@ -1136,6 +1267,48 @@ test('authenticated admin shell renders without crashing', async ({ page }) => {
     await expect(page.getByRole('link', { name: /platform home/i })).toBeVisible();
     await expect(page.locator('#btn-admin-logout')).toBeVisible();
   });
+});
+
+test('admin review queue uses the hosted API origin and shows the empty state instead of a load failure', async ({ page }) => {
+  const reviewQueueRequests = [];
+  const adminSettings = {
+    geography: 'United Arab Emirates',
+    companyStructure: [],
+    entityContextLayers: [],
+    applicableRegulations: ['UAE PDPL'],
+    aiInstructions: 'Use British English.',
+    benchmarkStrategy: 'Prefer GCC and UAE benchmark references.',
+    typicalDepartments: ['Security']
+  };
+
+  await seedAuthenticatedUser(page, {
+    username: 'admin',
+    displayName: 'Global Admin',
+    role: 'admin',
+    adminSettings,
+    preferredAdminSection: 'home'
+  });
+  await mockSharedApis(page, {
+    settings: adminSettings,
+    reviewQueueItems: [],
+    reviewQueueRequests,
+    orgIntelligenceState: {
+      patterns: [],
+      calibration: { updatedAt: 0, scenarioTypes: {} },
+      decisions: [],
+      coverageMap: { updatedAt: 0, scenarioTypes: {} },
+      feedback: { updatedAt: 0, events: [] },
+      updatedAt: 0
+    }
+  });
+
+  await expectNoClientCrashOnRoute(page, '/#/admin/home', async () => {
+    await expect(page.getByText(/review queue/i)).toBeVisible();
+    await expect(page.getByText(/no assessments are currently waiting for review/i)).toBeVisible();
+    await expect(page.getByText(/could not load the review queue right now/i)).toHaveCount(0);
+  });
+
+  expectHostedApiOriginRequests(reviewQueueRequests, 'Admin review queue');
 });
 
 test('admin settings load latest clears stale autosave callbacks instead of reopening the conflict modal', async ({ page }) => {

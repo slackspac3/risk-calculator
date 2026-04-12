@@ -610,9 +610,45 @@ Core checks:
 npm run check:syntax
 npm run test:unit
 npm run check:smoke
-npm run test:e2e:smoke
+npm run test:e2e
+npm run test:eval:fixture
+npm run eval:local
 node scripts/readme-scan.js
 ```
+
+Release-grade deterministic gate:
+
+```bash
+npm run qa:release
+```
+
+What `qa:release` covers for this application:
+- static syntax and smoke guardrails
+- taxonomy projection consistency
+- full unit coverage
+- deterministic eval-fixture and local stub eval coverage for AI/RAG drift
+- explicit AI/RAG release thresholds over the eval report rather than a report-only artifact
+- full Playwright coverage, not just the smoke subset
+- documentation and release-contract consistency
+- a managed ephemeral static SPA origin for browser verification, so the gate does not inherit whatever already happens to be running on localhost
+
+For this SPA plus hosted-API architecture, the browser release bar now also expects:
+- cold-session `/#/login -> sign in -> first authenticated render` coverage
+- role-capability checks that depend on hydrated shared org structure
+- empty-state verification for review surfaces so failures do not masquerade as “empty”
+- hosted API origin usage from browser modules instead of raw relative `/api/...` fetches
+
+Browser test best practice for this repository:
+- use `npm run test:e2e` or `npm run test:e2e:smoke`, not raw `npx playwright test`
+- the package scripts provision a clean localhost static server automatically unless `PLAYWRIGHT_BASE_URL` is already set
+- that matters here because warm or reused localhost origins can hide the exact cold-session hydration and wrong-origin browser/API issues this application is most exposed to
+
+Eval gate best practice for this repository:
+- do not treat `eval:local` as an informational report only; `qa:release` now fails when release thresholds are missed
+- the release checker is mode-aware:
+  - `stub` mode gates taxonomy, risk recall/leakage, anchor coverage, retrieval coverage, and retrieval F1
+  - `live` mode gates those same metrics and also limits fallback dependence
+- for this product, a green browser suite is not enough if the scenario eval still shows weak lane discipline, weak grounding, or excessive AI fallback
 
 Repository consistency scan:
 - `node scripts/readme-scan.js`
@@ -629,7 +665,7 @@ Targeted security coverage now also checks:
 Full pilot release gate:
 
 ```bash
-npm run release:pilot
+npm run qa:release
 ```
 
 Release checklist:

@@ -101,10 +101,12 @@ const sectionAPaths = [
   'RELEASE_CHECKLIST.md',
   'ROLLBACK_PLAYBOOK.md',
   'AGENTS.md',
+  'scripts/run-playwright-static.js',
   'tests/fixtures/eval/g42_eval_master_repaired.jsonl',
   'scripts/run-eval-local.js',
   'scripts/run-eval-ai.js',
   'scripts/harvest-eval-growth-candidates.js',
+  'scripts/check-eval-thresholds.js',
   '.github/workflows/ci.yml',
   '.github/workflows/pages.yml'
 ];
@@ -136,8 +138,10 @@ if (!sectionAHasMissing) {
   [
     'check:syntax',
     'check:smoke',
+    'qa:release',
     'test:unit',
     'test:e2e:smoke',
+    'test:e2e',
     'test:eval:fixture',
     'eval:local',
     'eval:ai',
@@ -146,6 +150,8 @@ if (!sectionAHasMissing) {
   ].forEach((key) => {
     expect(key in scripts, `[C] package.json missing script: ${key}`);
   });
+  expect(String(scripts['test:e2e'] || '').includes('run-playwright-static.js'), '[C] test:e2e must use the managed static-server Playwright runner');
+  expect(String(scripts['test:e2e:smoke'] || '').includes('run-playwright-static.js'), '[C] test:e2e:smoke must use the managed static-server Playwright runner');
 }
 
 const engineJs = exists('assets/engine/riskEngine.js') ? read('assets/engine/riskEngine.js') : '';
