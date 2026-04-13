@@ -286,6 +286,20 @@ test('resetDraft flags a fresh wizard render to reapply disclosure defaults', ()
   assert.equal(appState.forceWizardDisclosureDefaults, true);
 });
 
+test('resetDraft seeds fresh step-scoped AI context fields', () => {
+  const { api, appState } = loadAssessmentStateRuntime();
+
+  api.resetDraft();
+
+  assert.deepEqual(Array.from(appState.draft.llmContext || []), []);
+  assert.deepEqual(Array.from(appState.draft.step1LlmContext || []), []);
+  assert.deepEqual(Array.from(appState.draft.step2LlmContext || []), []);
+  assert.deepEqual(Array.from(appState.draft.step3LlmContext || []), []);
+  assert.equal(appState.draft.step1ConversationFingerprint, '');
+  assert.equal(appState.draft.step2ConversationFingerprint, '');
+  assert.equal(appState.draft.step3ConversationFingerprint, '');
+});
+
 test('loadDraft prefers shared workspace draft over recovery and session state', () => {
   const { api, cache, appState, localStorage, sessionStorage, toasts } = loadAssessmentStateRuntime();
   cache.draftWorkspace = {

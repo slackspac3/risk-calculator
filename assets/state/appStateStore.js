@@ -138,11 +138,32 @@
       .slice(-20);
   }
 
+  const DRAFT_LLM_CONTEXT_KEYS = new Set([
+    'llmContext',
+    'step1LlmContext',
+    'step2LlmContext',
+    'step3LlmContext'
+  ]);
+
+  function getDraftLlmContextKey(value = 'llmContext') {
+    const key = String(value || '').trim();
+    return DRAFT_LLM_CONTEXT_KEYS.has(key) ? key : 'llmContext';
+  }
+
   function normaliseDraftState(draft) {
     const source = draft && typeof draft === 'object' ? draft : {};
+    const legacyContext = normaliseLlmContext(source.llmContext);
     return {
       ...source,
-      llmContext: normaliseLlmContext(source.llmContext)
+      llmContext: legacyContext,
+      step1LlmContext: normaliseLlmContext(
+        Array.isArray(source.step1LlmContext) ? source.step1LlmContext : legacyContext
+      ),
+      step2LlmContext: normaliseLlmContext(source.step2LlmContext),
+      step3LlmContext: normaliseLlmContext(source.step3LlmContext),
+      step1ConversationFingerprint: String(source.step1ConversationFingerprint || '').trim(),
+      step2ConversationFingerprint: String(source.step2ConversationFingerprint || '').trim(),
+      step3ConversationFingerprint: String(source.step3ConversationFingerprint || '').trim()
     };
   }
 
@@ -204,7 +225,13 @@
       return appendStateTransitionLog(applyDraftAssessmentState(state, {
         draft: {
           ...(safePayload.draft && typeof safePayload.draft === 'object' ? safePayload.draft : {}),
-          llmContext: []
+          llmContext: [],
+          step1LlmContext: [],
+          step2LlmContext: [],
+          step3LlmContext: [],
+          step1ConversationFingerprint: '',
+          step2ConversationFingerprint: '',
+          step3ConversationFingerprint: ''
         },
         draftDirty: false,
         draftLastSavedAt: 0,
@@ -214,27 +241,45 @@
       });
     }
     if (actionType === 'APPEND_LLM_CONTEXT') {
+      const contextKey = getDraftLlmContextKey(safePayload.contextKey);
       const nextContext = normaliseLlmContext([
-        ...(state?.draft?.llmContext || []),
+        ...(state?.draft?.[contextKey] || []),
         { role: 'user', content: String(safePayload.user || '').trim() },
         { role: 'assistant', content: String(safePayload.assistant || '').trim() }
       ]);
       return appendStateTransitionLog(applyDraftAssessmentState(state, {
         draft: {
           ...(state?.draft || {}),
-          llmContext: nextContext
+          [contextKey]: nextContext
         }
       }), 'draft', actionType, {
+        contextKey,
         messages: nextContext.length
       });
     }
     if (actionType === 'CLEAR_LLM_CONTEXT') {
+      if (safePayload.all === true) {
+        return appendStateTransitionLog(applyDraftAssessmentState(state, {
+          draft: {
+            ...(state?.draft || {}),
+            llmContext: [],
+            step1LlmContext: [],
+            step2LlmContext: [],
+            step3LlmContext: []
+          }
+        }), 'draft', actionType, {
+          contextKey: 'all'
+        });
+      }
+      const contextKey = getDraftLlmContextKey(safePayload.contextKey);
       return appendStateTransitionLog(applyDraftAssessmentState(state, {
         draft: {
           ...(state?.draft || {}),
-          llmContext: []
+          [contextKey]: []
         }
-      }), 'draft', actionType);
+      }), 'draft', actionType, {
+        contextKey
+      });
     }
     return state;
   }
@@ -354,7 +399,7 @@
   function dispatchDraftAction(type, payload = {}) {
     const actionType = String(type || '').trim().toUpperCase();
     const preparedState = actionType === 'RESET_DRAFT'
-      ? reduceDraftAction(AppState, 'CLEAR_LLM_CONTEXT', {})
+      ? reduceDraftAction(AppState, 'CLEAR_LLM_CONTEXT', { all: true })
       : AppState;
     return writeAppState(reduceDraftAction(preparedState, type, payload));
   }

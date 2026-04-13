@@ -58,16 +58,51 @@ function buildStep2NarrativeEditSummary(before, after) {
   return `Analyst materially rewrote the ${lensLabel} narrative after AI structure support.`;
 }
 
-function getStep2PriorMessages() {
-  return Array.isArray(AppState?.draft?.llmContext) ? AppState.draft.llmContext : [];
+function _normaliseStep2ConversationText(value = '') {
+  return String(value || '').replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
-function appendStep2LlmContext(userText, assistantText) {
+function buildStep2ConversationFingerprint({
+  narrative = '',
+  draft = AppState?.draft || {}
+} = {}) {
+  return [
+    String(draft?.id || '').trim(),
+    _normaliseStep2ConversationText(narrative || draft?.enhancedNarrative || draft?.narrative || ''),
+    String(draft?.scenarioLens?.key || '').trim().toLowerCase(),
+    String(getStructuredScenarioField(draft?.structuredScenario, 'eventPath') || '').trim().toLowerCase(),
+    ...(Array.isArray(typeof getSelectedRisks === 'function' ? getSelectedRisks() : draft?.selectedRisks)
+      ? (typeof getSelectedRisks === 'function' ? getSelectedRisks() : draft?.selectedRisks).map((risk) => String(risk?.title || '').trim().toLowerCase())
+      : [])
+  ].filter(Boolean).join(' | ').slice(0, 320);
+}
+
+function getStep2PriorMessages({ conversationFingerprint = '' } = {}) {
+  const priorMessages = Array.isArray(AppState?.draft?.step2LlmContext)
+    ? AppState.draft.step2LlmContext
+    : [];
+  const currentFingerprint = String(conversationFingerprint || '').trim();
+  const storedFingerprint = String(AppState?.draft?.step2ConversationFingerprint || '').trim();
+  if (!currentFingerprint || !storedFingerprint || currentFingerprint !== storedFingerprint) return [];
+  return priorMessages;
+}
+
+function appendStep2LlmContext(userText, assistantText, { conversationFingerprint = '' } = {}) {
   if (typeof dispatchDraftAction !== 'function') return;
   const user = String(userText || '').trim();
   const assistant = String(assistantText || '').trim();
   if (!user || !assistant) return;
-  dispatchDraftAction('APPEND_LLM_CONTEXT', { user, assistant });
+  AppState.draft.step2ConversationFingerprint = String(conversationFingerprint || '').trim();
+  dispatchDraftAction('APPEND_LLM_CONTEXT', { contextKey: 'step2LlmContext', user, assistant });
+}
+
+function clearStep2ConversationContext() {
+  AppState.draft.step2ConversationFingerprint = '';
+  if (typeof dispatchDraftAction === 'function') {
+    dispatchDraftAction('CLEAR_LLM_CONTEXT', { contextKey: 'step2LlmContext' });
+  } else if (Array.isArray(AppState.draft?.step2LlmContext)) {
+    AppState.draft.step2LlmContext = [];
+  }
 }
 
 function buildWordDiff(before, after) {
@@ -209,6 +244,7 @@ function invalidateStep2AiAnalysisIfNeeded(nextNarrative) {
     || AppState.draft.narrative
     || '';
   if (!isMeaningfulStep2NarrativeChange(baseline, nextNarrative)) return;
+  clearStep2ConversationContext();
   const nextStructuredScenario = {
     ...(AppState.draft.structuredScenario && typeof AppState.draft.structuredScenario === 'object'
       ? AppState.draft.structuredScenario
@@ -821,6 +857,16 @@ function getWizard2AiUnavailableMessage() {
     : 'AI assistance is temporarily unavailable.';
 }
 
+function getWizard2AiFailureMessage(error = null) {
+  const message = String(error?.message || '').replace(/\s+/g, ' ').trim();
+  if (!message) return 'AI analysis failed before completion.';
+  if (/temporarily unavailable/i.test(message)) return getWizard2AiUnavailableMessage();
+  if (/Sign in again|session is no longer valid/i.test(message)) {
+    return 'Your session is no longer valid for AI requests. Sign in again, then retry.';
+  }
+  return message;
+}
+
 function renderWizard2AiUnavailableBanner(retryHandler) {
   clearWizard2AiUnavailableBanner();
   const output = document.getElementById('llm-output-area');
@@ -850,6 +896,7 @@ async function runLLMAssist() {
     const bu = getBUList().find(b => b.id === AppState.draft.buId);
     const aiContext = buildCurrentAIAssistContext({ buId: AppState.draft.buId });
     const scenarioText = buildScenarioNarrative(assistSeed);
+    const conversationFingerprint = buildStep2ConversationFingerprint({ narrative: scenarioText, draft: AppState.draft });
     const citations = await RAGService.retrieveRelevantDocs(AppState.draft.buId, buildAssessmentRetrievalQuery({
       narrative: scenarioText,
       guidedInput: AppState.draft.guidedInput,
@@ -892,7 +939,7 @@ async function runLLMAssist() {
         el.value = (el.value || '') + text;
       }
     }, {
-      priorMessages: getStep2PriorMessages(),
+      priorMessages: getStep2PriorMessages({ conversationFingerprint }),
       traceLabel: 'Step 2 narrative refinement',
       traceResultLabel: 'Step 2 scenario analysis'
     });
@@ -922,7 +969,11 @@ async function runLLMAssist() {
     AppState.draft.inputRationale = result.inputRationale || AppState.draft.inputRationale;
     AppState.draft.benchmarkReferences = Array.isArray(result.benchmarkReferences) ? result.benchmarkReferences : (AppState.draft.benchmarkReferences || []);
     AppState.draft.inputProvenance = Array.isArray(result.inputProvenance) ? result.inputProvenance : (AppState.draft.inputProvenance || []);
-    appendStep2LlmContext(scenarioText, result.draftNarrative || result.enhancedStatement || narrative);
+    appendStep2LlmContext(
+      scenarioText,
+      result.draftNarrative || result.enhancedStatement || narrative,
+      { conversationFingerprint }
+    );
     const s = result.suggestedInputs;
     if (s) {
       const aiPayload = _buildAiFairInputPayload(result, benchmarkCandidates, AppState.draft.citations);
@@ -960,8 +1011,9 @@ async function runLLMAssist() {
       if (status) status.textContent = `${getWizard2AiUnavailableMessage()} You can continue manually with your own wording.`;
       renderWizard2AiUnavailableBanner(runLLMAssist);
     } else {
-      if (status) status.textContent = 'AI is unavailable right now. You can continue manually with your own wording.';
-      output.innerHTML = `<div class="banner banner--danger mt-4"><span class="banner-icon">⚠</span><span class="banner-text">LLM Assist is unavailable right now.</span></div><div class="flex items-center gap-3 mt-4" style="flex-wrap:wrap"><button class="btn btn--secondary" id="btn-wizard2-ai-retry" type="button">Try again</button><button class="btn btn--ghost" id="btn-wizard2-continue-manual" type="button">Continue without AI</button></div>`;
+      const failureMessage = getWizard2AiFailureMessage(e);
+      if (status) status.textContent = `${failureMessage} You can continue manually with your own wording.`;
+      output.innerHTML = `<div class="banner banner--danger mt-4"><span class="banner-icon">⚠</span><span class="banner-text">${escapeHtml(failureMessage)}</span></div><div class="flex items-center gap-3 mt-4" style="flex-wrap:wrap"><button class="btn btn--secondary" id="btn-wizard2-ai-retry" type="button">Try again</button><button class="btn btn--ghost" id="btn-wizard2-continue-manual" type="button">Continue without AI</button></div>`;
       document.getElementById('btn-wizard2-ai-retry')?.addEventListener('click', runLLMAssist);
       document.getElementById('btn-wizard2-continue-manual')?.addEventListener('click', () => document.getElementById('btn-next-2')?.click());
     }

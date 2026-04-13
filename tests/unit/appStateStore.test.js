@@ -149,6 +149,41 @@ test('reduceDraftAction applies named draft lifecycle transitions and records th
   assert.equal(saved.stateTransitionLog[0].action, 'MARK_DRAFT_SAVED');
 });
 
+test('reduceDraftAction keeps step-scoped AI conversation contexts separate', () => {
+  const base = {
+    draft: {
+      id: 'a1',
+      llmContext: [{ role: 'user', content: 'legacy step' }],
+      step1LlmContext: [{ role: 'assistant', content: 'step 1 reply' }],
+      step2LlmContext: [{ role: 'user', content: 'step 2 prompt' }],
+      step3LlmContext: [{ role: 'user', content: 'step 3 prompt' }]
+    },
+    draftDirty: false,
+    draftLastSavedAt: 0,
+    draftSaveTimer: null,
+    stateTransitionLog: []
+  };
+
+  const appended = reduceDraftAction(base, 'APPEND_LLM_CONTEXT', {
+    contextKey: 'step2LlmContext',
+    user: 'Refine the scenario narrative.',
+    assistant: 'Here is the refined scenario narrative.'
+  });
+
+  assert.equal(appended.draft.step2LlmContext.length, 3);
+  assert.deepEqual(appended.draft.step1LlmContext, base.draft.step1LlmContext);
+  assert.deepEqual(appended.draft.step3LlmContext, base.draft.step3LlmContext);
+  assert.deepEqual(appended.draft.llmContext, base.draft.llmContext);
+
+  const cleared = reduceDraftAction(appended, 'CLEAR_LLM_CONTEXT', {
+    contextKey: 'step2LlmContext'
+  });
+
+  assert.deepEqual(cleared.draft.step2LlmContext, []);
+  assert.deepEqual(cleared.draft.step1LlmContext, base.draft.step1LlmContext);
+  assert.deepEqual(cleared.draft.step3LlmContext, base.draft.step3LlmContext);
+});
+
 test('reduceSimulationAction applies named simulation lifecycle transitions and records them', () => {
   const base = {
     simulation: createSimulationState(),

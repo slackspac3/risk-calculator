@@ -65,7 +65,8 @@ function loadStep1Internals(overrides = {}) {
     resetStep1RegulationSelectionState: () => {},
     dispatchDraftAction(actionType) {
       if (actionType === 'CLEAR_LLM_CONTEXT') {
-        context.AppState.draft.llmContext = [];
+        const contextKey = arguments[1]?.contextKey || 'llmContext';
+        context.AppState.draft[contextKey] = [];
       }
     },
     normaliseAssessmentTokens: (text = '') => String(text || '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean),
@@ -876,7 +877,7 @@ test('manual scenario rewrite clears stale step 1 llm context', () => {
   internals.appState.draft.sourceNarrative = 'A payment-control failure creates direct monetary loss.';
   internals.appState.draft.narrative = 'A payment-control failure creates direct monetary loss.';
   internals.appState.draft.enhancedNarrative = 'A payment-control failure creates direct monetary loss.';
-  internals.appState.draft.llmContext = [
+  internals.appState.draft.step1LlmContext = [
     { role: 'user', content: 'Refine this financial draft.' },
     { role: 'assistant', content: 'Here is the refined payment-control scenario.' }
   ];
@@ -885,7 +886,7 @@ test('manual scenario rewrite clears stale step 1 llm context', () => {
     'Azure global admin credentials discovered on the dark web are used to access the tenant and modify critical configurations.'
   );
 
-  assert.deepEqual(Array.from(internals.appState.draft.llmContext || []), []);
+  assert.deepEqual(Array.from(internals.appState.draft.step1LlmContext || []), []);
 });
 
 test('resetStep1LiveAssistState clears cached live Step 1 prompt ideas for a new assessment', () => {

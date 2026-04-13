@@ -4154,7 +4154,9 @@ function getStep1NarrativeContinuityScore(left = '', right = '') {
 function clearStep1ConversationContext() {
   AppState.draft.step1ConversationFingerprint = '';
   if (typeof dispatchDraftAction === 'function') {
-    dispatchDraftAction('CLEAR_LLM_CONTEXT', {});
+    dispatchDraftAction('CLEAR_LLM_CONTEXT', { contextKey: 'step1LlmContext' });
+  } else if (Array.isArray(AppState.draft?.step1LlmContext)) {
+    AppState.draft.step1LlmContext = [];
   } else if (Array.isArray(AppState.draft?.llmContext)) {
     AppState.draft.llmContext = [];
   }

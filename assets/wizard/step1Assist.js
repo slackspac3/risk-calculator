@@ -125,7 +125,9 @@
   }
 
   function _getStep1PriorMessages({ scenarioFingerprint = '' } = {}) {
-    const priorMessages = Array.isArray(AppState?.draft?.llmContext) ? AppState.draft.llmContext : [];
+    const priorMessages = Array.isArray(AppState?.draft?.step1LlmContext)
+      ? AppState.draft.step1LlmContext
+      : (Array.isArray(AppState?.draft?.llmContext) ? AppState.draft.llmContext : []);
     const currentFingerprint = String(scenarioFingerprint || '').trim();
     const storedFingerprint = String(AppState?.draft?.step1ConversationFingerprint || '').trim();
     if (!currentFingerprint || !storedFingerprint || currentFingerprint !== storedFingerprint) return [];
@@ -138,7 +140,7 @@
     const assistant = String(assistantText || '').trim();
     if (!user || !assistant) return;
     AppState.draft.step1ConversationFingerprint = String(scenarioFingerprint || '').trim();
-    dispatchDraftAction('APPEND_LLM_CONTEXT', { user, assistant });
+    dispatchDraftAction('APPEND_LLM_CONTEXT', { contextKey: 'step1LlmContext', user, assistant });
   }
 
   function _normaliseRiskConfidence(value) {

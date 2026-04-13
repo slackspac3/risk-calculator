@@ -4000,6 +4000,10 @@ function activateAuthenticatedState() {
 function ensureDraftShape() {
   const draftStartedAt = Number(AppState.draft.startedAt || AppState.draft.createdAt || Date.now());
   const structuredScenario = normaliseStructuredScenario(AppState.draft.structuredScenario, { preserveUnknown: true });
+  const legacyLlmContext = Array.isArray(AppState.draft.llmContext) ? AppState.draft.llmContext : [];
+  const step1LlmContext = Array.isArray(AppState.draft.step1LlmContext) ? AppState.draft.step1LlmContext : legacyLlmContext;
+  const step2LlmContext = Array.isArray(AppState.draft.step2LlmContext) ? AppState.draft.step2LlmContext : [];
+  const step3LlmContext = Array.isArray(AppState.draft.step3LlmContext) ? AppState.draft.step3LlmContext : [];
   const obligationBasisSource = AppState.draft.obligationBasis && typeof AppState.draft.obligationBasis === 'object'
     ? AppState.draft.obligationBasis
     : (AppState.draft.resolvedObligationContext && typeof AppState.draft.resolvedObligationContext === 'object'
@@ -4022,6 +4026,13 @@ function ensureDraftShape() {
     scenarioTitle: AppState.draft.scenarioTitle || '',
     loadedDryRunId: AppState.draft.loadedDryRunId || '',
     llmAssisted: !!AppState.draft.llmAssisted,
+    llmContext: legacyLlmContext,
+    step1LlmContext,
+    step2LlmContext,
+    step3LlmContext,
+    step1ConversationFingerprint: String(AppState.draft.step1ConversationFingerprint || '').trim(),
+    step2ConversationFingerprint: String(AppState.draft.step2ConversationFingerprint || '').trim(),
+    step3ConversationFingerprint: String(AppState.draft.step3ConversationFingerprint || '').trim(),
     citations: Array.isArray(AppState.draft.citations) ? AppState.draft.citations : [],
     recommendations: Array.isArray(AppState.draft.recommendations) ? AppState.draft.recommendations : [],
     fairParams: AppState.draft.fairParams || {},

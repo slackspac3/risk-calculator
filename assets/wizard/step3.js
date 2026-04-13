@@ -3,8 +3,41 @@ function formatPlainCurrency(value, currency = 'USD') {
   return `${getCurrencyPrefix(currency)}${displayValue.toLocaleString(currency === 'AED' ? 'en-AE' : 'en-US')}`;
 }
 
-function getStep3PriorMessages() {
-  return Array.isArray(AppState?.draft?.llmContext) ? AppState.draft.llmContext : [];
+function _normaliseStep3ConversationText(value = '') {
+  return String(value || '').replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function buildStep3ConversationFingerprint({
+  draft = AppState?.draft || {},
+  baselineAssessment = null,
+  request = ''
+} = {}) {
+  return [
+    String(draft?.id || '').trim(),
+    String(baselineAssessment?.id || draft?.baselineAssessmentId || '').trim(),
+    _normaliseStep3ConversationText(draft?.scenarioTitle || draft?.enhancedNarrative || draft?.narrative || ''),
+    String(draft?.scenarioLens?.key || '').trim().toLowerCase(),
+    _normaliseStep3ConversationText(request || '')
+  ].filter(Boolean).join(' | ').slice(0, 320);
+}
+
+function getStep3PriorMessages({ conversationFingerprint = '' } = {}) {
+  const priorMessages = Array.isArray(AppState?.draft?.step3LlmContext)
+    ? AppState.draft.step3LlmContext
+    : [];
+  const currentFingerprint = String(conversationFingerprint || '').trim();
+  const storedFingerprint = String(AppState?.draft?.step3ConversationFingerprint || '').trim();
+  if (!currentFingerprint || !storedFingerprint || currentFingerprint !== storedFingerprint) return [];
+  return priorMessages;
+}
+
+function appendStep3LlmContext(userText, assistantText, { conversationFingerprint = '' } = {}) {
+  if (typeof dispatchDraftAction !== 'function') return;
+  const user = String(userText || '').trim();
+  const assistant = String(assistantText || '').trim();
+  if (!user || !assistant) return;
+  AppState.draft.step3ConversationFingerprint = String(conversationFingerprint || '').trim();
+  dispatchDraftAction('APPEND_LLM_CONTEXT', { contextKey: 'step3LlmContext', user, assistant });
 }
 
 const STEP3_AI_ACTION_COOLDOWN_MS = 4000;
@@ -1859,12 +1892,17 @@ function renderWizard3() {
     const btn = document.getElementById('btn-treatment-ai-assist');
     const aiContext = buildCurrentAIAssistContext({ buId: draft.buId });
     const buContext = aiContext.businessUnit || getBUList().find(b => b.id === draft.buId) || bu || null;
+    const conversationFingerprint = buildStep3ConversationFingerprint({
+      draft,
+      baselineAssessment,
+      request
+    });
     const requestPayload = {
       baselineAssessment,
       improvementRequest: request,
       businessUnit: buContext,
       adminSettings: aiContext.adminSettings,
-      priorMessages: getStep3PriorMessages()
+      priorMessages: getStep3PriorMessages({ conversationFingerprint })
     };
     const remainingCooldownMs = _step3AiActionCooldowns
       ? _step3AiActionCooldowns.getRemainingMs('/api/ai/treatment-suggestion', requestPayload, { scope: `step3-treatment::${String(draft.id || draft.baselineAssessmentId || baselineAssessment?.id || '').trim()}` })
@@ -1909,6 +1947,11 @@ function renderWizard3() {
       AppState.draft.missingInformation = Array.isArray(result.missingInformation) ? result.missingInformation : (AppState.draft.missingInformation || []);
       AppState.draft.citations = normaliseCitations(mergeCitationMetadata(result.citations || citations, citations));
       AppState.draft.learningNote = result.changesSummary || result.summary || '';
+      appendStep3LlmContext(
+        request,
+        result.changesSummary || result.summary || 'Treatment improvement draft updated.',
+        { conversationFingerprint }
+      );
       saveDraft();
       renderWizard3();
       UI.toast(
