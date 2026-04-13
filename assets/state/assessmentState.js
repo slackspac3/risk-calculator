@@ -547,11 +547,24 @@ function loadDraft() {
     }
   }
 }
+
+function clearDraftScopedWizardUiState(scopePrefix = '/wizard/1::') {
+  if (!AppState || !AppState.disclosureState || typeof AppState.disclosureState !== 'object') return;
+  const safePrefix = String(scopePrefix || '').trim().toLowerCase();
+  if (!safePrefix) return;
+  Object.keys(AppState.disclosureState).forEach(key => {
+    if (String(key || '').trim().toLowerCase().startsWith(safePrefix)) {
+      delete AppState.disclosureState[key];
+    }
+  });
+}
+
 function resetDraft() {
   const resetAt = Date.now();
   if (typeof window?.resetStep1LiveAssistState === 'function') {
     window.resetStep1LiveAssistState({ clearCaches: true });
   }
+  clearDraftScopedWizardUiState();
   dispatchDraftAction('RESET_DRAFT', {
     draft: {
     id: 'a_' + Date.now(),

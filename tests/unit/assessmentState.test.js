@@ -51,7 +51,10 @@ function loadAssessmentStateRuntime() {
     draft: null,
     _meta: { revision: 1, updatedAt: 1 }
   };
-  const appState = { draft: null };
+  const appState = {
+    draft: null,
+    disclosureState: {}
+  };
 
   const context = {
     console,
@@ -244,6 +247,19 @@ test('resetDraft clears Step 1 live assist state for fresh SPA assessments', () 
   api.resetDraft();
 
   assert.deepEqual(step1LiveAssistResets, [{ clearCaches: true }]);
+});
+
+test('resetDraft clears Step 1 disclosure state without touching other disclosure scopes', () => {
+  const { api, appState } = loadAssessmentStateRuntime();
+  appState.disclosureState['/wizard/1::add more context only if you need it'] = true;
+  appState.disclosureState['/wizard/1::review ai reasoning and context'] = true;
+  appState.disclosureState['/help::step 1 overview'] = true;
+
+  api.resetDraft();
+
+  assert.equal(appState.disclosureState['/wizard/1::add more context only if you need it'], undefined);
+  assert.equal(appState.disclosureState['/wizard/1::review ai reasoning and context'], undefined);
+  assert.equal(appState.disclosureState['/help::step 1 overview'], true);
 });
 
 test('loadDraft prefers shared workspace draft over recovery and session state', () => {
