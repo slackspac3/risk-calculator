@@ -549,6 +549,9 @@ function loadDraft() {
 }
 function resetDraft() {
   const resetAt = Date.now();
+  if (typeof window?.resetStep1LiveAssistState === 'function') {
+    window.resetStep1LiveAssistState({ clearCaches: true });
+  }
   dispatchDraftAction('RESET_DRAFT', {
     draft: {
     id: 'a_' + Date.now(),

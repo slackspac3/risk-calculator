@@ -1069,25 +1069,51 @@ const STEP1_LIVE_PROMPT_IDEA_CACHE_LIMIT = 24;
 const STEP1_LIVE_PREVIEW_DEBOUNCE_MS = 1100;
 const STEP1_LIVE_PREVIEW_MIN_TOKENS = 4;
 const STEP1_LIVE_PREVIEW_CACHE_LIMIT = 24;
+
+function createEmptyStep1LivePromptIdeaState() {
+  return {
+    signature: '',
+    suggestions: [],
+    loadingSignature: '',
+    source: ''
+  };
+}
+
+function createEmptyStep1LivePreviewState() {
+  return {
+    signature: '',
+    preview: '',
+    status: '',
+    source: '',
+    loadingSignature: ''
+  };
+}
+
 let _step1LivePromptIdeaDebounce = null;
 let _step1LivePromptIdeaRequestId = 0;
-let _step1LivePromptIdeaState = {
-  signature: '',
-  suggestions: [],
-  loadingSignature: '',
-  source: ''
-};
+let _step1LivePromptIdeaState = createEmptyStep1LivePromptIdeaState();
 const _step1LivePromptIdeaCache = new Map();
 let _step1LivePreviewDebounce = null;
 let _step1LivePreviewRequestId = 0;
-let _step1LivePreviewState = {
-  signature: '',
-  preview: '',
-  status: '',
-  source: '',
-  loadingSignature: ''
-};
+let _step1LivePreviewState = createEmptyStep1LivePreviewState();
 const _step1LivePreviewCache = new Map();
+
+function resetStep1LiveAssistState({ clearCaches = false } = {}) {
+  window.clearTimeout(_step1LivePreviewDebounce);
+  _step1LivePreviewDebounce = null;
+  _step1LivePreviewRequestId += 1;
+  _step1LivePreviewState = createEmptyStep1LivePreviewState();
+
+  window.clearTimeout(_step1LivePromptIdeaDebounce);
+  _step1LivePromptIdeaDebounce = null;
+  _step1LivePromptIdeaRequestId += 1;
+  _step1LivePromptIdeaState = createEmptyStep1LivePromptIdeaState();
+
+  if (clearCaches) {
+    _step1LivePreviewCache.clear();
+    _step1LivePromptIdeaCache.clear();
+  }
+}
 
 function normaliseStep1PromptIdeaSuggestions(suggestions = []) {
   const seen = new Set();
@@ -1406,6 +1432,11 @@ function scheduleStep1LivePromptIdeaRefresh({ immediate = false, force = false }
   _step1LivePromptIdeaDebounce = window.setTimeout(() => {
     refreshStep1LivePromptIdeaSuggestions({ force });
   }, STEP1_LIVE_PROMPT_IDEA_DEBOUNCE_MS);
+}
+
+function scheduleStep1GuidedLiveHelperRefresh({ immediate = false, force = false } = {}) {
+  scheduleStep1LivePromptIdeaRefresh({ immediate, force });
+  scheduleStep1LivePreviewRefresh({ immediate, force });
 }
 
 function getStep1AiTuningSettings() {
@@ -3871,18 +3902,7 @@ function clearStep1StaleAssistState(nextNarrative, {
   clearNarrative = false,
   forceClearConversation = false
 } = {}) {
-  window.clearTimeout(_step1LivePreviewDebounce);
-  _step1LivePreviewRequestId += 1;
-  _step1LivePreviewState = {
-    ..._step1LivePreviewState,
-    loadingSignature: ''
-  };
-  window.clearTimeout(_step1LivePromptIdeaDebounce);
-  _step1LivePromptIdeaRequestId += 1;
-  _step1LivePromptIdeaState = {
-    ..._step1LivePromptIdeaState,
-    loadingSignature: ''
-  };
+  resetStep1LiveAssistState();
   const nextSeed = normaliseScenarioSeedText(nextNarrative);
   const currentSeeds = [
     AppState.draft.sourceNarrative,
@@ -4225,6 +4245,7 @@ function bindStep1PrimaryInputs({ buList, wizardGeographyInput }) {
       AppState.draft.scenarioLens = getStep1PreferredScenarioLens(getEffectiveSettings(), AppState.draft, composed);
       if (hadGuidedAiDraft) AppState.draft.aiQualityState = 'analyst-reshaped';
       updateStep1GuidedPreview();
+      scheduleStep1GuidedLiveHelperRefresh();
       markDraftDirty();
       scheduleDraftAutosave();
     });
@@ -4239,6 +4260,7 @@ function bindStep1PrimaryInputs({ buList, wizardGeographyInput }) {
     AppState.draft.scenarioLens = getStep1PreferredScenarioLens(getEffectiveSettings(), AppState.draft, composed);
     if (hadGuidedAiDraft) AppState.draft.aiQualityState = 'analyst-reshaped';
     updateStep1GuidedPreview();
+    scheduleStep1GuidedLiveHelperRefresh();
     markDraftDirty();
     scheduleDraftAutosave();
   });
@@ -4336,6 +4358,7 @@ function bindStep1PromptIdeaChips(root = document, settings = getEffectiveSettin
       clearStep1StaleAssistState(composed);
       AppState.draft.scenarioLens = getStep1PreferredScenarioLens(settings, AppState.draft, composed);
       updateStep1GuidedPreview();
+      scheduleStep1GuidedLiveHelperRefresh({ immediate: true });
       markDraftDirty();
       scheduleDraftAutosave();
     });
@@ -4492,8 +4515,10 @@ function renderWizard1() {
   bindStep1AiFeedbackActions({ buList });
   bindStep1ScenarioCrossReferenceActions();
   bindStep1ScenarioMemoryActions();
-  // Keep background Step 1 rendering local; expensive AI assists should start from explicit user actions.
+  // Keep heavier Step 1 workbench assists local by default, but refresh the lightweight
+  // live prompt/preview helpers so a fresh assessment does not inherit generic SPA state.
   refreshStep1ScenarioCrossReferenceHost({ includeAi: false });
+  scheduleStep1GuidedLiveHelperRefresh({ immediate: true });
   window.Step1Assist?.mountAiTraceLinks?.();
   document.getElementById('btn-clear-ghost-draft')?.addEventListener('click', () => {
     clearGhostDraftSuggestion();
@@ -4515,6 +4540,7 @@ function renderWizard1() {
 }
 
 window.scheduleStep1ScenarioCrossReferenceRefresh = scheduleStep1ScenarioCrossReferenceRefresh;
+window.resetStep1LiveAssistState = resetStep1LiveAssistState;
 
 function normaliseAssessmentTokens(text) {
   return Array.from(new Set(

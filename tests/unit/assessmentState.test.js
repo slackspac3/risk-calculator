@@ -30,6 +30,7 @@ function loadAssessmentStateRuntime() {
   const localStorage = createStorage();
   const sessionStorage = createStorage();
   const toasts = [];
+  const step1LiveAssistResets = [];
   const cache = {
     username: 'alex.trafton',
     assessments: [],
@@ -59,7 +60,11 @@ function loadAssessmentStateRuntime() {
     Math,
     setTimeout,
     clearTimeout,
-    window: {},
+    window: {
+      resetStep1LiveAssistState(options = {}) {
+        step1LiveAssistResets.push({ ...options });
+      }
+    },
     localStorage,
     sessionStorage,
     AppState: appState,
@@ -187,7 +192,7 @@ function loadAssessmentStateRuntime() {
   vm.createContext(context);
   vm.runInContext(source, context, { filename: 'assessmentState.js' });
 
-  return { api: context.window, cache, appState, localStorage, sessionStorage, toasts };
+  return { api: context.window, cache, appState, localStorage, sessionStorage, toasts, step1LiveAssistResets };
 }
 
 test('archiveAssessment marks the saved assessment as archived', () => {
@@ -231,6 +236,14 @@ test('duplicateAssessmentToDraft creates a new draft copy with draft lifecycle s
   assert.equal(duplicated.lifecycleStatus, 'draft');
   assert.equal(duplicated.results, null);
   assert.equal(appState.draft.lifecycleStatus, 'draft');
+});
+
+test('resetDraft clears Step 1 live assist state for fresh SPA assessments', () => {
+  const { api, step1LiveAssistResets } = loadAssessmentStateRuntime();
+
+  api.resetDraft();
+
+  assert.deepEqual(step1LiveAssistResets, [{ clearCaches: true }]);
 });
 
 test('loadDraft prefers shared workspace draft over recovery and session state', () => {

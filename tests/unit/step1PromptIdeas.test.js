@@ -95,11 +95,15 @@ function loadStep1Internals() {
     shouldUseStep1LivePreview: context.shouldUseStep1LivePreview,
     shouldUseStep1LivePromptIdeas: context.shouldUseStep1LivePromptIdeas,
     getStep1GuidedPreviewSignature: context.getStep1GuidedPreviewSignature,
+    getStep1GuidedPromptIdeaSignature: context.getStep1GuidedPromptIdeaSignature,
     rememberStep1LivePreview: context.rememberStep1LivePreview,
     getStep1DisplayedGuidedPreviewModel: context.getStep1DisplayedGuidedPreviewModel,
+    rememberStep1LivePromptIdeaSuggestions: context.rememberStep1LivePromptIdeaSuggestions,
+    getStep1DisplayedPromptIdeaModel: context.getStep1DisplayedPromptIdeaModel,
     buildStep1GuidedPromptIdeaModel: context.buildStep1GuidedPromptIdeaModel,
     buildStep1GuidedPromptSuggestions: context.buildStep1GuidedPromptSuggestions,
     renderStep1GuidedPromptIdeaPanel: context.renderStep1GuidedPromptIdeaPanel,
+    resetStep1LiveAssistState: context.resetStep1LiveAssistState,
     seedRisksFromScenarioDraft: context.seedRisksFromScenarioDraft,
     getLastGuessRisksArgs: () => lastGuessRisksArgs
   };
@@ -832,6 +836,32 @@ test('manual scenario rewrite clears stale step 1 llm context', () => {
   );
 
   assert.deepEqual(Array.from(internals.appState.draft.llmContext || []), []);
+});
+
+test('resetStep1LiveAssistState clears cached live Step 1 prompt ideas for a new assessment', () => {
+  const internals = loadStep1Internals();
+  internals.appState.draft.step1Path = 'guided';
+  internals.appState.draft.guidedInput = {
+    event: 'Former staff at a support vendor still hold privileged production accounts.',
+    asset: '',
+    cause: '',
+    impact: '',
+    urgency: 'medium'
+  };
+
+  const signature = internals.getStep1GuidedPromptIdeaSignature(internals.appState.draft);
+  internals.rememberStep1LivePromptIdeaSuggestions(signature, [
+    { label: 'Cached live idea', prompt: 'Use the cached prompt idea.' }
+  ], 'ai');
+
+  let displayedModel = internals.getStep1DisplayedPromptIdeaModel(internals.appState.draft);
+  assert.equal(displayedModel.promptSuggestions.some((item) => item.label === 'Cached live idea'), true);
+  assert.equal(displayedModel.source, 'ai');
+
+  internals.resetStep1LiveAssistState({ clearCaches: true });
+
+  displayedModel = internals.getStep1DisplayedPromptIdeaModel(internals.appState.draft);
+  assert.equal(displayedModel.promptSuggestions.some((item) => item.label === 'Cached live idea'), false);
 });
 
 test('supplier delivery slippage for infrastructure deployment stays out of procurement prompt ideas', () => {
