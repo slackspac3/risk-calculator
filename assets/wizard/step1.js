@@ -870,7 +870,7 @@ function inferStep1FunctionKeyFromText(text = '') {
 
 function inferStep1FunctionKey(settings = getEffectiveSettings(), draft = AppState.draft || {}) {
   const profile = normaliseUserProfile(settings?.userProfile, AuthService.getCurrentUser());
-  const guidedInput = draft?.guidedInput || {};
+  const guidedInput = getStep1CurrentGuidedInput(draft);
   const isGuidedPath = String(draft?.step1Path || '').trim() === 'guided';
   const directGuidedSignals = [
     guidedInput.event,
@@ -944,15 +944,16 @@ function getStep1ManualPreferredScenarioLens(settings = getEffectiveSettings(), 
 
 function getStep1PreferredScenarioLens(settings = getEffectiveSettings(), draft = AppState.draft || {}, narrativeOverride = '') {
   const stored = draft?.scenarioLens?.key ? { ...draft.scenarioLens } : null;
+  const guidedInput = getStep1CurrentGuidedInput(draft);
   const scenarioText = String([
     narrativeOverride,
     draft?.narrative,
     draft?.sourceNarrative,
     draft?.enhancedNarrative,
-    draft?.guidedInput?.event,
-    draft?.guidedInput?.asset,
-    draft?.guidedInput?.cause,
-    draft?.guidedInput?.impact
+    guidedInput.event,
+    guidedInput.asset,
+    guidedInput.cause,
+    guidedInput.impact
   ].filter(Boolean).join(' ')).trim();
   const projectionHint = scenarioText ? buildStep1ProjectionHintModel(scenarioText, stored || '') : null;
   if (projectionHint?.directional && projectionHint.preferredLens?.key) {
@@ -969,10 +970,10 @@ function getStep1PreferredScenarioLens(settings = getEffectiveSettings(), draft 
     || draft?.narrative
     || draft?.sourceNarrative
     || draft?.enhancedNarrative
-    || draft?.guidedInput?.event
-    || draft?.guidedInput?.asset
-    || draft?.guidedInput?.cause
-    || draft?.guidedInput?.impact
+    || guidedInput.event
+    || guidedInput.asset
+    || guidedInput.cause
+    || guidedInput.impact
     || ''
   ).trim();
   const ambiguousProjectionLens = buildStep1AmbiguousProjectionLens(projectionHint, stored);
@@ -1284,12 +1285,60 @@ function getStep1LivePreviewStatusCopy(source = '') {
   return '';
 }
 
+function readStep1GuidedInputValueFromDom(id) {
+  if (!document || typeof document.getElementById !== 'function') return null;
+  const field = document.getElementById(id);
+  if (!field || !Object.prototype.hasOwnProperty.call(field, 'value')) return null;
+  return String(field.value || '');
+}
+
+function getStep1CurrentGuidedInput(draft = AppState.draft || {}) {
+  const guidedInput = draft?.guidedInput || {};
+  const readValue = (id, fallback = '') => {
+    const domValue = readStep1GuidedInputValueFromDom(id);
+    return domValue === null ? String(fallback || '') : domValue;
+  };
+  return {
+    ...guidedInput,
+    event: readValue('guided-event', guidedInput.event),
+    asset: readValue('guided-asset', guidedInput.asset),
+    cause: readValue('guided-cause', guidedInput.cause),
+    impact: readValue('guided-impact', guidedInput.impact),
+    urgency: readValue('guided-urgency', guidedInput.urgency || 'medium') || 'medium'
+  };
+}
+
+function syncStep1GuidedInputStateFromDom(draft = AppState.draft || {}) {
+  if (!draft || typeof draft !== 'object') {
+    return {
+      changed: false,
+      guidedInput: getStep1CurrentGuidedInput(draft)
+    };
+  }
+  const previousGuidedInput = draft?.guidedInput || {};
+  const nextGuidedInput = getStep1CurrentGuidedInput(draft);
+  const changed = ['event', 'asset', 'cause', 'impact', 'urgency'].some((key) => String(previousGuidedInput[key] || '') !== String(nextGuidedInput[key] || ''));
+  if (changed) {
+    draft.guidedInput = {
+      ...previousGuidedInput,
+      ...nextGuidedInput
+    };
+    const composed = composeStep1GuidedNarrative(draft.guidedInput, getEffectiveSettings(), draft);
+    clearStep1StaleAssistState(composed);
+    draft.scenarioLens = getStep1PreferredScenarioLens(getEffectiveSettings(), draft, composed);
+  }
+  return {
+    changed,
+    guidedInput: nextGuidedInput
+  };
+}
+
 function getStep1GuidedPreviewText(draft = AppState.draft || {}) {
-  return composeStep1GuidedNarrative(draft?.guidedInput || {}, getEffectiveSettings(), draft);
+  return composeStep1GuidedNarrative(getStep1CurrentGuidedInput(draft), getEffectiveSettings(), draft);
 }
 
 function getStep1GuidedPreviewSignature(draft = AppState.draft || {}) {
-  const guidedInput = draft?.guidedInput || {};
+  const guidedInput = getStep1CurrentGuidedInput(draft);
   return [
     String(draft?.step1Path || '').trim(),
     String(draft?.buId || '').trim(),
@@ -1426,7 +1475,7 @@ function scheduleStep1LivePreviewRefresh({ immediate = false, force = false } = 
 }
 
 function getStep1GuidedPromptIdeaSourceText(draft = AppState.draft || {}) {
-  const guidedInput = draft?.guidedInput || {};
+  const guidedInput = getStep1CurrentGuidedInput(draft);
   const isGuidedPath = String(draft?.step1Path || '').trim() === 'guided';
   const sourceText = isGuidedPath
     ? [
@@ -1450,7 +1499,7 @@ function getStep1GuidedPromptIdeaSourceText(draft = AppState.draft || {}) {
 }
 
 function getStep1GuidedPromptIdeaSignature(draft = AppState.draft || {}) {
-  const guidedInput = draft?.guidedInput || {};
+  const guidedInput = getStep1CurrentGuidedInput(draft);
   return [
     String(draft?.step1Path || '').trim(),
     String(draft?.buId || '').trim(),
@@ -4165,6 +4214,7 @@ function clearStep1StaleAssistState(nextNarrative, {
 
 async function generateStep1GuidedPromptIdeas() {
   const draft = AppState.draft || {};
+  syncStep1GuidedInputStateFromDom(draft);
   const sourceText = getStep1GuidedPromptIdeaSourceText(draft);
   if (normaliseAssessmentTokens(sourceText).length < STEP1_LIVE_PROMPT_IDEA_MIN_TOKENS) {
     UI.toast('Add a little more event detail first, then generate prompt ideas.', 'warning');
@@ -4835,6 +4885,7 @@ function renderWizard1() {
 window.scheduleStep1ScenarioCrossReferenceRefresh = scheduleStep1ScenarioCrossReferenceRefresh;
 window.resetStep1LiveAssistState = resetStep1LiveAssistState;
 window.getStep1ActiveGuidedPromptIdeaLensHint = getStep1ActiveGuidedPromptIdeaLensHint;
+window.syncStep1GuidedInputStateFromDom = syncStep1GuidedInputStateFromDom;
 
 function normaliseAssessmentTokens(text) {
   return Array.from(new Set(
@@ -4846,7 +4897,7 @@ function normaliseAssessmentTokens(text) {
 }
 
 function buildStep1AssessmentSignals(narrative) {
-  const guidedInput = AppState.draft?.guidedInput || {};
+  const guidedInput = getStep1CurrentGuidedInput(AppState.draft || {});
   return {
     scenarioLens: AppState.draft?.scenarioLens || getStep1PreferredScenarioLens(getEffectiveSettings(), AppState.draft),
     eventTokens: normaliseAssessmentTokens(guidedInput.event || narrative).slice(0, 14),

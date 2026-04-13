@@ -355,6 +355,7 @@
   async function buildGuidedScenarioDraft() {
     _clearStep1AiUnavailableBanners();
     const settings = getEffectiveSettings();
+    window.syncStep1GuidedInputStateFromDom?.(AppState.draft);
     const localDraft = composeStep1GuidedNarrative(AppState.draft.guidedInput, settings, AppState.draft);
     if (!localDraft) {
       UI.toast('Answer at least one guided question first.', 'warning');

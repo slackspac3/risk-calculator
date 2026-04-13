@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-function loadStep1Internals() {
+function loadStep1Internals(overrides = {}) {
   const projectionDataPath = path.resolve(__dirname, '../../assets/services/scenarioTaxonomyProjectionData.js');
   const projectionPath = path.resolve(__dirname, '../../assets/services/scenarioTaxonomyProjection.js');
   const filePath = path.resolve(__dirname, '../../assets/wizard/step1.js');
@@ -80,6 +80,31 @@ function loadStep1Internals() {
     syncStep1ScenarioTitle: () => {}
   };
 
+  if (overrides && typeof overrides === 'object') {
+    if (overrides.window) {
+      context.window = {
+        ...context.window,
+        ...overrides.window
+      };
+    }
+    if (Object.prototype.hasOwnProperty.call(overrides, 'document')) {
+      context.document = overrides.document;
+    }
+    if (overrides.AppState) {
+      context.AppState = overrides.AppState;
+    }
+    if (overrides.UI) {
+      context.UI = {
+        ...context.UI,
+        ...overrides.UI
+      };
+    }
+    Object.entries(overrides).forEach(([key, value]) => {
+      if (key === 'window' || key === 'document' || key === 'AppState' || key === 'UI') return;
+      context[key] = value;
+    });
+  }
+
   vm.createContext(context);
   vm.runInContext(projectionDataSource, context, { filename: 'scenarioTaxonomyProjectionData.js' });
   vm.runInContext(projectionSource, context, { filename: 'scenarioTaxonomyProjection.js' });
@@ -104,6 +129,7 @@ function loadStep1Internals() {
     buildStep1GuidedPromptSuggestions: context.buildStep1GuidedPromptSuggestions,
     renderStep1GuidedPromptIdeaPanel: context.renderStep1GuidedPromptIdeaPanel,
     resetStep1LiveAssistState: context.resetStep1LiveAssistState,
+    generateStep1GuidedPromptIdeas: context.generateStep1GuidedPromptIdeas,
     seedRisksFromScenarioDraft: context.seedRisksFromScenarioDraft,
     getLastGuessRisksArgs: () => lastGuessRisksArgs
   };
@@ -1111,6 +1137,99 @@ test('displayed guided preview prefers the live AI-checked preview for the curre
   const preview = internals.getStep1DisplayedGuidedPreviewModel(draft);
   assert.equal(preview.preview, 'AI-checked preview: A senior executive mailbox is compromised and used to manipulate approvals.');
   assert.equal(preview.source, 'ai');
+});
+
+test('generate prompt ideas syncs live guided DOM values before validating the detail threshold', async () => {
+  const toasts = [];
+  const requests = [];
+  const busyClasses = new Set();
+  const button = {
+    textContent: 'Generate prompt ideas',
+    disabled: false,
+    dataset: {},
+    attributes: {},
+    classList: {
+      add(name) { busyClasses.add(name); },
+      remove(name) { busyClasses.delete(name); }
+    },
+    setAttribute(name, value) {
+      this.attributes[name] = value;
+    },
+    removeAttribute(name) {
+      delete this.attributes[name];
+    }
+  };
+  const fields = {
+    'guided-event': {
+      value: 'A former contractor at a support vendor kept privileged production access after leaving the engagement, and the account was later used to access live customer records before the service owner noticed the dormant credentials had never been removed.'
+    },
+    'guided-impact': { value: '' },
+    'guided-asset': { value: '' },
+    'guided-cause': { value: '' },
+    'guided-urgency': { value: 'medium' },
+    'btn-generate-guided-prompt-ideas': button
+  };
+  const internals = loadStep1Internals({
+    document: {
+      getElementById(id) {
+        return fields[id] || null;
+      }
+    },
+    AppState: {
+      draft: {
+        step1Path: 'guided',
+        buId: 'g42',
+        guidedInput: {
+          event: '',
+          asset: '',
+          cause: '',
+          impact: '',
+          urgency: 'medium'
+        }
+      }
+    },
+    UI: {
+      toast(message, tone) {
+        toasts.push({ message, tone });
+      }
+    },
+    window: {
+      Step1Assist: {
+        async suggestGuidedPromptIdeas(payload) {
+          requests.push(payload);
+          return {
+            source: 'ai',
+            ideas: [
+              {
+                label: 'Third-party access compromise',
+                prompt: 'Third-party privileged access compromise'
+              }
+            ],
+            recommendedLens: {
+              key: 'cyber',
+              label: 'Cyber',
+              functionKey: 'technology'
+            },
+            confidence: 'high',
+            why: 'Dormant privileged vendor credentials were later used to access live customer records.',
+            needsMoreDetail: false
+          };
+        }
+      }
+    }
+  });
+
+  await internals.generateStep1GuidedPromptIdeas();
+
+  assert.equal(requests.length, 1);
+  assert.match(requests[0].riskStatement, /former contractor at a support vendor/i);
+  assert.equal(
+    toasts.some(({ message }) => /Add a little more event detail first/i.test(message)),
+    false
+  );
+  assert.match(internals.appState.draft.guidedInput.event, /dormant credentials/i);
+  assert.equal(button.textContent, 'Generate prompt ideas');
+  assert.equal(busyClasses.has('btn--step1-ai-busy'), false);
 });
 
 test('step 1 busy helper marks AI buttons as active work instead of plain disabled state', () => {
