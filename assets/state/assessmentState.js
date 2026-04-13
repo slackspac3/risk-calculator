@@ -550,10 +550,13 @@ function loadDraft() {
 
 function clearDraftScopedWizardUiState(scopePrefix = '/wizard/1::') {
   if (!AppState || !AppState.disclosureState || typeof AppState.disclosureState !== 'object') return;
-  const safePrefix = String(scopePrefix || '').trim().toLowerCase();
-  if (!safePrefix) return;
+  const safePrefixes = (Array.isArray(scopePrefix) ? scopePrefix : [scopePrefix])
+    .map(prefix => String(prefix || '').trim().toLowerCase())
+    .filter(Boolean);
+  if (!safePrefixes.length) return;
   Object.keys(AppState.disclosureState).forEach(key => {
-    if (String(key || '').trim().toLowerCase().startsWith(safePrefix)) {
+    const normalizedKey = String(key || '').trim().toLowerCase();
+    if (safePrefixes.some(prefix => normalizedKey.startsWith(prefix))) {
       delete AppState.disclosureState[key];
     }
   });
@@ -564,7 +567,15 @@ function resetDraft() {
   if (typeof window?.resetStep1LiveAssistState === 'function') {
     window.resetStep1LiveAssistState({ clearCaches: true });
   }
-  clearDraftScopedWizardUiState();
+  clearDraftScopedWizardUiState([
+    '/wizard/1::',
+    '/wizard/2::',
+    '/wizard/3::',
+    '/wizard/4::'
+  ]);
+  if (AppState && Object.prototype.hasOwnProperty.call(AppState, 'mode')) {
+    AppState.mode = 'basic';
+  }
   dispatchDraftAction('RESET_DRAFT', {
     draft: {
     id: 'a_' + Date.now(),

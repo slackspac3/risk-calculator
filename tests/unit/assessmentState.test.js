@@ -253,13 +253,28 @@ test('resetDraft clears Step 1 disclosure state without touching other disclosur
   const { api, appState } = loadAssessmentStateRuntime();
   appState.disclosureState['/wizard/1::add more context only if you need it'] = true;
   appState.disclosureState['/wizard/1::review ai reasoning and context'] = true;
+  appState.disclosureState['/wizard/2::use ai to structure the scenario'] = true;
+  appState.disclosureState['/wizard/3::quick start, presets, and guidance'] = true;
+  appState.disclosureState['/wizard/4::how the result is built'] = true;
   appState.disclosureState['/help::step 1 overview'] = true;
 
   api.resetDraft();
 
   assert.equal(appState.disclosureState['/wizard/1::add more context only if you need it'], undefined);
   assert.equal(appState.disclosureState['/wizard/1::review ai reasoning and context'], undefined);
+  assert.equal(appState.disclosureState['/wizard/2::use ai to structure the scenario'], undefined);
+  assert.equal(appState.disclosureState['/wizard/3::quick start, presets, and guidance'], undefined);
+  assert.equal(appState.disclosureState['/wizard/4::how the result is built'], undefined);
   assert.equal(appState.disclosureState['/help::step 1 overview'], true);
+});
+
+test('resetDraft returns Step 3 modelling mode to basic for a fresh assessment', () => {
+  const { api, appState } = loadAssessmentStateRuntime();
+  appState.mode = 'advanced';
+
+  api.resetDraft();
+
+  assert.equal(appState.mode, 'basic');
 });
 
 test('loadDraft prefers shared workspace draft over recovery and session state', () => {
