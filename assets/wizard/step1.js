@@ -357,6 +357,26 @@ function buildStep1PromptCandidateDirections(projectionHint = null, fallbackLens
   return [];
 }
 
+function hasStep1EscalationConsistentCompetition(projectionHint = null) {
+  const helper = projectionHint?.helper;
+  const topFamilies = Array.isArray(projectionHint?.topFamilies) ? projectionHint.topFamilies : [];
+  const primaryFamilyKey = String(projectionHint?.analysis?.classification?.familyKey || '').trim();
+  const runnerUpFamilyKey = String(topFamilies.find((family, index) => index > 0 && family?.familyKey)?.familyKey || '').trim();
+  if (!helper?.familyByKey || !primaryFamilyKey || !runnerUpFamilyKey) return false;
+  const primaryFamily = helper.familyByKey[primaryFamilyKey];
+  const runnerUpFamily = helper.familyByKey[runnerUpFamilyKey];
+  if (!primaryFamily || !runnerUpFamily) return false;
+  const relatedFamilyKeys = new Set([
+    ...(Array.isArray(primaryFamily.allowedSecondaryFamilies) ? primaryFamily.allowedSecondaryFamilies : []),
+    ...(Array.isArray(primaryFamily.canCoExistWith) ? primaryFamily.canCoExistWith : []),
+    ...(Array.isArray(primaryFamily.canEscalateTo) ? primaryFamily.canEscalateTo : [])
+  ].filter(Boolean));
+  return (
+    relatedFamilyKeys.has(runnerUpFamilyKey)
+    || String(primaryFamily.legacyKey || '').trim() && String(primaryFamily.legacyKey || '').trim() === String(runnerUpFamily.legacyKey || '').trim()
+  );
+}
+
 function getStep1PromptIdeaConfidenceState({
   projectionHint = null,
   fallbackLens = null,
@@ -364,6 +384,15 @@ function getStep1PromptIdeaConfidenceState({
 } = {}) {
   const hasCompetitiveFamilies = Array.isArray(projectionHint?.topFamilies)
     && projectionHint.topFamilies.some((family) => family?.qualified || family?.primary);
+  if (
+    projectionHint?.analysis?.classification?.familyKey
+    && String(projectionHint?.confidenceBand || '').trim().toLowerCase() === 'high'
+    && Number(projectionHint?.separationScore || 0) >= 2
+    && hasCompetitiveFamilies
+    && hasStep1EscalationConsistentCompetition(projectionHint)
+  ) {
+    return STEP1_PROMPT_IDEA_CONFIDENCE_STATES.high;
+  }
   if (
     projectionHint?.directional
     && projectionHint.analysis?.classification?.familyKey
@@ -1031,6 +1060,52 @@ function renderStep1GuidedPromptIdeaChips(promptSuggestions = []) {
     .join('');
 }
 
+function normaliseStep1PromptIdeaConfidence(value = '') {
+  const safeValue = String(value || '').trim().toLowerCase();
+  return safeValue === 'low' || safeValue === 'medium' || safeValue === 'high'
+    ? safeValue
+    : '';
+}
+
+function normaliseStep1PromptIdeaRecommendedLens(lens = null, fallback = null) {
+  if (!lens) return fallback || null;
+  if (typeof lens === 'string') {
+    return buildStep1LensFromProjection({ key: lens, lensKey: lens }, fallback || null);
+  }
+  const lensKey = String(lens?.key || lens?.lensKey || '').trim();
+  if (!lensKey) return fallback || null;
+  const projectedLens = buildStep1LensFromProjection({
+    ...lens,
+    key: lensKey,
+    lensKey: lensKey
+  }, fallback || null);
+  return {
+    ...(projectedLens || fallback || {}),
+    ...(lens && typeof lens === 'object' ? lens : {}),
+    key: lensKey,
+    label: String(lens?.label || projectedLens?.label || fallback?.label || lensKey).trim() || lensKey,
+    functionKey: String(lens?.functionKey || projectedLens?.functionKey || fallback?.functionKey || 'general').trim() || 'general',
+    estimatePresetKey: String(lens?.estimatePresetKey || projectedLens?.estimatePresetKey || fallback?.estimatePresetKey || 'general').trim() || 'general',
+    secondaryKeys: Array.from(new Set([
+      ...(Array.isArray(projectedLens?.secondaryKeys) ? projectedLens.secondaryKeys : []),
+      ...(Array.isArray(lens?.secondaryKeys) ? lens.secondaryKeys : [])
+    ])).filter(Boolean)
+  };
+}
+
+function buildStep1PromptIdeaConfidenceBadge(confidence = '') {
+  const safeConfidence = normaliseStep1PromptIdeaConfidence(confidence);
+  if (!safeConfidence) return '';
+  return `<span class="badge badge--neutral">Confidence: ${escapeHtml(safeConfidence)}</span>`;
+}
+
+function buildStep1PromptIdeaSourceCopy(source = '') {
+  const safeSource = String(source || '').trim().toLowerCase();
+  if (safeSource === 'ai') return 'AI checked the current wording, suggested prompt ideas, and proposed the strongest lens fit.';
+  if (safeSource === 'fallback') return 'AI prompt ideas are unavailable right now, so this panel is showing the local fallback lens check instead.';
+  return 'Ask AI to suggest stronger prompt ideas and check the likely lens before you build the scenario.';
+}
+
 function renderStep1GuidedPromptIdeaPanel(promptIdeaModel = null) {
   const model = promptIdeaModel && typeof promptIdeaModel === 'object'
     ? promptIdeaModel
@@ -1046,6 +1121,26 @@ function renderStep1GuidedPromptIdeaPanel(promptIdeaModel = null) {
   const promptSuggestions = normaliseStep1PromptIdeaSuggestions(model.promptSuggestions || []);
   const candidateDirections = Array.isArray(model.candidateDirections) ? model.candidateDirections : [];
   const refinementHints = Array.isArray(model.refinementHints) ? model.refinementHints : [];
+  const explicitAiFlow = model.explicitAiFlow === true;
+  const isLoading = model.loading === true;
+  const source = String(model.source || '').trim().toLowerCase();
+  const sourceCopy = buildStep1PromptIdeaSourceCopy(source);
+  const recommendedLens = normaliseStep1PromptIdeaRecommendedLens(
+    model.recommendedLens,
+    model.preferredLens && model.source === 'fallback' ? model.preferredLens : null
+  );
+  const confidence = normaliseStep1PromptIdeaConfidence(model.confidence);
+  const rationale = String(model.why || '').trim();
+  const followUpQuestion = String(model.followUpQuestion || '').trim();
+  const needsMoreDetail = model.needsMoreDetail === true;
+  const hasAssistResult = explicitAiFlow && (
+    !!source
+    || !!recommendedLens?.key
+    || !!confidence
+    || !!rationale
+    || !!followUpQuestion
+    || promptSuggestions.length > 0
+  );
   const chipMarkup = state === STEP1_PROMPT_IDEA_CONFIDENCE_STATES.high
     ? renderStep1GuidedPromptIdeaChips(promptSuggestions)
     : state === STEP1_PROMPT_IDEA_CONFIDENCE_STATES.candidate
@@ -1057,6 +1152,50 @@ function renderStep1GuidedPromptIdeaPanel(promptIdeaModel = null) {
         .slice(0, 3)
         .map((hint) => `<span class="badge badge--neutral">${escapeHtml(String(hint || '').trim())}</span>`)
         .join('');
+  if (explicitAiFlow) {
+    const displayedChipMarkup = source === 'fallback'
+      ? chipMarkup
+      : renderStep1GuidedPromptIdeaChips(promptSuggestions);
+    const stepActionLabel = hasAssistResult ? 'Regenerate prompt ideas' : 'Generate prompt ideas';
+    const lensMarkup = recommendedLens?.label
+      ? `<span class="badge badge--neutral">AI lens check: ${escapeHtml(String(recommendedLens.label || '').trim())}</span>`
+      : '';
+    return `<div class="step1-ai-sequence">
+      <div class="step1-ai-sequence__label">Step 1 of 2</div>
+      <div class="step1-ai-sequence__title">Generate prompt ideas and check the lens</div>
+      <div class="form-help" id="guided-prompt-ideas-status">${escapeHtml(sourceCopy)}</div>
+      ${isLoading ? `<div class="step1-ai-thinking" role="status" aria-live="polite">
+        <span class="step1-ai-thinking__spinner" aria-hidden="true"></span>
+        <div class="step1-ai-thinking__copy">
+          <strong>Thinking</strong>
+          <span>Checking the event path and generating prompt ideas with AI…</span>
+        </div>
+      </div>` : ''}
+      ${hasAssistResult ? `<div class="step1-ai-result-stack">
+        ${(lensMarkup || confidence) ? `<div class="step1-ai-meta">
+          ${lensMarkup}
+          ${buildStep1PromptIdeaConfidenceBadge(confidence)}
+          ${source === 'fallback' ? '<span class="badge badge--neutral">Fallback</span>' : ''}
+        </div>` : ''}
+        ${rationale ? `<div class="form-help">${escapeHtml(rationale)}</div>` : ''}
+        ${followUpQuestion ? `<div class="step1-ai-follow-up">
+          <strong>Clarifying question</strong>
+          <span>${escapeHtml(followUpQuestion)}</span>
+        </div>` : ''}
+        ${displayedChipMarkup ? `<div class="citation-chips" id="guided-prompt-ideas">
+          ${displayedChipMarkup}
+        </div>` : ''}
+      </div>` : ''}
+      <div class="step1-ai-actions">
+        <button class="btn btn--secondary" id="btn-generate-guided-prompt-ideas" type="button">${escapeHtml(stepActionLabel)}</button>
+        <span class="form-help">${escapeHtml(
+          needsMoreDetail
+            ? 'Add one more detail if you want tighter ideas, or skip this step and build the scenario directly.'
+            : 'You can use one of these ideas or ignore them and keep your own wording.'
+        )}</span>
+      </div>
+    </div>`;
+  }
   return `<div class="form-help" id="guided-prompt-ideas-status">${escapeHtml(String(model.stateLabel || 'Prompt ideas'))} ${escapeHtml(String(model.helperText || '').trim())}</div>
     <div class="citation-chips" id="guided-prompt-ideas">
       ${chipMarkup}
@@ -1075,7 +1214,12 @@ function createEmptyStep1LivePromptIdeaState() {
     signature: '',
     suggestions: [],
     loadingSignature: '',
-    source: ''
+    source: '',
+    recommendedLens: null,
+    confidence: '',
+    why: '',
+    followUpQuestion: '',
+    needsMoreDetail: false
   };
 }
 
@@ -1328,18 +1472,38 @@ function shouldUseStep1LivePromptIdeas(draft = AppState.draft || {}) {
 
 function rememberStep1LivePromptIdeaSuggestions(signature, suggestions = [], source = 'ai') {
   const safeSignature = String(signature || '').trim();
-  const safeSuggestions = normaliseStep1PromptIdeaSuggestions(suggestions);
-  if (!safeSignature || !safeSuggestions.length) return;
+  const fallbackLens = getStep1PreferredScenarioLens(getEffectiveSettings(), AppState.draft || {}, getStep1GuidedPromptIdeaSourceText(AppState.draft || {}));
+  const rawResult = Array.isArray(suggestions)
+    ? { ideas: suggestions, source }
+    : { ...(suggestions && typeof suggestions === 'object' ? suggestions : {}), source: String(suggestions?.source || source || '').trim() };
+  const safeSuggestions = normaliseStep1PromptIdeaSuggestions(rawResult.ideas || rawResult.suggestions || []);
+  const safeSource = String(rawResult.source || source || '').trim() || 'ai';
+  const recommendedLens = normaliseStep1PromptIdeaRecommendedLens(rawResult.recommendedLens, fallbackLens);
+  const confidence = normaliseStep1PromptIdeaConfidence(rawResult.confidence);
+  const why = String(rawResult.why || '').trim();
+  const followUpQuestion = String(rawResult.followUpQuestion || '').trim();
+  const needsMoreDetail = rawResult.needsMoreDetail === true;
+  if (!safeSignature || (!safeSuggestions.length && !safeSource && !recommendedLens?.key && !why && !followUpQuestion && !needsMoreDetail)) return;
   _step1LivePromptIdeaState = {
     signature: safeSignature,
     suggestions: safeSuggestions,
     loadingSignature: '',
-    source
+    source: safeSource,
+    recommendedLens,
+    confidence,
+    why,
+    followUpQuestion,
+    needsMoreDetail
   };
   _step1LivePromptIdeaCache.delete(safeSignature);
   _step1LivePromptIdeaCache.set(safeSignature, {
     suggestions: safeSuggestions,
-    source
+    source: safeSource,
+    recommendedLens,
+    confidence,
+    why,
+    followUpQuestion,
+    needsMoreDetail
   });
   while (_step1LivePromptIdeaCache.size > STEP1_LIVE_PROMPT_IDEA_CACHE_LIMIT) {
     const oldestKey = _step1LivePromptIdeaCache.keys().next().value;
@@ -1350,22 +1514,55 @@ function rememberStep1LivePromptIdeaSuggestions(signature, suggestions = [], sou
 function getStep1DisplayedPromptIdeaModel(draft = AppState.draft || {}, exampleModel = null) {
   const localModel = buildStep1GuidedPromptIdeaModel(draft, exampleModel);
   const signature = getStep1GuidedPromptIdeaSignature(draft);
-  if (signature && _step1LivePromptIdeaState.signature === signature && _step1LivePromptIdeaState.suggestions.length) {
+  const isLoading = !!signature && _step1LivePromptIdeaState.loadingSignature === signature;
+  if (signature && _step1LivePromptIdeaState.signature === signature && (
+    _step1LivePromptIdeaState.suggestions.length
+    || _step1LivePromptIdeaState.source
+    || _step1LivePromptIdeaState.recommendedLens?.key
+    || _step1LivePromptIdeaState.followUpQuestion
+  )) {
     return {
       ...localModel,
-      promptSuggestions: _step1LivePromptIdeaState.suggestions,
-      source: _step1LivePromptIdeaState.source || 'ai'
+      promptSuggestions: _step1LivePromptIdeaState.source === 'fallback' && !_step1LivePromptIdeaState.suggestions.length
+        ? localModel.promptSuggestions
+        : _step1LivePromptIdeaState.suggestions,
+      source: _step1LivePromptIdeaState.source || 'ai',
+      recommendedLens: _step1LivePromptIdeaState.recommendedLens || null,
+      confidence: _step1LivePromptIdeaState.confidence || '',
+      why: _step1LivePromptIdeaState.why || '',
+      followUpQuestion: _step1LivePromptIdeaState.followUpQuestion || '',
+      needsMoreDetail: _step1LivePromptIdeaState.needsMoreDetail === true,
+      loading: isLoading,
+      explicitAiFlow: true
     };
   }
   const cached = signature ? _step1LivePromptIdeaCache.get(signature) : null;
-  if (cached?.suggestions?.length) {
+  if (cached && (
+    cached.suggestions?.length
+    || cached.source
+    || cached.recommendedLens?.key
+    || cached.followUpQuestion
+  )) {
     return {
       ...localModel,
-      promptSuggestions: cached.suggestions,
-      source: cached.source || 'ai'
+      promptSuggestions: cached.source === 'fallback' && !(cached.suggestions || []).length
+        ? localModel.promptSuggestions
+        : (cached.suggestions || []),
+      source: cached.source || 'ai',
+      recommendedLens: cached.recommendedLens || null,
+      confidence: cached.confidence || '',
+      why: cached.why || '',
+      followUpQuestion: cached.followUpQuestion || '',
+      needsMoreDetail: cached.needsMoreDetail === true,
+      loading: isLoading,
+      explicitAiFlow: true
     };
   }
-  return localModel;
+  return {
+    ...localModel,
+    loading: isLoading,
+    explicitAiFlow: true
+  };
 }
 
 function getStep1DisplayedPromptSuggestions(draft = AppState.draft || {}, exampleModel = null) {
@@ -1385,8 +1582,13 @@ async function refreshStep1LivePromptIdeaSuggestions({ force = false } = {}) {
   if (!force && _step1LivePromptIdeaState.signature === signature && _step1LivePromptIdeaState.suggestions.length) return;
   if (!force && _step1LivePromptIdeaState.loadingSignature === signature) return;
   const cached = !force ? _step1LivePromptIdeaCache.get(signature) : null;
-  if (cached?.suggestions?.length) {
-    rememberStep1LivePromptIdeaSuggestions(signature, cached.suggestions, cached.source || 'ai');
+  if (cached && (
+    cached.suggestions?.length
+    || cached.source
+    || cached.recommendedLens?.key
+    || cached.followUpQuestion
+  )) {
+    rememberStep1LivePromptIdeaSuggestions(signature, cached, cached.source || 'ai');
     updateStep1GuidedPreview();
     return;
   }
@@ -1418,8 +1620,8 @@ async function refreshStep1LivePromptIdeaSuggestions({ force = false } = {}) {
   };
   if (!result || result.usedFallback) return;
   const suggestions = normaliseStep1PromptIdeaSuggestions(result.ideas);
-  if (!suggestions.length) return;
-  rememberStep1LivePromptIdeaSuggestions(signature, suggestions, 'ai');
+  if (!suggestions.length && !result.recommendedLens && !result.followUpQuestion) return;
+  rememberStep1LivePromptIdeaSuggestions(signature, result, 'ai');
   updateStep1GuidedPreview();
 }
 
@@ -1435,8 +1637,14 @@ function scheduleStep1LivePromptIdeaRefresh({ immediate = false, force = false }
 }
 
 function scheduleStep1GuidedLiveHelperRefresh({ immediate = false, force = false } = {}) {
-  scheduleStep1LivePromptIdeaRefresh({ immediate, force });
   scheduleStep1LivePreviewRefresh({ immediate, force });
+}
+
+function getStep1ActiveGuidedPromptIdeaLensHint(draft = AppState.draft || {}) {
+  const promptIdeaModel = getStep1DisplayedPromptIdeaModel(draft);
+  return promptIdeaModel?.recommendedLens?.key
+    ? promptIdeaModel.recommendedLens
+    : getStep1PreferredScenarioLens(getEffectiveSettings(), draft, getStep1GuidedPromptIdeaSourceText(draft));
 }
 
 function getStep1AiTuningSettings() {
@@ -2323,7 +2531,7 @@ function renderStep1GuidedBuilderCard(draft, recommendation, functionLabel = 'yo
         <input class="form-input" id="guided-impact" type="text" placeholder="Example: service outage, regulatory breach, customer harm, financial exposure, recovery strain" value="${draft.guidedInput?.impact || ''}">
       </div>
     </div>
-    <details class="wizard-disclosure wizard-disclosure--compact" data-disclosure-state-key="${escapeHtml(optionalContextDisclosureKey)}" ${getDisclosureOpenState(optionalContextDisclosureKey, false) ? 'open' : ''} style="margin-top:var(--sp-4)">
+    <details class="wizard-disclosure wizard-disclosure--compact" data-disclosure-state-key="${escapeHtml(optionalContextDisclosureKey)}" data-disclosure-default-open="false" ${getDisclosureOpenState(optionalContextDisclosureKey, false) ? 'open' : ''} style="margin-top:var(--sp-4)">
       <summary>Add more context only if you need it <span class="badge badge--neutral">Optional</span></summary>
       <div class="wizard-disclosure-body">
         <div class="grid-2">
@@ -2346,24 +2554,30 @@ function renderStep1GuidedBuilderCard(draft, recommendation, functionLabel = 'yo
               <option value="critical" ${draft.guidedInput?.urgency === 'critical' ? 'selected' : ''}>Critical</option>
             </select>
           </div>
-          <div class="form-group">
-            <label class="form-label">Prompt ideas</label>
-            <div id="guided-prompt-ideas-panel">
-              ${renderStep1GuidedPromptIdeaPanel(safePromptIdeaModel)}
-            </div>
-          </div>
         </div>
       </div>
     </details>
-    <div class="admin-inline-actions mt-4">
-      <button class="btn btn--primary" id="btn-build-guided-narrative" type="button">Build scenario draft</button>
-      <span class="form-help">Good enough is enough here. You can still tighten the wording and shortlist on the next screens.</span>
+    <div class="step1-guided-stage mt-4">
+      <div id="guided-prompt-ideas-panel">
+        ${renderStep1GuidedPromptIdeaPanel({
+          ...safePromptIdeaModel,
+          explicitAiFlow: true
+        })}
+      </div>
+    </div>
+    <div class="step1-guided-stage mt-4">
+      <div class="step1-ai-sequence__label">Step 2 of 2</div>
+      <div class="step1-ai-sequence__title">Build the scenario with AI</div>
+      <div class="admin-inline-actions step1-guided-actions">
+        <button class="btn btn--primary" id="btn-build-guided-narrative" type="button">Build scenario with AI</button>
+        <span class="form-help">Use a prompt idea if it helps, or ignore the suggestions and build straight from your own wording.</span>
+      </div>
     </div>
     ${draftPreview ? `${renderStep1AiQualityStrip(draft)}<div class="card mt-4 wizard-draft-preview" style="padding:var(--sp-4);background:var(--bg-elevated)">
       <div class="context-panel-title">Draft preview</div>
       <div class="form-help" id="guided-preview-status" style="margin-top:4px;${draftPreviewStatus ? '' : 'display:none'}">${draftPreviewStatus ? `${draftPreviewSource === 'ai' ? 'AI-built draft' : draftPreviewSource === 'fallback' ? 'Deterministic fallback draft' : draftPreviewSource === 'manual' ? 'Manual draft' : draftPreviewSource === 'local' ? 'Local draft' : 'AI-checked preview'} · ${escapeHtml(draftPreviewStatus)}` : ''}</div>
       <p class="context-panel-copy" id="guided-preview">${escapeHtml(String(draftPreview))}</p>
-    </div>${renderStep1AiFeedbackCard('draft', draft)}` : '<div class="form-help wizard-preview-placeholder" id="guided-preview">Answer the prompts and build the draft. The platform will create a clean starting statement for you.</div>'}
+    </div>${renderStep1AiFeedbackCard('draft', draft)}` : '<div class="form-help wizard-preview-placeholder" id="guided-preview">Answer the prompts and build the scenario with AI. The platform will create a clean starting statement for you.</div>'}
   </div>`;
 }
 
@@ -2421,7 +2635,7 @@ function renderStep1OtherWaysToStart(draft, hasScenarioDraft, hasImportedSource,
   const importDisclosureKey = getDisclosureStateKey('/wizard/1', 'import or add risks directly');
   const examplesDisclosureKey = getDisclosureStateKey('/wizard/1', 'browse more worked examples');
   if (options?.examplesOnly) {
-    return `<details class="wizard-disclosure wizard-disclosure--compact" data-disclosure-state-key="${escapeHtml(examplesDisclosureKey)}" ${getDisclosureOpenState(examplesDisclosureKey, false) ? 'open' : ''}>
+    return `<details class="wizard-disclosure wizard-disclosure--compact" data-disclosure-state-key="${escapeHtml(examplesDisclosureKey)}" data-disclosure-default-open="false" ${getDisclosureOpenState(examplesDisclosureKey, false) ? 'open' : ''}>
       <summary>Browse more worked examples <span class="badge badge--neutral">Optional</span></summary>
       <div class="wizard-disclosure-body">
         <div class="form-help">Use these when you want a fast, high-quality starting point. The first examples are tuned for ${escapeHtml(functionLabel.toLowerCase())} work, with recent learnt cases mixed in when available.</div>
@@ -2446,7 +2660,7 @@ function renderStep1OtherWaysToStart(draft, hasScenarioDraft, hasImportedSource,
     </details>`;
   }
   const isOpen = getDisclosureOpenState(disclosureKey, AppState.dashboardStartIntent === 'register' || hasScenarioDraft || hasImportedSource);
-  return `<details class="wizard-disclosure anim-fade-in anim-delay-1" data-disclosure-state-key="${escapeHtml(disclosureKey)}" ${isOpen ? 'open' : ''}>
+  return `<details class="wizard-disclosure anim-fade-in anim-delay-1" data-disclosure-state-key="${escapeHtml(disclosureKey)}" data-disclosure-default-open="${isOpen ? 'true' : 'false'}" ${isOpen ? 'open' : ''}>
     <summary>Other ways to start <span class="badge badge--neutral">Optional</span></summary>
     <div class="wizard-disclosure-body">
       <div class="form-help">Open this only if you already have a scenario draft, a register, or a known list of risks. The guided builder remains the easiest path for most users.</div>
@@ -2462,7 +2676,7 @@ function renderStep1OtherWaysToStart(draft, hasScenarioDraft, hasImportedSource,
           <button class="btn btn--ghost" id="btn-generate-risks-from-draft" type="button">Generate shortlist from this draft</button>
         </div>
       </div>
-      <details class="wizard-disclosure wizard-disclosure--compact" data-disclosure-state-key="${escapeHtml(importDisclosureKey)}" ${getDisclosureOpenState(importDisclosureKey, false) ? 'open' : ''}>
+      <details class="wizard-disclosure wizard-disclosure--compact" data-disclosure-state-key="${escapeHtml(importDisclosureKey)}" data-disclosure-default-open="false" ${getDisclosureOpenState(importDisclosureKey, false) ? 'open' : ''}>
         <summary>Import or add risks directly <span class="badge badge--neutral">Advanced start</span></summary>
         <div class="wizard-disclosure-body">
           <div class="form-help">Use this only when your source material already exists in a register, spreadsheet, or known risk list.</div>
@@ -2487,7 +2701,7 @@ function renderStep1OtherWaysToStart(draft, hasScenarioDraft, hasImportedSource,
           <p class="form-help" style="margin-top:var(--sp-4)">Uses runtime AI if a key has been set with <code>LLMService.setOpenAIKey(...)</code>. Otherwise the local extraction stub is used.</p>
         </div>
       </details>
-      <details class="wizard-disclosure wizard-disclosure--compact" data-disclosure-state-key="${escapeHtml(examplesDisclosureKey)}" ${getDisclosureOpenState(examplesDisclosureKey, false) ? 'open' : ''}>
+      <details class="wizard-disclosure wizard-disclosure--compact" data-disclosure-state-key="${escapeHtml(examplesDisclosureKey)}" data-disclosure-default-open="false" ${getDisclosureOpenState(examplesDisclosureKey, false) ? 'open' : ''}>
         <summary>Browse more worked examples <span class="badge badge--neutral">Optional</span></summary>
         <div class="wizard-disclosure-body">
           <div class="form-help">Use these when you want a fast, high-quality starting point. The first examples are tuned for ${escapeHtml(functionLabel.toLowerCase())} work, with recent learnt cases mixed in when available.</div>
@@ -2720,7 +2934,7 @@ function renderStep1InsightWorkbench(draft, scenarioMemoryState, activePath = 'g
   const summaryLabel = activeCount
     ? `${activeCount} support view${activeCount === 1 ? '' : 's'} available`
     : 'No extra context yet';
-  return `<details class="wizard-disclosure wizard-disclosure--support wizard-secondary-workbench" data-disclosure-state-key="${escapeHtml(disclosureKey)}" ${getDisclosureOpenState(disclosureKey, false) ? 'open' : ''}>
+  return `<details class="wizard-disclosure wizard-disclosure--support wizard-secondary-workbench" data-disclosure-state-key="${escapeHtml(disclosureKey)}" data-disclosure-default-open="false" ${getDisclosureOpenState(disclosureKey, false) ? 'open' : ''}>
     <summary>Review AI reasoning and related context <span class="badge badge--neutral" id="step1-insight-summary-count">${escapeHtml(summaryLabel)}</span></summary>
     <div class="wizard-disclosure-body wizard-secondary-workbench__body">
       <div id="step1-insight-empty-state" class="form-help"${activeCount ? ' hidden' : ''}>Extra reasoning appears here only when the platform has AI checks, similar past scenarios, or portfolio overlap worth showing.</div>
@@ -3949,13 +4163,75 @@ function clearStep1StaleAssistState(nextNarrative, {
   clearScenarioAssistArtifacts({ clearGeneratedRisks });
 }
 
+async function generateStep1GuidedPromptIdeas() {
+  const draft = AppState.draft || {};
+  const sourceText = getStep1GuidedPromptIdeaSourceText(draft);
+  if (normaliseAssessmentTokens(sourceText).length < STEP1_LIVE_PROMPT_IDEA_MIN_TOKENS) {
+    UI.toast('Add a little more event detail first, then generate prompt ideas.', 'warning');
+    return;
+  }
+
+  const signature = getStep1GuidedPromptIdeaSignature(draft);
+  if (!signature || !window.Step1Assist || typeof window.Step1Assist.suggestGuidedPromptIdeas !== 'function') {
+    UI.toast('Prompt ideas are unavailable right now. Build the scenario directly or try again.', 'warning');
+    return;
+  }
+
+  const button = document.getElementById('btn-generate-guided-prompt-ideas');
+  const resetButton = _setStep1ButtonBusy(button, 'Thinking…');
+  const localModel = buildStep1GuidedPromptIdeaModel(draft);
+  const preferredLens = getStep1PreferredScenarioLens(getEffectiveSettings(), draft, sourceText);
+  _step1LivePromptIdeaState = {
+    ...createEmptyStep1LivePromptIdeaState(),
+    loadingSignature: signature
+  };
+  updateStep1GuidedPreview();
+
+  try {
+    const result = await window.Step1Assist.suggestGuidedPromptIdeas({
+      buId: draft?.buId,
+      riskStatement: sourceText,
+      guidedInput: { ...(draft?.guidedInput || {}) },
+      scenarioLensHint: preferredLens,
+      fallbackSuggestions: localModel.promptSuggestions
+    });
+
+    if (getStep1GuidedPromptIdeaSignature(AppState.draft || {}) !== signature) return;
+
+    _step1LivePromptIdeaState = {
+      ..._step1LivePromptIdeaState,
+      loadingSignature: ''
+    };
+    rememberStep1LivePromptIdeaSuggestions(signature, result || {}, String(result?.source || (result?.usedFallback ? 'fallback' : 'ai')).trim() || 'ai');
+    updateStep1GuidedPreview();
+
+    const displayedModel = getStep1DisplayedPromptIdeaModel(AppState.draft || {});
+    UI.toast(
+      displayedModel.source === 'fallback'
+        ? 'AI prompt ideas are unavailable right now. Showing the local fallback view.'
+        : 'Prompt ideas are ready. Use one or ignore them before building the scenario.',
+      displayedModel.source === 'fallback' ? 'warning' : 'success',
+      4500
+    );
+  } catch (error) {
+    _step1LivePromptIdeaState = {
+      ..._step1LivePromptIdeaState,
+      loadingSignature: ''
+    };
+    updateStep1GuidedPreview();
+    UI.toast('Prompt ideas are unavailable right now. Build the scenario directly or try again.', 'warning', 5000);
+  } finally {
+    resetButton();
+  }
+}
+
 function updateStep1GuidedPreview() {
   const preview = document.getElementById('guided-preview');
   const previewStatus = document.getElementById('guided-preview-status');
   const previewModel = getStep1DisplayedGuidedPreviewModel(AppState.draft);
   if (preview) {
     preview.textContent = String(previewModel.preview || '').trim()
-      || 'Complete the guided questions and click “Build Scenario Draft”.';
+      || 'Complete the guided questions and click “Build scenario with AI”.';
   }
   if (previewStatus) {
     const source = String(previewModel.source || '').trim().toLowerCase();
@@ -3968,7 +4244,7 @@ function updateStep1GuidedPreview() {
   const promptIdeasPanel = document.getElementById('guided-prompt-ideas-panel');
   if (promptIdeasPanel) {
     promptIdeasPanel.innerHTML = renderStep1GuidedPromptIdeaPanel(getStep1DisplayedPromptIdeaModel(AppState.draft));
-    bindStep1PromptIdeaChips(promptIdeasPanel, getEffectiveSettings());
+    bindStep1PromptIdeaPanelActions(promptIdeasPanel, getEffectiveSettings());
   }
 }
 
@@ -4245,7 +4521,6 @@ function bindStep1PrimaryInputs({ buList, wizardGeographyInput }) {
       AppState.draft.scenarioLens = getStep1PreferredScenarioLens(getEffectiveSettings(), AppState.draft, composed);
       if (hadGuidedAiDraft) AppState.draft.aiQualityState = 'analyst-reshaped';
       updateStep1GuidedPreview();
-      scheduleStep1GuidedLiveHelperRefresh();
       markDraftDirty();
       scheduleDraftAutosave();
     });
@@ -4260,7 +4535,6 @@ function bindStep1PrimaryInputs({ buList, wizardGeographyInput }) {
     AppState.draft.scenarioLens = getStep1PreferredScenarioLens(getEffectiveSettings(), AppState.draft, composed);
     if (hadGuidedAiDraft) AppState.draft.aiQualityState = 'analyst-reshaped';
     updateStep1GuidedPreview();
-    scheduleStep1GuidedLiveHelperRefresh();
     markDraftDirty();
     scheduleDraftAutosave();
   });
@@ -4282,7 +4556,7 @@ function bindStep1PrimaryInputs({ buList, wizardGeographyInput }) {
 function bindStep1ScenarioActions({ buList, settings, exampleModel }) {
   document.getElementById('btn-build-guided-narrative')?.addEventListener('click', () => Step1Assist.buildGuidedScenarioDraft());
 
-  bindStep1PromptIdeaChips(document, settings);
+  bindStep1PromptIdeaPanelActions(document, settings);
 
   document.querySelectorAll('.btn-load-dry-run').forEach(button => {
     button.addEventListener('click', () => {
@@ -4358,11 +4632,31 @@ function bindStep1PromptIdeaChips(root = document, settings = getEffectiveSettin
       clearStep1StaleAssistState(composed);
       AppState.draft.scenarioLens = getStep1PreferredScenarioLens(settings, AppState.draft, composed);
       updateStep1GuidedPreview();
-      scheduleStep1GuidedLiveHelperRefresh({ immediate: true });
       markDraftDirty();
       scheduleDraftAutosave();
     });
   });
+}
+
+function bindStep1PromptIdeaPanelActions(root = document, settings = getEffectiveSettings()) {
+  bindStep1PromptIdeaChips(root, settings);
+  root.querySelectorAll('#btn-generate-guided-prompt-ideas').forEach((button) => {
+    if (button.dataset.bound === '1') return;
+    button.dataset.bound = '1';
+    button.addEventListener('click', () => {
+      generateStep1GuidedPromptIdeas();
+    });
+  });
+}
+
+function applyStep1FreshDisclosureDefaults(root = document) {
+  if (!AppState?.forceWizardDisclosureDefaults) return;
+  root.querySelectorAll('details[data-disclosure-state-key][data-disclosure-default-open]').forEach((section) => {
+    const key = String(section.dataset.disclosureStateKey || '').trim().toLowerCase();
+    if (!key.startsWith('/wizard/1::')) return;
+    section.open = section.dataset.disclosureDefaultOpen === 'true';
+  });
+  AppState.forceWizardDisclosureDefaults = false;
 }
 
 function bindStep1NavigationActions({ buList, settings, wizardGeographyInput }) {
@@ -4515,10 +4809,9 @@ function renderWizard1() {
   bindStep1AiFeedbackActions({ buList });
   bindStep1ScenarioCrossReferenceActions();
   bindStep1ScenarioMemoryActions();
-  // Keep heavier Step 1 workbench assists local by default, but refresh the lightweight
-  // live prompt/preview helpers so a fresh assessment does not inherit generic SPA state.
+  applyStep1FreshDisclosureDefaults();
+  // Keep heavier Step 1 workbench assists local by default.
   refreshStep1ScenarioCrossReferenceHost({ includeAi: false });
-  scheduleStep1GuidedLiveHelperRefresh({ immediate: true });
   window.Step1Assist?.mountAiTraceLinks?.();
   document.getElementById('btn-clear-ghost-draft')?.addEventListener('click', () => {
     clearGhostDraftSuggestion();
@@ -4541,6 +4834,7 @@ function renderWizard1() {
 
 window.scheduleStep1ScenarioCrossReferenceRefresh = scheduleStep1ScenarioCrossReferenceRefresh;
 window.resetStep1LiveAssistState = resetStep1LiveAssistState;
+window.getStep1ActiveGuidedPromptIdeaLensHint = getStep1ActiveGuidedPromptIdeaLensHint;
 
 function normaliseAssessmentTokens(text) {
   return Array.from(new Set(

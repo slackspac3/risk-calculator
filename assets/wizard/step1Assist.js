@@ -364,7 +364,8 @@
     const button = document.getElementById('btn-build-guided-narrative');
     const preview = document.getElementById('guided-preview');
     const bu = getBUList().find(b => b.id === (document.getElementById('wizard-bu')?.value || AppState.draft.buId));
-    const preferredLens = getStep1PreferredScenarioLens(settings, AppState.draft, localDraft);
+    const preferredLens = window.getStep1ActiveGuidedPromptIdeaLensHint?.(AppState.draft)
+      || getStep1PreferredScenarioLens(settings, AppState.draft, localDraft);
     const aiContext = buildCurrentAIAssistContext({ buId: bu?.id || AppState.draft.buId });
     const geography = formatScenarioGeographies(getScenarioGeographies());
     const scenarioFingerprint = _buildStep1ScenarioFingerprint({
@@ -393,7 +394,7 @@
       cooldownLabel: 'Built just now',
       message: 'This guided draft already reflects the current answers. Review it or change the guided inputs before rebuilding.'
     })) return;
-    const resetButton = _setStep1ButtonBusy(button, 'Building…');
+    const resetButton = _setStep1ButtonBusy(button, 'Building with AI…');
 
     if (preview) {
       preview.textContent = 'Building a scenario draft from the current event, impact, and context…';
@@ -504,7 +505,8 @@
         return {
           ideas: fallbackSuggestions,
           usedFallback: true,
-          aiUnavailable: false
+          aiUnavailable: false,
+          source: 'fallback'
         };
       }
       const buId = String(input?.buId || AppState?.draft?.buId || '').trim();
@@ -531,18 +533,23 @@
         traceLabel: STEP1_TRACE_LABELS.promptIdeas
       });
       return result && typeof result === 'object'
-        ? result
+        ? {
+            ...result,
+            source: String(result.source || (result.usedFallback ? 'fallback' : 'ai')).trim() || 'ai'
+          }
         : {
             ideas: fallbackSuggestions,
             usedFallback: true,
-            aiUnavailable: false
+            aiUnavailable: false,
+            source: 'fallback'
           };
     } catch (error) {
       console.warn('suggestGuidedPromptIdeas live assist fallback:', error?.message || error);
       return {
         ideas: fallbackSuggestions,
         usedFallback: true,
-        aiUnavailable: error?.code === 'LLM_UNAVAILABLE'
+        aiUnavailable: error?.code === 'LLM_UNAVAILABLE',
+        source: 'fallback'
       };
     }
   }

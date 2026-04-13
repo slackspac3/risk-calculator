@@ -1746,6 +1746,22 @@
         {
           "text": "third-party remote access",
           "strength": "medium"
+        },
+        {
+          "text": "dormant credentials were used",
+          "strength": "strong"
+        },
+        {
+          "text": "account was later used to access live customer records",
+          "strength": "strong"
+        },
+        {
+          "text": "dormant account was later used",
+          "strength": "strong"
+        },
+        {
+          "text": "used to change live system settings",
+          "strength": "strong"
         }
       ],
       "antiSignals": [
@@ -1814,6 +1830,14 @@
         {
           "text": "access path",
           "strength": "weak"
+        },
+        {
+          "text": "support vendor",
+          "strength": "medium"
+        },
+        {
+          "text": "production access",
+          "strength": "medium"
         }
       ],
       "typicalAssets": [
@@ -11444,6 +11468,14 @@
           "strength": "strong"
         },
         {
+          "text": "shared external access path",
+          "strength": "strong"
+        },
+        {
+          "text": "can reach production systems through a shared external access path",
+          "strength": "strong"
+        },
+        {
           "text": "shared vendor account spans critical systems",
           "strength": "strong"
         },
@@ -11478,6 +11510,38 @@
         {
           "text": "supplier access is weakly controlled",
           "strength": "medium"
+        },
+        {
+          "text": "privileged production access",
+          "strength": "strong"
+        },
+        {
+          "text": "former vendor staff still hold access",
+          "strength": "strong"
+        },
+        {
+          "text": "former contractor still holds access",
+          "strength": "strong"
+        },
+        {
+          "text": "dormant vendor access",
+          "strength": "strong"
+        },
+        {
+          "text": "quarterly access recertification",
+          "strength": "strong"
+        },
+        {
+          "text": "access recertification",
+          "strength": "strong"
+        },
+        {
+          "text": "removed after offboarding",
+          "strength": "strong"
+        },
+        {
+          "text": "dormant credentials had never been removed",
+          "strength": "strong"
         }
       ],
       "antiSignals": [
@@ -11522,6 +11586,10 @@
         {
           "text": "access",
           "strength": "weak"
+        },
+        {
+          "text": "support vendor",
+          "strength": "medium"
         }
       ],
       "typicalAssets": [

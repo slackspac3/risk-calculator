@@ -4194,11 +4194,36 @@ ${businessUnit.selectedDepartmentContext}` : ''
       businessUnit: input.businessUnit,
       scenarioLensHint: input.scenarioLensHint
     });
+    const fallbackLens = _buildScenarioLens(classification);
+    const buildFallbackResult = ({
+      aiUnavailable = false,
+      ideas = fallbackIdeas,
+      source = 'fallback',
+      confidence = fallbackIdeas.length ? 'medium' : 'low',
+      why = '',
+      followUpQuestion = ''
+    } = {}) => ({
+      ideas,
+      usedFallback: true,
+      aiUnavailable,
+      source,
+      recommendedLens: fallbackLens,
+      confidence,
+      why: why || (fallbackIdeas.length
+        ? `The strongest current fit stays closest to the ${String(fallbackLens?.label || 'current').trim().toLowerCase()} lane.`
+        : 'The current wording still needs a little more detail before the platform can suggest a stronger prompt idea.'),
+      followUpQuestion,
+      needsMoreDetail: !fallbackIdeas.length || confidence === 'low'
+    });
     if (normaliseAssessmentTokens(sourceText).length < 2) {
-      return { ideas: fallbackIdeas, usedFallback: true, aiUnavailable: isUsingStub() };
+      return buildFallbackResult({
+        aiUnavailable: isUsingStub(),
+        confidence: 'low',
+        followUpQuestion: 'What is the main asset, control, or service affected?'
+      });
     }
     if (!_canUseLiveAi()) {
-      return { ideas: fallbackIdeas, usedFallback: true, aiUnavailable: true };
+      return buildFallbackResult({ aiUnavailable: true });
     }
 
     const feedbackProfile = _getAiFeedbackLearningProfile({
@@ -4210,7 +4235,11 @@ ${businessUnit.selectedDepartmentContext}` : ''
     const schema = `{
   "ideas": [
     { "label": "string", "prompt": "string" }
-  ]
+  ],
+  "recommendedLensKey": "string",
+  "confidence": "low | medium | high",
+  "why": "string",
+  "followUpQuestion": "string"
 }`;
     const systemPrompt = `You are helping a user sharpen an enterprise-risk scenario while they type.
 
@@ -4219,6 +4248,9 @@ Generate 2 or 3 prompt ideas that stay in the same event path as the user's curr
 - do not add AI/model-risk suggestions unless the user explicitly mentions AI, model, assistant, LLM, unsafe output, drift, or governance
 - technical assets like cloud, Azure, systems, infrastructure, admin accounts, or email do not by themselves justify changing the scenario domain
 - if the user describes identity compromise, account takeover, mailbox compromise, leaked credentials, or dark-web credential discovery, stay in that lane
+- also decide the strongest current lens fit for the wording
+- set confidence to high, medium, or low
+- if confidence is low, ask one short follow-up question that would most improve the lens check
 - write labels as short chip text
 - write prompts as one-sentence scenario starters the user could click
 - return JSON only`;
@@ -4250,7 +4282,7 @@ ${schema}`;
         traceLabel: input.traceLabel || 'Step 1 prompt ideas'
       });
       if (!raw) {
-        return { ideas: fallbackIdeas, usedFallback: true };
+        return buildFallbackResult();
       }
       const parsed = await _parseOrRepairStructuredJson(raw, schema, {
         taskName: 'repairSuggestGuidedPromptIdeas'
@@ -4260,18 +4292,41 @@ ${schema}`;
         classification,
         scenarioLensHint: input.scenarioLensHint
       });
+      const recommendedLensKey = _normaliseScenarioHintKey(parsed.recommendedLensKey) || _normaliseScenarioHintKey(classification?.key || '');
+      const recommendedLens = recommendedLensKey
+        ? _buildScenarioLens({
+            ...classification,
+            key: recommendedLensKey
+          })
+        : fallbackLens;
+      const confidence = ['low', 'medium', 'high'].includes(String(parsed.confidence || '').trim().toLowerCase())
+        ? String(parsed.confidence || '').trim().toLowerCase()
+        : (filteredIdeas.length ? 'medium' : 'low');
+      const why = _cleanUserFacingText(parsed.why || '', { maxSentences: 2 });
+      const followUpQuestion = _cleanUserFacingText(parsed.followUpQuestion || '', { maxSentences: 1, stripTrailingPeriod: false });
+      if (!filteredIdeas.length) {
+        return buildFallbackResult({
+          ideas: fallbackIdeas,
+          confidence,
+          why,
+          followUpQuestion
+        });
+      }
       return {
-        ideas: filteredIdeas.length ? filteredIdeas : fallbackIdeas,
-        usedFallback: !filteredIdeas.length
+        ideas: filteredIdeas,
+        usedFallback: false,
+        aiUnavailable: false,
+        source: 'ai',
+        recommendedLens,
+        confidence,
+        why,
+        followUpQuestion,
+        needsMoreDetail: confidence === 'low'
       };
     } catch (error) {
       await _auditAiFallback('suggestGuidedPromptIdeas', error);
       console.warn('suggestGuidedPromptIdeas fallback:', error.message);
-      return {
-        ideas: fallbackIdeas,
-        usedFallback: true,
-        aiUnavailable: true
-      };
+      return buildFallbackResult({ aiUnavailable: true });
     }
   }
 

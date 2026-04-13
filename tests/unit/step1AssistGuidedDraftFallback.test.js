@@ -44,7 +44,7 @@ function loadStep1AssistHarness() {
 
   const buildButton = {
     dataset: {},
-    textContent: 'Build scenario draft',
+    textContent: 'Build scenario with AI',
     disabled: false,
     setAttribute() {},
     removeAttribute() {}

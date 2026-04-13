@@ -75,8 +75,12 @@ test('guided prompt ideas use the live helper path when it returns a live result
   const harness = loadStep1AssistPromptIdeaHarness({
     suggestGuidedPromptIdeasImpl: async () => ({
       ideas: [{ label: 'AI suggestion', prompt: 'A live AI prompt idea.' }],
+      recommendedLens: { key: 'cyber', label: 'Cyber', functionKey: 'technology' },
+      confidence: 'high',
+      why: 'The wording is anchored to privileged identity compromise.',
       usedFallback: false,
-      aiUnavailable: false
+      aiUnavailable: false,
+      source: 'ai'
     })
   });
 
@@ -96,8 +100,12 @@ test('guided prompt ideas use the live helper path when it returns a live result
   assert.equal(harness.capturedRequests[0].traceLabel, 'Step 1 prompt ideas');
   assert.deepEqual(JSON.parse(JSON.stringify(result)), {
     ideas: [{ label: 'AI suggestion', prompt: 'A live AI prompt idea.' }],
+    recommendedLens: { key: 'cyber', label: 'Cyber', functionKey: 'technology' },
+    confidence: 'high',
+    why: 'The wording is anchored to privileged identity compromise.',
     usedFallback: false,
-    aiUnavailable: false
+    aiUnavailable: false,
+    source: 'ai'
   });
 });
 
@@ -125,6 +133,7 @@ test('guided prompt ideas fall back locally when the live helper path is unavail
   assert.deepEqual(JSON.parse(JSON.stringify(result)), {
     ideas: fallbackSuggestions,
     usedFallback: true,
-    aiUnavailable: true
+    aiUnavailable: true,
+    source: 'fallback'
   });
 });

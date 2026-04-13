@@ -277,6 +277,15 @@ test('resetDraft returns Step 3 modelling mode to basic for a fresh assessment',
   assert.equal(appState.mode, 'basic');
 });
 
+test('resetDraft flags a fresh wizard render to reapply disclosure defaults', () => {
+  const { api, appState } = loadAssessmentStateRuntime();
+  appState.forceWizardDisclosureDefaults = false;
+
+  api.resetDraft();
+
+  assert.equal(appState.forceWizardDisclosureDefaults, true);
+});
+
 test('loadDraft prefers shared workspace draft over recovery and session state', () => {
   const { api, cache, appState, localStorage, sessionStorage, toasts } = loadAssessmentStateRuntime();
   cache.draftWorkspace = {

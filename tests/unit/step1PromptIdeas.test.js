@@ -212,6 +212,30 @@ test('guided prompt ideas and lens ignore stale prior outage narratives', () => 
   assert.equal(lens.functionKey, 'technology');
 });
 
+test('former-contractor vendor access misuse starts in the explicit AI prompt-idea flow before generation', () => {
+  const internals = loadStep1Internals();
+  const event = 'A former contractor at a support vendor kept privileged production access after leaving the engagement, and the account was later used to access live customer records before the service owner noticed the dormant credentials had never been removed.';
+  const draft = {
+    step1Path: 'guided',
+    guidedInput: {
+      event,
+      asset: '',
+      cause: '',
+      impact: '',
+      urgency: 'medium'
+    }
+  };
+
+  const displayedModel = internals.getStep1DisplayedPromptIdeaModel(draft, {
+    recommendedExamples: []
+  });
+  const html = internals.renderStep1GuidedPromptIdeaPanel(displayedModel);
+
+  assert.equal(displayedModel.explicitAiFlow, true);
+  assert.match(html, /Generate prompt ideas and check the lens/i);
+  assert.match(html, /btn-generate-guided-prompt-ideas/i);
+});
+
 test('no-DR Outlook continuity scenario stays in continuity prompt ideas and keeps guided helper traffic local-only', () => {
   const internals = loadStep1Internals();
   const event = 'There is no DR for the critical email system in place, which is MS Outlook online.';
@@ -864,6 +888,58 @@ test('resetStep1LiveAssistState clears cached live Step 1 prompt ideas for a new
   assert.equal(displayedModel.promptSuggestions.some((item) => item.label === 'Cached live idea'), false);
 });
 
+test('displayed guided prompt ideas default to an explicit AI action until the user asks for them', () => {
+  const internals = loadStep1Internals();
+  const draft = {
+    step1Path: 'guided',
+    guidedInput: {
+      event: 'Hackers encrypt company servers and demand payment to unlock files.',
+      asset: '',
+      cause: '',
+      impact: '',
+      urgency: 'high'
+    }
+  };
+
+  const displayedModel = internals.getStep1DisplayedPromptIdeaModel(draft);
+  const html = internals.renderStep1GuidedPromptIdeaPanel(displayedModel);
+
+  assert.equal(displayedModel.explicitAiFlow, true);
+  assert.match(html, /Step 1 of 2/i);
+  assert.match(html, /Generate prompt ideas and check the lens/i);
+  assert.match(html, /btn-generate-guided-prompt-ideas/i);
+});
+
+test('remembered live prompt ideas surface the AI lens check and regeneration affordance', () => {
+  const internals = loadStep1Internals();
+  internals.appState.draft.step1Path = 'guided';
+  internals.appState.draft.guidedInput = {
+    event: 'Azure global admin credentials found on the dark web are used to access the tenant.',
+    asset: '',
+    cause: '',
+    impact: '',
+    urgency: 'high'
+  };
+
+  const signature = internals.getStep1GuidedPromptIdeaSignature(internals.appState.draft);
+  internals.rememberStep1LivePromptIdeaSuggestions(signature, {
+    ideas: [{ label: 'Privileged Account Takeover', prompt: 'Privileged account takeover affects the tenant and approval path.' }],
+    source: 'ai',
+    recommendedLens: { key: 'cyber', label: 'Cyber', functionKey: 'technology' },
+    confidence: 'high',
+    why: 'The wording is anchored to identity compromise and privileged access misuse.'
+  });
+
+  const displayedModel = internals.getStep1DisplayedPromptIdeaModel(internals.appState.draft);
+  const html = internals.renderStep1GuidedPromptIdeaPanel(displayedModel);
+
+  assert.equal(displayedModel.source, 'ai');
+  assert.equal(displayedModel.recommendedLens?.key, 'cyber');
+  assert.match(html, /AI lens check: Cyber/i);
+  assert.match(html, /Regenerate prompt ideas/i);
+  assert.match(html, /Privileged Account Takeover/i);
+});
+
 test('supplier delivery slippage for infrastructure deployment stays out of procurement prompt ideas', () => {
   const internals = loadStep1Internals();
   const event = 'A key server supplier misses a committed delivery date, delaying planned infrastructure deployment and dependent business projects.';
@@ -1041,7 +1117,7 @@ test('step 1 busy helper marks AI buttons as active work instead of plain disabl
   const internals = loadStep1Internals();
   const classes = new Set();
   const button = {
-    textContent: 'Build scenario draft',
+    textContent: 'Build scenario with AI',
     disabled: false,
     dataset: {},
     attributes: {},
@@ -1060,13 +1136,13 @@ test('step 1 busy helper marks AI buttons as active work instead of plain disabl
   const restore = internals.setStep1ButtonBusy(button, 'Building…');
   assert.equal(button.disabled, true);
   assert.equal(button.textContent, 'Building…');
-  assert.equal(button.dataset.idleLabel, 'Build scenario draft');
+  assert.equal(button.dataset.idleLabel, 'Build scenario with AI');
   assert.equal(button.attributes['aria-busy'], 'true');
   assert.equal(classes.has('btn--step1-ai-busy'), true);
 
   restore();
   assert.equal(button.disabled, false);
-  assert.equal(button.textContent, 'Build scenario draft');
+  assert.equal(button.textContent, 'Build scenario with AI');
   assert.equal(button.attributes['aria-busy'], undefined);
   assert.equal(classes.has('btn--step1-ai-busy'), false);
 });

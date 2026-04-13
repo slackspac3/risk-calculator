@@ -758,7 +758,11 @@ const BASE_SCENARIO_TAXONOMY_FAMILIES = Object.freeze([
       signal('partner account compromised', 'strong'),
       signal('external support account abused', 'medium'),
       signal('vendor credentials abused', 'strong'),
-      signal('third-party remote access', 'medium')
+      signal('third-party remote access', 'medium'),
+      signal('dormant credentials were used', 'strong'),
+      signal('account was later used to access live customer records', 'strong'),
+      signal('dormant account was later used', 'strong'),
+      signal('used to change live system settings', 'strong')
     ],
     antiSignals: [
       signal('shipment delay', 'strong'),
@@ -778,7 +782,9 @@ const BASE_SCENARIO_TAXONOMY_FAMILIES = Object.freeze([
       signal('supplier', 'weak'),
       signal('partner', 'weak'),
       signal('support account', 'weak'),
-      signal('access path', 'weak')
+      signal('access path', 'weak'),
+      signal('support vendor', 'medium'),
+      signal('production access', 'medium')
     ],
     typicalAssets: ['vendor account', 'supplier connection', 'partner support access'],
     typicalCauses: ['compromised vendor credentials', 'weak third-party access governance'],
@@ -3480,6 +3486,8 @@ const BASE_SCENARIO_TAXONOMY_FAMILIES = Object.freeze([
       signal('vendor accounts have broad access', 'strong'),
       signal('vendor credentials have standing access', 'strong'),
       signal('support partner accounts can reach production systems', 'strong'),
+      signal('shared external access path', 'strong'),
+      signal('can reach production systems through a shared external access path', 'strong'),
       signal('shared vendor account spans critical systems', 'strong'),
       signal('broad vendor access', 'strong'),
       signal('broad access across critical systems', 'strong'),
@@ -3488,7 +3496,15 @@ const BASE_SCENARIO_TAXONOMY_FAMILIES = Object.freeze([
       signal('weak segregation across critical systems', 'strong'),
       signal('poorly governed external access', 'strong'),
       signal('third-party remote access weakness', 'medium'),
-      signal('supplier access is weakly controlled', 'medium')
+      signal('supplier access is weakly controlled', 'medium'),
+      signal('privileged production access', 'strong'),
+      signal('former vendor staff still hold access', 'strong'),
+      signal('former contractor still holds access', 'strong'),
+      signal('dormant vendor access', 'strong'),
+      signal('quarterly access recertification', 'strong'),
+      signal('access recertification', 'strong'),
+      signal('removed after offboarding', 'strong'),
+      signal('dormant credentials had never been removed', 'strong')
     ],
     antiSignals: [
       signal('ddos', 'strong'),
@@ -3498,7 +3514,13 @@ const BASE_SCENARIO_TAXONOMY_FAMILIES = Object.freeze([
       signal('third-party access compromised', 'strong'),
       signal('external access is not involved', 'strong')
     ],
-    requiredSignals: [signal('vendor', 'weak'), signal('third-party', 'weak'), signal('external', 'weak'), signal('access', 'weak')],
+    requiredSignals: [
+      signal('vendor', 'weak'),
+      signal('third-party', 'weak'),
+      signal('external', 'weak'),
+      signal('access', 'weak'),
+      signal('support vendor', 'medium')
+    ],
     typicalAssets: ['vendor account', 'third-party remote connection', 'external support access'],
     typicalCauses: ['weak access control', 'poor vendor oversight', 'weak access segregation'],
     typicalConsequences: ['control breakdown', 'operational disruption'],

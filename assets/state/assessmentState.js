@@ -576,6 +576,9 @@ function resetDraft() {
   if (AppState && Object.prototype.hasOwnProperty.call(AppState, 'mode')) {
     AppState.mode = 'basic';
   }
+  if (AppState) {
+    AppState.forceWizardDisclosureDefaults = true;
+  }
   dispatchDraftAction('RESET_DRAFT', {
     draft: {
     id: 'a_' + Date.now(),
