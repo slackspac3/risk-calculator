@@ -51,3 +51,7 @@ That merge is the promotion step.
 - Pull request preview = safe test copy
 - `master` = live PoC
 - Merge only when you want to promote to live
+
+## Preview smoke check
+
+If you only want to verify the preview system itself, open a docs-only pull request, confirm the preview URL appears, load the site, then close the pull request without merging.
