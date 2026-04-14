@@ -5,6 +5,33 @@ const AUDIT_KEY = process.env.AUDIT_LOG_KEY || 'risk_calculator_audit_log';
 const AUDIT_CAPACITY = Number(process.env.AUDIT_LOG_CAPACITY || 500);
 const AUTH_EVENT_TYPES = new Set(['login_success', 'login_failure', 'logout']);
 
+function normaliseAuditDetails(details = {}) {
+  return details && typeof details === 'object' && !Array.isArray(details) ? details : {};
+}
+
+function normaliseAuditEntry(entry = {}, index = 0) {
+  if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return null;
+  const fallbackId = `legacy-${index}`;
+  return {
+    id: String(entry.id || fallbackId).trim() || fallbackId,
+    ts: String(entry.ts || '').trim(),
+    category: String(entry.category || 'general').trim() || 'general',
+    eventType: String(entry.eventType || 'event').trim() || 'event',
+    actorUsername: String(entry.actorUsername || 'system').trim() || 'system',
+    actorRole: String(entry.actorRole || 'system').trim() || 'system',
+    target: String(entry.target || '').trim(),
+    status: String(entry.status || 'success').trim() || 'success',
+    source: String(entry.source || 'server').trim() || 'server',
+    details: normaliseAuditDetails(entry.details)
+  };
+}
+
+function normaliseAuditEntries(entries = []) {
+  return (Array.isArray(entries) ? entries : [])
+    .map((entry, index) => normaliseAuditEntry(entry, index))
+    .filter(Boolean);
+}
+
 async function runKvCommand(command) {
   let config = null;
   try {
@@ -34,7 +61,7 @@ async function readAuditLog() {
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    return normaliseAuditEntries(parsed);
   } catch (error) {
     console.error('api/_audit.readAuditLog failed to parse audit log payload:', error);
     return [];
@@ -48,7 +75,7 @@ async function writeAuditLog(entries) {
 }
 
 async function appendAuditEvent(event = {}) {
-  const entry = {
+  const entry = normaliseAuditEntry({
     id: crypto.randomUUID(),
     ts: new Date().toISOString(),
     category: event.category || 'general',
@@ -58,8 +85,8 @@ async function appendAuditEvent(event = {}) {
     target: event.target || '',
     status: event.status || 'success',
     source: event.source || 'server',
-    details: event.details && typeof event.details === 'object' ? event.details : {}
-  };
+    details: normaliseAuditDetails(event.details)
+  });
   try {
     await withKvLock(AUDIT_KEY, async () => {
       const entries = await readAuditLog();
@@ -76,7 +103,7 @@ async function appendAuditEvent(event = {}) {
 }
 
 function summariseAuditLog(entries = []) {
-  const recent = [...entries].reverse();
+  const recent = [...normaliseAuditEntries(entries)].reverse();
   const summary = {
     total: recent.length,
     retainedCapacity: AUDIT_CAPACITY,

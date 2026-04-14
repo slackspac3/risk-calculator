@@ -8,7 +8,7 @@
 const TOLERANCE_THRESHOLD = 5_000_000;
 const DEFAULT_FX_RATE = 3.6725;
 const DEFAULT_COMPASS_PROXY_URL = resolveCompassProxyUrl();
-const APP_ASSET_VERSION = '20260413v1';
+const APP_ASSET_VERSION = '20260414v1';
 const APP_RELEASE = Object.freeze((typeof window !== 'undefined' && window.__RISK_CALCULATOR_RELEASE__) || {
   version: '0.10.0-pilot.1',
   channel: 'pilot',
@@ -3007,6 +3007,43 @@ function getAuditApiUrl() {
   return resolveHostedApiUrl('/api/audit-log');
 }
 
+function normaliseAuditLogEntry(entry = {}, index = 0) {
+  if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return null;
+  const fallbackId = `audit-entry-${index}`;
+  return {
+    id: String(entry.id || fallbackId).trim() || fallbackId,
+    ts: String(entry.ts || '').trim(),
+    category: String(entry.category || 'general').trim() || 'general',
+    eventType: String(entry.eventType || 'event').trim() || 'event',
+    actorUsername: String(entry.actorUsername || 'system').trim() || 'system',
+    actorRole: String(entry.actorRole || 'system').trim() || 'system',
+    target: String(entry.target || '').trim(),
+    status: String(entry.status || 'success').trim() || 'success',
+    source: String(entry.source || 'server').trim() || 'server',
+    details: entry.details && typeof entry.details === 'object' && !Array.isArray(entry.details) ? entry.details : {}
+  };
+}
+
+function normaliseAuditLogEntries(entries = []) {
+  return (Array.isArray(entries) ? entries : [])
+    .map((entry, index) => normaliseAuditLogEntry(entry, index))
+    .filter(Boolean);
+}
+
+function normaliseAuditLogSummary(summary = {}, entryCount = 0) {
+  const source = summary && typeof summary === 'object' && !Array.isArray(summary) ? summary : {};
+  return {
+    total: Number(source.total || entryCount || 0),
+    retainedCapacity: Number(source.retainedCapacity || 500),
+    loginSuccessCount: Number(source.loginSuccessCount || 0),
+    loginFailureCount: Number(source.loginFailureCount || 0),
+    logoutCount: Number(source.logoutCount || 0),
+    adminActionCount: Number(source.adminActionCount || 0),
+    buAdminActionCount: Number(source.buAdminActionCount || 0),
+    userActionCount: Number(source.userActionCount || 0)
+  };
+}
+
 async function requestAuditLog(method = 'GET', payload, { includeAdminSecret = false } = {}) {
   const headers = { 'Content-Type': 'application/json' };
   const sessionToken = AuthService.getApiSessionToken();
@@ -3028,11 +3065,12 @@ async function loadAuditLog() {
   AppState.auditLogCache.loading = true;
   try {
     const data = await requestAuditLog('GET', undefined, { includeAdminSecret: true });
+    const entries = normaliseAuditLogEntries(data.entries);
     AppState.auditLogCache = {
       loaded: true,
       loading: false,
-      entries: Array.isArray(data.entries) ? data.entries : [],
-      summary: data.summary || null,
+      entries,
+      summary: normaliseAuditLogSummary(data.summary, entries.length),
       error: '',
       lastLoadedAt: Date.now()
     };
