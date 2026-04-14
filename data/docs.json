@@ -1,0 +1,2812 @@
+[
+  {
+    "id": "doc-nesa-01",
+    "title": "UAE Information Assurance Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://csc.gov.ae/en/w/uae-information-assurance-standard",
+    "tags": [
+      "cyber",
+      "regulatory",
+      "compliance",
+      "uae",
+      "all-bu",
+      "nesa",
+      "csc",
+      "information-assurance"
+    ],
+    "contentExcerpt": "The UAE Information Assurance Standard is the Cyber Security Council's national framework for strengthening the security and resilience of critical information infrastructure. It combines mandatory and risk-based controls, sub-controls, and performance indicators, and aligns with ISO/IEC 27001, NIST SP 800-53, and CIS Controls to support consistent cyber-risk management across UAE entities.",
+    "lastUpdated": "2025-09-22"
+  },
+  {
+    "id": "doc-iso-02",
+    "title": "ISO 27001:2022 Internal Compliance Mapping",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "cyber",
+      "compliance",
+      "iso",
+      "compliance",
+      "all-bu",
+      "controls"
+    ],
+    "contentExcerpt": "Our ISO 27001:2022 ISMS scope covers all production systems and corporate IT. Annex A control set has been mapped to internal procedures. Current Statement of Applicability (SoA) version 3.1 reflects 93 applicable controls. Risk treatment decisions are documented in the risk register maintained by the Information Security function. Control effectiveness reviews are conducted annually, with continuous monitoring via SIEM for technical controls.",
+    "lastUpdated": "2024-01-22"
+  },
+  {
+    "id": "doc-ir-03",
+    "title": "Cyber Incident Response Playbook v4.2",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "cyber",
+      "operational",
+      "business-continuity",
+      "incident-response",
+      "all-bu",
+      "operations",
+      "playbook"
+    ],
+    "contentExcerpt": "The Incident Response Playbook defines five severity levels. P1 (Critical): full business impact, C-suite notification within 1 hour, war room activated. P2 (High): significant service degradation, VP notification within 2 hours. Average IR containment cost baseline: P1 $180k–$600k; P2 $80k–$250k. Forensic investigations add $40k–$200k. External counsel engaged for regulatory notifications at approximately $450/hour. Typical P1 resolution: 3–14 days.",
+    "lastUpdated": "2024-06-01"
+  },
+  {
+    "id": "doc-cloud-04",
+    "title": "Cloud Security Baseline & Architecture Standards",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "cyber",
+      "operational",
+      "cloud",
+      "architecture",
+      "security",
+      "bu-cloud"
+    ],
+    "contentExcerpt": "All cloud deployments must comply with the Cloud Security Baseline v2.3. Requirements include: network micro-segmentation, encryption at rest (AES-256) and in transit (TLS 1.2+), privileged access workstations for admin operations, immutable audit logs to isolated storage, and MFA enforced on all cloud console access. Container images must be scanned pre-deployment. IaC templates must pass security linting. Multi-region DR is mandatory for Tier-1 services.",
+    "lastUpdated": "2024-04-10"
+  },
+  {
+    "id": "doc-data-05",
+    "title": "Data Classification & Handling Policy v3.0",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "regulatory",
+      "compliance",
+      "data-governance",
+      "data",
+      "classification",
+      "privacy",
+      "all-bu",
+      "records-retention",
+      "lawful-basis",
+      "transfer-safeguards",
+      "data-minimization",
+      "de-identification",
+      "secondary-use",
+      "lineage"
+    ],
+    "contentExcerpt": "Data is classified into four tiers: Public, Internal, Confidential, and Restricted. Restricted data includes PII, PHI, payment card data, and trade secrets. Restricted data must be encrypted at all times, access logged, and subject to DLP controls. Data residency requirements mandate UAE-based storage for certain categories, and cross-border transfers require approved safeguards. Breaches involving Restricted data trigger mandatory notification obligations. Data retention periods range from 3–7 years depending on category and regulation, and teams must not keep records beyond the stated lawful basis or retention window. De-identification, minimization, secondary use, and derived-dataset handling must stay within approved purpose and lineage controls.",
+    "lastUpdated": "2024-02-28"
+  },
+  {
+    "id": "doc-gdpr-06",
+    "title": "GDPR Compliance & Data Subject Rights Procedures",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "compliance",
+      "data-governance",
+      "gdpr",
+      "privacy",
+      "eu",
+      "regulatory",
+      "bu-ai",
+      "bu-health",
+      "lawful-basis",
+      "records-retention",
+      "transfer-safeguards"
+    ],
+    "contentExcerpt": "Where G42 processes personal data of EU data subjects, GDPR obligations apply. Article 33 requires breach notification to the supervisory authority within 72 hours if the breach poses risks to individuals. The wider GDPR framework is also relevant for lawful basis, retention limits, and transfer safeguards when records are processed for longer than stated or moved across borders before approvals are complete. Article 82 creates civil liability exposure: fines up to €20M or 4% of global annual turnover. Data Protection Impact Assessments (DPIAs) are mandatory for high-risk processing including large-scale biometric and health data processing.",
+    "lastUpdated": "2024-01-10"
+  },
+  {
+    "id": "doc-cls-07",
+    "title": "Data Classification Standard – Handling Matrix",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "cyber",
+      "compliance",
+      "data-governance",
+      "classification",
+      "security",
+      "data",
+      "all-bu"
+    ],
+    "contentExcerpt": "The classification handling matrix defines controls per tier: Restricted data requires role-based access with quarterly review, DLP scanning on egress, prohibition on personal device storage, and mandatory encryption with HSM-managed keys. Confidential data requires MFA for remote access and encryption at rest. Internal data requires standard access controls. Violations of Restricted data handling may result in disciplinary action and are reportable to the DPO.",
+    "lastUpdated": "2023-11-15"
+  },
+  {
+    "id": "doc-3p-08",
+    "title": "Third-Party & Supplier Risk Management Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "third-party",
+      "vendor",
+      "supply-chain",
+      "all-bu",
+      "vendor-access",
+      "remote-access",
+      "subcontractor",
+      "access-recertification"
+    ],
+    "contentExcerpt": "All third parties with access to Confidential or Restricted data must complete annual security assessments. Tier-1 suppliers (critical dependencies) require on-site audits every 2 years. Contractual clauses must include: right to audit, breach notification within 24 hours, data deletion requirements, and liability caps. Standing privileged access, shared support accounts, subcontractor reach, and delayed access recertification must be governed explicitly. Supply chain compromises historically account for 15–25% of significant incidents. Fourth-party (sub-processor) visibility is required for Tier-1 suppliers.",
+    "lastUpdated": "2024-03-01"
+  },
+  {
+    "id": "doc-pci-09",
+    "title": "PCI-DSS 4.0 Compliance Program & Scope",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "financial",
+      "cyber",
+      "regulatory",
+      "pci-dss",
+      "payments",
+      "compliance",
+      "bu-fintech"
+    ],
+    "contentExcerpt": "PCI-DSS 4.0 applies to all cardholder data environment (CDE) components. Key additions in v4.0 include: targeted risk analysis (TRA) for customised approach controls, enhanced MFA requirements, and e-commerce/phishing protections. Non-compliance may result in card scheme fines of $5k–$100k/month. A confirmed breach in the CDE triggers forensic investigation obligations and potential card scheme liability. Quarterly ASV scans and annual penetration tests are required.",
+    "lastUpdated": "2024-05-20"
+  },
+  {
+    "id": "doc-bcp-10",
+    "title": "Business Continuity & DR Planning Framework",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "operational",
+      "business-continuity",
+      "bcp",
+      "dr",
+      "resilience",
+      "all-bu",
+      "alternate-workspace",
+      "manual-fallback",
+      "relocation"
+    ],
+    "contentExcerpt": "Business Impact Analysis (BIA) results define Recovery Time Objectives (RTOs) and Recovery Point Objectives (RPOs) per service. Tier-1 services: RTO 4 hours, RPO 1 hour. Tier-2 services: RTO 24 hours, RPO 4 hours. Annual BCP tests are mandatory. Alternate workspace, relocation decisions, and manual fallback steps for priority tasks must be executable during live disruption. Unplanned downtime cost benchmarks: $15k–$50k per hour for Tier-1 services. Ransomware recovery average: 18–21 days without offline backups; 3–5 days with verified immutable backups.",
+    "lastUpdated": "2024-02-10"
+  },
+  {
+    "id": "doc-vuln-11",
+    "title": "Vulnerability Management & Patch Policy",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "cyber",
+      "operational",
+      "vulnerability",
+      "patch",
+      "operations",
+      "all-bu"
+    ],
+    "contentExcerpt": "Critical vulnerabilities (CVSS 9.0+) must be patched within 7 days in production. High severity (CVSS 7.0–8.9) within 30 days. Exceptions require documented risk acceptance by the CISO. Exploit-in-the-wild vulnerabilities are treated as Critical regardless of CVSS score. Unpatched critical vulnerabilities are the leading cause of successful breaches in our environment (45% of incidents reviewed 2022–2023). Compensating controls must be documented for any exceptions.",
+    "lastUpdated": "2024-04-05"
+  },
+  {
+    "id": "doc-insider-12",
+    "title": "Insider Threat Program & Indicators of Compromise",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "cyber",
+      "compliance",
+      "insider-threat",
+      "personnel",
+      "dlp",
+      "all-bu"
+    ],
+    "contentExcerpt": "The Insider Threat Program monitors for behavioural and technical indicators. High-risk indicators include: bulk data downloads (>500MB/day), after-hours access to sensitive systems, privilege escalation attempts, and access to systems outside job function. DLP tools monitor email, USB, and cloud uploads. Investigations are conducted by HR and Legal in conjunction with Security. Average financial impact of insider incidents: $200k–$2M (direct); reputational impact can be significantly higher.",
+    "lastUpdated": "2024-01-30"
+  },
+  {
+    "id": "doc-nist-80053-13",
+    "title": "NIST SP 800-53 Rev. 5 Control Baseline Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://csrc.nist.gov/publications",
+    "tags": [
+      "cyber",
+      "compliance",
+      "third-party",
+      "business-continuity",
+      "nist",
+      "controls",
+      "risk-management",
+      "privacy",
+      "all-bu"
+    ],
+    "contentExcerpt": "NIST SP 800-53 Rev. 5 provides a catalogue of security and privacy controls for information systems and organisations. It is relevant for control selection, control tailoring, privacy engineering, continuous monitoring, supply chain protection, incident response, and resilience planning. Key families include Risk Assessment, Contingency Planning, Supply Chain Risk Management, System and Services Acquisition, Incident Response, and Program Management.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-nist-rmf-14",
+    "title": "NIST Risk Management Framework Implementation Guide",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://csrc.nist.gov/projects/risk-management",
+    "tags": [
+      "strategic",
+      "operational",
+      "compliance",
+      "nist",
+      "rmf",
+      "risk-management",
+      "governance",
+      "all-bu"
+    ],
+    "contentExcerpt": "The NIST RMF structures risk management into Prepare, Categorise, Select, Implement, Assess, Authorise, and Monitor. It is useful for aligning system-level risk decisions, governance, control baselines, assessment cadence, and continuous monitoring. The framework supports defensible decision-making where business, regulatory, privacy, and cyber risk must be managed together.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-iso27002-15",
+    "title": "ISO 27002 Control Guidance Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.iso.org/standards.html",
+    "tags": [
+      "cyber",
+      "compliance",
+      "third-party",
+      "business-continuity",
+      "iso",
+      "controls",
+      "isms",
+      "all-bu"
+    ],
+    "contentExcerpt": "ISO 27002 provides implementation guidance for information security controls supporting ISO 27001. It is relevant when translating policy into practical control activities across identity, logging, supplier management, secure development, incident response, and business continuity. It helps teams explain how controls operate in practice rather than only stating that they exist.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-iso27005-16",
+    "title": "ISO 27005 Information Security Risk Management Guidance",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.iso.org/standards.html",
+    "tags": [
+      "operational",
+      "iso",
+      "risk-management",
+      "cyber",
+      "all-bu"
+    ],
+    "contentExcerpt": "ISO 27005 gives guidance on establishing, analysing, evaluating, treating, communicating, and monitoring information security risk. It is relevant for scenario definition, likelihood and impact reasoning, treatment selection, and documenting assumptions. It supports structured cyber risk analysis where assessments need to remain consistent with broader enterprise risk processes.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-iso27017-17",
+    "title": "ISO 27017 Cloud Security Control Guidance",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.iso.org/standards.html",
+    "tags": [
+      "operational",
+      "third-party",
+      "iso",
+      "cloud",
+      "security",
+      "all-bu"
+    ],
+    "contentExcerpt": "ISO 27017 provides cloud-specific control guidance for both cloud service providers and cloud customers. It is relevant for shared-responsibility analysis, tenant isolation, cloud administration, privileged access, logging, asset return on termination, and virtual environment hardening. It is especially useful when assessing cloud exposure, platform resilience, and provider dependency risk.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-iso27018-18",
+    "title": "ISO 27018 Protection of PII in Public Cloud",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.iso.org/standards.html",
+    "tags": [
+      "compliance",
+      "regulatory",
+      "iso",
+      "privacy",
+      "cloud",
+      "data-protection",
+      "all-bu"
+    ],
+    "contentExcerpt": "ISO 27018 focuses on protection of personally identifiable information in public cloud environments. It is relevant for privacy controls, consent and transparency obligations, data subject handling, deletion, return of records, processor responsibilities, and breach-response expectations. It strengthens privacy-grounded assessment where cloud-hosted personal data is involved.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-iso27701-19",
+    "title": "ISO 27701 Privacy Information Management Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.iso.org/standards.html",
+    "tags": [
+      "compliance",
+      "regulatory",
+      "iso",
+      "privacy",
+      "pims",
+      "data-governance",
+      "all-bu"
+    ],
+    "contentExcerpt": "ISO 27701 extends ISO 27001 and ISO 27002 for privacy information management. It is relevant where the organisation acts as controller or processor and needs stronger privacy governance, data subject rights processes, accountability, third-party oversight, and privacy control mapping. It is especially useful for assessments involving personal, sensitive, biometric, or health-related data.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-iso22301-20",
+    "title": "ISO 22301 Business Continuity Management Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.iso.org/standards.html",
+    "tags": [
+      "operational",
+      "iso",
+      "business-continuity",
+      "resilience",
+      "all-bu",
+      "site-disruption",
+      "alternate-workspace",
+      "manual-fallback"
+    ],
+    "contentExcerpt": "ISO 22301 sets requirements for a business continuity management system. It is relevant for site disruption, alternate workspace, manual fallback steps, recovery planning, exercising, crisis communications, and resilience governance. It supports scenario analysis where operational disruption, service outage, relocation readiness, or recovery capability materially affect loss.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-iso22313-21",
+    "title": "ISO 22313 Business Continuity Guidance",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.iso.org/standards.html",
+    "tags": [
+      "operational",
+      "iso",
+      "business-continuity",
+      "guidance",
+      "all-bu"
+    ],
+    "contentExcerpt": "ISO 22313 provides guidance for applying ISO 22301 in practice. It is useful for building realistic continuity assumptions, recovery strategies, dependency analysis, exercising, and management review. It helps teams assess whether continuity plans are practical, tested, and proportionate to the disruption scenario being discussed.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-iso27036-22",
+    "title": "ISO 27036 Supplier and Supply Chain Security Guidance",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.iso.org/standards.html",
+    "tags": [
+      "procurement",
+      "compliance",
+      "iso",
+      "supplier",
+      "supply-chain",
+      "third-party",
+      "all-bu",
+      "vendor-access",
+      "remote-access",
+      "subcontractor"
+    ],
+    "contentExcerpt": "ISO 27036 provides guidance for information security in supplier relationships. It is relevant for third-party onboarding, subcontractor oversight, remote-access governance, over-privileged vendor accounts, contract controls, due diligence, supplier monitoring, and fourth-party exposure. It supports stronger supply chain risk assessment where data access, service dependency, or shared infrastructure create inherited risk.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-iso28000-23",
+    "title": "ISO 28000 Supply Chain Security Management Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.iso.org/standards.html",
+    "tags": [
+      "operational",
+      "business-continuity",
+      "iso",
+      "supply-chain",
+      "resilience",
+      "all-bu"
+    ],
+    "contentExcerpt": "ISO 28000 focuses on security management systems for supply chains. It is relevant where physical, operational, logistics, or critical dependency risk intersects with business continuity and security. It helps frame assurance expectations around supplier reliability, disruption management, and resilience of upstream and downstream operations.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-iso31000-24",
+    "title": "ISO 31000 Enterprise Risk Management Principles",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.iso.org/standards.html",
+    "tags": [
+      "strategic",
+      "operational",
+      "iso",
+      "risk-management",
+      "enterprise-risk",
+      "all-bu"
+    ],
+    "contentExcerpt": "ISO 31000 provides principles and guidance for enterprise risk management. It is relevant for governance, risk criteria, appetite, decision-making, treatment planning, assurance, and integration with business objectives. It helps ensure cyber, privacy, continuity, and third-party risk analysis stays aligned to broader organisational risk management practice.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-coso-erm-25",
+    "title": "COSO Enterprise Risk Management - Strategy and Performance",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.coso.org/",
+    "tags": [
+      "operational",
+      "financial",
+      "strategic",
+      "enterprise-risk",
+      "governance",
+      "all-bu"
+    ],
+    "contentExcerpt": "COSO ERM links risk to strategy-setting, performance, governance, and decision-making. It is relevant when scenarios concern strategic execution, market shifts, major transformation programmes, portfolio choices, appetite calibration, and management's ability to translate objectives into operating action. It helps frame risk as uncertainty around value creation rather than only control failure.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-iso37301-26",
+    "title": "ISO 37301 Compliance Management Systems Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.iso.org/standards.html",
+    "tags": [
+      "regulatory",
+      "compliance",
+      "governance",
+      "controls",
+      "all-bu"
+    ],
+    "contentExcerpt": "ISO 37301 sets requirements and guidance for compliance management systems. It is relevant for obligations registers, accountability, monitoring, escalation, policy governance, investigations, disciplinary mechanisms, and management review. It helps distinguish one-off regulatory issues from broader compliance-system weaknesses that could drive repeated failures.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-ifrs-s1s2-27",
+    "title": "IFRS S1 and IFRS S2 Sustainability Disclosure Baseline",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.ifrs.org/supporting-implementation/supporting-materials-for-ifrs-sustainability-disclosure-standards/ifrs-s1-and-ifrs-s2/",
+    "tags": [
+      "strategic",
+      "esg",
+      "sustainability",
+      "climate",
+      "all-bu",
+      "claim-substantiation",
+      "scope-2",
+      "investor-disclosure"
+    ],
+    "contentExcerpt": "IFRS S1 and IFRS S2 establish baseline sustainability and climate-related disclosure expectations. They are relevant for governance, strategy, risk management, metrics, targets, disclosure controls, and claim substantiation. They help frame ESG scenarios around unsupported Scope 2 reduction claims, board oversight, investor-facing governance, and disclosure defensibility rather than only reputational rhetoric.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-gri-28",
+    "title": "GRI Universal Standards Governance and Impact Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.globalreporting.org/how-to-use-the-gri-standards/resource-center/",
+    "tags": [
+      "strategic",
+      "esg",
+      "sustainability",
+      "reporting",
+      "all-bu"
+    ],
+    "contentExcerpt": "The GRI Universal Standards support impact-based sustainability reporting across governance, material topics, stakeholder engagement, and due diligence. They are useful where the organisation needs to assess social, environmental, or governance impacts that could translate into disclosure risk, stakeholder pressure, remediation cost, or long-term trust issues.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-iso20400-29",
+    "title": "ISO 20400 Sustainable Procurement Guidance",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.iso.org/standards.html",
+    "tags": [
+      "compliance",
+      "procurement",
+      "sourcing",
+      "supply-chain",
+      "all-bu"
+    ],
+    "contentExcerpt": "ISO 20400 provides guidance for sustainable procurement, including sourcing strategy, supplier selection, contract lifecycle, ethics, and value-chain impact. It is relevant when procurement scenarios involve weak tender controls, poor supplier fit, concentration risk, labour or sustainability exposure, or sourcing decisions that create long-term operational and reputational consequences.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-iso45001-30",
+    "title": "ISO 45001 Occupational Health and Safety Management Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.iso.org/standards.html",
+    "tags": [
+      "operational",
+      "hse",
+      "health-safety",
+      "operations",
+      "all-bu"
+    ],
+    "contentExcerpt": "ISO 45001 sets requirements for occupational health and safety management systems. It is relevant for hazard identification, worker participation, incident investigation, operational controls, contractor safety, leadership accountability, and continual improvement. It helps ground HSE scenarios in management-system strength rather than only individual unsafe acts.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-iso14001-31",
+    "title": "ISO 14001 Environmental Management Systems Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.iso.org/standards.html",
+    "tags": [
+      "regulatory",
+      "compliance",
+      "hse",
+      "environment",
+      "esg",
+      "all-bu"
+    ],
+    "contentExcerpt": "ISO 14001 provides a framework for environmental management systems covering environmental aspects, legal obligations, operational controls, emergency preparedness, and performance improvement. It is useful where environmental incidents, remediation obligations, climate transition pressure, or sustainability-control failures could materially affect the business.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-nfpa1600-32",
+    "title": "NFPA 1600 Crisis and Continuity Program Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.nfpa.org/for-professionals/codes-and-standards",
+    "tags": [
+      "operational",
+      "business-continuity",
+      "crisis-management",
+      "resilience",
+      "all-bu"
+    ],
+    "contentExcerpt": "NFPA 1600 provides criteria for emergency management, business continuity, and crisis management programmes. It is relevant where scenarios test crisis coordination, continuity activation, incident communications, dependency analysis, and recovery governance. It helps teams assess whether continuity capability is operationally credible under stress.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-coso-ic-33",
+    "title": "COSO Internal Control Framework for Financial and Compliance Risk",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.coso.org/",
+    "tags": [
+      "regulatory",
+      "financial",
+      "compliance",
+      "controls",
+      "all-bu",
+      "payment-controls",
+      "receivables",
+      "segregation-of-duties",
+      "counterparty"
+    ],
+    "contentExcerpt": "The COSO Internal Control Framework is relevant for financial reporting integrity, fraud risk, control design, monitoring, segregation of duties, and management accountability. It is especially useful where scenarios involve payment manipulation, duplicate-payment release, approval breakdown, receivable recovery pressure, customer insolvency, compliance control weakness, or unclear control ownership.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-dora-34",
+    "title": "EU Digital Operational Resilience Act (DORA) Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://eur-lex.europa.eu/legal-content/EN/LSU/?uri=LEGISSUM%3A4653041",
+    "tags": [
+      "cyber",
+      "third-party",
+      "business-continuity",
+      "eu",
+      "operational",
+      "resilience",
+      "financial",
+      "all-bu"
+    ],
+    "contentExcerpt": "DORA sets operational resilience expectations for financial entities and critical ICT providers across governance, ICT risk management, major incident reporting, testing, third-party oversight, and resilience learning. It is relevant when operational disruption, dependency risk, cyber incidents, or control breakdown could affect regulated financial services, supervisory posture, or outsourcing assurance.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-nis2-35",
+    "title": "EU NIS2 Directive Cyber and Operational Resilience Baseline",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://eur-lex.europa.eu/EN/legal-content/summary/cybersecurity-of-network-and-information-systems.html",
+    "tags": [
+      "third-party",
+      "business-continuity",
+      "compliance",
+      "eu",
+      "cyber",
+      "regulatory",
+      "operational",
+      "all-bu"
+    ],
+    "contentExcerpt": "NIS2 raises cybersecurity and resilience expectations for essential and important entities, covering governance accountability, risk management, incident reporting, supply chain security, continuity, and supervisory enforcement. It is useful where cyber, continuity, supplier, or governance issues intersect with European regulatory exposure or cross-border operations.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-csrd-esrs-36",
+    "title": "EU CSRD and ESRS Sustainability Reporting Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://eur-lex.europa.eu/eli/dir/2022/2464/oj/eng",
+    "tags": [
+      "strategic",
+      "compliance",
+      "regulatory",
+      "eu",
+      "esg",
+      "sustainability",
+      "reporting",
+      "all-bu",
+      "greenwashing",
+      "assurance",
+      "value-chain"
+    ],
+    "contentExcerpt": "The Corporate Sustainability Reporting Directive (CSRD) and European Sustainability Reporting Standards (ESRS) formalise governance, strategy, risk, metrics, impact, and assurance expectations for sustainability topics. They are relevant for ESG, climate, value-chain, greenwashing, and disclosure-credibility scenarios where reporting quality, control maturity, or evidence gaps could materially affect stakeholders.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-nist-csf-37",
+    "title": "NIST Cybersecurity Framework 2.0 Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.nist.gov/cyberframework",
+    "tags": [
+      "operational",
+      "third-party",
+      "business-continuity",
+      "us",
+      "cyber",
+      "governance",
+      "controls",
+      "all-bu"
+    ],
+    "contentExcerpt": "NIST CSF 2.0 provides a widely used governance and cybersecurity structure across Govern, Identify, Protect, Detect, Respond, and Recover. It is relevant for cyber and operational scenarios where management needs a defensible way to discuss capability, control maturity, and resilience improvement without jumping straight to technical detail.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-sec-cyber-38",
+    "title": "US SEC Cybersecurity Disclosure Rules Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.sec.gov/rules-regulations/2023/07/s7-09-22",
+    "tags": [
+      "regulatory",
+      "compliance",
+      "us",
+      "cyber",
+      "financial",
+      "disclosure",
+      "all-bu"
+    ],
+    "contentExcerpt": "The SEC cybersecurity disclosure rules are relevant where material cyber incidents, cyber governance, and risk-management transparency could affect public reporting, investor scrutiny, board oversight, or disclosure controls. They help frame scenarios where cyber events become securities, governance, or executive-communication issues rather than only technical incidents.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-hipaa-39",
+    "title": "US HIPAA Security and Breach Notification Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.hhs.gov/hipaa/for-professionals/security/index.html",
+    "tags": [
+      "compliance",
+      "cyber",
+      "us",
+      "health",
+      "privacy",
+      "regulatory",
+      "all-bu"
+    ],
+    "contentExcerpt": "HIPAA Security and Breach Notification requirements are relevant where protected health information, healthcare services, or regulated health operations are in scope. They help frame scenarios involving confidentiality, integrity, availability, patient impact, breach-notification obligations, and the cost of remediation in health-related environments.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-basel-opres-40",
+    "title": "Basel Committee Principles for Operational Resilience",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.bis.org/bcbs/publ/d516.htm",
+    "tags": [
+      "third-party",
+      "business-continuity",
+      "global",
+      "financial",
+      "operational",
+      "resilience",
+      "all-bu"
+    ],
+    "contentExcerpt": "The Basel Committee principles for operational resilience help financial institutions define important business services, impact tolerances, dependencies, scenario testing, and recovery expectations. They are relevant when operational, continuity, third-party, or cyber scenarios could materially affect regulated financial operations or supervisory scrutiny.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-bcbs239-41",
+    "title": "BCBS 239 Risk Data Aggregation and Reporting Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.bis.org/publ/bcbs239.htm",
+    "tags": [
+      "operational",
+      "regulatory",
+      "global",
+      "financial",
+      "governance",
+      "data",
+      "all-bu"
+    ],
+    "contentExcerpt": "BCBS 239 is relevant for risk data aggregation, reporting governance, data quality, timeliness, and senior-management decision support. It helps frame scenarios where fragmented data, reporting weakness, or poor control over critical management information could amplify financial, operational, or regulatory risk.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-uae-sf-42",
+    "title": "UAE Sustainable Finance Principles Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.centralbank.ae/en/our-operations/sustainable-finance/",
+    "tags": [
+      "strategic",
+      "regulatory",
+      "uae",
+      "esg",
+      "sustainability",
+      "financial",
+      "all-bu"
+    ],
+    "contentExcerpt": "The UAE Sustainable Finance Principles are relevant for governance, climate and sustainability integration, transition planning, financial decision-making, and market-facing sustainability posture. They help frame ESG scenarios in a regional context where sustainability commitments, financing decisions, and disclosure quality influence trust and strategic direction.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-adx-esg-43",
+    "title": "ADX ESG Disclosure Guidance Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.adx.ae/about-adx/sustainability/overview",
+    "tags": [
+      "strategic",
+      "regulatory",
+      "compliance",
+      "uae",
+      "esg",
+      "reporting",
+      "governance",
+      "all-bu"
+    ],
+    "contentExcerpt": "ADX ESG disclosure guidance is relevant where listed-entity governance, sustainability disclosure, board oversight, and non-financial reporting quality are material. It helps ground ESG and governance scenarios in a UAE capital-markets context rather than only general global reporting language.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-abu-dhabi-ehsms-44",
+    "title": "Abu Dhabi EHSMS Regulatory Framework Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.dmt.gov.ae/en/adm/Environment-Healthy-Safty/About-EHS",
+    "tags": [
+      "operational",
+      "compliance",
+      "regulatory",
+      "uae",
+      "hse",
+      "environment",
+      "operations",
+      "all-bu"
+    ],
+    "contentExcerpt": "The Abu Dhabi Environment, Health and Safety Management System (EHSMS) regulatory framework is relevant for hazard management, contractor oversight, incident investigation, operational controls, emergency readiness, and leadership accountability. It helps frame HSE scenarios in a UAE operating context where safety and environmental control failures can trigger shutdowns, remediation, and regulatory action.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-uae-fire-life-45",
+    "title": "UAE Fire and Life Safety Code Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.dcd.gov.ae/portal/en/sector/fire-safety-and-protection-sector.jsp",
+    "tags": [
+      "operational",
+      "compliance",
+      "regulatory",
+      "uae",
+      "hse",
+      "business-continuity",
+      "facilities",
+      "all-bu"
+    ],
+    "contentExcerpt": "The UAE Fire and Life Safety Code is relevant where facility resilience, occupancy safety, emergency preparedness, suppression controls, and incident response capability affect business continuity and HSE exposure. It supports scenarios involving site shutdown, safety incidents, and resilience of physical operating locations.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-uncitral-proc-46",
+    "title": "UNCITRAL Model Law on Public Procurement Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://uncitral.un.org/en/texts/procurement/modellaw/public_procurement",
+    "tags": [
+      "compliance",
+      "regulatory",
+      "global",
+      "procurement",
+      "public-sector",
+      "governance",
+      "all-bu"
+    ],
+    "contentExcerpt": "The UNCITRAL Model Law on Public Procurement is relevant for tender design, transparency, fairness, challenge risk, supplier selection, and governance of public-sector procurement. It helps frame procurement scenarios where process weakness, conflict of interest, or poor sourcing governance could create legal, operational, or reputational exposure.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-worldbank-proc-47",
+    "title": "World Bank Procurement Framework Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.worldbank.org/en/programs/project-procurement/framework",
+    "tags": [
+      "compliance",
+      "operational",
+      "global",
+      "procurement",
+      "sourcing",
+      "governance",
+      "all-bu"
+    ],
+    "contentExcerpt": "The World Bank Procurement Framework is relevant for value-for-money sourcing, market approach, bid governance, contract management, fraud and corruption control, and supplier performance oversight. It helps assess procurement and sourcing scenarios where governance quality materially affects delivery, cost, resilience, or integrity.",
+    "lastUpdated": "2024-06-15"
+  },
+  {
+    "id": "doc-oecd-rbc-48",
+    "title": "OECD Due Diligence Guidance for Responsible Business Conduct",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.oecd.org/en/topics/due-diligence-for-responsible-business-conduct.html",
+    "tags": [
+      "procurement",
+      "supply-chain",
+      "esg",
+      "compliance",
+      "people-workforce",
+      "human-rights",
+      "global",
+      "all-bu",
+      "forced-labour",
+      "modern-slavery",
+      "remediation"
+    ],
+    "contentExcerpt": "The OECD due diligence guidance is relevant where supplier conduct, forced labour, modern slavery, recruitment-fee abuse, grievance handling, remediation, or value-chain oversight could create legal, operational, financing, or reputation risk. It helps ground procurement and ESG scenarios in structured due-diligence expectations rather than ad hoc ethics language.",
+    "lastUpdated": "2025-06-15"
+  },
+  {
+    "id": "doc-ungp-49",
+    "title": "UN Guiding Principles on Business and Human Rights Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.ohchr.org/en/business-and-human-rights",
+    "tags": [
+      "procurement",
+      "supply-chain",
+      "esg",
+      "compliance",
+      "people-workforce",
+      "investment-jv",
+      "human-rights",
+      "global",
+      "all-bu",
+      "forced-labour",
+      "worker-welfare",
+      "remedy"
+    ],
+    "contentExcerpt": "The UN Guiding Principles are relevant when the organisation may cause, contribute to, or be directly linked to adverse human-rights impacts through suppliers, portfolio companies, projects, or services. They help frame forced-labour, worker-welfare, remediation, and governance scenarios with a recognised global accountability model.",
+    "lastUpdated": "2025-06-15"
+  },
+  {
+    "id": "doc-iso31010-50",
+    "title": "ISO 31010 Risk Assessment Techniques Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.iso.org/standards.html",
+    "tags": [
+      "strategic",
+      "operational",
+      "investment-jv",
+      "transformation-delivery",
+      "risk-management",
+      "enterprise-risk",
+      "controls",
+      "all-bu"
+    ],
+    "contentExcerpt": "ISO 31010 provides guidance on selecting and applying risk assessment techniques, including scenario analysis, bow-tie logic, fault-tree style thinking, and consequence assessment. It is useful when teams need more disciplined event-path and impact reasoning across enterprise, operational, procurement, continuity, or compliance assessments.",
+    "lastUpdated": "2025-06-15"
+  },
+  {
+    "id": "doc-iso22361-51",
+    "title": "ISO 22361 Crisis Management Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.iso.org/standards.html",
+    "tags": [
+      "operational",
+      "business-continuity",
+      "crisis-management",
+      "resilience",
+      "all-bu",
+      "incident-command",
+      "decision-rights",
+      "relocation"
+    ],
+    "contentExcerpt": "ISO 22361 is relevant where scenarios test crisis leadership, decision rights, relocation choices, communications, escalation, cross-functional coordination, and management under uncertainty. It strengthens continuity retrieval for scenarios that are less about static plans and more about whether the organisation can lead effectively during disruption.",
+    "lastUpdated": "2025-06-15"
+  },
+  {
+    "id": "doc-iec62443-52",
+    "title": "IEC 62443 Industrial and Operational Technology Security Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.iec.ch/",
+    "tags": [
+      "operational",
+      "cyber",
+      "ot-resilience",
+      "physical-security",
+      "hse",
+      "business-continuity",
+      "ot",
+      "facilities",
+      "all-bu"
+    ],
+    "contentExcerpt": "IEC 62443 is relevant for industrial control systems, site operations, plant networks, safety-critical automation, and operational technology governance. It helps ground scenarios where cyber and operational disruption intersect with facility resilience, worker safety, production continuity, or control-system exposure.",
+    "lastUpdated": "2025-06-15"
+  },
+  {
+    "id": "doc-nist-800161-53",
+    "title": "NIST SP 800-161 Supply Chain Risk Management Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://csrc.nist.gov/publications",
+    "tags": [
+      "supply-chain",
+      "third-party",
+      "procurement",
+      "compliance",
+      "cyber",
+      "global",
+      "all-bu",
+      "sub-tier",
+      "supplier-assurance",
+      "delivery-dependency"
+    ],
+    "contentExcerpt": "NIST SP 800-161 is relevant for supplier assurance, dependency mapping, sub-tier visibility, sourcing governance, product integrity, over-privileged third-party access, and supply chain security risk management. It helps retrieval treat supplier, procurement, vendor-access, and concentration scenarios as structured dependency problems rather than generic vendor issues.",
+    "lastUpdated": "2025-06-15"
+  },
+  {
+    "id": "doc-ilo-osh-54",
+    "title": "ILO-OSH 2001 Occupational Safety and Health Management Guidance",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.ilo.org/resource/guidelines-occupational-safety-and-health-management-systems-ilo-osh-2001",
+    "tags": [
+      "hse",
+      "operational",
+      "health-safety",
+      "human-rights",
+      "operations",
+      "global",
+      "all-bu",
+      "fatigue",
+      "staffing",
+      "worker-welfare"
+    ],
+    "contentExcerpt": "ILO-OSH is relevant where contractor safety, worker welfare, supervision, fatigue, staffing pressure, incident prevention, corrective action, and continuous improvement matter. It strengthens HSE retrieval for scenarios involving labour practices, unsafe conditions, site controls, and operational accountability beyond pure regulatory citation.",
+    "lastUpdated": "2025-06-15"
+  },
+  {
+    "id": "doc-sasb-55",
+    "title": "SASB Sector Materiality Reference for Sustainability Risks",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.ifrs.org/issued-standards/sasb-standards/",
+    "tags": [
+      "strategic",
+      "esg",
+      "sustainability",
+      "reporting",
+      "global",
+      "all-bu"
+    ],
+    "contentExcerpt": "The SASB standards are useful when ESG scenarios need sector-specific materiality, governance, disclosure quality, and financially relevant sustainability framing. They help separate broad sustainability language from the issues most likely to matter economically in board and investor discussions.",
+    "lastUpdated": "2025-06-15"
+  },
+  {
+    "id": "doc-tnfd-56",
+    "title": "TNFD Nature-Related Risk and Disclosure Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://tnfd.global/publication/recommendations-of-the-taskforce-on-nature-related-financial-disclosures/",
+    "tags": [
+      "strategic",
+      "esg",
+      "sustainability",
+      "supply-chain",
+      "environment",
+      "global",
+      "all-bu"
+    ],
+    "contentExcerpt": "TNFD is relevant when nature-related dependencies, ecosystem exposure, land or water impacts, and value-chain environmental stress could affect continuity, regulation, financing, or disclosure credibility. It broadens ESG grounding beyond climate-only scenarios and helps connect supply chain and environmental risk.",
+    "lastUpdated": "2025-06-15"
+  },
+  {
+    "id": "doc-iso37001-57",
+    "title": "ISO 37001 Anti-Bribery Management Systems Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.iso.org/standards.html",
+    "tags": [
+      "compliance",
+      "procurement",
+      "financial",
+      "fraud-integrity",
+      "anti-bribery",
+      "governance",
+      "all-bu"
+    ],
+    "contentExcerpt": "ISO 37001 is relevant for procurement integrity, conflict of interest, facilitation payments, third-party due diligence, gifts and hospitality, investigation workflows, and anti-bribery controls. It helps ground procurement and compliance scenarios where corruption or collusion risk may be the true driver.",
+    "lastUpdated": "2025-06-15"
+  },
+  {
+    "id": "doc-csddd-58",
+    "title": "EU Corporate Sustainability Due Diligence Directive (CSDDD) Readiness Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://eur-lex.europa.eu/legal-content/EN/LSU/?uri=OJ%3AL_202401760",
+    "tags": [
+      "esg",
+      "compliance",
+      "regulatory",
+      "procurement",
+      "supply-chain",
+      "human-rights",
+      "eu",
+      "all-bu"
+    ],
+    "contentExcerpt": "CSDDD readiness is relevant where supplier labour conditions, environmental harm, remediation obligations, board oversight, or value-chain due diligence could create legal, financing, disclosure, or stakeholder pressure. It helps procurement and ESG scenarios stay grounded in emerging enterprise due-diligence expectations rather than generic sustainability language.",
+    "lastUpdated": "2025-06-15"
+  },
+  {
+    "id": "doc-iso14064-59",
+    "title": "ISO 14064-1 Greenhouse Gas Quantification and Reporting Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.iso.org/standards.html",
+    "tags": [
+      "esg",
+      "strategic",
+      "environment",
+      "reporting",
+      "compliance",
+      "global",
+      "all-bu"
+    ],
+    "contentExcerpt": "ISO 14064-1 is relevant where climate disclosures, emissions baselines, reporting controls, and assurance-quality evidence affect management confidence. It helps ESG scenarios move beyond reputational language by grounding carbon reporting, boundary setting, data quality, and disclosure defensibility in a recognised framework.",
+    "lastUpdated": "2025-06-15"
+  },
+  {
+    "id": "doc-osha-psm-60",
+    "title": "OSHA Process Safety Management Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.osha.gov/process-safety-management/standards",
+    "tags": [
+      "hse",
+      "operational",
+      "health-safety",
+      "business-continuity",
+      "operations",
+      "global",
+      "all-bu"
+    ],
+    "contentExcerpt": "OSHA Process Safety Management is relevant where hazardous operations, contractor safety, maintenance discipline, management of change, emergency planning, or incident investigation determine whether a site remains safe to operate. It strengthens HSE retrieval for scenarios where shutdown, worker exposure, or process-control failure can rapidly become a continuity issue.",
+    "lastUpdated": "2025-06-15"
+  },
+  {
+    "id": "doc-sa8000-61",
+    "title": "SA8000 Social Accountability and Labour Assurance Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://sa-intl.org/programs/sa8000/",
+    "tags": [
+      "esg",
+      "procurement",
+      "supply-chain",
+      "people-workforce",
+      "human-rights",
+      "compliance",
+      "worker-welfare",
+      "recruitment-fees",
+      "global",
+      "all-bu"
+    ],
+    "contentExcerpt": "SA8000 is relevant when supplier labour practices, worker welfare, recruitment standards, grievance handling, corrective action, or social audit quality could materially affect sourcing decisions, disclosures, financing, or customer trust. It helps labour-practice scenarios stay grounded in due-diligence and remediation expectations rather than generic ethics language.",
+    "lastUpdated": "2025-06-15"
+  },
+  {
+    "id": "doc-iso42001-62",
+    "title": "ISO/IEC 42001 AI Management Systems Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.iso.org/standards.html",
+    "tags": [
+      "ai-model-risk",
+      "compliance",
+      "strategic",
+      "governance",
+      "regulatory",
+      "global",
+      "all-bu",
+      "validation",
+      "human-oversight",
+      "agentic"
+    ],
+    "contentExcerpt": "ISO/IEC 42001 is relevant where AI systems need clear governance, accountability, documented controls, human oversight, incident response, evaluation discipline, and continual improvement. It helps AI-enabled assessments stay grounded in a recognised management-system model instead of treating model risk as only a technical issue.",
+    "lastUpdated": "2026-03-30"
+  },
+  {
+    "id": "doc-iso23894-63",
+    "title": "ISO/IEC 23894 AI Risk Management Guidance Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.iso.org/standards.html",
+    "tags": [
+      "ai-model-risk",
+      "strategic",
+      "operational",
+      "risk-management",
+      "global",
+      "all-bu",
+      "bias",
+      "drift",
+      "evaluation"
+    ],
+    "contentExcerpt": "ISO/IEC 23894 is relevant when teams need disciplined identification, analysis, treatment, and monitoring of AI-specific risks such as bias, drift, unsafe outputs, weak oversight, and evaluation gaps. It gives the platform a recognised reference for AI risk reasoning beyond policy language alone.",
+    "lastUpdated": "2026-03-30"
+  },
+  {
+    "id": "doc-nist-airmf-64",
+    "title": "NIST AI Risk Management Framework Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.nist.gov/itl/ai-risk-management-framework",
+    "tags": [
+      "ai-model-risk",
+      "strategic",
+      "operational",
+      "governance",
+      "risk-management",
+      "global",
+      "all-bu",
+      "trustworthy-ai",
+      "mapping-measuring",
+      "monitoring"
+    ],
+    "contentExcerpt": "The NIST AI RMF is relevant where AI use cases need mapping, measurement, governance, and management of risks across lifecycle design, deployment, monitoring, change, and escalation. It strengthens retrieval for responsible-AI, model-governance, and trust scenarios where executive accountability matters as much as model performance.",
+    "lastUpdated": "2026-03-30"
+  },
+  {
+    "id": "doc-eu-ai-act-65",
+    "title": "EU AI Act Governance and Obligations Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://digital-strategy.ec.europa.eu/en/policies/regulatory-framework-ai",
+    "tags": [
+      "ai-model-risk",
+      "data-governance",
+      "regulatory",
+      "compliance",
+      "eu",
+      "global",
+      "all-bu",
+      "transparency",
+      "post-market-monitoring",
+      "high-risk-ai"
+    ],
+    "contentExcerpt": "The EU AI Act is relevant where AI systems may trigger risk-tier obligations, transparency duties, prohibited-use concerns, recordkeeping, human oversight, and post-market monitoring expectations. It helps AI scenarios stay tied to real governance, abstention, and compliance consequences rather than generic innovation language.",
+    "lastUpdated": "2026-03-30"
+  },
+  {
+    "id": "doc-sr11-7-66",
+    "title": "SR 11-7 Model Risk Management Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.federalreserve.gov/supervisionreg/srletters/sr1107.htm",
+    "tags": [
+      "ai-model-risk",
+      "financial",
+      "governance",
+      "risk-management",
+      "global",
+      "all-bu",
+      "model-validation",
+      "challenge",
+      "independent-review"
+    ],
+    "contentExcerpt": "SR 11-7 is relevant where model governance, validation, limitations, use controls, override discipline, effective challenge, and independent review determine whether management can trust model-driven decisions. It is especially useful when AI or analytics scenarios need stronger model-risk framing in financially material contexts.",
+    "lastUpdated": "2026-03-30"
+  },
+  {
+    "id": "doc-contract-governance-67",
+    "title": "Enterprise Contracting, IP, and Dispute Governance Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "legal-contract",
+      "compliance",
+      "strategic",
+      "governance",
+      "contract-governance",
+      "rights-remedies",
+      "claims",
+      "all-bu"
+    ],
+    "contentExcerpt": "This internal standard defines contracting authority, deviation approval, indemnity thresholds, liability carve-out review, rights-and-remedies approval, notice management, and dispute-escalation expectations for material agreements. It is relevant where service credits, confidentiality clauses, delivery obligations, uncapped indemnities, local-court exclusivity, rights positions, or licensing assumptions could create legal or commercial downside.",
+    "lastUpdated": "2026-03-30"
+  },
+  {
+    "id": "doc-market-access-68",
+    "title": "Sanctions, Export Controls, and Market-Access Escalation Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "geopolitical",
+      "regulatory",
+      "compliance",
+      "strategic",
+      "global",
+      "market-access",
+      "sanctions-spillover",
+      "correspondent-banks",
+      "cargo-insurance",
+      "travel-approvals",
+      "public-sector-screening",
+      "localisation",
+      "all-bu"
+    ],
+    "contentExcerpt": "This internal escalation standard is relevant where sanctions shifts, export-control restrictions, sovereign decisions, localisation demands, public-sector screening, correspondent-bank retreat, cargo-insurance withdrawal, travel-approval limits, or other cross-border licensing constraints force reprioritisation of suppliers, customers, or operating markets. It helps geopolitical scenarios stay tied to practical management triggers, access-channel erosion, and escalation paths.",
+    "lastUpdated": "2026-03-30"
+  },
+  {
+    "id": "doc-physical-security-69",
+    "title": "Physical Security, Facilities, and Executive Protection Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "physical-security",
+      "operational",
+      "business-continuity",
+      "hse",
+      "facilities",
+      "executive-protection",
+      "restricted-site",
+      "visitor-management",
+      "badge-control",
+      "perimeter",
+      "all-bu"
+    ],
+    "contentExcerpt": "This internal standard is relevant where sensitive sites, executive movements, visitor controls, guard operations, or perimeter assurance determine whether a physical-control lapse becomes a wider business or safety event. It strengthens grounding for facilities and executive-protection scenarios that do not fit a pure cyber frame.",
+    "lastUpdated": "2026-03-30"
+  },
+  {
+    "id": "doc-investment-jv-70",
+    "title": "Investment Committee and Post-Merger Integration Governance Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "investment-jv",
+      "strategic",
+      "financial",
+      "governance",
+      "deal-thesis",
+      "value-creation",
+      "all-bu"
+    ],
+    "contentExcerpt": "This internal governance standard is relevant where transactions, minority positions, joint ventures, integration plans, synergy assumptions, valuation challenge, or escalation rights determine whether an investment thesis remains defensible after close. It helps investment and JV scenarios stay tied to decision quality rather than generic strategic concern.",
+    "lastUpdated": "2026-03-30"
+  },
+  {
+    "id": "doc-transformation-delivery-71",
+    "title": "Programme Delivery and Benefits Realisation Governance Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "transformation-delivery",
+      "strategic",
+      "operational",
+      "governance",
+      "all-bu",
+      "target-state",
+      "exception-governance",
+      "localisation"
+    ],
+    "contentExcerpt": "This internal governance standard is relevant where major programmes depend on milestone discipline, dependency management, executive decision rights, scope control, target-state discipline, local exception governance, and benefits tracking. It helps transformation scenarios stay grounded in delivery governance rather than generic change-language alone, especially when localisation or site-access constraints begin to fragment the operating model.",
+    "lastUpdated": "2026-03-30"
+  },
+  {
+    "id": "doc-tcfd-72",
+    "title": "TCFD Climate Governance and Scenario Disclosure Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.ifrs.org/sustainability/tcfd/",
+    "tags": [
+      "strategic",
+      "esg",
+      "sustainability",
+      "climate",
+      "reporting",
+      "global",
+      "all-bu"
+    ],
+    "contentExcerpt": "The Task Force on Climate-related Financial Disclosures (TCFD) recommendations remain useful where climate governance, scenario analysis, transition planning, metrics, and board oversight shape disclosure credibility or financing pressure. They help ESG scenarios distinguish weak climate governance from generic reputation issues.",
+    "lastUpdated": "2026-03-30"
+  },
+  {
+    "id": "doc-ghg-protocol-73",
+    "title": "GHG Protocol Corporate Accounting and Reporting Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://ghgprotocol.org/corporate-standard",
+    "tags": [
+      "esg",
+      "environment",
+      "reporting",
+      "climate",
+      "compliance",
+      "global",
+      "all-bu"
+    ],
+    "contentExcerpt": "The GHG Protocol Corporate Standard is relevant where Scope 1, Scope 2, or Scope 3 emissions boundaries, calculation methods, data quality, and reporting controls affect management confidence. It helps climate and ESG scenarios stay grounded in defensible emissions accounting rather than loose sustainability claims.",
+    "lastUpdated": "2026-03-30"
+  },
+  {
+    "id": "doc-cdp-74",
+    "title": "CDP Climate, Water, and Supply Chain Disclosure Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.cdp.net/en/disclose/how-to-disclose",
+    "tags": [
+      "esg",
+      "sustainability",
+      "reporting",
+      "supply-chain",
+      "environment",
+      "global",
+      "all-bu",
+      "claim-substantiation",
+      "supplier-disclosure",
+      "assurance"
+    ],
+    "contentExcerpt": "CDP disclosure expectations are relevant where climate, water, or supplier-environment data quality influences investor scrutiny, customer requests, assurance readiness, claim substantiation, or value-chain credibility. They help ESG retrieval capture practical disclosure and evidence demands beyond broad sustainability narratives.",
+    "lastUpdated": "2026-03-30"
+  },
+  {
+    "id": "doc-nist-80034-75",
+    "title": "NIST SP 800-34 Contingency Planning Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://csrc.nist.gov/publications",
+    "tags": [
+      "operational",
+      "business-continuity",
+      "resilience",
+      "crisis-management",
+      "us",
+      "all-bu"
+    ],
+    "contentExcerpt": "NIST SP 800-34 is relevant where contingency planning, recovery prioritisation, alternate processing, backup discipline, and plan maintenance determine whether disruption can be absorbed. It strengthens continuity scenarios that need more explicit recovery-planning and service-restoration grounding.",
+    "lastUpdated": "2026-03-30"
+  },
+  {
+    "id": "doc-iso22317-76",
+    "title": "ISO 22317 Business Impact Analysis Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.iso.org/standards.html",
+    "tags": [
+      "operational",
+      "business-continuity",
+      "resilience",
+      "risk-management",
+      "global",
+      "all-bu"
+    ],
+    "contentExcerpt": "ISO 22317 is relevant where teams need structured business impact analysis, dependency mapping, recovery priorities, and service-criticality logic. It helps continuity scenarios move from generic outage language to explicit impact tolerance and recovery sequencing reasoning.",
+    "lastUpdated": "2026-03-30"
+  },
+  {
+    "id": "doc-iso22320-77",
+    "title": "ISO 22320 Incident Management and Command Structure Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.iso.org/standards.html",
+    "tags": [
+      "operational",
+      "business-continuity",
+      "crisis-management",
+      "resilience",
+      "global",
+      "all-bu"
+    ],
+    "contentExcerpt": "ISO 22320 is relevant where incident command, situational awareness, information flows, and coordination determine whether an organisation can manage disruption coherently. It strengthens continuity and crisis scenarios that turn on command structure rather than static plan existence.",
+    "lastUpdated": "2026-03-30"
+  },
+  {
+    "id": "doc-iso45003-78",
+    "title": "ISO 45003 Psychological Health and Safety at Work Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.iso.org/standards.html",
+    "tags": [
+      "hse",
+      "people-workforce",
+      "health-safety",
+      "operations",
+      "global",
+      "all-bu",
+      "fatigue",
+      "burnout",
+      "understaffing"
+    ],
+    "contentExcerpt": "ISO 45003 is relevant where workload, fatigue, burnout, understaffing, psychosocial stressors, contractor pressure, or unsafe culture could degrade safe delivery or increase harm. It broadens HSE retrieval beyond physical injury and helps workforce-resilience scenarios connect to operational risk.",
+    "lastUpdated": "2026-03-30"
+  },
+  {
+    "id": "doc-api-rp754-79",
+    "title": "API RP 754 Process Safety Performance Indicators Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.api.org/products-and-services/standards",
+    "tags": [
+      "hse",
+      "operational",
+      "health-safety",
+      "business-continuity",
+      "operations",
+      "global",
+      "all-bu"
+    ],
+    "contentExcerpt": "API RP 754 is relevant where process safety events, loss of containment, barrier weakness, and indicator quality determine whether hazardous operations remain under control. It helps HSE scenarios stay grounded in process-safety performance, not only personal safety metrics.",
+    "lastUpdated": "2026-03-30"
+  },
+  {
+    "id": "doc-ccps-rbps-80",
+    "title": "CCPS Risk Based Process Safety Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.aiche.org/ccps/resources/publications/summaries/guidelines-risk-based-process-safety",
+    "tags": [
+      "hse",
+      "operational",
+      "health-safety",
+      "business-continuity",
+      "governance",
+      "global",
+      "all-bu"
+    ],
+    "contentExcerpt": "CCPS Risk Based Process Safety is relevant where hazardous-material operations depend on asset integrity, management of change, permit discipline, emergency preparedness, and leadership accountability. It strengthens HSE retrieval for major-hazard scenarios where continuity and safety can fail together.",
+    "lastUpdated": "2026-03-30"
+  },
+  {
+    "id": "doc-internal-esg-disclosure-81",
+    "title": "Internal ESG Disclosure, Evidence, and Public Statement Guideline",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "esg",
+      "sustainability",
+      "reporting",
+      "assurance",
+      "claim-substantiation",
+      "public-statements",
+      "communications",
+      "legal-review",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal guideline is relevant where sustainability disclosures, investor updates, climate statements, or external ESG responses must be evidence-backed, reviewed by the right owners, and kept non-misleading. It helps ESG scenarios stay anchored to substantiation, assurance readiness, and disclosure-control quality rather than vague reputation language.",
+    "lastUpdated": "2026-04-09"
+  },
+  {
+    "id": "doc-internal-esg-climate-82",
+    "title": "Internal Climate Data, Scope 3, and MRV Guideline",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "esg",
+      "sustainability",
+      "climate",
+      "reporting",
+      "decarbonization",
+      "mrv",
+      "scope-2",
+      "scope-3",
+      "supplier-disclosure",
+      "assurance",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal climate guideline is relevant where emissions baselines, Scope 2 and Scope 3 data, transition milestones, decarbonization plans, and measurement-reporting-verification controls determine whether climate claims or financing-linked KPIs are defensible. It helps ESG retrieval distinguish evidence-ready climate reporting from overconfident transition or emissions claims.",
+    "lastUpdated": "2026-04-09"
+  },
+  {
+    "id": "doc-internal-esg-humanrights-83",
+    "title": "Internal Human Rights, Grievance, and Remediation Guideline",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "esg",
+      "people-workforce",
+      "human-rights",
+      "forced-labour",
+      "modern-slavery",
+      "grievance",
+      "remediation",
+      "supply-chain",
+      "worker-welfare",
+      "recruitment-fees",
+      "passport-retention",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal human-rights guideline is relevant where recruitment-fee abuse, passport retention, labour-broker risk, worker grievances, remediation delay, or supply-chain human-rights oversight shape the event path. It helps ESG scenarios stay grounded in grievance handling, escalation, and remediation credibility rather than generic procurement language.",
+    "lastUpdated": "2026-04-09"
+  },
+  {
+    "id": "doc-internal-compliance-speakup-84",
+    "title": "Internal Speak-Up, Non-Retaliation, and Investigation Guideline",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "compliance",
+      "ethics",
+      "whistleblowing",
+      "speak-up",
+      "non-retaliation",
+      "investigation",
+      "confidentiality",
+      "hotline",
+      "code-of-conduct",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal guideline is relevant where concerns are raised through speak-up channels, retaliation protections must hold, investigations require confidentiality, or witness-handling and case-triage steps determine whether the response is credible. It helps compliance scenarios stay anchored to report handling, non-retaliation, and investigation integrity rather than drifting into vague governance language.",
+    "lastUpdated": "2026-04-09"
+  },
+  {
+    "id": "doc-internal-compliance-abc-85",
+    "title": "Internal Anti-Bribery, Gifts, Hospitality, and Conflicts Guideline",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "compliance",
+      "anti-bribery",
+      "corruption",
+      "gifts",
+      "hospitality",
+      "public-officials",
+      "facilitation-payments",
+      "conflicts-of-interest",
+      "intermediaries",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal anti-bribery guideline is relevant where gifts, hospitality, sponsored travel, facilitation payments, public-official interactions, or undisclosed conflicts of interest create integrity risk. It helps scenarios stay grounded in value-transfer risk, approval discipline, and intermediary controls instead of flattening everything into generic policy language.",
+    "lastUpdated": "2026-04-09"
+  },
+  {
+    "id": "doc-internal-compliance-tradecontrols-86",
+    "title": "Internal Sanctions, Export Controls, and Restricted Jurisdiction Guideline",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "compliance",
+      "sanctions",
+      "export-controls",
+      "restricted-jurisdictions",
+      "screening",
+      "re-export",
+      "remote-access",
+      "trade-controls",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal trade-controls guideline is relevant where sanctions screening, restricted-party checks, export-controlled technology, re-export restrictions, or remote access from restricted jurisdictions determine whether an action can proceed. It helps regulatory scenarios stay anchored to screening and trade-control restrictions rather than generic geopolitical concern.",
+    "lastUpdated": "2026-04-09"
+  },
+  {
+    "id": "doc-internal-compliance-thirdparty-87",
+    "title": "Internal Business Partner Due Diligence and Conduct Guideline",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "third-party",
+      "compliance",
+      "due-diligence",
+      "beneficial-ownership",
+      "red-flags",
+      "ongoing-monitoring",
+      "partner-conduct",
+      "supplier-code",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal third-party compliance guideline is relevant where business partner due diligence, beneficial-ownership review, unresolved red flags, escalation decisions, ongoing monitoring, or partner-code expectations shape the event path. It helps scenarios stay grounded in inherited third-party control weakness rather than generic supplier or policy language.",
+    "lastUpdated": "2026-04-09"
+  },
+  {
+    "id": "doc-internal-compliance-insider-88",
+    "title": "Internal Insider Information and Disclosure Control Guideline",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "compliance",
+      "insider-information",
+      "market-conduct",
+      "disclosure-controls",
+      "blackout-periods",
+      "material-non-public-information",
+      "information-handling",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal market-conduct guideline is relevant where insider information, blackout periods, disclosure controls, or handling of material non-public information determine whether conduct is acceptable. It helps compliance scenarios stay anchored to disclosure discipline and trading restrictions rather than drifting into cyber insider-misuse language.",
+    "lastUpdated": "2026-04-09"
+  },
+  {
+    "id": "doc-internal-compliance-travel-security-89",
+    "title": "Internal Travel Risk and Shipment Security Guideline",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "compliance",
+      "travel-risk",
+      "restricted-jurisdictions",
+      "shipment-security",
+      "chain-of-custody",
+      "high-risk-locations",
+      "screening",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal travel and shipment-security guideline is relevant where high-risk locations, restricted jurisdictions, chain-of-custody controls, shipment integrity, or pre-travel security measures shape the event path. It helps scenarios distinguish compliance and trade-control restrictions from generic operational disruption.",
+    "lastUpdated": "2026-04-09"
+  },
+  {
+    "id": "doc-internal-erm-framework-90",
+    "title": "Internal Enterprise Risk Management Framework and Three-Lines Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "risk-management",
+      "enterprise-risk",
+      "governance",
+      "three-lines",
+      "risk-ownership",
+      "risk-reporting",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal ERM framework is relevant where three-lines responsibilities, risk ownership, principal-risk escalation, governance forums, or enterprise-wide reporting discipline determine whether material risks stay visible and decision-useful. It helps enterprise-risk scenarios stay grounded in ownership, oversight, assurance, and structured reporting rather than vague governance language.",
+    "lastUpdated": "2026-04-09"
+  },
+  {
+    "id": "doc-internal-erm-policy-91",
+    "title": "Internal Risk Appetite, Tolerance, and Escalation Guideline",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "risk-management",
+      "enterprise-risk",
+      "risk-appetite",
+      "risk-tolerance",
+      "residual-risk",
+      "escalation",
+      "kri",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal ERM policy is relevant where risk appetite, risk tolerance, residual-risk acceptance, KRI thresholds, emerging-risk escalation, or committee escalation criteria shape whether management is acting within defined limits. It helps enterprise-risk scenarios stay tied to tolerance breaches, escalation discipline, and decision rights rather than drifting into generic compliance wording.",
+    "lastUpdated": "2026-04-09"
+  },
+  {
+    "id": "doc-internal-erm-project-92",
+    "title": "Internal Risk Register, KRI, and Treatment Planning Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "risk-management",
+      "enterprise-risk",
+      "risk-register",
+      "project-risk",
+      "kri",
+      "treatment-planning",
+      "emerging-risk",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal risk-register standard is relevant where project risk registers, emerging-risk capture, treatment plans, inherent-versus-residual scoring, or KRI monitoring determine whether risk information remains current and actionable. It helps enterprise-risk scenarios stay anchored to register quality, treatment ownership, and escalation triggers rather than generic project-management concern.",
+    "lastUpdated": "2026-04-09"
+  },
+  {
+    "id": "doc-internal-bcm-93",
+    "title": "Internal Business Continuity, Crisis Management, and Recovery Planning Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "business-continuity",
+      "crisis-management",
+      "bia",
+      "rto",
+      "rpo",
+      "alternate-site",
+      "call-tree",
+      "exercise",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal continuity standard is relevant where business impact analysis, recovery priorities, RTO or RPO definition, alternate-site readiness, manual fallback, incident escalation matrices, crisis communications, or annual exercises determine whether disruption can be managed credibly. It helps continuity scenarios stay anchored to readiness, recovery governance, and tested planning rather than generic operational concern.",
+    "lastUpdated": "2026-04-09"
+  },
+  {
+    "id": "doc-internal-hse-94",
+    "title": "Internal Health, Safety, and Emergency Preparedness Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "hse",
+      "health-safety",
+      "contractor-safety",
+      "hazard-identification",
+      "permit-to-work",
+      "management-of-change",
+      "emergency-drills",
+      "corrective-action",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal HSE standard is relevant where hazard identification, contractor safety, permit-to-work discipline, management of change, incident reporting, corrective-action closure, emergency response planning, drills, or machine-safeguarding controls determine whether operations remain safe. It helps HSE scenarios stay grounded in control-system strength rather than only explicit injury outcomes.",
+    "lastUpdated": "2026-04-09"
+  },
+  {
+    "id": "doc-internal-qhse-95",
+    "title": "Internal QHSE Baseline and Environmental Control Guideline",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "hse",
+      "qhse",
+      "environment",
+      "worker-accommodation",
+      "hazardous-materials",
+      "waste-tracking",
+      "wastewater",
+      "emergency-plans",
+      "training",
+      "permits",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal QHSE baseline is relevant where worker accommodation, evacuation and recovery planning, annual training, reporting without retaliation, hazardous-material handling, environmental permits, wastewater control, waste tracking, or emergency hotlines determine whether site operations remain safe and compliant. It helps HSE and continuity-adjacent scenarios stay anchored to baseline operating controls rather than generic compliance language.",
+    "lastUpdated": "2026-04-09"
+  },
+  {
+    "id": "doc-internal-privacy-96",
+    "title": "Internal Privacy Management, DPIA, and Data Subject Rights Guideline",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "privacy",
+      "data-governance",
+      "data-protection",
+      "pims",
+      "dpia",
+      "privacy-by-design",
+      "data-subject-rights",
+      "controller-processor",
+      "record-of-processing",
+      "breach-notification",
+      "data-minimization",
+      "purpose-limitation",
+      "secondary-use",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal privacy-management guideline is relevant where privacy by design, DPIAs, data subject rights handling, records of processing activities, controller-processor responsibilities, breach-notification sequencing, DPO consultation, purpose limitation, secondary use, or minimization determine whether personal data is governed correctly. It helps privacy scenarios stay anchored to governance, accountability, and operating control quality rather than drifting into generic compliance or cyber language.",
+    "lastUpdated": "2026-04-09"
+  },
+  {
+    "id": "doc-internal-privacy-health-97",
+    "title": "Internal Sensitive Health Data and UAE Privacy Safeguards Guideline",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "privacy",
+      "data-governance",
+      "health-data",
+      "patient-data",
+      "medical-records",
+      "biometric-data",
+      "uae",
+      "adgm",
+      "pdpl",
+      "special-category-data",
+      "access-logging",
+      "de-identification",
+      "data-minimization",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal privacy guideline is relevant where health data, patient records, biometric identifiers, or other sensitive personal data are processed in the UAE and require stronger safeguards. It helps scenarios stay grounded in high-risk processing assessment, de-identification, minimization, need-to-know access, logging, localisation or transfer safeguards, privacy-incident escalation, and authority-notification discipline rather than generic technology or legal wording.",
+    "lastUpdated": "2026-04-09"
+  },
+  {
+    "id": "doc-ncema-bcm-98",
+    "title": "NCEMA 7000:2021 Business Continuity Management System Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.ncema.gov.ae/en/about-ministry/events/11/2022/certified-lead-implementer-for-business-continuity-management-ncema-70002021-course.aspx",
+    "tags": [
+      "uae",
+      "business-continuity",
+      "disaster-recovery",
+      "crisis-management",
+      "recovery",
+      "ncema",
+      "all-bu",
+      "regulatory"
+    ],
+    "contentExcerpt": "NCEMA 7000:2021 is the UAE national business continuity standard referenced by NCEMA training and implementation materials. It is relevant where continuity governance, business impact analysis, recovery strategy, crisis management, exercising, alternate-site planning, and disaster recovery expectations for essential services determine resilience. It helps UAE disruption scenarios stay anchored to nationally recognised continuity requirements rather than generic ISO-only language.",
+    "lastUpdated": "2022-11-14"
+  },
+  {
+    "id": "doc-adgm-obligations-99",
+    "title": "ADGM Ongoing Obligations and Annual Filings Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.adgm.com/operating-in-adgm/obligations-of-adgm-registered-entities/annual-filings",
+    "tags": [
+      "adgm",
+      "holding-company",
+      "regulatory",
+      "corporate-governance",
+      "annual-filings",
+      "commercial-licence",
+      "accounts",
+      "all-bu"
+    ],
+    "contentExcerpt": "ADGM registered entities have recurring obligations that commonly include commercial licence renewal, annual data protection renewal, annual confirmation statements, and annual accounts prepared under the applicable accounting standards. This reference is relevant where holding-company scenarios involve missed filings, inaccurate register information, overdue accounts, late licence renewal, or weak corporate-secretariat controls under the ADGM Companies Regulations 2020 framework.",
+    "lastUpdated": "2024-08-02"
+  },
+  {
+    "id": "doc-adgm-boc-100",
+    "title": "ADGM Beneficial Ownership and Control Regulations Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.adgm.com/operating-in-adgm/obligations-of-adgm-registered-entities/beneficial-ownership-and-control",
+    "tags": [
+      "adgm",
+      "holding-company",
+      "beneficial-ownership",
+      "controllers",
+      "corporate-governance",
+      "aml",
+      "regulatory",
+      "all-bu"
+    ],
+    "contentExcerpt": "ADGM's Beneficial Ownership and Control Regulations 2022 require applicable entities to identify beneficial owners using ownership and control tests, maintain an up-to-date record of beneficial owners, and notify the Registrar of changes within 15 days. This is relevant where holding-company, onboarding, governance, or third-party scenarios depend on ownership transparency, controller identification, or timely event-driven filings.",
+    "lastUpdated": "2024-04-26"
+  },
+  {
+    "id": "doc-adgm-dp-101",
+    "title": "ADGM Data Protection Regulations 2021 Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.adgm.com/operating-in-adgm/office-of-data-protection/guidance",
+    "tags": [
+      "adgm",
+      "data-protection",
+      "data-governance",
+      "privacy",
+      "dpia",
+      "dpo",
+      "breach-notification",
+      "cross-border-transfer",
+      "all-bu"
+    ],
+    "contentExcerpt": "ADGM Data Protection Regulations 2021 and the Office of Data Protection guidance cover lawful bases, data subject rights, privacy by design and default, records of processing activity, data protection officer requirements, DPIAs, breach-notification duties, and transfer mechanisms such as standard contractual clauses. This is relevant where ADGM entities process employee, director, shareholder, investor, customer, or special-category personal data.",
+    "lastUpdated": "2025-09-16"
+  },
+  {
+    "id": "doc-csc-policy-102",
+    "title": "UAE Cyber Security Council Policy Portfolio Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://csc.gov.ae/en/policies-listing",
+    "tags": [
+      "uae",
+      "cyber",
+      "regulatory",
+      "governance",
+      "csc",
+      "critical-infrastructure",
+      "incident-response",
+      "all-bu"
+    ],
+    "contentExcerpt": "The UAE Cyber Security Council policy portfolio includes the UAE Information Assurance Standard, the National Cyber Security Governance Framework, the National Vulnerability Disclosure Policy, the National Third Party Security Policy, the National Secure Remote Work Policy, the National Data Exchange Security Policy, the National Cloud Security Policy, the Cyber Incident Response Framework, SOC Baseline Capabilities, the CIIP Policy, and the National Cyber Security Policy for Artificial Intelligence. This reference helps UAE cyber scenarios stay grounded in named national frameworks rather than a generic Cyber Security Council label.",
+    "lastUpdated": "2025-09-22"
+  },
+  {
+    "id": "doc-csc-cirf-103",
+    "title": "UAE Cyber Incident Response Framework (CIRF) Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://csc.gov.ae/en/w/cyber-incident-response-framework",
+    "tags": [
+      "uae",
+      "cyber",
+      "incident-response",
+      "crisis-management",
+      "recovery",
+      "csc",
+      "ncema",
+      "all-bu"
+    ],
+    "contentExcerpt": "The UAE Cyber Incident Response Framework defines the national approach to preparing for, protecting against, detecting, responding to, recovering from, and learning from cyber incidents. It is relevant where scenarios involve national or sector coordination, alert levels, reporting expectations, recovery planning, and escalation between the Cyber Security Council, sector SOCs, critical operators, and NCEMA when cyber incidents create wider operational consequences.",
+    "lastUpdated": "2024-12-27"
+  },
+  {
+    "id": "doc-sovereignty-localization-104",
+    "title": "Sovereignty, Localization, and Public-Sector Admissibility Guideline",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "geopolitical",
+      "strategic",
+      "market-access",
+      "localization",
+      "localisation",
+      "public-sector",
+      "ownership-transparency",
+      "foreign-influence",
+      "in-country-autonomy",
+      "local-board-representation",
+      "regional-platform-model",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal market-access guideline is relevant where sovereignty conditions, in-country autonomy expectations, local board representation, localisation of support roles, reduced use of foreign-hosted specialist services, public-sector admissibility screening, or technology-origin scrutiny change whether the group can bid, govern, or deliver through its standard regional platform model. It helps geopolitical scenarios stay grounded in localisation, admissibility, and operating-model redesign rather than drifting into generic strategy language.",
+    "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-ofac-sanctions-105",
+    "title": "OFAC Sanctions Programs and Country Information Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://ofac.treasury.gov/sanctions-programs-and-country-information",
+    "tags": [
+      "geopolitical",
+      "regulatory",
+      "sanctions",
+      "market-access",
+      "restricted-jurisdictions",
+      "sanctions-spillover",
+      "correspondent-banks",
+      "cargo-insurance",
+      "travel-approvals",
+      "export-finance",
+      "all-bu"
+    ],
+    "contentExcerpt": "OFAC's sanctions-program and country information pages are relevant where a market remains partly open in principle but counterparties, correspondent banks, insurers, freight or export-finance channels, travel approvals, or other support routes become constrained by country-specific sanctions exposure, sectoral restrictions, or restricted-party sensitivity. This reference helps scenarios stay anchored to named sanctions environments, spillover across access channels, and country programmes rather than generic geopolitical concern.",
+    "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-bis-ear-106",
+    "title": "BIS Export Administration Regulations and End-Use Controls Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.bis.gov/regulations/ear",
+    "tags": [
+      "geopolitical",
+      "regulatory",
+      "export-controls",
+      "end-use",
+      "re-export",
+      "technology-origin",
+      "market-access",
+      "all-bu"
+    ],
+    "contentExcerpt": "The BIS Export Administration Regulations are relevant where end-use assurances, destination controls, re-export restrictions, technology-origin questions, entity-list sensitivity, or redeployment of advanced technology across jurisdictions shape whether a product or service can be sold, supported, or moved between customers and markets. This reference helps geopolitical scenarios stay tied to real export-control constraints and deployment flexibility.",
+    "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-eu-fsr-107",
+    "title": "EU Foreign Subsidies Regulation Public Procurement Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://competition-policy.ec.europa.eu/foreign-subsidies-regulation_en",
+    "tags": [
+      "geopolitical",
+      "strategic",
+      "public-sector",
+      "procurement-screening",
+      "foreign-influence",
+      "ownership-transparency",
+      "technology-origin",
+      "admissibility",
+      "public-sector-tenders",
+      "subsidized-inputs",
+      "market-access",
+      "all-bu"
+    ],
+    "contentExcerpt": "The EU Foreign Subsidies Regulation is relevant where public-sector opportunities depend on ownership transparency, foreign-influence indicators, subsidized-input sensitivity, or other admissibility filters that can affect whether a bid remains competitive in strategic tenders. It helps geopolitical scenarios stay grounded in external market-admission criteria rather than generic procurement or compliance wording.",
+    "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-contract-clauses-108",
+    "title": "Contract Schedule Hierarchy, Acceptance, and Change-Control Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "legal-contract",
+      "contract-governance",
+      "acceptance",
+      "specifications",
+      "acceptance-criteria",
+      "schedule-hierarchy",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal contracting standard defines schedule hierarchy, statement-of-work control, annex precedence, acceptance-certificate governance, acceptance criteria, substitute-performance review, and change-control escalation. It is relevant where technical-equivalence arguments, conflicting annexes, or unclear acceptance thresholds create legal uncertainty over whether delivery is complete, accepted, and payable.",
+    "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-licensing-rights-109",
+    "title": "Software Licensing, Affiliate-Use, and Entitlement Governance Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "legal-contract",
+      "licensing",
+      "software",
+      "affiliate-rights",
+      "license-scope",
+      "entitlements",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal licensing standard defines affiliate-use rights, license scope, entity onboarding, group entitlement boundaries, deployment restrictions, enterprise-agreement transition, and escalation routes when a licensor narrows use rights or changes core commercial terms. It is relevant where software continues to operate but the legal right to use it across affiliates becomes contested, vendor acquisition changes terms, or renewal leverage shifts.",
+    "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-data-rights-contract-110",
+    "title": "Contractual Data Rights, Derived Insights, and Confidentiality Allocation Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "legal-contract",
+      "data-rights",
+      "confidentiality",
+      "ai",
+      "rights-remedies",
+      "service-credits",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal standard governs how contracts should allocate service-data rights, derived-insight ownership, confidentiality carve-outs, uploaded-reference-material handling, service credits, reuse rights, and customer remedy language. It is relevant where AI-enabled services or shared platforms create disputes over what a customer may claim when data use and service behavior interact with liability clauses.",
+    "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-dispute-notice-111",
+    "title": "Claims Preservation, Notice, and Dispute Escalation Protocol",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "legal-contract",
+      "claims",
+      "dispute-management",
+      "notice",
+      "termination-rights",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal protocol defines notice timing, claims preservation, termination-rights escalation, preserve-claims steps, evidence capture, without-prejudice management, and legal review points for material contract disputes. It is relevant where a disagreement over acceptance, interpretation, rights allocation, or substitute performance may harden into a live claim if notice mechanics are missed.",
+    "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-consortium-flowdown-112",
+    "title": "Consortium, Flow-Down, and Step-In Rights Governance Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "legal-contract",
+      "consortium",
+      "step-in-rights",
+      "delivery-obligations",
+      "flow-down-terms",
+      "liability-allocation",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal standard governs consortium drafting, subcontract flow-down clauses, liability allocation, transition support, localisation obligations, liability caps, uncapped indemnity fallbacks, local-court exclusivity, and step-in rights across multi-party delivery structures. It is relevant where execution risk depends on whether signed documents cleanly allocate obligations among partners before a dispute interrupts delivery.",
+    "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-unidroit-contracts-113",
+    "title": "UNIDROIT Principles of International Commercial Contracts Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.unidroit.org/category/upicc/",
+    "tags": [
+      "legal-contract",
+      "international-contracts",
+      "interpretation",
+      "remedies",
+      "rights-remedies",
+      "all-bu"
+    ],
+    "contentExcerpt": "The UNIDROIT Principles are useful where international commercial contracts create disputes over interpretation, good faith, notice, hardship, remedies, or the allocation of rights and obligations across complex cross-border agreements. This reference helps rights-and-remedies, consortium, local-court exclusivity, and liability-allocation disputes stay grounded in recognised commercial-contract principles rather than generic dispute language.",
+    "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-cisg-114",
+    "title": "UNCITRAL CISG Reference for International Sale of Goods",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://uncitral.un.org/en/texts/salegoods/conventions/sale_of_goods/cisg",
+    "tags": [
+      "legal-contract",
+      "international-contracts",
+      "acceptance",
+      "specifications",
+      "technical-equivalence",
+      "all-bu"
+    ],
+    "contentExcerpt": "The CISG is relevant where international supply or delivery agreements raise questions about conformity, specification mismatch, technical equivalence, substitute performance, notice, cure, acceptance, or the remedies available when supplied performance does not align with agreed contractual standards. It helps acceptance and specification disputes stay anchored to established contract law concepts.",
+    "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-wipo-ict-115",
+    "title": "WIPO ICT Licensing and Technology Dispute Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.wipo.int/en/web/amc/center/specific-sectors/ict/",
+    "tags": [
+      "legal-contract",
+      "licensing",
+      "ip",
+      "technology-contracts",
+      "data-rights",
+      "all-bu"
+    ],
+    "contentExcerpt": "WIPO's ICT dispute resources are relevant where technology licensing, IP rights, software use restrictions, enterprise-agreement terms, service-data ownership, derived insights, or other complex commercial technology terms become contested across jurisdictions. This reference helps software and platform-rights disputes stay grounded in recognised technology-contract and IP dispute patterns.",
+    "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-minority-investment-116",
+    "title": "Minority Investment Governance and Influence Rights Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "investment-jv",
+      "governance",
+      "minority-rights",
+      "deal-thesis",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal investment standard defines minority-governance rights, board-influence thresholds, reserved information rights, concentration review, and value-creation challenge expectations. It is relevant where a minority investment depends on concentrated revenues, key-person dependence, or cross-sell assumptions that may not be controllable through ownership rights alone.",
+    "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-qoe-control-117",
+    "title": "Quality of Earnings, Founder Dependence, and Control Acquisition Review Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "investment-jv",
+      "financial",
+      "quality-of-earnings",
+      "control-acquisition",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal diligence standard governs quality-of-earnings review, episodic revenue challenge, founder-concentration assessment, post-close control assumptions, and customer-consent dependency review for control acquisitions. It is relevant where headline growth and margin quality may overstate the durability of the deal thesis.",
+    "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-jv-governance-118",
+    "title": "JV Reserved Matters, Opportunity Ownership, and Transfer-Pricing Governance Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "investment-jv",
+      "joint-venture",
+      "reserved-matters",
+      "governance",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal JV governance standard defines reserved matters, opportunity ownership, transfer-pricing boundary design, shared engineering-resource allocation, and parent-versus-vehicle decision rights. It is relevant where a joint venture agreement is broad on paper but not operationally precise enough to govern the vehicle day to day.",
+    "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-jv-restructuring-119",
+    "title": "JV Capital Support, Dependency Entanglement, and Exit Planning Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "investment-jv",
+      "joint-venture",
+      "restructuring",
+      "exit-planning",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal JV restructuring standard defines capital-call escalation, valuation-reset review, seconded-personnel unwind planning, parent-license dependency mapping, preferred-supplier disentanglement, and clean-separation design. It is relevant where a maturing joint venture remains strategically important but becomes hard to reset, restructure, or exit without value destruction.",
+    "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-ai-multilingual-validation-120",
+    "title": "Multilingual AI Validation and Translation Fairness Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "ai-model-risk",
+      "validation",
+      "multilingual",
+      "bias",
+      "procurement",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal AI validation standard defines multilingual challenge testing, translated-attachment review, fairness checks across Arabic and English content, and pilot-readiness gates for decision-support assistants. It is relevant where a model appears fluent but may distort meaning, omit caveats, or disadvantage certain users because validation coverage did not reflect real language flows.",
+    "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-model-monitoring-drift-121",
+    "title": "Model Monitoring, Drift, and Recalibration Control Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "ai-model-risk",
+      "monitoring",
+      "drift",
+      "recalibration",
+      "operational",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal model-monitoring standard defines drift indicators, challenger thresholds, recalibration triggers, and override escalation for planning and decision-support models. It is relevant where underlying demand patterns, customer mix, or workflow conditions changed materially but monitoring did not force the model back through review before continued use.",
+    "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-agentic-ai-control-122",
+    "title": "Agentic AI Tooling, Authority Boundaries, and Fallback Control Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "ai-model-risk",
+      "agentic",
+      "tool-use",
+      "authority",
+      "fallback",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal standard governs agentic orchestration, tool-chaining limits, stale-knowledge handling, delegation-of-authority boundaries, and fallback design for AI systems that retrieve, draft, and recommend actions across control-sensitive workflows. It is relevant where individually acceptable tools can create unsafe end-to-end behavior when combined without mature evaluation and bounded escalation.",
+    "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-ai-calibration-abstention-123",
+    "title": "AI Calibration, Abstention, and Ambiguity Escalation Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "ai-model-risk",
+      "calibration",
+      "abstention",
+      "escalation",
+      "multilingual",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal AI safety standard defines calibration testing, abstention thresholds, ambiguity handling, stale-source challenge, and mandatory human escalation for policy and control-sensitive copilots. It is relevant where a model can produce confident reconciliations that look authoritative even when retrieved material conflicts, is stale, or should trigger specialist review instead of autonomous synthesis.",
+    "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-ai-benchmark-release-124",
+    "title": "Benchmark Integrity, Red-Team Coverage, and Release-Gating Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "ai-model-risk",
+      "evaluation",
+      "benchmark-integrity",
+      "release-governance",
+      "generalization",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal release-governance standard defines benchmark separation, red-team coverage design, multilingual edge-case challenge, contamination controls, and launch-gating evidence requirements for foundation-model releases. It is relevant where benchmark reuse, synthetic-only challenge sets, or weak edge-case coverage create false confidence about generalization and production readiness.",
+    "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-data-minimization-125",
+    "title": "Data Minimization, De-Identification, and Test-Data Export Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "data-governance",
+      "privacy",
+      "data-minimization",
+      "de-identification",
+      "testing",
+      "development-environment",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal standard defines de-identification controls, free-text field review, minimization of troubleshooting logs, and approval conditions for exports into development or testing environments. It is relevant where live identifiers, passport details, health references, or other regulated data can flow into staging, analytics, or support workspaces that were not designed for high-risk personal data.",
+    "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-purpose-lineage-126",
+    "title": "Purpose Limitation, Lineage Metadata, and Secondary-Use Governance Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "data-governance",
+      "privacy",
+      "purpose-limitation",
+      "lineage",
+      "secondary-use",
+      "data-marketplace",
+      "downstream-users",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal governance standard defines lineage metadata, approved-use records, downstream-user assumptions, and secondary-use approval checkpoints for shared datasets and marketplace-style data discovery. It is relevant where a dataset remains technically available under old approvals even though its purpose, downstream users, retention basis, or reuse boundaries have changed materially.",
+    "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-deletion-suppression-127",
+    "title": "Suppression Controls, Deletion Propagation, and Derived-Dataset Governance Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "data-governance",
+      "privacy",
+      "suppression-controls",
+      "suppression-flags",
+      "deletion-propagation",
+      "record-resurrection",
+      "derived-datasets",
+      "identity-resolution",
+      "identity-graph",
+      "identity-views",
+      "profiling",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal data-governance standard defines suppression flags, deletion propagation, identity-resolution safeguards, and controls to stop record resurrection when deleted or restricted source records reappear through joins or persistent derived datasets. It is relevant where identity graphs, identity views, profiling assumptions, linked records, and downstream analytical views outpace the control framework needed to keep profiling, retention, and reuse inside governed boundaries.",
+    "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-fraud-channel-128",
+    "title": "Channel Side Letters, Return Rights, and Rebate Governance Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "fraud-integrity",
+      "financial",
+      "compliance",
+      "third-party",
+      "books-and-records",
+      "revenue-substance",
+      "channel-governance",
+      "rebates",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal integrity standard governs channel side letters, informal return rights, rebate support, quarter-end commercial pressure, and evidence requirements for reseller-led transactions. It is relevant where a deal appears complete on paper but hidden commercial terms, unrecorded promises, or strategic-partner deference may have distorted revenue substance, rebate eligibility, or incentive outcomes.",
+    "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-fraud-labor-129",
+    "title": "Ghost Worker, Related-Party, and Labor Certification Fraud Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "fraud-integrity",
+      "financial",
+      "compliance",
+      "related-party",
+      "false-certification",
+      "attendance",
+      "contractor-governance",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal fraud-control standard defines related-party disclosure, attendance verification, supervisor certification, and escalation requirements for labor-supply and subcontractor billing. It is relevant where ghost workers, false attendance logs, undisclosed family ties, or weak site challenge could allow overbilling and fabricated proof of service to pass as routine contractor administration.",
+    "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-fraud-threshold-130",
+    "title": "Threshold Circumvention, Change-Order Steering, and Approval Integrity Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "fraud-integrity",
+      "procurement",
+      "financial",
+      "anti-bribery",
+      "threshold-avoidance",
+      "change-orders",
+      "approval-governance",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal integrity standard covers invoice splitting, threshold avoidance, urgent change-order sequencing, approval-circumvention red flags, and kickback-sensitive work steering. It is relevant where individually plausible invoices or change orders repeatedly fall just below escalation limits, are justified through urgency narratives, or show sequencing patterns inconsistent with genuine commercial need.",
+    "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-fraud-evidence-131",
+    "title": "Commercial Evidence, Backdating, and Proof-of-Performance Integrity Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "fraud-integrity",
+      "financial",
+      "compliance",
+      "books-and-records",
+      "evidence-falsification",
+      "backdating",
+      "proof-of-performance",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal fraud-control standard defines evidence-quality checks for rebates, incentives, certifications, proof-of-performance packs, and customer-reference support used to unlock payment or credit. It is relevant where documents look complete on their face but may have been backdated, duplicated across unrelated transactions, or fabricated to create the appearance of earned commercial entitlement.",
+    "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-physical-event-132",
+    "title": "Visitor Escort, Temporary Access Exceptions, and Sensitive-Zone Segregation Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "physical-security",
+      "executive-protection",
+      "visitor-management",
+      "temporary-badges",
+      "restricted-site",
+      "event-security",
+      "war-room",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal physical-security standard governs visitor escort discipline, temporary badge privileges, event-footprint exceptions, catering and contractor access windows, and segregation of executive or restricted zones during high-profile visits. It is relevant where a mixed public and restricted campus uses temporary access changes that could leave legal war rooms, delegation routes, prototype spaces, or senior-leadership areas more exposed than intended.",
+    "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-physical-perimeter-133",
+    "title": "Remote Site Perimeter, CCTV Coverage, and After-Hours Access Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "physical-security",
+      "perimeter",
+      "cctv",
+      "restricted-site",
+      "after-hours-access",
+      "prototype-facility",
+      "contractor-access",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal site-protection standard defines fence-line alarm coverage, CCTV sight lines, temporary gate protocols, after-hours service access, and escort challenge requirements for remote or prototype-heavy facilities. It is relevant where landscaping changes, contractor staging, blind spots, or logistics exceptions degrade the deterrence and detection posture of a sensitive site without an actual theft or sabotage event yet being confirmed.",
+    "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-physical-staging-134",
+    "title": "Restricted Hardware Staging, Loading-Bay, and Vehicle-Screening Security Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "physical-security",
+      "restricted-site",
+      "hardware-protection",
+      "loading-bay",
+      "vehicle-screening",
+      "secure-cage",
+      "contractor-access",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal security standard governs temporary contractor badges, loading-bay escort routes, vehicle-screening logs, secure cages, and supervision of restricted hardware staging areas before customer deployment. It is relevant where network appliances, encrypted storage devices, compute modules, or prototype hardware could be stolen, tampered with, photographed, or accessed through weak physical screening and after-hours supervision.",
+    "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-ot-edge-environment-135",
+    "title": "Edge Environment, Power Quality, and Facilities Interaction Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "ot-resilience",
+      "facilities",
+      "edge-compute",
+      "power-quality",
+      "environmental-stability",
+      "heatwave",
+      "gateway-cluster",
+      "remote-monitoring",
+      "reboot-instability",
+      "industrial-inspection",
+      "critical-site",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal OT resilience standard governs airflow settings, cabinet temperature alarms, power-quality tolerances, facilities maintenance coordination, reboot-protection settings, and workload-throttling thresholds for edge computing rooms, remote monitoring gateway clusters, and industrial inspection spaces. It is relevant where non-malicious facilities changes, heatwave conditions, or local power instability cause edge gateways or site-adjacent OT hardware to reboot, throttle, or lose resilience margin without any malicious trigger.",
+    "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-ot-telemetry-recovery-136",
+    "title": "Telemetry Buffering, Clock Synchronization, and State-Recovery Assurance Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "ot-resilience",
+      "telemetry",
+      "clock-sync",
+      "state-recovery",
+      "edge-gateways",
+      "backhaul-connectivity",
+      "field-verification",
+      "alarm-prioritization",
+      "sensor-polling",
+      "controller-logs",
+      "firmware-rollback",
+      "remote-sites",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal OT recovery standard defines gateway clock tolerances, telemetry replay controls, alarm-prioritization rules, sensor-polling alignment, controller event-log sequencing, and manual field-verification triggers after backhaul connectivity loss. It is relevant where communications interruptions, firmware rollback changes, or timing drift make field-state reconstruction and control confirmations unreliable even though no adversary is involved.",
+    "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-ot-failover-sequencing-137",
+    "title": "Multi-Site Failover Logic, Restart Priority, and Recovery Sequence Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "ot-resilience",
+      "failover",
+      "restart-priority",
+      "backup-power",
+      "building-controller",
+      "cooling",
+      "lighting",
+      "regional-grid",
+      "restoration-order",
+      "critical-site",
+      "engineering-governance",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal engineering standard governs failover logic, backup power transfer sequencing, cooling and lighting restoration order, restart priorities, and cross-site recovery testing for facilities that combine building controllers, edge workloads, and remote maintenance support. It is relevant where isolated site tests hide estate-level inconsistencies that only appear during regional grid disturbances or multi-site stress, including cases where some sites restore environmental stabilization before digital monitoring while others reverse that order.",
+    "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-ot-vision-sync-138",
+    "title": "Industrial Vision, Edge Controller Baseline, and Actuator Synchronization Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "ot-resilience",
+      "industrial-vision",
+      "edge-controller",
+      "configuration-baseline",
+      "actuator-timing",
+      "false-rejects",
+      "supervised-mode",
+      "fabrication-support",
+      "maintenance-restart",
+      "quality-control",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal industrial-controls standard governs controller baseline management, edge inference timing, actuator synchronization, maintenance-restart validation, conveyor reject-gate behavior, and supervised-mode fallback for vision-enabled fabrication-support or inspection environments. It is relevant where false rejects, missed defects, or unstable reject-gate behavior arise because an edge controller returns on an older configuration baseline or the control environment loses synchronization, rather than because of model-quality failure or cyber compromise.",
+    "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-workforce-retention-139",
+    "title": "Critical Talent Retention, Onboarding, and Capability Transfer Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "people-workforce",
+      "talent-retention",
+      "onboarding",
+      "mentoring",
+      "capability-depth",
+      "critical-roles",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal workforce standard governs retention watch indicators, onboarding design, mentoring load, progression clarity, and capability-transfer expectations for specialist teams. It is relevant where voluntary attrition, internal transfer requests, weekend bid work, weak coaching, or a shrinking core of experienced staff reduce capability depth faster than the organization can rebuild it.",
+    "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-workforce-policy-140",
+    "title": "Hybrid Work, Campus Design, and Workforce Experience Guideline",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "people-workforce",
+      "employee-experience",
+      "hybrid-work",
+      "return-to-campus",
+      "localization",
+      "workplace-design",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal people-policy guideline covers return-to-office and return-to-campus design, quiet-space standards, global collaboration windows, role-localization assumptions, and specialist work-pattern exceptions. It is relevant where one-size-fits-all attendance or campus policies create employee-experience friction, hidden disengagement, or retention pressure because they no longer fit how high-skill teams support global customers.",
+    "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-workforce-equity-141",
+    "title": "Compensation Equity, Offer Governance, and Internal Mobility Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "people-workforce",
+      "compensation-governance",
+      "internal-mobility",
+      "offer-discipline",
+      "manager-trust",
+      "scarce-skills",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal workforce-governance standard defines enterprise controls for comparable-role benchmarking, offer approval, mobility transparency, and pay-equity escalation across scarce-skill hiring. It is relevant where decentralized compensation decisions, materially higher packages for similar roles, mentor resentment, or declining acceptance rates create internal trust and retention pressure.",
+    "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-workforce-architecture-142",
+    "title": "Mixed Workforce Capability, Succession, and Critical Knowledge Architecture Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "people-workforce",
+      "succession-planning",
+      "contingent-workforce",
+      "critical-knowledge",
+      "development-pathways",
+      "capability-resilience",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal capability-governance standard governs succession planning, learning access, promotion pathways, leadership visibility, and knowledge capture across employee, contractor, expatriate, and specialist worker populations. It is relevant where contingent specialists hold critical know-how outside the normal talent-development system, capability maps are fragile, or mixed employment models create unequal development pathways and weak resilience.",
+    "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-supply-single-source-143",
+    "title": "Single-Source Buffer Planning and Supply Substitution Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "supply-chain",
+      "single-source",
+      "inventory-buffer",
+      "safety-stock",
+      "substitution",
+      "critical-components",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal supply standard governs single-source escalation, substitute qualification, minimum buffer expectations, and live reallocation response for critical components. It is relevant where a single approved source, production-line shift, or thin safety stock turns a manageable sourcing concentration into an inbound material delay that threatens downstream delivery commitments.",
+    "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-supply-subtier-144",
+    "title": "Sub-Tier Visibility, Quality Hold, and Upstream Constraint Escalation Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "supply-chain",
+      "sub-tier",
+      "quality-hold",
+      "component-shortage",
+      "material-flow",
+      "upstream-constraints",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal supply-chain standard governs sub-tier dependency mapping, board-assembler visibility, quality-hold escalation, and shortage communication across shared component paths. It is relevant where a hidden sub-tier dependency, quality deviation, or upstream bottleneck propagates into component shortages, shipment-window instability, or resequenced build activity across multiple programmes.",
+    "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-supply-logistics-145",
+    "title": "Critical-Path Logistics, Customs, and Installation Sequencing Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "supply-chain",
+      "logistics",
+      "customs",
+      "installation-sequencing",
+      "commissioning",
+      "cross-border-equipment",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal logistics standard governs critical-path inbound equipment planning, customs escalation, port-delay response, and installation-sequence controls for tightly coupled build and commissioning work. It is relevant where port congestion, customs inspection delays, or a missed inbound equipment family block contractor sequencing, site energization, or deferred service readiness.",
+    "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-supply-allocation-146",
+    "title": "Supply Allocation, OEM Assurance, and Demand Aggregation Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "supply-chain",
+      "allocation-assurance",
+      "oem",
+      "demand-aggregation",
+      "constrained-stock",
+      "forecast-discipline",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal supply-assurance standard governs OEM allocation strategy, forecast aggregation, distributor dependence, and cross-program rationing when components are scarce. It is relevant where allocation priority shifts, non-binding forecasts, or missing OEM protection reduce assured access to constrained stock and force multiple programmes to compete for the same components.",
+    "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-supply-spares-147",
+    "title": "Service-Spares Deployability, Buffer Hub, and Inspection Readiness Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "supply-chain",
+      "service-spares",
+      "deployable-inventory",
+      "buffer-hub",
+      "inspection-readiness",
+      "repair-lead-time",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal service-logistics standard governs buffer-hub readiness, inspection release, packaging quality, and onward-dispatch controls for replacement modules and regional spare-parts networks. It is relevant where stock is technically present but not practically deployable because shipping rerouting, inspection backlog, or packaging inconsistency disrupts repair lead times and customer support commitments.",
+    "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-proc-software-framework-148",
+    "title": "Software Framework Use, Maverick Spend, and Entitlement Governance Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "procurement",
+      "software-sourcing",
+      "enterprise-agreement",
+      "maverick-spend",
+      "license-governance",
+      "pricing-leakage",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal procurement standard governs framework use, local buying exceptions, entitlement reconciliation, and reseller-channel approval for enterprise software. It is relevant where teams bypass central agreements, duplicate licenses already held under a group contract, or accept higher unit pricing because local project pressure overrides sourcing discipline.",
+    "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-proc-tender-wholelife-149",
+    "title": "Tender Evaluation, Whole-Life Costing, and Technical Weighting Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "procurement",
+      "tender-design",
+      "whole-life-cost",
+      "technical-weighting",
+      "category-strategy",
+      "value-for-money",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal sourcing standard governs scoring design, technical weighting, lifecycle-cost analysis, and specialist-category evaluation models. It is relevant where a tender overweights generic commercial measures, underweights energy efficiency or serviceability, or allows the cheapest bid to win despite materially worse total cost of ownership.",
+    "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-proc-lotting-150",
+    "title": "Lotting Strategy, Competition Design, and Supplier Optionality Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "procurement",
+      "lotting",
+      "competition-design",
+      "supplier-optionality",
+      "benchmarking",
+      "market-making",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal category-governance standard governs package design, lot structure, specialist supplier participation, and competition tension for complex sourcing events. It is relevant where unlike workstreams are bundled into one lot, a single aggregator becomes the only bidder, or market structure weakens benchmarking and bargaining power before award.",
+    "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-proc-constrained-contracting-151",
+    "title": "Constrained-Market Sourcing, Deposit Control, and Contract Formation Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "procurement",
+      "contract-formation",
+      "distributor-terms",
+      "deposit-control",
+      "substitution-rights",
+      "constrained-supply",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal procurement-control standard governs accelerated sourcing under scarce-capacity conditions, including deposit approvals, distributor term review, warranty and support obligations, origin declarations, and substitution-right protections. It is relevant where commitment pressure fragments the contract pack across side emails, appendices, and third-party terms before the buyer protections are stable.",
+    "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-proc-bundled-award-152",
+    "title": "Bundled Tender Structure, Price Validity, and Award-Leverage Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "procurement",
+      "bundled-award",
+      "price-validity",
+      "award-strategy",
+      "negotiation-leverage",
+      "change-order-assumptions",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal tender-governance standard governs bundled award design, evaluation criteria, price-validity protections, and negotiation leverage for high-value sourcing events. It is relevant where bundled scope, opaque change-order assumptions, or volatile market conditions can trap the buyer in a commercially weak award before delivery begins.",
+    "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-proc-direct-negotiation-153",
+    "title": "Urgent Direct Negotiation, Should-Cost, and Demand Normalization Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "procurement",
+      "direct-negotiation",
+      "should-cost",
+      "demand-normalization",
+      "service-baselines",
+      "urgent-sourcing",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal strategic-sourcing standard governs urgent negotiation posture, demand normalization, service-baseline cleanup, and should-cost preparation before direct negotiation or incumbent-led exceptions. It is relevant where scope creep, inconsistent service baselines, or time pressure leave the enterprise negotiating from a fragmented and commercially weak position.",
+    "lastUpdated": "2026-04-10"
+  }
+]

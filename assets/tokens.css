@@ -1,0 +1,151 @@
+/* ============================================================
+   G42 RISK QUANTIFIER — DESIGN TOKENS
+   Operationalized from the G42 Brand Alignment Brief for LLMs.
+   ============================================================ */
+
+:root {
+  /* ── Brand Palette ─────────────────────────────────────── */
+  --color-primary-900:   #061410;
+  --color-primary-800:   #0d231c;
+  --color-primary-700:   #12352c;
+  --color-primary-600:   #0f8e74;
+  --color-primary-500:   #03D1A8;
+  --color-primary-400:   #45dfbc;
+  --color-primary-300:   #87e9d2;
+  --color-primary-200:   #c1f5e8;
+  --color-primary-100:   #ebfff8;
+
+  --color-accent-500:    #c8d63c;
+  --color-accent-400:    #dce94c;
+  --color-accent-300:    #F2FB5A;
+
+  --color-gold-500:      #9baa2b;
+  --color-gold-400:      #cad93b;
+  --color-gold-300:      #F2FB5A;
+  --accent-gold:         #F2FB5A;
+
+  /* ── Semantic / Status ──────────────────────────────────── */
+  --color-success-600:   #238d68;
+  --color-success-500:   #5ACA91;
+  --color-success-400:   #8be0b5;
+  --color-success-100:   rgba(90,202,145,0.14);
+  --color-warning-600:   #cad93b;
+  --color-warning-500:   #F2FB5A;
+  --color-warning-400:   #f5fb90;
+  --color-warning-100:   rgba(242,251,90,0.14);
+  --color-danger-700:    #d93a4e;
+  --color-danger-600:    #FE4A5E;
+  --color-danger-500:    #ff7383;
+  --color-danger-400:    #ff9cab;
+  --color-danger-100:    rgba(254,74,94,0.14);
+  --color-info-500:      #4D5C9C;
+  --color-info-100:      rgba(77,92,156,0.14);
+
+  /* ── Neutrals ───────────────────────────────────────────── */
+  --color-neutral-950:   #101410;
+  --color-neutral-900:   #171d18;
+  --color-neutral-800:   #1d241f;
+  --color-neutral-700:   #212822;
+  --color-neutral-600:   #384038;
+  --color-neutral-500:   #647065;
+  --color-neutral-400:   #99a39a;
+  --color-neutral-300:   #c8cec8;
+  --color-neutral-200:   #e0ddd9;
+  --color-neutral-100:   #F6F3F2;
+  --color-neutral-50:    #fcf9f8;
+  --color-white:         #ffffff;
+
+  /* ── Surface / Background ───────────────────────────────── */
+  --bg-base:             #101410;
+  --bg-surface:          rgba(27, 34, 29, 0.74);
+  --bg-elevated:         rgba(33, 40, 34, 0.9);
+  --bg-canvas:           #161c18;
+  --bg-overlay:          rgba(246,243,242,0.06);
+  --bg-overlay-hover:    rgba(246,243,242,0.1);
+  --bg-glass:            rgba(246,243,242,0.05);
+  --bg-glass-strong:     rgba(246,243,242,0.08);
+
+  /* ── Text ───────────────────────────────────────────────── */
+  --text-primary:        #F6F3F2;
+  --text-secondary:      #d6d2ce;
+  --text-muted:          #95a095;
+  --text-inverted:       #212822;
+  --text-link:           #87e9d2;
+  --text-link-hover:     #F2FB5A;
+
+  /* ── Border ─────────────────────────────────────────────── */
+  --border-subtle:       rgba(246,243,242,0.08);
+  --border-default:      rgba(246,243,242,0.14);
+  --border-strong:       rgba(246,243,242,0.24);
+  --border-focus:        var(--color-primary-500);
+
+  /* ── Typography ─────────────────────────────────────────── */
+  --font-display:        'Syne', 'Georgia', serif;
+  --font-body:           'DM Sans', 'Helvetica Neue', sans-serif;
+  --font-mono:           'JetBrains Mono', 'Fira Code', monospace;
+
+  --text-xs:    0.75rem;
+  --text-sm:    0.875rem;
+  --text-base:  1rem;
+  --text-lg:    1.125rem;
+  --text-xl:    1.25rem;
+  --text-2xl:   1.5rem;
+  --text-3xl:   1.875rem;
+  --text-4xl:   2.25rem;
+  --text-5xl:   3rem;
+
+  --font-normal:  400;
+  --font-medium:  500;
+  --font-semibold:600;
+  --font-bold:    700;
+
+  /* ── Spacing ────────────────────────────────────────────── */
+  --sp-1:  0.25rem;
+  --sp-2:  0.5rem;
+  --sp-3:  0.75rem;
+  --sp-4:  1rem;
+  --sp-5:  1.25rem;
+  --sp-6:  1.5rem;
+  --sp-7:  1.75rem;
+  --sp-8:  2rem;
+  --sp-10: 2.5rem;
+  --sp-12: 3rem;
+  --sp-16: 4rem;
+  --sp-20: 5rem;
+  --sp-24: 6rem;
+
+  /* ── Radius ─────────────────────────────────────────────── */
+  --radius-sm:   8px;
+  --radius-md:   12px;
+  --radius-lg:   18px;
+  --radius-xl:   24px;
+  --radius-2xl:  32px;
+  --radius-full: 9999px;
+
+  /* ── Shadows ────────────────────────────────────────────── */
+  --shadow-sm:  0 12px 24px rgba(4,8,5,0.16);
+  --shadow-md:  0 22px 50px rgba(4,8,5,0.22);
+  --shadow-lg:  0 30px 76px rgba(4,8,5,0.28);
+  --shadow-xl:  0 42px 100px rgba(4,8,5,0.34);
+  --shadow-glow:0 18px 44px rgba(3,209,168,0.16);
+
+  /* ── Transitions ────────────────────────────────────────── */
+  --transition-fast:   150ms ease;
+  --transition-base:   250ms ease;
+  --transition-slow:   400ms ease;
+
+  /* ── Z-index ─────────────────────────────────────────────── */
+  --z-base:    1;
+  --z-dropdown:100;
+  --z-modal:   200;
+  --z-toast:   300;
+  --z-tooltip: 400;
+
+  /* ── Chart Colors ───────────────────────────────────────── */
+  --chart-primary:  #03D1A8;
+  --chart-accent:   #F2FB5A;
+  --chart-danger:   #FE4A5E;
+  --chart-warning:  #F2FB5A;
+  --chart-success:  #5ACA91;
+  --chart-grid:     rgba(246,243,242,0.08);
+}
