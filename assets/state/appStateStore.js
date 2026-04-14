@@ -108,10 +108,16 @@
     };
   }
 
-  function applyAdminSettingsState(state, adminSettingsCache) {
+  function normaliseAdminSettingsCacheSource(source = 'none') {
+    const value = String(source || '').trim().toLowerCase();
+    return ['shared', 'local', 'default'].includes(value) ? value : 'none';
+  }
+
+  function applyAdminSettingsState(state, adminSettingsCache, source = adminSettingsCache ? 'local' : 'none') {
     return {
       ...state,
-      adminSettingsCache: adminSettingsCache || null
+      adminSettingsCache: adminSettingsCache || null,
+      adminSettingsCacheSource: adminSettingsCache ? normaliseAdminSettingsCacheSource(source) : 'none'
     };
   }
 
@@ -384,8 +390,8 @@
     return updateUserStateCache(createEmptyUserStateCache(username));
   }
 
-  function updateAdminSettingsState(nextSettings) {
-    return writeAppState(applyAdminSettingsState(AppState, nextSettings));
+  function updateAdminSettingsState(nextSettings, source = nextSettings ? 'local' : 'none') {
+    return writeAppState(applyAdminSettingsState(AppState, nextSettings, source));
   }
 
   function clearAdminSettingsState() {

@@ -84,6 +84,7 @@ test('applyUserStateCache restores safe defaults for missing collections', () =>
 test('applyAdminSettingsState replaces only the admin settings cache', () => {
   const next = applyAdminSettingsState({ adminSettingsCache: null, draft: { id: 'a1' } }, { geography: 'UAE' });
   assert.deepEqual(next.adminSettingsCache, { geography: 'UAE' });
+  assert.equal(next.adminSettingsCacheSource, 'local');
   assert.deepEqual(next.draft, { id: 'a1' });
 });
 

@@ -19,57 +19,14 @@
       try {
         const data = await requestSharedSettings('GET');
         if (data?.settings) {
-          const isRedacted = data?.scope?.redacted === true;
-          let localSaved = null;
-          try {
-            localSaved = JSON.parse(localStorage.getItem(GLOBAL_ADMIN_STORAGE_KEY) || 'null');
-          } catch (error) {
-            warnSharedStateIssueOnce('local-admin-settings-read', 'loadSharedAdminSettings local backup read failed:', error);
-          }
-          const sharedSettings = {
+          const sharedSettings = normaliseAdminSettings({
             ...DEFAULT_ADMIN_SETTINGS,
             ...data.settings,
             applicableRegulations: Array.isArray(data.settings.applicableRegulations)
               ? data.settings.applicableRegulations
               : [...DEFAULT_ADMIN_SETTINGS.applicableRegulations]
-          };
-          const localHasStructure = Array.isArray(localSaved?.companyStructure) && localSaved.companyStructure.length;
-          const sharedHasStructure = Array.isArray(sharedSettings.companyStructure) && sharedSettings.companyStructure.length;
-          const localHasLayers = Array.isArray(localSaved?.entityContextLayers) && localSaved.entityContextLayers.length;
-          const sharedHasLayers = Array.isArray(sharedSettings.entityContextLayers) && sharedSettings.entityContextLayers.length;
-          const merged = isRedacted
-            ? { ...sharedSettings }
-            : {
-                ...sharedSettings,
-                companyStructure: sharedHasStructure
-                  ? sharedSettings.companyStructure
-                  : (localHasStructure ? localSaved.companyStructure : sharedSettings.companyStructure),
-                entityContextLayers: sharedHasLayers
-                  ? sharedSettings.entityContextLayers
-                  : (localHasLayers ? localSaved.entityContextLayers : sharedSettings.entityContextLayers),
-                companyContextSections: sharedSettings.companyContextSections || localSaved?.companyContextSections || null
-              };
-          let normalisedMerged = applySharedSettingsLocally(merged);
-          if (!isRedacted && ((!sharedHasStructure && localHasStructure) || (!sharedHasLayers && localHasLayers))) {
-            try {
-              const result = await client.syncSharedAdminSettings(normalisedMerged, {
-                category: 'settings',
-                eventType: 'shared_settings_rehydrated',
-                target: 'global_settings',
-                details: { reason: 'local_backup_richer_than_shared' }
-              });
-              if (result?.settings) {
-                normalisedMerged = applySharedSettingsLocally(result.settings);
-              }
-            } catch (error) {
-              if (error?.code === 'WRITE_CONFLICT' && error?.latestSettings) {
-                normalisedMerged = applySharedSettingsLocally(error.latestSettings);
-              } else {
-                console.warn('shared settings rehydrate failed:', error.message);
-              }
-            }
-          }
-          return normalisedMerged;
+          });
+          return applySharedSettingsLocally(sharedSettings, { source: 'shared' });
         }
       } catch (error) {
         console.warn('loadSharedAdminSettings fallback:', error.message);

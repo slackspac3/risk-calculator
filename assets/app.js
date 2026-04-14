@@ -8,7 +8,7 @@
 const TOLERANCE_THRESHOLD = 5_000_000;
 const DEFAULT_FX_RATE = 3.6725;
 const DEFAULT_COMPASS_PROXY_URL = resolveCompassProxyUrl();
-const APP_ASSET_VERSION = '20260410v4';
+const APP_ASSET_VERSION = '20260413v1';
 const APP_RELEASE = Object.freeze((typeof window !== 'undefined' && window.__RISK_CALCULATOR_RELEASE__) || {
   version: '0.10.0-pilot.1',
   channel: 'pilot',
@@ -1068,6 +1068,7 @@ const AppState = {
   disclosureState: {},
   resultsBoardroomMode: false,
   adminSettingsCache: null,
+  adminSettingsCacheSource: 'none',
   sharedAdminSettingsLoadedForSession: false,
   userStateCache: {
     username: '',
@@ -1391,9 +1392,9 @@ if (typeof window !== 'undefined') {
   window.AppCrossTabSync = AppCrossTabSync;
 }
 
-function applySharedSettingsLocally(settings = {}) {
+function applySharedSettingsLocally(settings = {}, options = {}) {
   const normalised = normaliseAdminSettings(settings);
-  updateAdminSettingsState(normalised);
+  updateAdminSettingsState(normalised, options.source || 'shared');
   clearAdminSettingsStaleNotice(Number(normalised?._meta?.revision || 0));
   try {
     localStorage.setItem(GLOBAL_ADMIN_STORAGE_KEY, JSON.stringify(normalised));
@@ -4181,10 +4182,14 @@ function getAdminSettings() {
   if (AppState.adminSettingsCache) {
     return normaliseAdminSettings(AppState.adminSettingsCache);
   }
+  const authenticated = typeof AuthService?.isAuthenticated === 'function' && AuthService.isAuthenticated();
+  if (authenticated && AppState.sharedAdminSettingsLoadedForSession !== true) {
+    return normaliseAdminSettings();
+  }
   try {
     const saved = JSON.parse(localStorage.getItem(GLOBAL_ADMIN_STORAGE_KEY) || 'null') || {};
     const merged = normaliseAdminSettings(saved);
-    updateAdminSettingsState(merged);
+    updateAdminSettingsState(merged, 'local');
     return merged;
   } catch {
     return normaliseAdminSettings();
@@ -4215,14 +4220,19 @@ function applyManagedAccountAssignmentToSettings(account, updates = {}, baseSett
 }
 
 let adminSettingsSaveQueue = Promise.resolve(false);
+let adminSettingsSaveTailSnapshot = '';
+let adminSettingsSaveTailPromise = null;
 
 async function saveAdminSettings(settings, options = {}) {
+  const merged = normaliseAdminSettings(settings);
+  const requestedSnapshot = buildComparableAdminSettingsSnapshot(merged);
+  if (adminSettingsSaveTailPromise && requestedSnapshot && requestedSnapshot === adminSettingsSaveTailSnapshot) {
+    return adminSettingsSaveTailPromise;
+  }
   const runSave = async () => {
     const expectedRenderToken = Number(options.renderToken || 0);
     const isStaleRenderContext = () => expectedRenderToken > 0 && expectedRenderToken !== activeAdminSettingsRenderToken;
     if (isStaleRenderContext()) return false;
-    const merged = normaliseAdminSettings(settings);
-    const requestedSnapshot = buildComparableAdminSettingsSnapshot(merged);
     const currentSettings = getAdminSettings();
     if (buildComparableAdminSettingsSnapshot(currentSettings) === requestedSnapshot) return true;
     if (AuthService.getAdminApiSecret() || AuthService.getApiSessionToken()) {
@@ -4276,10 +4286,19 @@ async function saveAdminSettings(settings, options = {}) {
     return true;
   };
 
-  adminSettingsSaveQueue = Promise.resolve(adminSettingsSaveQueue)
+  const queuedSave = Promise.resolve(adminSettingsSaveQueue)
     .catch(() => false)
     .then(runSave);
-  return adminSettingsSaveQueue;
+  adminSettingsSaveQueue = queuedSave;
+  adminSettingsSaveTailSnapshot = requestedSnapshot;
+  adminSettingsSaveTailPromise = queuedSave;
+  queuedSave.finally(() => {
+    if (adminSettingsSaveTailPromise === queuedSave) {
+      adminSettingsSaveTailPromise = null;
+      adminSettingsSaveTailSnapshot = '';
+    }
+  });
+  return queuedSave;
 }
 
 function normaliseComparableUserSettingValue(key, value) {
@@ -11087,7 +11106,73 @@ function adminLayout(active, content, activeSettingsSection = 'org') {
   </div>`;
 }
 
+let _adminSurfaceSettingsHydrationPromise = null;
+
+function renderAdminSurfaceHydrationState(active, options = {}) {
+  const activeSettingsSection = options.activeSettingsSection || getPreferredAdminSection();
+  const title = options.title || 'Loading shared admin settings';
+  const description = options.description || 'Refreshing the latest governed admin settings before rendering this screen.';
+  const status = options.status || 'Please wait while the platform loads the latest shared admin baseline.';
+  const toneClass = options.tone === 'error' ? 'card card--warning' : 'card';
+  setPage(adminLayout(active, `<div class="container" style="padding:var(--sp-12)">
+    <div class="${toneClass}">
+      <h2>${escapeHtml(title)}</h2>
+      <p style="margin-top:8px;color:var(--text-muted)">${escapeHtml(description)}</p>
+      <div class="form-help mt-4">${escapeHtml(status)}</div>
+      ${options.retry
+        ? `<div class="flex items-center gap-3 mt-6"><button class="btn btn--primary" id="btn-admin-retry-hydration">Try Again</button><a class="btn btn--ghost" href="#/admin/home">Platform Home</a></div>`
+        : '<div class="spinner mt-6" aria-hidden="true"></div>'}
+    </div>
+  </div>`, activeSettingsSection));
+  if (options.retry) {
+    document.getElementById('btn-admin-retry-hydration')?.addEventListener('click', () => {
+      Router.render?.();
+    });
+  }
+}
+
+function ensureSharedAdminSettingsForSurface(active, options = {}) {
+  if (!requireAdmin()) return false;
+  if (AppState.sharedAdminSettingsLoadedForSession === true) {
+    return true;
+  }
+  if (_adminSurfaceSettingsHydrationPromise) {
+    renderAdminSurfaceHydrationState(active, options);
+    return false;
+  }
+  renderAdminSurfaceHydrationState(active, options);
+  _adminSurfaceSettingsHydrationPromise = (async () => {
+    const settings = await loadSharedAdminSettings();
+    if (!settings) {
+      throw new Error('The shared admin settings could not be loaded from the server.');
+    }
+    return settings;
+  })()
+    .then(() => {
+      Router.render?.();
+    })
+    .catch(error => {
+      console.error('admin surface shared settings hydrate failed:', error);
+      renderAdminSurfaceHydrationState(active, {
+        ...options,
+        tone: 'error',
+        retry: true,
+        title: 'Admin settings could not be loaded',
+        description: 'This screen now waits for the shared admin baseline instead of using stale browser-cached admin settings.',
+        status: error?.message || 'The shared admin settings could not be loaded from the server.'
+      });
+    })
+    .finally(() => {
+      _adminSurfaceSettingsHydrationPromise = null;
+    });
+  return false;
+}
+
 function renderAdminHome() {
+  if (!ensureSharedAdminSettingsForSurface('home', {
+    title: 'Loading platform home',
+    description: 'Refreshing the latest shared admin settings before opening the admin workspace.'
+  })) return;
   if (!requireAdmin()) return;
   const settings = getAdminSettings();
   const companyStructure = Array.isArray(settings.companyStructure) ? settings.companyStructure : [];
@@ -12411,50 +12496,60 @@ function renderAdminSettings(activeSection = 'org') {
   const departmentEntities = companyStructure.filter(node => isDepartmentEntityType(node.type));
   const settingsSectionMeta = window.AdminSettingsSection.SETTINGS_SECTION_META;
   const currentSettingsSection = setPreferredAdminSection(settingsSectionMeta[activeSection] ? activeSection : getPreferredAdminSection());
-  const orgSetupSections = AdminOrgSetupSection.renderSections({
-    companyEntities,
-    departmentEntities,
-    companyStructure,
-    entityObligations
-  });
-  const companyBuilderSection = window.AdminSettingsSection.renderCompanyBuilderSection({ settings, companyContextSections });
-  const platformDefaultsSection = AdminPlatformDefaultsSection.renderSection({ settings, mode: 'defaults' });
-  const governanceSection = AdminPlatformDefaultsSection.renderSection({ settings, mode: 'governance' });
-  const feedbackSection = typeof AdminAiFeedbackSection !== 'undefined' && AdminAiFeedbackSection && typeof AdminAiFeedbackSection.renderSection === 'function'
-    ? AdminAiFeedbackSection.renderSection({ settings })
-    : renderSettingsSection({
-        title: 'AI Feedback & Tuning',
-        scope: 'admin-settings',
-        description: 'The AI feedback workbench is temporarily unavailable.',
-        meta: 'Unavailable',
-        body: '<div class="form-help">Reload the page to restore the feedback workbench.</div>'
+  const buildCurrentAdminSectionBody = () => {
+    if (currentSettingsSection === 'org') {
+      return AdminOrgSetupSection.renderSections({
+        companyEntities,
+        departmentEntities,
+        companyStructure,
+        entityObligations
       });
-  const systemAccessSection = AdminSystemAccessSection.renderSection({
-    localDevMode,
-    sessionLLM,
-    runtimeStatus,
-    serverStatus
-  });
-  const auditCache = AppState.auditLogCache || { loaded: false, loading: false, entries: [], summary: null, error: '', lastLoadedAt: 0 };
-  const auditLogSection = AdminAuditLogSection.renderSection({ auditCache });
-
-
-  const userControlsSection = AdminUserAccountsSection.renderSection({
-    settings,
-    companyEntities,
-    companyStructure,
-    managedAccounts
-  });
-  const adminSectionBody = {
-    org: orgSetupSections,
-    company: companyBuilderSection,
-    defaults: platformDefaultsSection,
-    governance: governanceSection,
-    feedback: feedbackSection,
-    access: systemAccessSection,
-    users: userControlsSection,
-    audit: auditLogSection
-  }[currentSettingsSection] || orgSetupSections;
+    }
+    if (currentSettingsSection === 'company') {
+      return window.AdminSettingsSection.renderCompanyBuilderSection({ settings, companyContextSections });
+    }
+    if (currentSettingsSection === 'defaults' || currentSettingsSection === 'governance') {
+      return AdminPlatformDefaultsSection.renderSection({ settings, mode: currentSettingsSection });
+    }
+    if (currentSettingsSection === 'feedback') {
+      return typeof AdminAiFeedbackSection !== 'undefined' && AdminAiFeedbackSection && typeof AdminAiFeedbackSection.renderSection === 'function'
+        ? AdminAiFeedbackSection.renderSection({ settings })
+        : renderSettingsSection({
+            title: 'AI Feedback & Tuning',
+            scope: 'admin-settings',
+            description: 'The AI feedback workbench is temporarily unavailable.',
+            meta: 'Unavailable',
+            body: '<div class="form-help">Reload the page to restore the feedback workbench.</div>'
+          });
+    }
+    if (currentSettingsSection === 'access') {
+      return AdminSystemAccessSection.renderSection({
+        localDevMode,
+        sessionLLM,
+        runtimeStatus,
+        serverStatus
+      });
+    }
+    if (currentSettingsSection === 'users') {
+      return AdminUserAccountsSection.renderSection({
+        settings,
+        companyEntities,
+        companyStructure,
+        managedAccounts
+      });
+    }
+    if (currentSettingsSection === 'audit') {
+      const auditCache = AppState.auditLogCache || { loaded: false, loading: false, entries: [], summary: null, error: '', lastLoadedAt: 0 };
+      return AdminAuditLogSection.renderSection({ auditCache });
+    }
+    return AdminOrgSetupSection.renderSections({
+      companyEntities,
+      departmentEntities,
+      companyStructure,
+      entityObligations
+    });
+  };
+  const adminSectionBody = buildCurrentAdminSectionBody();
 
   const adminGuidanceCopy = window.AdminSettingsSection.getAdminGuidanceCopy(currentSettingsSection);
   const platformSnapshotMarkup = window.AdminSettingsSection.renderPlatformSnapshot({
@@ -12756,6 +12851,11 @@ ${topItems}${impactAssessment.impacts.length > 3 ? `\n- +${impactAssessment.impa
 }
 
 function safeRenderAdminSettings(section = getPreferredAdminSection()) {
+  if (!ensureSharedAdminSettingsForSurface('settings', {
+    activeSettingsSection: section,
+    title: 'Loading admin settings',
+    description: 'Refreshing the latest shared admin settings before opening this admin section.'
+  })) return;
   try {
     renderAdminSettings(section);
   } catch (error) {
@@ -12772,6 +12872,10 @@ function safeRenderAdminSettings(section = getPreferredAdminSection()) {
 }
 
 function renderAdminBU() {
+  if (!ensureSharedAdminSettingsForSurface('bu', {
+    title: 'Loading organisation customisation',
+    description: 'Refreshing the latest shared admin settings before opening the organisation workbench.'
+  })) return;
   if (!requireAdmin()) return;
   const settings = getAdminSettings();
   const companyStructure = Array.isArray(settings.companyStructure) ? settings.companyStructure : [];
@@ -13190,6 +13294,10 @@ function openBUEditor(bu, options = {}) {
 }
 
 function renderAdminDocs() {
+  if (!ensureSharedAdminSettingsForSurface('docs', {
+    title: 'Loading document library',
+    description: 'Refreshing the latest shared admin settings before opening the document library.'
+  })) return;
   return AdminDocumentLibrarySection.renderRoute();
 }
 
