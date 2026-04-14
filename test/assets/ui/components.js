@@ -1,0 +1,657 @@
+/**
+ * components.js — Reusable UI components
+ */
+
+const UI = (() => {
+  function safeHtml(value = '') {
+    return typeof escapeHtml === 'function'
+      ? escapeHtml(String(value || ''))
+      : String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+  }
+
+  function safeHref(value = '') {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    try {
+      const url = new URL(raw, window.location.origin);
+      return ['http:', 'https:', 'mailto:'].includes(url.protocol) ? url.toString() : '';
+    } catch {
+      return '';
+    }
+  }
+
+  function iconTokenForLabel(label = '') {
+    const text = String(label || '').toLowerCase();
+    if (/action|next|priority|decision/.test(text)) return '▸';
+    if (/confidence|evidence|trust/.test(text)) return '●';
+    if (/position|status|posture|tolerance/.test(text)) return '◌';
+    if (/role|focus|scope|context/.test(text)) return '◦';
+    if (/ready|open|completed|view/.test(text)) return '○';
+    return '▸';
+  }
+
+  function sectionEyebrow(label = '', toneClass = '') {
+    return `<span class="ui-eyebrow ${toneClass}"><span class="ui-eyebrow-mark" aria-hidden="true">${iconTokenForLabel(label)}</span><span>${label}</span></span>`;
+  }
+
+  // ─── Toast ────────────────────────────────────────────────
+  function toast(message, type = 'success', duration = 3500) {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+    const icons = { success: '○', danger: '△', warning: '◌', info: '·' };
+    const el = document.createElement('div');
+    el.className = `toast toast--${type}`;
+    el.innerHTML = `<span class="toast-icon" aria-hidden="true">${icons[type] || '·'}</span><span class="toast-msg">${safeHtml(message)}</span><span class="toast-progress" aria-hidden="true"></span>`;
+    container.appendChild(el);
+    setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity 0.3s'; setTimeout(() => el.remove(), 320); }, duration);
+  }
+
+  // ─── Modal ────────────────────────────────────────────────
+  function modal({ title, body, footer = '', onClose }) {
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    const closeBtn = `<button class="modal-close" aria-label="Close">✕</button>`;
+    backdrop.innerHTML = `
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <div class="modal-header">
+          <h3 class="modal-title" id="modal-title">${safeHtml(title)}</h3>
+          ${closeBtn}
+        </div>
+        <div class="modal-body">${body}</div>
+        ${footer ? `<div class="modal-footer">${footer}</div>` : ''}
+      </div>`;
+    document.body.appendChild(backdrop);
+
+    let closed = false;
+    const esc = e => {
+      if (e.key === 'Escape') close();
+    };
+    const close = () => {
+      if (closed) return;
+      closed = true;
+      document.removeEventListener('keydown', esc);
+      backdrop.remove();
+      if (onClose) onClose();
+    };
+    backdrop.querySelector('.modal-close').addEventListener('click', close);
+    backdrop.addEventListener('click', e => { if (e.target === backdrop) close(); });
+    document.addEventListener('keydown', esc);
+    return { close };
+  }
+
+  // ─── Citation Modal ───────────────────────────────────────
+  function citationModal(doc) {
+    const safeUrl = safeHref(doc.url && doc.url !== '#/admin/docs' ? doc.url : '');
+    modal({
+      title: `Source: ${doc.title}`,
+      body: `
+        <div style="margin-bottom:12px">
+          <span class="badge badge--neutral">${safeHtml(doc.lastUpdated || 'Unknown date')}</span>
+          ${doc.sourceType ? `<span class="badge badge--gold" style="margin-left:4px">${safeHtml(doc.sourceType)}</span>` : ''}
+          ${(doc.tags || []).map(t => `<span class="badge badge--primary" style="margin-left:4px">${safeHtml(t)}</span>`).join('')}
+        </div>
+        ${doc.relevanceReason ? `<div class="form-help" style="margin-bottom:12px">Why this source was used: ${safeHtml(doc.relevanceReason)}</div>` : ''}
+        <p style="line-height:1.8; font-size:0.9rem; color: var(--text-secondary)">${safeHtml(doc.excerpt || doc.contentExcerpt || 'No excerpt available.')}</p>
+        ${safeUrl ? `<div style="margin-top:16px"><a href="${safeHtml(safeUrl)}" rel="noopener noreferrer" target="_blank" class="btn btn--secondary btn--sm">Open document</a></div>` : ''}
+      `
+    });
+  }
+
+  function openAiTraceModal(trace = null, { confidenceBasis = '' } = {}) {
+    const safe = (value = '') => typeof escapeHtml === 'function' ? escapeHtml(String(value || '')) : String(value || '');
+    const entry = trace && typeof trace === 'object' ? trace : {};
+    const sources = Array.isArray(entry.sources) ? entry.sources.filter(Boolean) : [];
+    const promptSummary = String(entry.promptSummary || '').trim();
+    const promptPreview = safe(promptSummary.slice(0, 200) || 'No prompt trace was captured for this response.');
+    const responseRaw = String(entry.response || '').trim();
+    let responseText = responseRaw || 'No response trace was captured for this response.';
+    try {
+      responseText = JSON.stringify(JSON.parse(responseRaw), null, 2);
+    } catch {}
+    const response = safe(responseText);
+    const basis = safe(String(confidenceBasis || '').trim() || 'Evidence quality was not explicitly recorded for this trace.');
+    modal({
+      title: String(entry.label || 'Why this?').trim() || 'Why this?',
+      body: `
+        <div style="display:flex;flex-direction:column;gap:var(--sp-5)">
+          <section>
+            ${sectionEyebrow('What I was asked')}
+            <p style="margin-top:8px;line-height:1.7;color:var(--text-secondary)">${promptPreview}</p>
+          </section>
+          <section>
+            ${sectionEyebrow('What I considered')}
+            ${sources.length ? `<ul style="margin:8px 0 0 18px;padding:0;display:flex;flex-direction:column;gap:8px;color:var(--text-secondary)">${sources.map((source) => `<li><strong style="color:var(--text-primary)">${safe(source.title || 'Source')}</strong>${source.sourceType ? ` <span class="badge badge--neutral" style="margin-left:6px">${safe(source.sourceType)}</span>` : ''}${source.relevanceReason ? `<div class="form-help" style="margin-top:4px">${safe(source.relevanceReason)}</div>` : ''}</li>`).join('')}</ul>` : `<div class="form-help" style="margin-top:8px">No retrieved sources were attached to this trace.</div>`}
+          </section>
+          <section>
+            ${sectionEyebrow('What I concluded')}
+            <div style="margin-top:8px;line-height:1.7;color:var(--text-secondary);white-space:pre-wrap">${response}</div>
+          </section>
+          <section>
+            ${sectionEyebrow('Confidence basis')}
+            <p style="margin-top:8px;line-height:1.7;color:var(--text-secondary)">${basis}</p>
+          </section>
+        </div>
+      `
+    });
+  }
+
+  // ─── Stepper ──────────────────────────────────────────────
+  function renderStepper(currentStep) {
+    const steps = [
+      { n: 1, label: 'Risk Builder' },
+      { n: 2, label: 'Scenario' },
+      { n: 3, label: 'FAIR Inputs' },
+      { n: 4, label: 'Review & Run' }
+    ];
+    return `<nav class="stepper" aria-label="Assessment steps" role="list">
+      ${steps.map((s, i) => {
+        const state = s.n < currentStep ? 'complete' : s.n === currentStep ? 'active' : '';
+        const connState = s.n < currentStep ? 'complete' : s.n === currentStep ? 'active' : '';
+        const ariaLabel = s.n < currentStep ? `Step ${s.n}: ${s.label} (completed)` : s.n === currentStep ? `Step ${s.n}: ${s.label} (current)` : `Step ${s.n}: ${s.label}`;
+        return `
+          ${i > 0 ? `<div class="step-connector ${connState}" aria-hidden="true"></div>` : ''}
+          <div class="step-item" role="listitem" aria-label="${ariaLabel}">
+            <div class="step-dot-wrap">
+              <div class="step-dot ${state}" aria-current="${s.n === currentStep ? 'step' : 'false'}">
+                ${s.n < currentStep ? '✓' : s.n}
+              </div>
+              <span class="step-label ${state}">${s.label}</span>
+            </div>
+          </div>`;
+      }).join('')}
+    </nav>`;
+  }
+
+  // ─── Skeleton ─────────────────────────────────────────────
+  function skeletonBlock(height = 40, borderRadius = 8) {
+    return `<div class="skeleton" style="height:${height}px;border-radius:${borderRadius}px"></div>`;
+  }
+  function skeletonCard() {
+    return `<div class="card">
+      ${skeletonBlock(20, 6)}
+      <div style="margin-top:12px">${skeletonBlock(14, 4)}</div>
+      <div style="margin-top:8px">${skeletonBlock(14, 4)}</div>
+      <div style="margin-top:8px; width:60%">${skeletonBlock(14, 4)}</div>
+    </div>`;
+  }
+  function wizardAssistSkeleton() {
+    return `<div class="card wizard-assist-skeleton">
+      <div class="ui-eyebrow"><span class="ui-eyebrow-mark" aria-hidden="true">◇</span><span>Preparing suggested draft</span></div>
+      <div style="margin-top:14px">${skeletonBlock(18, 6)}</div>
+      <div style="margin-top:12px">${skeletonBlock(14, 4)}</div>
+      <div style="margin-top:8px">${skeletonBlock(14, 4)}</div>
+      <div style="margin-top:18px">${skeletonBlock(78, 12)}</div>
+    </div>`;
+  }
+
+
+  function adminSectionHeader({ title, description = '', actions = '' }) {
+    return `<div class="admin-section-head mb-6">
+      <div>
+        <h2>${title}</h2>
+        ${description ? `<p style="margin-top:6px">${description}</p>` : ''}
+      </div>
+      ${actions ? `<div class="flex gap-3" style="flex-wrap:wrap">${actions}</div>` : ''}
+    </div>`;
+  }
+
+  function adminTableCard({ title, description = '', table }) {
+    return `<div class="card card--elevated admin-table-card" style="padding:var(--sp-6)">
+      <div class="context-panel-title">${title}</div>
+      ${description ? `<div class="form-help" style="margin-top:6px">${description}</div>` : ''}
+      <div class="table-wrap table-wrap--admin mt-4" style="overflow-x:auto">${table}</div>
+    </div>`;
+  }
+
+
+  function dashboardOverviewCard({ label, value, foot }) {
+    return `<div class="admin-overview-card dashboard-overview-card--premium">
+      ${sectionEyebrow(label)}
+      <div class="admin-overview-value dashboard-overview-value--premium" style="font-size:1.2rem">${value}</div>
+      <div class="admin-overview-foot">${foot}</div>
+    </div>`;
+  }
+
+  function dashboardSectionCard({ title, description = '', badge = '', body, className = '', bodyClass = '' }) {
+    const sectionClasses = ['card', 'card--elevated', 'dashboard-section-card', className].filter(Boolean).join(' ');
+    const bodyClasses = bodyClass || '';
+    return `<div class="${sectionClasses}">
+      <div class="flex items-center justify-between" style="gap:var(--sp-3);flex-wrap:wrap">
+        <div>
+          <div class="context-panel-title">${title}</div>
+          ${description ? `<div class="form-help">${description}</div>` : ''}
+        </div>
+        ${badge ? `<span class="badge badge--neutral">${badge}</span>` : ''}
+      </div>
+      <div class="${bodyClasses}" style="display:flex;flex-direction:column;gap:12px;margin-top:var(--sp-5)">${body}</div>
+    </div>`;
+  }
+
+  function dashboardAssessmentRow({ assessmentId = '', title, detail, badgeClass = 'badge--neutral', badgeLabel, actions, className = '' }) {
+    const dataAttribute = assessmentId ? ` data-assessment-id="${assessmentId}"` : '';
+    const classes = ['card', 'dashboard-assessment-row', className].filter(Boolean).join(' ');
+    return `<div class="${classes}"${dataAttribute}>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+        <div>
+          <div style="font-weight:600;color:var(--text-primary)">${title}</div>
+          <div class="form-help" style="margin-top:6px">${detail}</div>
+        </div>
+        <span class="badge ${badgeClass}">${badgeLabel}</span>
+      </div>
+      <div class="flex items-center gap-3" style="margin-top:10px;flex-wrap:wrap">${actions}</div>
+    </div>`;
+  }
+
+
+  function resultsVisualCard({ title, body, wide = false }) {
+    return `<div class="results-visual-card${wide ? ' results-visual-card--wide' : ''}">
+      <div class="results-section-heading">${title}</div>
+      ${body}
+    </div>`;
+  }
+
+  function resultsBriefCard({ label, value, copy }) {
+    return `<div class="results-brief-card">
+      ${sectionEyebrow(label)}
+      <div class="results-brief-value">${value}</div>
+      <div class="results-brief-copy">${copy}</div>
+    </div>`;
+  }
+
+  function resultsSectionBlock({ title, intro = '', body, className = '' }) {
+    return `<section class="results-section-stack${className ? ` ${className}` : ''}">
+      <div class="results-section-heading">${title}</div>
+      ${intro ? `<div class="results-comparison-foot">${intro}</div>` : ''}
+      ${body}
+    </section>`;
+  }
+
+  function resultsSummaryCard({ label, body = '', foot = '', wide = false, className = '' }) {
+    return `<div class="results-summary-card${wide ? ' results-summary-card--wide' : ''}${className ? ` ${className}` : ''}">
+      <div class="results-driver-label">${label}</div>
+      ${body}
+      ${foot ? `<div class="results-comparison-foot" style="margin-top:var(--sp-3)">${foot}</div>` : ''}
+    </div>`;
+  }
+
+  function resultsDetailDisclosure({ summary, copy = '', body, className = '', style = '' }) {
+    return `<details class="results-detail-disclosure${className ? ` ${className}` : ''}"${style ? ` style="${style}"` : ''}>
+      <summary>${summary}</summary>
+      ${copy ? `<div class="results-detail-disclosure-copy">${copy}</div>` : ''}
+      <div class="results-disclosure-stack">
+        ${body}
+      </div>
+    </details>`;
+  }
+
+
+  function wizardInputSection({ title, description = '', body, className = 'card anim-fade-in', headerExtras = '' }) {
+    return `<div class="${className}">
+      <div class="wizard-section-head">
+        <div class="wizard-section-copy">
+          <h3 class="wizard-section-title" style="margin-bottom:${description ? 'var(--sp-2)' : '0'}">${title}</h3>
+          ${description ? `<p class="wizard-section-description">${description}</p>` : ''}
+        </div>
+        ${headerExtras}
+      </div>
+      ${body}
+    </div>`;
+  }
+
+  function sectionStatusBadge(label = 'Optional', tone = 'neutral') {
+    return `<span class="badge badge--${tone} wizard-section-badge">${label}</span>`;
+  }
+
+  function disclosureSection({ title, body, badgeLabel = 'Optional', badgeTone = 'neutral', open = false, className = 'wizard-disclosure card anim-fade-in', bodyClassName = 'wizard-disclosure-body', stateKey = '' }) {
+    const resolvedStateKey = stateKey || (typeof getDisclosureStateKey === 'function' ? getDisclosureStateKey('', title) : '');
+    const isOpen = resolvedStateKey && typeof getDisclosureOpenState === 'function'
+      ? getDisclosureOpenState(resolvedStateKey, open)
+      : open;
+    return `<details class="${className}"${resolvedStateKey ? ` data-disclosure-state-key="${escapeHtml(resolvedStateKey)}"` : ''} ${isOpen ? 'open' : ''}>
+      <summary><span>${title}</span>${sectionStatusBadge(badgeLabel, badgeTone)}</summary>
+      <div class="${bodyClassName}">${body}</div>
+    </details>`;
+  }
+
+
+  function contextInfoPanel({ title, copy, foot = '' }) {
+    return `<div class="context-chip-panel">
+      <div class="context-panel-title">${title}</div>
+      <p class="context-panel-copy">${copy}</p>
+      ${foot ? `<div class="context-panel-foot">${foot}</div>` : ''}
+    </div>`;
+  }
+
+  function contextInfoGrid({ title = '', intro = '', panels = [], className = 'card card--elevated anim-fade-in', gridStyle = '' }) {
+    return `<div class="${className}">
+      ${title ? `<div class="context-panel-title">${title}</div>` : ''}
+      ${intro ? `<p class="context-panel-copy" style="margin-top:${title ? 'var(--sp-2)' : '0'}">${intro}</p>` : ''}
+      <div class="context-grid"${gridStyle ? ` style="${gridStyle}"` : ''}>${panels.join('')}</div>
+    </div>`;
+  }
+
+
+  function aiAssistCard({ title = 'AI Assist', notesId, notesLabel, notesPlaceholder = '', fileId, fileLabel, fileAccept = '', fileHelpId = '', fileHelp = '', buttonId, buttonLabel, helperText = '', className = 'card mt-4', style = 'padding:var(--sp-4);background:var(--bg-elevated)' }) {
+    return `<div class="${className}" style="${style}">
+      <div class="context-panel-title">${title}</div>
+      <div class="form-group mt-3">
+        <label class="form-label" for="${notesId}">${notesLabel}</label>
+        <textarea class="form-textarea" id="${notesId}" rows="3" placeholder="${notesPlaceholder}"></textarea>
+      </div>
+      <div class="form-group mt-3">
+        <label class="form-label" for="${fileId}">${fileLabel}</label>
+        <input class="form-input" id="${fileId}" type="file" accept="${fileAccept}">
+        ${fileHelp ? `<div class="form-help" id="${fileHelpId}">${fileHelp}</div>` : ''}
+      </div>
+      <div class="flex items-center gap-3 mt-4" style="flex-wrap:wrap">
+        <button class="btn btn--secondary" id="${buttonId}" type="button">${buttonLabel}</button>
+        ${helperText ? `<span class="form-help">${helperText}</span>` : ''}
+      </div>
+    </div>`;
+  }
+
+  function aiRefinementCard({ title = 'Refine This Context With AI', intro = '', historyId = '', fileId, fileLabel, fileAccept = '', fileHelpId = '', fileHelp = '', promptId, promptLabel = 'Follow-up prompt', promptPlaceholder = '', buttonId, buttonLabel, statusId = '', statusText = '', className = 'card mt-4', style = 'padding:var(--sp-4);background:var(--bg-elevated)' }) {
+    return `<div class="${className}" style="${style}">
+      <div class="context-panel-title">${title}</div>
+      ${intro ? `<p class="form-help" style="margin-top:6px">${intro}</p>` : ''}
+      ${historyId ? `<div id="${historyId}" style="display:flex;flex-direction:column;gap:10px;margin-top:12px"></div>` : ''}
+      <div class="form-group mt-4">
+        <label class="form-label" for="${fileId}">${fileLabel}</label>
+        <input class="form-input" id="${fileId}" type="file" accept="${fileAccept}">
+        ${fileHelp ? `<div class="form-help" id="${fileHelpId}">${fileHelp}</div>` : ''}
+      </div>
+      <div class="form-group mt-4">
+        <label class="form-label" for="${promptId}">${promptLabel}</label>
+        <textarea class="form-textarea" id="${promptId}" rows="3" placeholder="${promptPlaceholder}"></textarea>
+      </div>
+      <div class="flex items-center gap-3 mt-3" style="flex-wrap:wrap">
+        <button class="btn btn--secondary" id="${buttonId}" type="button">${buttonLabel}</button>
+        ${statusText ? `<span class="form-help" id="${statusId}">${statusText}</span>` : ''}
+      </div>
+    </div>`;
+  }
+
+  // ─── Tag Input ────────────────────────────────────────────
+  function tagInput(containerId, initialTags = [], onChange = null) {
+    const wrap = document.getElementById(containerId);
+    if (!wrap) return;
+    let tags = [...initialTags];
+    const notify = () => {
+      if (typeof onChange === 'function') onChange([...tags]);
+    };
+
+    function render() {
+      wrap.innerHTML = `
+        ${tags.map((t, i) => `<span class="tag-item">${safeHtml(t)}<button type="button" data-idx="${i}" aria-label="Remove ${safeHtml(t)}">×</button></span>`).join('')}
+        <input class="tag-input" type="text" placeholder="Add tag…" />`;
+      wrap.querySelectorAll('.tag-item button').forEach(btn => {
+        btn.addEventListener('click', () => {
+          tags.splice(parseInt(btn.dataset.idx), 1);
+          render();
+          notify();
+        });
+      });
+      const input = wrap.querySelector('.tag-input');
+      input.addEventListener('keydown', e => {
+        if ((e.key === 'Enter' || e.key === ',') && input.value.trim()) {
+          e.preventDefault();
+          const val = input.value.trim().replace(/,$/, '');
+          if (val && !tags.includes(val)) tags.push(val);
+          render();
+          notify();
+        }
+        if (e.key === 'Backspace' && !input.value && tags.length) {
+          tags.pop();
+          render();
+          notify();
+        }
+      });
+    }
+
+    render();
+    return {
+      getTags: () => [...tags],
+      setTags: (newTags) => { tags = [...newTags]; render(); notify(); }
+    };
+  }
+
+  // ─── Confirm Dialog ───────────────────────────────────────
+  function confirm(input) {
+    return new Promise(resolve => {
+      const options = typeof input === 'string'
+        ? { title: 'Confirm', body: `<p>${input}</p>`, confirmLabel: 'Confirm', cancelLabel: 'Cancel', tone: 'danger' }
+        : {
+            title: input?.title || 'Confirm',
+            body: input?.body ? `<div>${input.body}</div>` : `<p>${input?.message || 'Please confirm this action.'}</p>`,
+            confirmLabel: input?.confirmLabel || 'Confirm',
+            cancelLabel: input?.cancelLabel || 'Cancel',
+            tone: input?.tone || 'danger'
+          };
+      let settled = false;
+      const finish = value => {
+        if (settled) return;
+        settled = true;
+        resolve(value);
+      };
+      const m = modal({
+        title: options.title,
+        body: options.body,
+        footer: `<button class="btn btn--ghost" id="confirm-cancel">${options.cancelLabel}</button>
+                 <button class="btn btn--${options.tone}" id="confirm-ok">${options.confirmLabel}</button>`,
+        onClose: () => finish(false)
+      });
+      document.getElementById('confirm-ok').addEventListener('click', () => { finish(true); m.close(); });
+      document.getElementById('confirm-cancel').addEventListener('click', () => { finish(false); m.close(); });
+    });
+  }
+
+
+  function _getCurrencyPrefix(currency) {
+    return currency === 'AED' ? 'AED ' : '$';
+  }
+
+  // ─── Chart: Histogram ────────────────────────────────────
+  function drawHistogram(canvas, bins, threshold, currency = 'USD', fxRate = 3.6725) {
+    const ctx = canvas.getContext('2d');
+    const W   = canvas.width  = canvas.offsetWidth * (window.devicePixelRatio || 1);
+    const H   = canvas.height = 240 * (window.devicePixelRatio || 1);
+    canvas.style.height = '240px';
+    ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+    const w = canvas.offsetWidth;
+    const h = 240;
+
+    const pad = { top: 20, right: 20, bottom: 50, left: 70 };
+    const plotW = w - pad.left - pad.right;
+    const plotH = h - pad.top  - pad.bottom;
+
+    const converted = bins.map(b => ({
+      x: currency === 'AED' ? b.x * fxRate : b.x,
+      count: b.count
+    }));
+    const thr = currency === 'AED' ? threshold * fxRate : threshold;
+
+    const maxCount = Math.max(...converted.map(b => b.count));
+    const minX = converted[0].x;
+    const maxX = converted[converted.length - 1].x;
+
+    ctx.clearRect(0, 0, w, h);
+
+    // Grid
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) {
+      const y = pad.top + plotH - (i / 4) * plotH;
+      ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + plotW, y); ctx.stroke();
+    }
+
+    // Bars
+    const barW = plotW / converted.length * 0.85;
+    const gap  = plotW / converted.length;
+    converted.forEach((b, i) => {
+      const bh = (b.count / maxCount) * plotH;
+      const bx = pad.left + i * gap + (gap - barW) / 2;
+      const by = pad.top + plotH - bh;
+      const overThresh = b.x > thr;
+      ctx.fillStyle = overThresh ? 'rgba(239,68,68,0.65)' : 'rgba(26,86,219,0.65)';
+      ctx.beginPath();
+      ctx.roundRect ? ctx.roundRect(bx, by, barW, bh, [2, 2, 0, 0]) : ctx.rect(bx, by, barW, bh);
+      ctx.fill();
+    });
+
+    // Threshold line
+    const thrX = pad.left + ((thr - minX) / (maxX - minX)) * plotW;
+    if (thrX > pad.left && thrX < pad.left + plotW) {
+      ctx.strokeStyle = 'rgba(245,158,11,0.9)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 4]);
+      ctx.beginPath(); ctx.moveTo(thrX, pad.top); ctx.lineTo(thrX, pad.top + plotH); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = 'rgba(245,158,11,0.9)';
+      ctx.font = '10px DM Sans, sans-serif';
+      ctx.fillText('Threshold', thrX + 4, pad.top + 14);
+    }
+
+    // Axes
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(pad.left, pad.top); ctx.lineTo(pad.left, pad.top + plotH);
+    ctx.lineTo(pad.left + plotW, pad.top + plotH);
+    ctx.stroke();
+
+    // X labels (every 5th bin)
+    ctx.fillStyle = 'rgba(156,163,175,0.9)';
+    ctx.font = '10px DM Sans, sans-serif';
+    ctx.textAlign = 'center';
+    converted.forEach((b, i) => {
+      if (i % Math.ceil(converted.length / 6) === 0) {
+        const bx = pad.left + i * gap + gap / 2;
+        const label = _fmtShort(b.x, currency);
+        ctx.fillText(label, bx, pad.top + plotH + 16);
+      }
+    });
+
+    // Y label
+    ctx.save();
+    ctx.translate(14, pad.top + plotH / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.textAlign = 'center';
+    ctx.fillText('Frequency', 0, 0);
+    ctx.restore();
+  }
+
+  // ─── Chart: LEC ──────────────────────────────────────────
+  function drawLEC(canvas, lecPoints, threshold, currency = 'USD', fxRate = 3.6725) {
+    const ctx = canvas.getContext('2d');
+    const W   = canvas.width  = canvas.offsetWidth * (window.devicePixelRatio || 1);
+    const H   = canvas.height = 240 * (window.devicePixelRatio || 1);
+    canvas.style.height = '240px';
+    ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+    const w = canvas.offsetWidth;
+    const h = 240;
+
+    const pad = { top: 20, right: 20, bottom: 50, left: 70 };
+    const plotW = w - pad.left - pad.right;
+    const plotH = h - pad.top  - pad.bottom;
+
+    const converted = lecPoints.map(pt => ({
+      x: currency === 'AED' ? pt.x * fxRate : pt.x,
+      p: pt.p
+    }));
+    const thr = currency === 'AED' ? threshold * fxRate : threshold;
+
+    const minX = converted[0].x;
+    const maxX = converted[converted.length - 1].x;
+
+    ctx.clearRect(0, 0, w, h);
+
+    // Grid
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) {
+      const y = pad.top + (i / 4) * plotH;
+      ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + plotW, y); ctx.stroke();
+      const pLabel = ((1 - i / 4) * 100).toFixed(0) + '%';
+      ctx.fillStyle = 'rgba(156,163,175,0.9)';
+      ctx.font = '10px DM Sans, sans-serif';
+      ctx.textAlign = 'right';
+      ctx.fillText(pLabel, pad.left - 6, y + 4);
+    }
+
+    const toCanvasX = x => pad.left + ((x - minX) / (maxX - minX)) * plotW;
+    const toCanvasY = p => pad.top + plotH - p * plotH;
+
+    // Fill under curve
+    ctx.beginPath();
+    ctx.moveTo(toCanvasX(converted[0].x), toCanvasY(0));
+    converted.forEach(pt => ctx.lineTo(toCanvasX(pt.x), toCanvasY(pt.p)));
+    ctx.lineTo(toCanvasX(converted[converted.length - 1].x), toCanvasY(0));
+    ctx.closePath();
+    const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + plotH);
+    grad.addColorStop(0, 'rgba(26,86,219,0.25)');
+    grad.addColorStop(1, 'rgba(26,86,219,0.02)');
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Line
+    ctx.strokeStyle = 'rgba(59,130,246,0.9)'; ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    converted.forEach((pt, i) => {
+      const cx = toCanvasX(pt.x);
+      const cy = toCanvasY(pt.p);
+      i === 0 ? ctx.moveTo(cx, cy) : ctx.lineTo(cx, cy);
+    });
+    ctx.stroke();
+
+    // Threshold vertical line
+    const thrX = toCanvasX(thr);
+    if (thrX > pad.left && thrX < pad.left + plotW) {
+      ctx.strokeStyle = 'rgba(245,158,11,0.9)'; ctx.lineWidth = 2; ctx.setLineDash([5, 4]);
+      ctx.beginPath(); ctx.moveTo(thrX, pad.top); ctx.lineTo(thrX, pad.top + plotH); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = 'rgba(245,158,11,0.9)';
+      ctx.font = '10px DM Sans, sans-serif'; ctx.textAlign = 'left';
+      ctx.fillText(`${_fmtShort(thr, currency)} threshold`, thrX + 4, pad.top + 14);
+    }
+
+    // X axis labels
+    ctx.fillStyle = 'rgba(156,163,175,0.9)'; ctx.font = '10px DM Sans, sans-serif'; ctx.textAlign = 'center';
+    converted.forEach((pt, i) => {
+      if (i % Math.ceil(converted.length / 6) === 0) {
+        ctx.fillText(_fmtShort(pt.x, currency), toCanvasX(pt.x), pad.top + plotH + 16);
+      }
+    });
+
+    // Axis
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(pad.left, pad.top); ctx.lineTo(pad.left, pad.top + plotH);
+    ctx.lineTo(pad.left + plotW, pad.top + plotH);
+    ctx.stroke();
+
+    // Y axis label
+    ctx.save();
+    ctx.fillStyle = 'rgba(156,163,175,0.9)';
+    ctx.translate(14, pad.top + plotH / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.textAlign = 'center';
+    ctx.font = '10px DM Sans, sans-serif';
+    ctx.fillText('Exceedance Probability', 0, 0);
+    ctx.restore();
+
+    // X axis label
+    ctx.textAlign = 'center';
+    ctx.fillText(`Annual Loss (${currency})`, pad.left + plotW / 2, h - 8);
+  }
+
+  function _fmtShort(v, currency) {
+    const displayValue = Math.round(Number(v || 0));
+    return `${_getCurrencyPrefix(currency)}${displayValue.toLocaleString(currency === 'AED' ? 'en-AE' : 'en-US')}`;
+  }
+
+  return { toast, modal, citationModal, openAiTraceModal, renderStepper, skeletonBlock, skeletonCard, wizardAssistSkeleton, adminSectionHeader, adminTableCard, dashboardOverviewCard, dashboardSectionCard, dashboardAssessmentRow, resultsVisualCard, resultsBriefCard, resultsSectionBlock, resultsSummaryCard, resultsDetailDisclosure, wizardInputSection, sectionStatusBadge, disclosureSection, contextInfoPanel, contextInfoGrid, aiAssistCard, aiRefinementCard, tagInput, confirm, drawHistogram, drawLEC, sectionEyebrow };
+})();

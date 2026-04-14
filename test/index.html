@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Risk Intelligence Platform — AI-assisted multi-domain enterprise risk assessment with FAIR Monte Carlo quantification">
+  <title>Risk Intelligence Platform</title>
+
+  <!-- Design Tokens & Styles -->
+  <link rel="stylesheet" href="assets/tokens.css?v=20260414v1">
+  <link rel="stylesheet" href="assets/app.css?v=20260414v1">
+
+  <!-- Favicon (inline SVG) -->
+  <link rel="icon" type="image/svg+xml" href="assets/brand/g42-catalyst-symbol-logo-full-color-rgb.svg?v=20260414v1">
+  <style>
+    :root {
+      --boot-bg: #111611;
+      --boot-panel: rgba(25, 33, 28, 0.92);
+      --boot-border: rgba(124, 140, 120, 0.18);
+      --boot-line: rgba(246, 243, 242, 0.12);
+      --boot-line-strong: rgba(246, 243, 242, 0.18);
+      --boot-accent: rgba(3, 209, 168, 0.18);
+      --boot-accent-soft: rgba(242, 251, 90, 0.1);
+      --boot-copy: rgba(246, 243, 242, 0.72);
+    }
+
+    @keyframes bootShimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    @keyframes bootGlow {
+      0%, 100% { opacity: 0.55; transform: scale(1); }
+      50% { opacity: 0.85; transform: scale(1.04); }
+    }
+
+    .boot-shell {
+      position: relative;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 12% 18%, rgba(3, 209, 168, 0.08), transparent 30%),
+        radial-gradient(circle at 88% 12%, rgba(242, 251, 90, 0.06), transparent 24%),
+        linear-gradient(180deg, rgba(22, 29, 24, 0.98), rgba(14, 18, 15, 0.98));
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    }
+
+    .boot-nav {
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 0 24px;
+    }
+
+    .boot-nav__cluster {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      min-width: 0;
+    }
+
+    .boot-mark {
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      background:
+        linear-gradient(135deg, rgba(3, 209, 168, 0.28), rgba(242, 251, 90, 0.16));
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.02) inset;
+    }
+
+    .boot-line {
+      border-radius: 999px;
+      background: linear-gradient(90deg, var(--boot-line) 0%, var(--boot-line-strong) 50%, var(--boot-line) 100%);
+      background-size: 220% 100%;
+      animation: bootShimmer 1.8s ease-in-out infinite;
+    }
+
+    .boot-main {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 40px 24px 52px;
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+      gap: 24px;
+    }
+
+    .boot-hero,
+    .boot-side {
+      position: relative;
+      border-radius: 24px;
+      border: 1px solid var(--boot-border);
+      background: var(--boot-panel);
+      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.18);
+      backdrop-filter: blur(10px);
+    }
+
+    .boot-hero {
+      padding: 28px 28px 24px;
+      min-height: 296px;
+    }
+
+    .boot-side {
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      justify-content: space-between;
+      min-height: 296px;
+    }
+
+    .boot-hero__eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font: 600 11px/1.2 system-ui, sans-serif;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--boot-copy);
+      margin-bottom: 18px;
+    }
+
+    .boot-hero__eyebrow::before {
+      content: '';
+      width: 9px;
+      height: 9px;
+      border-radius: 999px;
+      background: rgba(3, 209, 168, 0.72);
+      box-shadow: 0 0 18px rgba(3, 209, 168, 0.4);
+      animation: bootGlow 2.8s ease-in-out infinite;
+    }
+
+    .boot-hero__stack,
+    .boot-side__stack {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .boot-card {
+      border-radius: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      background: rgba(255, 255, 255, 0.02);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .boot-chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .boot-chip {
+      height: 30px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, rgba(242, 251, 90, 0.08), rgba(3, 209, 168, 0.12));
+      border: 1px solid rgba(242, 251, 90, 0.16);
+      animation: bootShimmer 2.2s ease-in-out infinite;
+      background-size: 220% 100%;
+    }
+
+    @media (max-width: 860px) {
+      .boot-main {
+        grid-template-columns: 1fr;
+        padding: 28px 18px 36px;
+      }
+
+      .boot-nav {
+        padding: 0 18px;
+      }
+
+      .boot-hero,
+      .boot-side {
+        min-height: 0;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .boot-line,
+      .boot-chip,
+      .boot-hero__eyebrow::before {
+        animation: none;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div id="app">
+  <!-- App Bar (rendered by JS) -->
+  <div id="app-bar" role="banner">
+    <div id="boot-skeleton-nav" class="boot-shell" aria-hidden="true">
+      <div class="boot-nav">
+        <div class="boot-nav__cluster">
+          <div class="boot-mark"></div>
+          <div class="boot-line" style="width:148px;height:14px"></div>
+        </div>
+        <div class="boot-nav__cluster">
+          <div class="boot-line" style="width:88px;height:12px"></div>
+          <div class="boot-line" style="width:72px;height:12px"></div>
+          <div class="boot-line" style="width:54px;height:30px;border-radius:999px"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Content (pages rendered by router) -->
+  <div id="main-content" role="main" aria-live="polite">
+    <div id="boot-skeleton-content" class="boot-shell" aria-hidden="true">
+      <div class="boot-main">
+        <section class="boot-hero">
+          <div class="boot-hero__eyebrow">Preparing your workspace</div>
+          <div class="boot-hero__stack">
+            <div class="boot-line" style="width:min(82%, 620px);height:18px"></div>
+            <div class="boot-line" style="width:min(76%, 560px);height:18px"></div>
+            <div class="boot-line" style="width:min(58%, 420px);height:18px"></div>
+          </div>
+          <div class="boot-card" style="margin-top:24px">
+            <div class="boot-line" style="width:132px;height:11px"></div>
+            <div class="boot-line" style="width:100%;height:12px"></div>
+            <div class="boot-line" style="width:92%;height:12px"></div>
+            <div class="boot-chip-row">
+              <div class="boot-chip" style="width:128px"></div>
+              <div class="boot-chip" style="width:156px"></div>
+              <div class="boot-chip" style="width:112px"></div>
+            </div>
+          </div>
+        </section>
+        <aside class="boot-side">
+          <div class="boot-side__stack">
+            <div class="boot-line" style="width:108px;height:11px"></div>
+            <div class="boot-card">
+              <div class="boot-line" style="width:82%;height:13px"></div>
+              <div class="boot-line" style="width:96%;height:11px"></div>
+              <div class="boot-line" style="width:78%;height:11px"></div>
+            </div>
+            <div class="boot-card">
+              <div class="boot-line" style="width:76%;height:13px"></div>
+              <div class="boot-line" style="width:90%;height:11px"></div>
+              <div class="boot-line" style="width:68%;height:11px"></div>
+            </div>
+          </div>
+          <div class="boot-chip-row">
+            <div class="boot-chip" style="width:96px"></div>
+            <div class="boot-chip" style="width:132px"></div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toast-container" role="status" aria-live="polite" aria-atomic="true"></div>
+</div>
+
+<script src="assets/releaseBootstrap.js?v=20260414v1"></script>
+
+<!-- ── Service Layer ────────────────────────────────────────── -->
+<script src="assets/services/apiOriginResolver.js?v=20260414v1"></script>
+<script src="assets/services/authService.js?v=20260414v1"></script>
+<script src="assets/services/notificationService.js?v=20260414v1"></script>
+<script src="assets/services/authGuards.js?v=20260414v1"></script>
+<script src="assets/services/orgIntelligenceService.js?v=20260414v1"></script>
+<script src="assets/services/ragService.js?v=20260414v1"></script>
+<script src="assets/services/benchmarkService.js?v=20260414v1"></script>
+<script src="assets/services/structuredScenarioModel.js?v=20260414v1"></script>
+<script src="assets/services/valueQuantService.js?v=20260414v1"></script>
+<script src="assets/services/aiGuardrails.js?v=20260414v1"></script>
+<script src="assets/services/aiTraceRuntime.js?v=20260414v1"></script>
+<script src="assets/services/aiStatusClient.js?v=20260414v1"></script>
+<script src="assets/services/aiWorkflowClient.js?v=20260414v1"></script>
+<script src="assets/state/llmResponseExtractor.js?v=20260414v1"></script>
+<script src="assets/services/scenarioTaxonomyProjectionData.js?v=20260414v1"></script>
+<script src="assets/services/scenarioTaxonomyProjection.js?v=20260414v1"></script>
+<script src="assets/services/llmService.js?v=20260414v1"></script>
+<script src="assets/services/reportPresentation.js?v=20260414v1"></script>
+<script src="assets/services/exportService.js?v=20260414v1"></script>
+<script src="assets/services/sharedStateClient.js?v=20260414v1"></script>
+<script src="assets/admin/orgSetupSection.js?v=20260414v1"></script>
+<script src="assets/admin/systemAccessSection.js?v=20260414v1"></script>
+<script src="assets/admin/platformDefaultsSection.js?v=20260414v1"></script>
+<script src="assets/admin/auditLogSection.js?v=20260414v1"></script>
+<script src="assets/admin/userAccountsSection.js?v=20260414v1"></script>
+<script src="assets/admin/documentLibrarySection.js?v=20260414v1"></script>
+<script src="assets/admin/adminHomeSection.js?v=20260414v1"></script>
+<script src="assets/admin/aiFeedbackSection.js?v=20260414v1"></script>
+<script src="assets/admin/adminSettingsSection.js?v=20260414v1"></script>
+<script src="assets/admin/adminCompanyContextController.js?v=20260414v1"></script>
+<script src="assets/dashboard/userDashboard.js?v=20260414v1"></script>
+<script src="assets/results/resultsViewModel.js?v=20260414v1"></script>
+<script src="assets/results/resultsTabs.js?v=20260414v1"></script>
+<script src="assets/results/resultsRoute.js?v=20260414v1"></script>
+<script src="assets/wizard/step4.js?v=20260414v1"></script>
+<script src="assets/state/draftScenarioState.js?v=20260414v1"></script>
+<script src="assets/wizard/step1Assist.js?v=20260414v1"></script>
+<script src="assets/wizard/step1.js?v=20260414v1"></script>
+<script src="assets/wizard/step2.js?v=20260414v1"></script>
+<script src="assets/wizard/step3.js?v=20260414v1"></script>
+<script src="assets/settings/userOnboarding.js?v=20260414v1"></script>
+<script src="assets/settings/userPreferences.js?v=20260414v1"></script>
+
+<!-- ── Risk Engine ──────────────────────────────────────────── -->
+<script src="assets/engine/riskEngine.js?v=20260414v1"></script>
+
+<!-- ── UI Components ────────────────────────────────────────── -->
+<script src="assets/ui/components.js?v=20260414v1"></script>
+<script src="assets/ui/appShellPage.js?v=20260414v1"></script>
+<script src="assets/ui/appShellNavigation.js?v=20260414v1"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<!-- ── Router ───────────────────────────────────────────────── -->
+<script src="assets/scenarios.js?v=20260414v1"></script>
+  <script src="assets/share.js?v=20260414v1"></script>
+<script src="assets/router.js?v=20260414v1"></script>
+<script src="assets/appRoutes.js?v=20260414v1"></script>
+<script src="assets/state/appStateStore.js?v=20260414v1"></script>
+<script src="assets/state/workspaceStateModel.js?v=20260414v1"></script>
+<script src="assets/state/userWorkspacePersistence.js?v=20260414v1"></script>
+<script src="assets/state/assessmentLifecycle.js?v=20260414v1"></script>
+<script src="assets/state/registerWorkbookSelector.js?v=20260414v1"></script>
+<script src="assets/state/assessmentState.js?v=20260414v1"></script>
+<script src="assets/state/obligationResolution.js?v=20260414v1"></script>
+<script src="assets/state/orgCapabilityState.js?v=20260414v1"></script>
+<script src="assets/demo/demoMode.js?v=20260414v1"></script>
+
+<!-- ── Main App ─────────────────────────────────────────────── -->
+<script src="assets/app.js?v=20260414v1"></script>
+
+<!-- ── Compass API Setup (Optional) ─────────────────────────── -->
+<!--
+  Default hosted Compass proxy:
+  window.__RISK_CALCULATOR_RELEASE__.apiOrigin + '/api/compass'
+
+  Local testing only, in browser console:
+  LLMService.setCompassConfig({
+    apiKey: 'your-core42-key',
+    apiUrl: window.ApiOriginResolver.resolveApiUrl('/api/compass'),
+    model: AiStatusClient.DEFAULT_MODEL
+  });
+
+  Do not ship a real API key in this public frontend.
+  For production, call Compass through a server-side or serverless proxy.
+-->
+
+</body>
+</html>

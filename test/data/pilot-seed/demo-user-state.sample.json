@@ -1,0 +1,39 @@
+{
+  "userSettings": {
+    "geography": "United Arab Emirates",
+    "applicableRegulations": ["UAE PDPL", "NIST SP 800-53", "ISO 27001"],
+    "preferredOutputStyle": "Use executive-ready summaries first, then the technical detail needed for review committees.",
+    "workingContext": "I support cyber and technology risk reviews for operationally critical digital platforms and need concise management outputs with clear challenge points.",
+    "userProfile": {
+      "fullName": "Maya Kapoor",
+      "jobTitle": "Technology Risk Manager",
+      "businessUnit": "Digital Platforms",
+      "department": "Security Operations",
+      "focusAreas": ["Operational continuity", "Cyber risk", "Third-party risk"]
+    },
+    "onboardedAt": "2026-03-26T08:00:00.000Z",
+    "_overrideKeys": []
+  },
+  "assessments": [
+    {
+      "id": "a_demo_ransomware_20260326",
+      "scenarioTitle": "Manufacturing control-plane ransomware disruption",
+      "buName": "Digital Platforms",
+      "geography": "United Arab Emirates"
+    },
+    {
+      "id": "a_demo_treatment_20260326",
+      "scenarioTitle": "Manufacturing control-plane ransomware disruption — Treatment case",
+      "buName": "Digital Platforms",
+      "geography": "United Arab Emirates"
+    }
+  ],
+  "learningStore": {
+    "templates": {}
+  },
+  "draft": null,
+  "_meta": {
+    "revision": 1,
+    "updatedAt": 1774515600000
+  }
+}
