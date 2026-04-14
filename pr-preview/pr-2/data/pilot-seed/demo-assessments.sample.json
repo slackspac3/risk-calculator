@@ -1,0 +1,351 @@
+[
+  {
+    "id": "a_demo_ransomware_20260326",
+    "scenarioTitle": "Manufacturing control-plane ransomware disruption",
+    "buId": "bu-digital-platforms",
+    "buName": "Digital Platforms",
+    "geography": "United Arab Emirates",
+    "narrative": "A ransomware operator compromises a privileged support path into the manufacturing control plane, disrupts plant scheduling, and forces recovery coordination across IT and operations.",
+    "enhancedNarrative": "Suggested draft: A ransomware-driven outage affects the manufacturing control plane and adjacent scheduling services, leading to plant disruption, recovery effort, contractual pressure, and regulatory scrutiny.",
+    "selectedRisks": [
+      { "id": "risk-ransomware", "title": "Ransomware disruption" },
+      { "id": "risk-ot", "title": "Operational technology disruption" }
+    ],
+    "applicableRegulations": ["UAE PDPL", "NIST SP 800-53", "ISO 27001"],
+    "fairParams": {
+      "distType": "triangular",
+      "iterations": 20000,
+      "seed": 582194,
+      "tefMin": 0.4,
+      "tefLikely": 1.2,
+      "tefMax": 3.2,
+      "threatCapMin": 0.55,
+      "threatCapLikely": 0.7,
+      "threatCapMax": 0.88,
+      "controlStrMin": 0.36,
+      "controlStrLikely": 0.52,
+      "controlStrMax": 0.72,
+      "vulnDirect": false,
+      "irMin": 120000,
+      "irLikely": 320000,
+      "irMax": 950000,
+      "biMin": 250000,
+      "biLikely": 900000,
+      "biMax": 3800000,
+      "dbMin": 40000,
+      "dbLikely": 120000,
+      "dbMax": 380000,
+      "rlMin": 10000,
+      "rlLikely": 85000,
+      "rlMax": 420000,
+      "tpMin": 15000,
+      "tpLikely": 70000,
+      "tpMax": 320000,
+      "rcMin": 50000,
+      "rcLikely": 180000,
+      "rcMax": 900000,
+      "corrBiIr": 0.35,
+      "corrRlRc": 0.22,
+      "secondaryEnabled": true,
+      "secProbMin": 0.08,
+      "secProbLikely": 0.2,
+      "secProbMax": 0.35,
+      "secMagMin": 50000,
+      "secMagLikely": 180000,
+      "secMagMax": 700000
+    },
+    "results": {
+      "iterations": 20000,
+      "threshold": 5000000,
+      "warningThreshold": 3000000,
+      "annualReviewThreshold": 12000000,
+      "lm": { "mean": 1942500, "p50": 1565000, "p90": 4320000, "p95": 5180000, "min": 194000, "max": 12100000 },
+      "eventLoss": { "mean": 1942500, "p50": 1565000, "p90": 4320000, "p95": 5180000, "min": 194000, "max": 12100000 },
+      "ale": { "mean": 1728000, "p50": 1120000, "p90": 6900000, "p95": 8400000, "min": 0, "max": 17200000 },
+      "annualLoss": { "mean": 1728000, "p50": 1120000, "p90": 6900000, "p95": 8400000, "min": 0, "max": 17200000 },
+      "toleranceBreached": false,
+      "nearTolerance": true,
+      "annualReviewTriggered": false,
+      "metricSemantics": {
+        "eventLoss": "Conditional loss if a materially successful event occurs.",
+        "annualLoss": "Annualized loss after applying event frequency and event success logic across the year."
+      },
+      "toleranceDetail": {
+        "lmP90": 4320000,
+        "aleP90": 6900000,
+        "lmExceedProb": 0.074,
+        "aleExceedProb": 0.123
+      },
+      "annualReviewDetail": {
+        "annualP90": 6900000,
+        "annualExceedProb": 0.028
+      },
+      "histogram": [
+        { "x": 350000, "count": 1520 },
+        { "x": 1200000, "count": 5480 },
+        { "x": 2600000, "count": 7060 },
+        { "x": 4800000, "count": 4140 },
+        { "x": 7600000, "count": 1800 }
+      ],
+      "lec": [
+        { "x": 1000000, "p": 0.41 },
+        { "x": 3000000, "p": 0.18 },
+        { "x": 5000000, "p": 0.09 },
+        { "x": 8000000, "p": 0.03 }
+      ],
+      "portfolioMeta": {
+        "linked": true,
+        "riskCount": 2,
+        "tefMultiplier": 1.15,
+        "lossMultiplier": 1.2,
+        "secondaryMultiplier": 1.1
+      },
+      "inputs": {
+        "distType": "triangular",
+        "iterations": 20000,
+        "seed": 582194,
+        "tefMin": 0.46,
+        "tefLikely": 1.38,
+        "tefMax": 3.68,
+        "threatCapMin": 0.55,
+        "threatCapLikely": 0.7,
+        "threatCapMax": 0.88,
+        "controlStrMin": 0.36,
+        "controlStrLikely": 0.52,
+        "controlStrMax": 0.72,
+        "corrBiIr": 0.35,
+        "corrRlRc": 0.22,
+        "secondaryEnabled": true,
+        "threshold": 5000000,
+        "annualReviewThreshold": 12000000
+      },
+      "runMetadata": {
+        "seed": 582194,
+        "iterations": 20000,
+        "distributions": {
+          "eventModel": "triangular",
+          "vulnerabilityMode": "derived",
+          "correlations": {
+            "businessInterruptionVsIncidentResponse": 0.35,
+            "regulatoryVsReputation": 0.22
+          }
+        },
+        "assumptions": [
+          "Assumes plant scheduling remains the main point of impact across the selected geography.",
+          "Assumes current control strength and attacker capability are reasonably represented by the selected FAIR ranges.",
+          "Assumes linked risks can escalate together and justify the applied scenario uplift."
+        ],
+        "scenarioMultipliers": {
+          "linked": true,
+          "riskCount": 2,
+          "tefMultiplier": 1.15,
+          "lossMultiplier": 1.2,
+          "secondaryMultiplier": 1.1
+        },
+        "thresholdConfigUsed": {
+          "warningThreshold": 3000000,
+          "eventToleranceThreshold": 5000000,
+          "annualReviewThreshold": 12000000
+        },
+        "runtimeGuardrails": [],
+        "currencyContext": {
+          "displayCurrency": "USD",
+          "fxRate": 3.6725,
+          "convertedToUSD": false
+        }
+      }
+    },
+    "assessmentIntelligence": {
+      "confidence": {
+        "score": 68,
+        "label": "Moderate confidence",
+        "summary": "This assessment is useful for management discussion, but some assumptions still need tightening before stronger reliance.",
+        "reasons": [
+          "The scenario has been structured into asset, threat, attack type, and effect.",
+          "Internal citations or source material are linked to the assessment."
+        ],
+        "improvements": [
+          "Tighten the event-frequency range using internal incident history or SME input.",
+          "Narrow the loss ranges with finance and operations input."
+        ]
+      },
+      "drivers": {
+        "upward": [
+          "Threat frequency is materially lifting annual exposure because the working case assumes about 1.38 events per year.",
+          "Business interruption is one of the biggest cost drivers in the current scenario."
+        ],
+        "stabilisers": [
+          "Current control strength is helping contain the scenario and reduce success likelihood."
+        ],
+        "sensitivity": [
+          { "label": "Event frequency", "why": "Frequency is a direct multiplier on annual loss in this linked scenario." },
+          { "label": "Event success likelihood", "why": "Threat capability versus control strength determines how often attempts convert into loss." },
+          { "label": "Business interruption", "why": "Business interruption is the largest per-event cost component in the current estimate." }
+        ]
+      },
+      "assumptions": [
+        { "category": "Scenario", "text": "Assumes the manufacturing control plane remains the main point of impact across the selected geography." },
+        { "category": "Threat", "text": "Assumes ransomware-capable threat actors remain realistic during the assessment period." },
+        { "category": "Portfolio", "text": "Assumes the selected linked risks can escalate together and justify the applied scenario uplift." }
+      ]
+    },
+    "completedAt": 1774512000000
+  },
+  {
+    "id": "a_demo_treatment_20260326",
+    "scenarioTitle": "Manufacturing control-plane ransomware disruption — Treatment case",
+    "buId": "bu-digital-platforms",
+    "buName": "Digital Platforms",
+    "geography": "United Arab Emirates",
+    "comparisonBaselineId": "a_demo_ransomware_20260326",
+    "narrative": "The same ransomware scenario with stronger privileged-access controls, tested restore paths, and tighter segmentation around the manufacturing control plane.",
+    "fairParams": {
+      "distType": "triangular",
+      "iterations": 20000,
+      "seed": 582194,
+      "tefMin": 0.3,
+      "tefLikely": 0.9,
+      "tefMax": 2.2,
+      "threatCapMin": 0.55,
+      "threatCapLikely": 0.7,
+      "threatCapMax": 0.88,
+      "controlStrMin": 0.48,
+      "controlStrLikely": 0.68,
+      "controlStrMax": 0.84,
+      "vulnDirect": false,
+      "irMin": 90000,
+      "irLikely": 220000,
+      "irMax": 640000,
+      "biMin": 180000,
+      "biLikely": 520000,
+      "biMax": 1900000,
+      "dbMin": 25000,
+      "dbLikely": 90000,
+      "dbMax": 250000,
+      "rlMin": 10000,
+      "rlLikely": 60000,
+      "rlMax": 260000,
+      "tpMin": 10000,
+      "tpLikely": 45000,
+      "tpMax": 180000,
+      "rcMin": 30000,
+      "rcLikely": 110000,
+      "rcMax": 450000,
+      "corrBiIr": 0.35,
+      "corrRlRc": 0.22,
+      "secondaryEnabled": true,
+      "secProbMin": 0.05,
+      "secProbLikely": 0.12,
+      "secProbMax": 0.22,
+      "secMagMin": 30000,
+      "secMagLikely": 120000,
+      "secMagMax": 420000
+    },
+    "results": {
+      "iterations": 20000,
+      "threshold": 5000000,
+      "warningThreshold": 3000000,
+      "annualReviewThreshold": 12000000,
+      "lm": { "mean": 1180000, "p50": 920000, "p90": 2480000, "p95": 3100000, "min": 95000, "max": 7700000 },
+      "eventLoss": { "mean": 1180000, "p50": 920000, "p90": 2480000, "p95": 3100000, "min": 95000, "max": 7700000 },
+      "ale": { "mean": 840000, "p50": 520000, "p90": 3100000, "p95": 4050000, "min": 0, "max": 9800000 },
+      "annualLoss": { "mean": 840000, "p50": 520000, "p90": 3100000, "p95": 4050000, "min": 0, "max": 9800000 },
+      "toleranceBreached": false,
+      "nearTolerance": false,
+      "annualReviewTriggered": false,
+      "warningThreshold": 3000000,
+      "annualReviewThreshold": 12000000,
+      "portfolioMeta": {
+        "linked": true,
+        "riskCount": 2,
+        "tefMultiplier": 1.05,
+        "lossMultiplier": 0.85,
+        "secondaryMultiplier": 0.9
+      },
+      "inputs": {
+        "distType": "triangular",
+        "iterations": 20000,
+        "seed": 582194,
+        "controlStrLikely": 0.68,
+        "tefLikely": 0.95,
+        "biLikely": 442000,
+        "threshold": 5000000,
+        "annualReviewThreshold": 12000000
+      },
+      "runMetadata": {
+        "seed": 582194,
+        "iterations": 20000,
+        "distributions": {
+          "eventModel": "triangular",
+          "vulnerabilityMode": "derived",
+          "correlations": {
+            "businessInterruptionVsIncidentResponse": 0.35,
+            "regulatoryVsReputation": 0.22
+          }
+        },
+        "assumptions": [
+          "Assumes the treatment plan materially strengthens privileged-access and restore performance.",
+          "Assumes segmentation reduces interruption severity in the treatment case."
+        ],
+        "scenarioMultipliers": {
+          "linked": true,
+          "riskCount": 2,
+          "tefMultiplier": 1.05,
+          "lossMultiplier": 0.85,
+          "secondaryMultiplier": 0.9
+        },
+        "thresholdConfigUsed": {
+          "warningThreshold": 3000000,
+          "eventToleranceThreshold": 5000000,
+          "annualReviewThreshold": 12000000
+        },
+        "runtimeGuardrails": [],
+        "currencyContext": {
+          "displayCurrency": "USD",
+          "fxRate": 3.6725,
+          "convertedToUSD": false
+        }
+      }
+    },
+    "assessmentIntelligence": {
+      "confidence": {
+        "score": 74,
+        "label": "Moderate confidence",
+        "summary": "This treatment case is useful for decision discussion because the improvement levers are explicit, but the recovery and interruption assumptions still need validation before committing investment.",
+        "reasons": [
+          "The treatment case keeps the same baseline scenario, making the comparison easier to explain.",
+          "The improved control and resilience assumptions are directionally consistent with the stated treatment plan."
+        ],
+        "improvements": [
+          "Validate the expected recovery-time improvement with operations and infrastructure owners.",
+          "Confirm whether the stronger privileged-access controls are funded and realistically achievable in the target period."
+        ]
+      },
+      "drivers": {
+        "upward": [
+          "Business interruption still remains the largest single cost driver, even after the treatment changes.",
+          "Annual exposure still depends on how quickly the service can be restored under pressure."
+        ],
+        "stabilisers": [
+          "Stronger control strength materially reduces the chance of successful ransomware progression.",
+          "Lower secondary-loss assumptions help keep the severe tail lower than the baseline."
+        ],
+        "sensitivity": [
+          { "label": "Business interruption", "why": "Service restoration assumptions still have the biggest effect on the severe-event result." },
+          { "label": "Control effectiveness", "why": "The improved control posture is one of the main reasons the treatment case drops below the warning trigger." },
+          { "label": "Event frequency", "why": "The treated case also benefits from fewer credible opportunities for a successful event to escalate." }
+        ],
+        "uncertainty": [
+          { "label": "Business interruption range", "why": "The treatment case still depends heavily on how much downtime can realistically be removed." },
+          { "label": "Recovery execution", "why": "The result assumes restore and containment are materially faster than in the baseline." }
+        ]
+      },
+      "assumptions": [
+        { "category": "Treatment", "text": "Assumes stronger privileged-access controls are implemented and operated consistently." },
+        { "category": "Recovery", "text": "Assumes tested restore paths materially reduce service interruption and recovery effort." },
+        { "category": "Resilience", "text": "Assumes segmentation and recovery planning reduce the spread and duration of the outage." }
+      ]
+    },
+    "completedAt": 1774515600000
+  }
+]

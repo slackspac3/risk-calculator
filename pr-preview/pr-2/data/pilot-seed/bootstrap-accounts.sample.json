@@ -1,0 +1,34 @@
+[
+  {
+    "username": "global.admin",
+    "password": "PilotAdmin!2026",
+    "displayName": "Global Admin",
+    "role": "admin",
+    "businessUnitEntityId": "",
+    "departmentEntityId": ""
+  },
+  {
+    "username": "amina.bu",
+    "password": "PilotBU!2026",
+    "displayName": "Amina Rahman",
+    "role": "bu_admin",
+    "businessUnitEntityId": "bu-digital-platforms",
+    "departmentEntityId": ""
+  },
+  {
+    "username": "tariq.function",
+    "password": "PilotFunction!2026",
+    "displayName": "Tariq Mansoor",
+    "role": "function_admin",
+    "businessUnitEntityId": "bu-digital-platforms",
+    "departmentEntityId": "dept-security-operations"
+  },
+  {
+    "username": "maya.user",
+    "password": "PilotUser!2026",
+    "displayName": "Maya Kapoor",
+    "role": "user",
+    "businessUnitEntityId": "bu-digital-platforms",
+    "departmentEntityId": "dept-security-operations"
+  }
+]
