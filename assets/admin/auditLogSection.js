@@ -106,16 +106,20 @@ const AdminAuditLogSection = (() => {
   }
 
   function buildAuditSearchHaystack(entry = {}) {
+    const safeEntry = entry && typeof entry === 'object' ? entry : {};
+    const safeDetails = safeEntry.details && typeof safeEntry.details === 'object' && !Array.isArray(safeEntry.details)
+      ? safeEntry.details
+      : {};
     return [
-      entry.ts,
-      entry.actorUsername,
-      entry.actorRole,
-      entry.category,
-      entry.eventType,
-      entry.target,
-      entry.status,
-      entry.source,
-      ...Object.entries(entry.details || {}).flatMap(([key, value]) => [key, formatAuditValue(value)])
+      safeEntry.ts,
+      safeEntry.actorUsername,
+      safeEntry.actorRole,
+      safeEntry.category,
+      safeEntry.eventType,
+      safeEntry.target,
+      safeEntry.status,
+      safeEntry.source,
+      ...Object.entries(safeDetails).flatMap(([key, value]) => [key, formatAuditValue(value)])
     ]
       .filter(Boolean)
       .join(' ')
@@ -221,7 +225,9 @@ const AdminAuditLogSection = (() => {
 
   function renderSection({ auditCache }) {
     const auditSummary = auditCache.summary || {};
-    const loadedEntries = Array.isArray(auditCache.entries) ? auditCache.entries : [];
+    const loadedEntries = Array.isArray(auditCache.entries)
+      ? auditCache.entries.filter(entry => entry && typeof entry === 'object' && !Array.isArray(entry))
+      : [];
     const activeFilter = getActiveFilter();
     const secondaryFilters = getActiveSecondaryFilters();
     const filteredEntries = loadedEntries.filter((entry) => {
