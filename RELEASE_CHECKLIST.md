@@ -5,17 +5,16 @@ Use this checklist before promoting a new pilot build to GitHub Pages or Vercel-
 ## Release Gate
 
 - Confirm the target release stamp: version, channel, build, and asset version.
-- Confirm the change was tested on a pull request preview before promotion unless this is an emergency live-only fix.
+- Confirm the change was tested on the fixed test PoC before promotion unless this is an emergency live-only fix.
 - Run `npm run qa:release`.
 - Use the package-managed browser scripts, not raw `npx playwright test`, so the SPA is verified against a clean managed static origin.
 - If `qa:release` fails on eval thresholds, treat that as a release blocker rather than a reporting warning.
-- Confirm GitHub Actions `Pilot CI` app-integrity job is green on the release commit.
-- Review the separate AI-quality job and its uploaded eval report before promotion, even though that CI job is currently advisory.
+- Review the separate `Pilot AI Quality` job and its uploaded eval report before promotion, even though that CI job is currently advisory.
 - Confirm GitHub Pages deploy is waiting on the validation job and did not bypass it.
 
 ## Frontend
 
-- Confirm the pull request preview URL matched the expected change before merge to `master`.
+- Confirm the fixed test PoC URL matched the expected change before promotion to `master`.
 - Verify the footer or admin diagnostics page shows the expected release stamp.
 - Hard refresh the deployed Pages site and confirm the asset version changed.
 - Open `#/login`, `#/dashboard`, `#/settings`, `#/wizard/1`, and a known `#/results/:id` route.

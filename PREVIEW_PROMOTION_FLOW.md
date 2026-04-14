@@ -1,6 +1,6 @@
-# Preview Before Live
+# Test PoC Before Live
 
-This repository can now use a safer GitHub-only test-before-live flow.
+This repository now uses a simple two-link GitHub-only flow.
 
 ## One-time GitHub setup
 
@@ -16,38 +16,36 @@ Do these steps once in the repository settings:
 8. Save.
 
 After that:
-- `master` publishes the live site to `gh-pages`
-- pull requests publish preview pages under `pr-preview/`
+- `master` publishes the live PoC at `https://slackspac3.github.io/risk-calculator/`
+- `test-poc` publishes the fixed test PoC at `https://slackspac3.github.io/risk-calculator/test/`
 
 ## Normal flow
 
 Use this every time you want to change the live PoC:
 
-1. A change is made on a separate branch.
-2. That branch is pushed to GitHub.
-3. A pull request is opened against `master`.
-4. GitHub runs `Deploy PR Preview`.
-5. The workflow comments with a preview URL.
-6. Test the preview URL.
-7. If it is correct, click `Merge pull request`.
-8. GitHub runs `Deploy GitHub Pages`.
-9. The live PoC updates automatically.
+1. A change is prepared on the `test-poc` branch.
+2. GitHub runs `Deploy Test PoC`.
+3. Test the fixed test URL: `https://slackspac3.github.io/risk-calculator/test/`
+4. If it is correct, promote that same change to `master`.
+5. GitHub runs `Deploy GitHub Pages`.
+6. The live PoC updates automatically.
 
 ## What to click in GitHub
 
-When a pull request is ready:
+When you want to test:
 
-1. Open the pull request.
-2. Wait for the checks to finish.
-3. Open the preview link from the PR comment.
-4. Test that preview site.
-5. If it is correct, click `Merge pull request`.
-6. Click `Confirm merge`.
+1. Open the fixed test URL.
+2. Confirm the expected change is there.
+3. Do not use the live link for testing.
 
-That merge is the promotion step.
+When you want to promote:
+
+1. Promote the tested change from `test-poc` to `master`.
+2. Wait for `Deploy GitHub Pages`.
+3. Recheck the live URL.
 
 ## Important rule
 
-- Pull request preview = safe test copy
-- `master` = live PoC
-- Merge only when you want to promote to live
+- `/test/` = safe test PoC
+- root URL = live PoC
+- only `master` is for end users

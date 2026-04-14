@@ -10,8 +10,8 @@ permissions:
   contents: write
 
 concurrency:
-  group: github-pages
-  cancel-in-progress: true
+  group: github-pages-site
+  cancel-in-progress: false
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
@@ -71,6 +71,6 @@ jobs:
           folder: _site
           clean: true
           clean-exclude: |
-            pr-preview/
+            test/
           force: false
           commit-message: Publish GitHub Pages from master

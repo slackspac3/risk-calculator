@@ -541,8 +541,8 @@ AI environment notes:
 ### Frontend
 - GitHub Pages
 - workflow: [.github/workflows/pages.yml](./.github/workflows/pages.yml)
-- pull request previews: [.github/workflows/pr-preview.yml](./.github/workflows/pr-preview.yml)
-- preview and promotion guide: [PREVIEW_PROMOTION_FLOW.md](./PREVIEW_PROMOTION_FLOW.md)
+- fixed test PoC workflow: [.github/workflows/test-poc.yml](./.github/workflows/test-poc.yml)
+- test and promotion guide: [PREVIEW_PROMOTION_FLOW.md](./PREVIEW_PROMOTION_FLOW.md)
 
 ### Backend
 - deploy `api/` routes to Vercel

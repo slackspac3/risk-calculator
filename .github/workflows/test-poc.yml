@@ -1,29 +1,23 @@
-name: Deploy PR Preview
+name: Deploy Test PoC
 
 on:
-  pull_request:
+  push:
     branches:
-      - master
-    types:
-      - opened
-      - reopened
-      - synchronize
-      - closed
+      - test-poc
+  workflow_dispatch:
 
 permissions:
   contents: write
-  pull-requests: write
 
 concurrency:
-  group: pr-preview-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+  group: github-pages-site
+  cancel-in-progress: false
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
-  validate_and_publish:
-    if: github.event.action != 'closed'
+  validate_app:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -50,7 +44,18 @@ jobs:
       - name: App integrity gate
         run: npm run qa:app
 
-      - name: Prepare static preview site
+  publish:
+    runs-on: ubuntu-latest
+    needs: validate_app
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        env:
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+      - name: Prepare static test site
         run: |
           mkdir -p _site
           cp index.html _site/index.html
@@ -59,23 +64,12 @@ jobs:
           cp -R data _site/data
           touch _site/.nojekyll
 
-      - name: Publish PR preview
-        uses: rossjrw/pr-preview-action@v1
+      - name: Publish test site to gh-pages/test
+        uses: JamesIves/github-pages-deploy-action@v4
         with:
-          action: deploy
-          preview-branch: gh-pages
-          umbrella-dir: pr-preview
-          source-dir: _site
-
-  remove_preview:
-    if: github.event.action == 'closed'
-    runs-on: ubuntu-latest
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-    steps:
-      - name: Remove PR preview
-        uses: rossjrw/pr-preview-action@v1
-        with:
-          action: remove
-          preview-branch: gh-pages
-          umbrella-dir: pr-preview
+          branch: gh-pages
+          folder: _site
+          target-folder: test
+          clean: true
+          force: false
+          commit-message: Publish test PoC from test-poc
