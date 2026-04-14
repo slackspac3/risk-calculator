@@ -5,6 +5,7 @@ Use this checklist before promoting a new pilot build to GitHub Pages or Vercel-
 ## Release Gate
 
 - Confirm the target release stamp: version, channel, build, and asset version.
+- Confirm the change was tested on a pull request preview before promotion unless this is an emergency live-only fix.
 - Run `npm run qa:release`.
 - Use the package-managed browser scripts, not raw `npx playwright test`, so the SPA is verified against a clean managed static origin.
 - If `qa:release` fails on eval thresholds, treat that as a release blocker rather than a reporting warning.
@@ -14,6 +15,7 @@ Use this checklist before promoting a new pilot build to GitHub Pages or Vercel-
 
 ## Frontend
 
+- Confirm the pull request preview URL matched the expected change before merge to `master`.
 - Verify the footer or admin diagnostics page shows the expected release stamp.
 - Hard refresh the deployed Pages site and confirm the asset version changed.
 - Open `#/login`, `#/dashboard`, `#/settings`, `#/wizard/1`, and a known `#/results/:id` route.
