@@ -251,15 +251,41 @@ function expectHostedApiOriginRequests(requests, label = 'API') {
   });
 }
 
-test('login screen renders', async ({ page }) => {
+test('public landing page renders for unauthenticated users', async ({ page }) => {
+  await expectNoClientCrashOnRoute(page, '/#/', async () => {
+    await expect(page.getByRole('heading', { name: /Risk Intelligence Platform/i })).toBeVisible();
+    await expect(page.locator('#btn-open-poc-access')).toBeVisible();
+    await expect(page.locator('#app-bar').getByRole('link', { name: /^About$/ })).toBeVisible();
+    await expect(page.locator('#app-bar').getByRole('link', { name: /^Privacy$/ })).toBeVisible();
+    await expect(page.locator('#app-bar').getByRole('link', { name: /^Contact$/ })).toBeVisible();
+    await expect(page).toHaveURL(/#\/?$/);
+  });
+});
+
+test('public trust pages render without crashing', async ({ page }) => {
+  const pages = [
+    { route: '/#/about', heading: /Public overview/i },
+    { route: '/#/privacy', heading: /Demo-only data handling/i },
+    { route: '/#/contact', heading: /How to verify or follow up/i }
+  ];
+  for (const item of pages) {
+    await expectNoClientCrashOnRoute(page, item.route, async () => {
+      await expect(page.getByRole('heading', { name: item.heading })).toBeVisible();
+      await expect(page.getByRole('link', { name: /Open PoC Access/i }).first()).toBeVisible();
+    });
+  }
+});
+
+test('PoC access screen renders', async ({ page }) => {
   await expectNoClientCrashOnRoute(page, '/#/login', async () => {
-    await expect(page.getByRole('button', { name: /sign in/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /PoC Access/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /enter poc workspace/i })).toBeVisible();
   });
 });
 
 test('dashboard route redirects unauthenticated users to login', async ({ page }) => {
   await expectNoClientCrashOnRoute(page, '/#/dashboard', async () => {
-    await expect(page.getByRole('button', { name: /sign in/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /PoC Access/i })).toBeVisible();
     await expect(page).toHaveURL(/#\/login$/);
   });
 });
@@ -290,7 +316,7 @@ test('expired API session forces logout and redirects to login', async ({ page }
 
   await expectNoClientCrashOnRoute(page, '/#/dashboard', async () => {
     await expect(page).toHaveURL(/#\/login$/);
-    await expect(page.getByRole('button', { name: /sign in/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /PoC Access/i })).toBeVisible();
   });
 });
 
@@ -519,21 +545,21 @@ test('draft recovery restores the latest local draft after refresh', async ({ pa
 
 test('admin login route renders without crashing', async ({ page }) => {
   await expectNoClientCrashOnRoute(page, '/#/admin/settings/org', async () => {
-    await expect(page.getByRole('button', { name: /sign in/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /PoC Access/i })).toBeVisible();
     await expect(page).toHaveURL(/#\/login$/);
   });
 });
 
 test('wizard route redirects unauthenticated users to login', async ({ page }) => {
   await expectNoClientCrashOnRoute(page, '/#/wizard/1', async () => {
-    await expect(page.getByRole('button', { name: /sign in/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /PoC Access/i })).toBeVisible();
     await expect(page).toHaveURL(/#\/login$/);
   });
 });
 
 test('results route redirects unauthenticated users to login', async ({ page }) => {
   await expectNoClientCrashOnRoute(page, '/#/results/example-assessment', async () => {
-    await expect(page.getByRole('button', { name: /sign in/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /PoC Access/i })).toBeVisible();
     await expect(page).toHaveURL(/#\/login$/);
   });
 });

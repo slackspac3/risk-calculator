@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-function loadSharedStateClientContext({ responseSettings, localSaved = null } = {}) {
+function loadSharedStateClientContext({ responseSettings, localSaved = null, currentSettings = { _meta: { revision: 7 } } } = {}) {
   const filePath = path.resolve(__dirname, '../../assets/services/sharedStateClient.js');
   const source = fs.readFileSync(filePath, 'utf8');
   const applyCalls = [];
@@ -44,7 +44,7 @@ function loadSharedStateClientContext({ responseSettings, localSaved = null } = 
     },
     normaliseAdminSettings: (settings = {}) => settings,
     buildExpectedMeta: () => ({ revision: 7 }),
-    getAdminSettings: () => ({ _meta: { revision: 7 } }),
+    getAdminSettings: () => currentSettings,
     fetch: async () => {
       throw new Error('Unexpected fetch call');
     },
@@ -91,4 +91,28 @@ test('loadSharedAdminSettings uses the authoritative shared payload instead of m
   assert.equal(applyCalls[0].settings.companyContextSections, null);
   assert.equal(applyCalls[0].options.source, 'shared');
   assert.deepEqual(result.companyStructure, []);
+});
+
+test('loadSharedAdminSettings ignores an older shared revision when a newer local shared state is already active', async () => {
+  const currentSettings = {
+    geography: 'United Arab Emirates',
+    companyWebsiteUrl: 'https://updated.example.com',
+    _meta: { revision: 2, updatedAt: 2000 }
+  };
+  const staleSharedSettings = {
+    geography: 'United Arab Emirates',
+    companyWebsiteUrl: 'https://current.example.com',
+    _meta: { revision: 1, updatedAt: 1000 }
+  };
+  const { context, applyCalls, requestCalls } = loadSharedStateClientContext({
+    responseSettings: staleSharedSettings,
+    currentSettings
+  });
+
+  const result = await context.AppSharedStateClient.loadSharedAdminSettings();
+
+  assert.deepEqual(requestCalls, ['GET']);
+  assert.equal(applyCalls.length, 0);
+  assert.equal(result.companyWebsiteUrl, 'https://updated.example.com');
+  assert.equal(result._meta.revision, 2);
 });

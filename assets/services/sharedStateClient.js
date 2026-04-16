@@ -26,6 +26,14 @@
               ? data.settings.applicableRegulations
               : [...DEFAULT_ADMIN_SETTINGS.applicableRegulations]
           });
+          const currentSettings = typeof getAdminSettings === 'function'
+            ? normaliseAdminSettings(getAdminSettings())
+            : null;
+          const currentRevision = Number(currentSettings?._meta?.revision || 0);
+          const sharedRevision = Number(sharedSettings?._meta?.revision || 0);
+          if (sharedRevision > 0 && currentRevision > sharedRevision) {
+            return currentSettings;
+          }
           return applySharedSettingsLocally(sharedSettings, { source: 'shared' });
         }
       } catch (error) {
