@@ -8,7 +8,7 @@
 const TOLERANCE_THRESHOLD = 5_000_000;
 const DEFAULT_FX_RATE = 3.6725;
 const DEFAULT_COMPASS_PROXY_URL = resolveCompassProxyUrl();
-const APP_ASSET_VERSION = '20260414v1';
+const APP_ASSET_VERSION = '20260416v1';
 const APP_RELEASE = Object.freeze((typeof window !== 'undefined' && window.__RISK_CALCULATOR_RELEASE__) || {
   version: '0.10.0-pilot.1',
   channel: 'pilot',
@@ -16,6 +16,8 @@ const APP_RELEASE = Object.freeze((typeof window !== 'undefined' && window.__RIS
   assetVersion: APP_ASSET_VERSION,
   apiOrigin: globalThis?.ApiOriginResolver ? globalThis.ApiOriginResolver.DEFAULT_API_ORIGIN : ''
 });
+const PUBLIC_REPO_URL = 'https://github.com/slackspac3/risk-calculator';
+const PUBLIC_ISSUES_URL = `${PUBLIC_REPO_URL}/issues`;
 const GLOBAL_ADMIN_STORAGE_KEY = 'rq_admin_settings';
 const USER_SETTINGS_STORAGE_PREFIX = 'rq_user_settings';
 const ASSESSMENTS_STORAGE_PREFIX = 'rq_assessments';
@@ -9054,39 +9056,176 @@ function renderAppBar() {
 }
 
 // ─── LANDING ──────────────────────────────────────────────────
+function buildPublicSiteFooter() {
+  return `
+    <footer class="public-site-footer">
+      <div class="public-site-footer__grid">
+        <div class="public-site-footer__panel">
+          <div class="public-site-footer__heading">Pilot trust notice</div>
+          <p class="public-site-footer__copy">This is a proof-of-concept environment. Use approved test credentials and dummy scenarios only. Do not treat it as a production system of record or as a public login portal.</p>
+        </div>
+        <div class="public-site-footer__panel">
+          <div class="public-site-footer__heading">Trust pages</div>
+          <div class="public-site-footer__links">
+            <a href="#/about">About</a>
+            <a href="#/privacy">Privacy</a>
+            <a href="#/contact">Contact</a>
+            <a href="#/login">PoC Access</a>
+          </div>
+        </div>
+        <div class="public-site-footer__panel">
+          <div class="public-site-footer__heading">Reference links</div>
+          <div class="public-site-footer__links">
+            <a href="${PUBLIC_REPO_URL}" target="_blank" rel="noopener noreferrer">GitHub repository</a>
+            <a href="${PUBLIC_ISSUES_URL}" target="_blank" rel="noopener noreferrer">Issue tracker</a>
+          </div>
+        </div>
+      </div>
+      <div class="public-site-footer__meta">Hosted as a static GitHub Pages frontend with a separate API backend. Review assumptions and evidence before relying on any output.</div>
+    </footer>`;
+}
+
+function renderPublicInfoPage({ eyebrow = '', title = '', intro = '', sections = [] } = {}) {
+  setPage(`
+    <main class="page">
+      <div class="container container--narrow public-info-page">
+        <section class="public-info-hero card card--elevated">
+          ${eyebrow ? `<div class="landing-badge">${escapeHtml(eyebrow)}</div>` : ''}
+          <h1>${escapeHtml(title)}</h1>
+          <p class="landing-subtitle">${escapeHtml(intro)}</p>
+          <div class="flex items-center gap-4" style="flex-wrap:wrap">
+            <a class="btn btn--primary" href="#/login">Open PoC Access</a>
+            <a class="btn btn--ghost" href="#/">Back to overview</a>
+          </div>
+        </section>
+        <section class="public-info-sections">
+          ${sections.map(section => `
+            <article class="card card--elevated public-info-section">
+              <h2>${escapeHtml(section.title || '')}</h2>
+              <div class="public-info-copy">${section.body || ''}</div>
+            </article>
+          `).join('')}
+        </section>
+        ${buildPublicSiteFooter()}
+      </div>
+    </main>`);
+}
+
+function renderPublicAboutPage() {
+  renderPublicInfoPage({
+    eyebrow: 'About this pilot',
+    title: 'Public overview',
+    intro: 'This public front door explains what the platform does before any credentialed PoC access is requested.',
+    sections: [
+      {
+        title: 'What the platform is for',
+        body: '<p>The Risk Intelligence Platform is a guided proof of concept for turning plain-English risk scenarios, register entries, or issue narratives into a structured assessment and FAIR-style quant estimate.</p>'
+      },
+      {
+        title: 'What it is not',
+        body: '<p>This is not a production enterprise system of record, not a public customer login surface, and not a finished SSO-backed operating environment. Human review still matters for evidence, assumptions, and sign-off.</p>'
+      },
+      {
+        title: 'How it is hosted today',
+        body: `<p>The frontend is published on GitHub Pages and the API is served separately. The source code for the current pilot is available in the <a href="${PUBLIC_REPO_URL}" target="_blank" rel="noopener noreferrer">GitHub repository</a>.</p>`
+      }
+    ]
+  });
+}
+
+function renderPublicPrivacyPage() {
+  renderPublicInfoPage({
+    eyebrow: 'Privacy and data use',
+    title: 'Demo-only data handling',
+    intro: 'This pilot should only be used with approved dummy scenarios and test credentials.',
+    sections: [
+      {
+        title: 'Do not enter live sensitive data',
+        body: '<p>Do not enter real company names, customer data, incident records, regulated data, or other live sensitive information into this pilot. Use generic placeholders such as supplier, customer, business unit, or service provider instead.</p>'
+      },
+      {
+        title: 'Browser and session behaviour',
+        body: '<p>The pilot stores working state needed for the user flow and then sends protected workflow requests to the configured API backend. Treat this environment as a demonstration workspace, not as a durable evidence store.</p>'
+      },
+      {
+        title: 'Public and restricted surfaces',
+        body: '<p>The public pages explain the pilot and link to the source repository. The restricted PoC workspace sits behind approved test credentials and should only be used by invited demo participants.</p>'
+      }
+    ]
+  });
+}
+
+function renderPublicContactPage() {
+  renderPublicInfoPage({
+    eyebrow: 'Contact and verification',
+    title: 'How to verify or follow up',
+    intro: 'Use the public references below if you need to verify the pilot, review the codebase, or report an issue.',
+    sections: [
+      {
+        title: 'Repository and issue tracking',
+        body: `<p>Source and release flow are managed in the <a href="${PUBLIC_REPO_URL}" target="_blank" rel="noopener noreferrer">GitHub repository</a>. Code or content issues can be raised through the <a href="${PUBLIC_ISSUES_URL}" target="_blank" rel="noopener noreferrer">issue tracker</a>.</p>`
+      },
+      {
+        title: 'PoC access',
+        body: '<p>Restricted credentials are issued only for approved demo sessions. If you were given this link by the PoC owner, request access directly from that same channel rather than treating this as a public self-service sign-in.</p>'
+      },
+      {
+        title: 'Safety and trust',
+        body: '<p>If a browser, endpoint, or reputation vendor flags the site, review the public About and Privacy pages first. The public landing page exists specifically to make the pilot intent, hosting model, and restricted-access flow explicit.</p>'
+      }
+    ]
+  });
+}
+
 function renderLanding() {
-  const assessments = getAssessments().slice(0, 5);
   const learningStore = getLearningStore();
   setPage(`
     <main class="page">
       <div class="container">
-
-        <!-- Hero -->
         <section class="landing-hero">
-          <div class="landing-badge">🔐 Internal Tool — Start Here</div>
+          <div class="landing-badge">Pilot environment · public overview</div>
           <h1>Risk Intelligence Platform</h1>
-          <p class="landing-subtitle">Use this guide to turn a plain-English risk idea, issue, or register into a quantified FAIR analysis. You do not need to know FAIR in advance; the platform guides you step by step.</p>
+          <p class="landing-subtitle">A guided proof of concept for turning plain-English risk scenarios into structured assessments and FAIR-style quant analysis. Start here to understand the workflow before opening the restricted demo workspace.</p>
           <div class="flex items-center gap-4" style="flex-wrap:wrap">
-            <button class="btn btn--primary btn--lg" id="btn-start-new">Start Guided Assessment</button>
-            <button class="btn btn--secondary" id="btn-show-templates">⚡ Start from a Template</button>
+            <a class="btn btn--primary btn--lg" id="btn-open-poc-access" href="#/login">Open PoC Access</a>
+            <button class="btn btn--secondary" id="btn-show-templates" type="button">See example scenarios</button>
           </div>
           <div class="flex items-center gap-4 mt-4" style="flex-wrap:wrap">
-            <span style="font-size:.78rem;color:var(--text-muted)">First time using the tool?</span>
-            <button class="btn btn--ghost btn--sm" id="btn-how-it-works">Open quick guide →</button>
+            <span style="font-size:.78rem;color:var(--text-muted)">Need a quick orientation first?</span>
+            <button class="btn btn--ghost btn--sm" id="btn-how-it-works" type="button">Open quick guide →</button>
+            <a class="btn btn--ghost btn--sm" href="#/about">Read about this pilot</a>
           </div>
         </section>
 
-        <!-- How it works (collapsible) -->
+        <section class="public-trust-grid">
+          <article class="public-trust-card">
+            <div class="public-trust-card__title">Dummy data only</div>
+            <p class="public-trust-card__copy">Use illustrative scenarios and approved test credentials. Do not enter real company, customer, or incident information.</p>
+          </article>
+          <article class="public-trust-card">
+            <div class="public-trust-card__title">Restricted workspace</div>
+            <p class="public-trust-card__copy">The public pages explain the pilot. Actual draft creation and saved workflow state sit behind restricted PoC access.</p>
+          </article>
+          <article class="public-trust-card">
+            <div class="public-trust-card__title">Visible source and issue trail</div>
+            <p class="public-trust-card__copy">The current pilot codebase and issue tracker are published on GitHub so reviewers can verify what the frontend is doing.</p>
+          </article>
+          <article class="public-trust-card">
+            <div class="public-trust-card__title">Review before reliance</div>
+            <p class="public-trust-card__copy">AI suggestions and FAIR estimates still need human challenge, evidence review, and judgement before any sign-off use.</p>
+          </article>
+        </section>
+
         <div id="how-it-works-panel" class="hidden" style="margin-bottom:var(--sp-8)">
           <div class="card card--elevated anim-fade-in">
-            <h3 style="font-size:var(--text-lg);margin-bottom:var(--sp-5)">How it works</h3>
+            <h2 style="font-size:var(--text-lg);margin-bottom:var(--sp-5)">How the pilot works</h2>
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:var(--sp-5)">
               ${[
-                ['1','Describe the issue','Start with a simple risk statement such as “A supplier with privileged access is compromised” or upload a risk register for AI review.'],
-                ['2','Let the platform structure it','The AI builder enhances the wording, identifies candidate risks, and suggests which risks may be linked.'],
-                ['3','Check the assumptions','Review the FAIR inputs. If you are unsure, stay in Basic mode and use the AI-preloaded values as your starting point.'],
-                ['4','Run and interpret results','The simulation shows likely loss ranges, annual exposure, and whether the scenario breaches the configured tolerance threshold.']
-              ].map(([n,title,desc]) => `
+                ['1', 'Describe the event', 'Start with one coherent issue in plain English. The platform works best when the event path is concrete and specific.'],
+                ['2', 'Use the guided workflow', 'The AI-assisted flow helps sharpen the prompt, build the draft scenario, and suggest the most relevant risk shortlist.'],
+                ['3', 'Challenge the assumptions', 'Review the inputs, evidence posture, and treatment suggestions. If AI is degraded, treat it as continuity support rather than sign-off-quality output.'],
+                ['4', 'Run the quant view', 'The FAIR-style simulation shows likely loss ranges, annual exposure, and whether the scenario sits within or above the configured tolerance threshold.']
+              ].map(([n, title, desc]) => `
                 <div style="display:flex;gap:var(--sp-4)">
                   <div style="width:32px;height:32px;background:rgba(26,86,219,.2);border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:700;color:var(--color-primary-300);flex-shrink:0">${n}</div>
                   <div><div style="font-weight:600;font-size:.9rem;margin-bottom:4px">${title}</div><p style="font-size:.8rem;line-height:1.6">${desc}</p></div>
@@ -9094,7 +9233,7 @@ function renderLanding() {
             </div>
             <div class="banner banner--info mt-6" style="font-size:.82rem">
               <span class="banner-icon">ℹ</span>
-              <span class="banner-text"><strong>Beginner tip:</strong> if you are unsure what to enter, choose a template first or write the scenario in plain English. The tool will help translate it into FAIR-style inputs. Results are saved in your browser only.</span>
+              <span class="banner-text"><strong>Practical rule:</strong> start with the public overview, then open PoC Access only when you actually need the restricted workspace or test credentials.</span>
             </div>
           </div>
         </div>
@@ -9102,15 +9241,15 @@ function renderLanding() {
         <section style="margin-bottom:var(--sp-8)">
           <div class="card card--elevated anim-fade-in">
             <div class="flex items-center justify-between mb-4" style="flex-wrap:wrap;gap:var(--sp-3)">
-              <h3 style="font-size:var(--text-xl)">Quick Start Guide</h3>
-              <span class="badge badge--neutral">For guided use</span>
+              <h2 style="font-size:var(--text-xl)">What to prepare before logging in</h2>
+              <span class="badge badge--neutral">For pilot users</span>
             </div>
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:var(--sp-4)">
               ${[
-                ['What to prepare','A short risk statement, affected business unit, and any known business or regulatory impact.'],
-                ['When to use templates','Use a template when the scenario is similar to procurement shortfall, compliance breakdown, AI governance failure, supply chain disruption, or a cyber/resilience event.'],
-                ['When to upload a register','Upload a register when you want AI to extract multiple risks and let you assess several together.'],
-                ['How to read the result','Focus first on P90 per-event loss, annual exposure, and whether the scenario sits above or within tolerance.']
+                ['Scenario summary', 'A short description of what happened or could happen, written in plain language.'],
+                ['Context and impact', 'The affected business activity, service, or dependency and the main impact you care about.'],
+                ['Evidence mindset', 'Be ready to challenge the AI output with citations, known controls, and real operating context.'],
+                ['Demo discipline', 'Use generic actors and dummy narratives only. Keep the public landing page and trust links available during external reviews.']
               ].map(([title, desc]) => `
                 <div style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:var(--sp-4)">
                   <div style="font-weight:600;color:var(--text-primary);margin-bottom:6px">${title}</div>
@@ -9121,11 +9260,14 @@ function renderLanding() {
           </div>
         </section>
 
-        <!-- Scenario Templates -->
         <div id="templates-panel" class="hidden" style="margin-bottom:var(--sp-8)">
           <div class="flex items-center justify-between mb-4">
-            <h3 style="font-size:var(--text-xl)">Scenario Templates</h3>
-            <button class="btn btn--ghost btn--sm" id="btn-hide-templates">✕ Close</button>
+            <h2 style="font-size:var(--text-xl)">Example scenario families</h2>
+            <button class="btn btn--ghost btn--sm" id="btn-hide-templates" type="button">✕ Close</button>
+          </div>
+          <div class="banner banner--poc mb-4">
+            <span class="banner-icon">⚠</span>
+            <span class="banner-text">These examples are public orientation aids. Open PoC Access to use them inside the restricted workflow.</span>
           </div>
           <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:var(--sp-4)">
             ${ScenarioTemplates.map(t => `
@@ -9133,69 +9275,46 @@ function renderLanding() {
                 const profile = learningStore.templates?.[t.id];
                 const learnedLabel = profile?.completed ? `<span class="badge badge--gold" style="font-size:.6rem">Learnt from ${profile.completed}</span>` : '';
                 return `
-              <button class="template-card" data-template-id="${t.id}" aria-label="Use template: ${t.label}">
+              <button class="template-card" data-template-id="${t.id}" aria-label="Open PoC Access for template: ${t.label}" type="button">
                 <div style="display:flex;align-items:flex-start;gap:var(--sp-3);margin-bottom:var(--sp-3)">
                   <span style="font-size:14px;line-height:1;font-weight:700;letter-spacing:.08em;min-width:42px;height:42px;display:flex;align-items:center;justify-content:center;border-radius:999px;background:rgba(26,86,219,.16);border:1px solid rgba(26,86,219,.28);color:var(--color-primary-300)">${t.icon}</span>
                   <div style="flex:1;text-align:left">
                     <div style="font-family:var(--font-display);font-size:.95rem;font-weight:600;color:var(--text-primary);margin-bottom:4px">${t.label}</div>
-                    <div style="display:flex;flex-wrap:wrap;gap:4px">${t.tags.map(tag=>`<span class="badge badge--neutral" style="font-size:.6rem">${tag}</span>`).join('')}${learnedLabel}</div>
+                    <div style="display:flex;flex-wrap:wrap;gap:4px">${t.tags.map(tag => `<span class="badge badge--neutral" style="font-size:.6rem">${tag}</span>`).join('')}${learnedLabel}</div>
                   </div>
                 </div>
                 <p style="font-size:.8rem;color:var(--text-secondary);line-height:1.6;text-align:left">${t.description}</p>
-                <div style="margin-top:var(--sp-3);text-align:right;font-size:.8rem;color:var(--color-primary-400);font-weight:600">Use this template →</div>
+                <div style="margin-top:var(--sp-3);text-align:right;font-size:.8rem;color:var(--color-primary-400);font-weight:600">Open in PoC Access →</div>
               </button>`;
               })()}
             `).join('')}
           </div>
         </div>
 
-        <!-- Feature grid -->
         <div class="landing-grid">
           <div class="feature-card anim-fade-in anim-delay-1">
             <div class="feature-icon">🤖</div>
-            <div class="feature-title">AI Risk Builder</div>
-            <p class="feature-desc">Paste a simple description of the risk. The platform helps convert it into a structured assessment.</p>
+            <div class="feature-title">AI-guided scenario shaping</div>
+            <p class="feature-desc">The pilot helps turn a rough event description into a more structured scenario draft, shortlist, and review posture.</p>
           </div>
           <div class="feature-card anim-fade-in anim-delay-2">
             <div class="feature-icon">📊</div>
-            <div class="feature-title">Monte Carlo Simulation</div>
-            <p class="feature-desc">The model runs thousands of simulations so you can see a range of possible outcomes instead of a single guessed number.</p>
+            <div class="feature-title">Quant view, not just narrative</div>
+            <p class="feature-desc">The FAIR-style model runs simulation ranges so users can discuss loss exposure and tolerance rather than relying on a single guessed number.</p>
           </div>
           <div class="feature-card anim-fade-in anim-delay-3">
-            <div class="feature-icon">🎯</div>
-            <div class="feature-title">Tolerance Flagging</div>
-            <p class="feature-desc">The platform shows clear threshold signals so users know when a scenario is within appetite, approaching concern, or above tolerance.</p>
+            <div class="feature-icon">🧭</div>
+            <div class="feature-title">Evidence and validation posture</div>
+            <p class="feature-desc">The workflow exposes where the AI is confident, where it is degraded, and where the user still needs to challenge the scenario manually.</p>
           </div>
           <div class="feature-card anim-fade-in anim-delay-4">
-            <div class="feature-icon">🔗</div>
-            <div class="feature-title">Linked Risk Scenarios</div>
-            <p class="feature-desc">Choose several related risks together when one issue can trigger another, such as a cyber event causing regulatory and operational impact.</p>
+            <div class="feature-icon">🔐</div>
+            <div class="feature-title">Public front door, restricted workspace</div>
+            <p class="feature-desc">The public site explains the pilot. Only approved users should continue into the credentialed PoC workspace.</p>
           </div>
         </div>
 
-        <!-- Recent assessments -->
-        ${assessments.length ? `
-        <section style="margin-top:var(--sp-12)">
-          <div class="flex items-center justify-between mb-4">
-            <h3 style="font-size:var(--text-xl)">Recent Assessments <span class="badge badge--neutral" style="margin-left:8px;font-size:.65rem">Browser only</span></h3>
-            <button class="btn btn--ghost btn--sm" id="btn-clear-all">Clear All</button>
-          </div>
-          <div style="display:flex;flex-direction:column;gap:var(--sp-3)">
-            ${assessments.map(a => `
-              <div class="assessment-item" data-id="${a.id}" role="button" tabindex="0">
-                <div class="assessment-meta">
-                  <div class="assessment-title">${a.scenarioTitle || 'Untitled'}</div>
-                  <div class="assessment-detail">${a.buName || '—'} · ${new Date(parseInt((a.id||'0').replace('a_',''))).toLocaleDateString('en-AE')}</div>
-                </div>
-                ${(() => {
-                  const lifecycle = typeof getAssessmentLifecyclePresentation === 'function' ? getAssessmentLifecyclePresentation(a) : { label: a.results ? 'Simulated' : 'Draft', tone: a.results && a.results.toleranceBreached ? 'danger' : a.results ? 'success' : 'neutral' };
-                  return `<span class="badge badge--${lifecycle.tone}">${lifecycle.label}</span>`;
-                })()}
-                <span style="color:var(--text-muted);font-size:20px">→</span>
-              </div>`).join('')}
-          </div>
-        </section>` : ''}
-
+        ${buildPublicSiteFooter()}
       </div>
     </main>
 
@@ -9218,14 +9337,11 @@ function renderLanding() {
       }
     </style>`);
 
-  // Wiring
-  document.getElementById('btn-start-new').addEventListener('click', () => { launchGuidedAssessmentStart(); });
-
   document.getElementById('btn-how-it-works').addEventListener('click', () => {
     const panel = document.getElementById('how-it-works-panel');
     const isHidden = panel.classList.contains('hidden');
     panel.classList.toggle('hidden', !isHidden);
-    document.getElementById('btn-how-it-works').textContent = isHidden ? 'Hide ↑' : 'How it works →';
+    document.getElementById('btn-how-it-works').textContent = isHidden ? 'Hide ↑' : 'Open quick guide →';
   });
 
   document.getElementById('btn-show-templates').addEventListener('click', () => {
@@ -9238,23 +9354,14 @@ function renderLanding() {
 
   document.querySelectorAll('.template-card').forEach(card => {
     card.addEventListener('click', () => {
+      if (!AuthService.isAuthenticated()) {
+        UI.toast('Open PoC Access to use this example inside the restricted workspace.', 'info', 4500);
+        Router.navigate('/login');
+        return;
+      }
       const tmpl = ScenarioTemplates.find(t => t.id === card.dataset.templateId);
       if (tmpl) loadTemplate(tmpl);
     });
-  });
-
-  document.getElementById('btn-clear-all')?.addEventListener('click', async () => {
-    if (await UI.confirm('Clear all saved assessments from this browser?')) {
-      // Clearing only local storage left the in-memory/user-sync view stale until a hard reload.
-      persistSavedAssessmentsCollection([]);
-      Router.resolve();
-    }
-  });
-
-  document.querySelectorAll('.assessment-item').forEach(el => {
-    const open = () => Router.navigate('/results/' + el.dataset.id);
-    el.addEventListener('click', open);
-    el.addEventListener('keydown', e => { if (e.key === 'Enter') open(); });
   });
 }
 
@@ -11013,11 +11120,17 @@ function renderLogin() {
   }
   setPage(`
     <main class="page">
-      <div class="container container--narrow" style="padding:var(--sp-16) var(--sp-6);max-width:640px">
+      <div class="container container--narrow" style="padding:var(--sp-16) var(--sp-6);max-width:760px">
         <div class="banner banner--poc mb-6"><span class="banner-icon">⚠</span><span class="banner-text"><strong>PoC Notice:</strong> Pilot environment only. Use approved test credentials and dummy scenarios only.</span></div>
+        <div class="flex items-center gap-3 mb-6" style="flex-wrap:wrap">
+          <a class="btn btn--ghost btn--sm" href="#/">Back to overview</a>
+          <a class="btn btn--ghost btn--sm" href="#/privacy">Privacy</a>
+          <a class="btn btn--ghost btn--sm" href="#/contact">Contact</a>
+        </div>
         <div class="card card--elevated">
-          <h2 style="margin-bottom:var(--sp-2)">Sign In</h2>
-          <p style="margin-bottom:var(--sp-6);color:var(--text-muted)">Each user keeps their own draft state, saved assessments, and assigned BU/function context. Ask the global admin for your username and password.</p>
+          <div class="ui-eyebrow" style="margin-bottom:var(--sp-3)"><span class="ui-eyebrow-mark" aria-hidden="true">•</span>Restricted demo workspace</div>
+          <h1 style="margin-bottom:var(--sp-2);font-size:var(--text-4xl)">PoC Access</h1>
+          <p style="margin-bottom:var(--sp-6);color:var(--text-muted)">Use the approved test credentials for this pilot workspace. Do not enter real company, customer, or incident data. This access path exists only for invited demo and review sessions.</p>
           <form id="login-form">
             <div class="form-group mb-4">
               <label class="form-label" for="login-user">Username</label>
@@ -11028,9 +11141,11 @@ function renderLogin() {
               <input class="form-input" id="login-pass" type="password" placeholder="Enter password" autocomplete="current-password">
               <span class="form-error hidden" id="login-err">⚠ Invalid username or password</span>
             </div>
-            <button class="btn btn--primary w-full" id="btn-login" type="submit" style="justify-content:center">Sign In</button>
+            <button class="btn btn--primary w-full" id="btn-login" type="submit" style="justify-content:center">Enter PoC Workspace</button>
           </form>
+          <div class="form-help mt-4">If you only need to verify the site or understand the pilot, use the public About, Privacy, and Contact pages instead of opening the restricted workspace.</div>
         </div>
+        ${buildPublicSiteFooter()}
       </div>
     </main>`);
 

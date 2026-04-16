@@ -5,9 +5,12 @@
     register(router) {
       return router
         .on('/login', renderLogin)
+        .on('/about', renderPublicAboutPage)
+        .on('/privacy', renderPublicPrivacyPage)
+        .on('/contact', renderPublicContactPage)
         .on('/', () => {
           if (!AuthService.isAuthenticated()) {
-            Router.navigate('/login');
+            renderLanding();
             return;
           }
           Router.navigate(typeof getDefaultRouteForCurrentUser === 'function'
@@ -37,7 +40,7 @@
         .on('/admin/docs', withAdmin(renderAdminDocs))
         .notFound(() => {
           if (!AuthService.isAuthenticated()) {
-            Router.navigate('/login');
+            Router.navigate('/');
             return;
           }
           const fallbackRoute = typeof getDefaultRouteForCurrentUser === 'function'
