@@ -204,7 +204,10 @@
             { href: '#/settings', label: isOversightUser ? (nonAdminCapability?.experience?.primaryActionLabel || 'Role Context') : 'Personal Settings', active: currentHash.startsWith('#/settings') }
           ]
         : [
-            { href: '#/', label: 'Home', active: currentHash === '#/' || currentHash === '' }
+            { href: '#/', label: 'Home', active: currentHash === '#/' || currentHash === '' },
+            { href: '#/about', label: 'About', active: currentHash.startsWith('#/about') },
+            { href: '#/privacy', label: 'Privacy', active: currentHash.startsWith('#/privacy') },
+            { href: '#/contact', label: 'Contact', active: currentHash.startsWith('#/contact') }
           ];
     return {
       currentUser,
@@ -241,7 +244,7 @@
             <a href="#/help" class="btn btn--ghost btn--sm bar-top-action${currentHash.startsWith('#/help') ? ' active' : ''}" id="btn-open-help"${currentHash.startsWith('#/help') ? ' aria-current="page"' : ''}>Help</a>
             <span class="bar-nav-link" style="pointer-events:none">${currentUser.displayName}</span>
             <button type="button" class="btn btn--ghost btn--sm" id="btn-sign-out">Sign Out</button>
-          ` : `<a href="#/login" class="bar-nav-link bar-nav-link--admin">Sign In</a>`}
+          ` : `<a href="#/login" class="btn btn--primary btn--sm">PoC Access</a>`}
           <div class="currency-toggle" role="group" aria-label="Currency">
             <button id="cur-usd" class="${AppState.currency==='USD'?'active':''}">USD</button>
             <button id="cur-aed" class="${AppState.currency==='AED'?'active':''}">AED</button>
