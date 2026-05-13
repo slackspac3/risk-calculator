@@ -477,6 +477,127 @@ function renderResultsActionBlock(recommendations, executiveAction, missingInfor
   </section>`;
 }
 
+function renderExecutiveCommandDeck({
+  statusTitle = '',
+  statusDetail = '',
+  executiveDecision = null,
+  executiveAction = '',
+  confidenceFrame = null,
+  recommendations = [],
+  missingInformation = [],
+  nextStepPlan = [],
+  reviewStatus = '',
+  rolePresentation = {}
+} = {}) {
+  const nextMoveTitle = String(
+    nextStepPlan?.[0]?.title
+    || recommendations?.[0]?.title
+    || executiveAction
+    || executiveDecision?.priority
+    || executiveDecision?.decision
+    || 'Confirm the management action'
+  ).trim();
+  const nextMoveCopy = String(
+    nextStepPlan?.[0]?.copy
+    || recommendations?.[0]?.why
+    || executiveDecision?.rationale
+    || statusDetail
+    || 'Use the current result to agree the immediate management response.'
+  ).trim();
+  const challengeTitle = String(
+    confidenceFrame?.topGap
+    || missingInformation?.[0]
+    || nextStepPlan?.[1]?.title
+    || recommendations?.[1]?.title
+    || 'Open the supporting detail only if this result is challenged'
+  ).trim();
+  const challengeCopy = String(
+    confidenceFrame?.implication
+    || nextStepPlan?.[1]?.copy
+    || recommendations?.[1]?.why
+    || 'Use the evidence, benchmark, and challenge layer when you need to defend or revise the result.'
+  ).trim();
+  const followThroughCopy = reviewStatus === 'approved'
+    ? 'The result is already approved. Use the lower layer only for audit trail, treatment comparison, or leadership challenge.'
+    : reviewStatus === 'changes_requested'
+      ? 'Reviewer changes are outstanding. Tighten the scenario or assumptions first, then rebuild and resubmit.'
+      : 'Once the action reads cleanly, submit the result for review or move straight into treatment planning.';
+  const roleLens = String(
+    rolePresentation?.executiveNoteTitle
+    || 'Management lens'
+  ).trim();
+  const steps = [
+    {
+      number: '1',
+      label: 'Read the current position',
+      value: statusTitle || 'Review',
+      copy: statusDetail || 'Use this as the current management posture until the main assumptions are challenged.',
+      active: true
+    },
+    {
+      number: '2',
+      label: 'Take the next management move',
+      value: nextMoveTitle,
+      copy: nextMoveCopy
+    },
+    {
+      number: '3',
+      label: 'Open support only if needed',
+      value: challengeTitle,
+      copy: challengeCopy
+    }
+  ];
+  return `<section class="results-command-deck anim-fade-in">
+    <div class="results-command-deck__main">
+      <div class="results-command-deck__eyebrow">Decision flow</div>
+      <h3 class="results-command-deck__title">Read this result in 3 moves</h3>
+      <div class="results-command-deck__steps">
+        ${steps.map(step => `<article class="results-command-step ${step.active ? 'results-command-step--active' : ''}">
+          <span class="results-command-step__index">${escapeHtml(step.number)}</span>
+          <div class="results-command-step__body">
+            <div class="results-command-step__label">${escapeHtml(step.label)}</div>
+            <strong>${escapeHtml(step.value)}</strong>
+            <p>${escapeHtml(step.copy)}</p>
+          </div>
+        </article>`).join('')}
+      </div>
+    </div>
+    <aside class="results-command-deck__focus">
+      <div class="results-command-deck__focus-label">Do this next</div>
+      <strong>${escapeHtml(nextMoveTitle || 'Confirm the next move')}</strong>
+      <p>${escapeHtml(nextMoveCopy || 'Use the current result to agree the next concrete action.')}</p>
+      <div class="results-command-deck__meta">
+        <span class="badge badge--neutral">${escapeHtml(roleLens)}</span>
+        <span class="badge badge--gold">${reviewStatus === 'approved' ? 'Review complete' : reviewStatus === 'changes_requested' ? 'Revise before review' : 'Ready for review'}</span>
+      </div>
+      <div class="results-command-deck__signal" aria-hidden="true">
+        <span></span><span></span><span></span><span></span><span></span>
+      </div>
+      <div class="results-command-deck__foot">${escapeHtml(followThroughCopy)}</div>
+    </aside>
+  </section>`;
+}
+
+function renderExecutiveSupportDisclosure({
+  title = 'Supporting detail',
+  copy = 'Open this layer when you need evidence, benchmark, challenge, or recommendation detail.',
+  badge = 'Open if challenged',
+  body = '',
+  open = false
+} = {}) {
+  if (!String(body || '').trim()) return '';
+  return `<details class="results-supporting-disclosure wizard-disclosure card anim-fade-in" ${open ? 'open' : ''}>
+    <summary>
+      ${escapeHtml(String(title))}
+      <span class="badge badge--neutral">${escapeHtml(String(badge))}</span>
+    </summary>
+    <div class="results-supporting-disclosure__body">
+      <p class="results-supporting-disclosure__copy">${escapeHtml(String(copy))}</p>
+      ${body}
+    </div>
+  </details>`;
+}
+
 function renderTreatmentRecommendationLens(comparison, recommendations = [], executiveDecision = null, nextStepPlan = []) {
   const fastestLever = typeof ReportPresentation !== 'undefined' &&
     ReportPresentation.buildFastestReductionLever
@@ -2824,7 +2945,9 @@ function hydrateResultsRuntimeState(assessment) {
 }
 
 function applyResultsToleranceClass(assessment) {
-  const pageRoot = document.querySelector('.page');
+  const pageRoot = document.querySelector('.app-stage-shell.is-current .page')
+    || document.querySelector('#main-content .app-stage-shell:last-of-type .page')
+    || document.querySelector('.page');
   if (!pageRoot) return;
   pageRoot.classList.remove(
     'results-page--above-tolerance',
@@ -3370,7 +3493,7 @@ function bindReviewerBriefFocusTracking(assessment) {
 }
 
 function openAssessmentForRevision(assessment, {
-  targetStep = '/wizard/3',
+  targetStep = '/wizard/4',
   applyDraftChanges = null
 } = {}) {
   if (!assessment) return;
@@ -3623,7 +3746,7 @@ function bindReviewBannerActions(assessment, { isShared = false } = {}) {
   });
 
   document.getElementById('btn-revise-assessment')?.addEventListener('click', () => {
-    openAssessmentForRevision(assessment, { targetStep: '/wizard/3' });
+    openAssessmentForRevision(assessment, { targetStep: '/wizard/4' });
   });
   document.getElementById('btn-submit-review')?.addEventListener('click', async () => {
     try {
@@ -4096,7 +4219,7 @@ function bindResultsInteractions({
         challengeId
       };
       openAssessmentForRevision(latest, {
-        targetStep: '/wizard/4',
+        targetStep: '/wizard/5',
         applyDraftChanges: draftRecord => {
           const nextDraft = applyParameterAdjustmentToDraftRecord(draftRecord, record);
           nextDraft.parameterChallenges = normaliseParameterChallengeRecords(getAssessmentById(latest.id) || latest).map(item => (
@@ -4269,7 +4392,7 @@ function bindResultsInteractions({
         assessmentId: latest.id
       };
       openAssessmentForRevision(latest, {
-        targetStep: '/wizard/4',
+        targetStep: '/wizard/5',
         applyDraftChanges: draftRecord => {
           selectedRecords.forEach(record => {
             applyParameterAdjustmentToDraftRecord(draftRecord, record);
@@ -4444,7 +4567,7 @@ function bindResultsInteractions({
         return;
       }
       openAssessmentForRevision(latest, {
-        targetStep: '/wizard/4',
+        targetStep: '/wizard/5',
         applyDraftChanges: draftRecord => ({
           ...draftRecord,
           fairParams: cloneSerializableState(version.parameters, {}) || {},
@@ -4618,7 +4741,7 @@ function bindResultsInteractions({
     const latest = getAssessmentById(assessment.id) || assessment;
     const mediation = latest?.reviewMediation?.result || assessment?.reviewMediation?.result || null;
     openAssessmentForRevision(latest, {
-      targetStep: '/wizard/3',
+      targetStep: '/wizard/4',
       applyDraftChanges: draftRecord => {
         if (mediation?.recommendedField && Number.isFinite(Number(mediation.recommendedValue))) {
           const fairParams = draftRecord.fairParams || (draftRecord.fairParams = {});
@@ -4635,7 +4758,7 @@ function bindResultsInteractions({
   document.getElementById('btn-revise-mediation')?.addEventListener('click', () => {
     const latest = getAssessmentById(assessment.id) || assessment;
     openAssessmentForRevision(latest, {
-      targetStep: '/wizard/3',
+      targetStep: '/wizard/4',
       applyDraftChanges: draftRecord => {
         draftRecord.reviewMediation = latest.reviewMediation || assessment.reviewMediation || null;
         draftRecord.reviewSubmission = latest.reviewSubmission || assessment.reviewSubmission || null;
@@ -4827,7 +4950,7 @@ function bindResultsInteractions({
     window.setTimeout(() => {
       button.disabled = false;
       button.textContent = original;
-      Router.navigate('/wizard/3');
+      Router.navigate('/wizard/4');
     }, 200);
   });
   document.getElementById('btn-duplicate-assessment')?.addEventListener('click', () => {
@@ -4837,7 +4960,7 @@ function bindResultsInteractions({
       return;
     }
     UI.toast('Assessment duplicated into a new draft.', 'success');
-    Router.navigate('/wizard/1');
+    Router.navigate('/wizard/2');
   });
   document.getElementById('btn-new-assess')?.addEventListener('click', () => {
     if (typeof window.launchGuidedAssessmentStart === 'function') {
@@ -4967,7 +5090,149 @@ function renderResults(id, isShared) {
       </div>
     </div>
   </div>`;
+  const resultsSelectedRisks = Array.isArray(assessment.selectedRisks) && assessment.selectedRisks.length
+    ? assessment.selectedRisks
+    : (Array.isArray(assessment.riskCandidates) ? assessment.riskCandidates.filter(risk => {
+        const selectedIds = new Set((Array.isArray(assessment.selectedRiskIds) ? assessment.selectedRiskIds : []).map(item => String(item || '')));
+        return selectedIds.has(String(risk?.id || ''));
+      }) : []);
+  const resultsGeographies = Array.isArray(assessment.geographies) && assessment.geographies.length
+    ? assessment.geographies
+    : (assessment.geography ? [assessment.geography] : []);
+  const resultsDecisionReadiness = assessment.decisionReadiness && typeof assessment.decisionReadiness === 'object'
+    ? assessment.decisionReadiness
+    : (typeof buildDecisionReadinessModel === 'function'
+        ? buildDecisionReadinessModel({
+            draft: assessment,
+            selectedRisks: resultsSelectedRisks,
+            scenarioGeographies: resultsGeographies,
+            validation: { errors: [], warnings: [] },
+            safeIterations: r.iterations,
+            results: r
+          })
+        : null);
+  const resultsChallengePass = assessment.assessmentChallengePass && typeof assessment.assessmentChallengePass === 'object'
+    ? assessment.assessmentChallengePass
+    : (typeof buildAssessmentChallengePass === 'function'
+        ? buildAssessmentChallengePass({
+            draft: assessment,
+            selectedRisks: resultsSelectedRisks,
+            validation: { errors: [], warnings: [] },
+            readiness: resultsDecisionReadiness
+          })
+        : null);
+  const resultsManagerTrace = assessment.assessmentManagerTrace && typeof assessment.assessmentManagerTrace === 'object'
+    ? assessment.assessmentManagerTrace
+    : (typeof buildAssessmentManagerRunModel === 'function'
+        ? buildAssessmentManagerRunModel({
+            stage: 'results',
+            draft: assessment,
+            selectedRisks: resultsSelectedRisks,
+            validation: { errors: [], warnings: [] },
+            readiness: resultsDecisionReadiness,
+            challenge: resultsChallengePass,
+            safeIterations: r.iterations,
+            results: r
+          })
+        : null);
+  const resultsManagerBlock = [
+    resultsManagerTrace && typeof renderAssessmentManagerPanel === 'function'
+      ? renderAssessmentManagerPanel(resultsManagerTrace, { title: 'Assessment Manager replay' })
+      : '',
+    resultsDecisionReadiness && typeof renderDecisionReadinessCard === 'function'
+      ? renderDecisionReadinessCard(resultsDecisionReadiness)
+      : ''
+  ].filter(Boolean).join('');
+  const resultsWorkflowStatus = typeof buildAssessmentWorkflowStatusModel === 'function'
+    ? buildAssessmentWorkflowStatusModel({
+        stage: 'results',
+        assessment,
+        selectedRisks: resultsSelectedRisks,
+        scenarioGeographies: resultsGeographies,
+        validation: { errors: [], warnings: [] },
+        readiness: resultsDecisionReadiness,
+        challenge: resultsChallengePass,
+        results: r,
+        isShared
+      })
+    : null;
+  const resultsDecisionStack = typeof buildAssessmentDecisionStackModel === 'function'
+    ? buildAssessmentDecisionStackModel({
+        assessment,
+        selectedRisks: resultsSelectedRisks,
+        readiness: resultsDecisionReadiness,
+        challenge: resultsChallengePass,
+        results: r,
+        executiveDecision,
+        executiveAction,
+        statusTitle,
+        isShared
+      })
+    : null;
+  const resultsChallengeStory = typeof buildAssessmentChallengeStory === 'function'
+    ? buildAssessmentChallengeStory(resultsChallengePass, resultsDecisionReadiness)
+    : null;
   const reviewSubmitBanner = renderResultsReviewSubmitBanner(assessment, r);
+  const reviewMeetingRoom = renderReviewMeetingRoom(assessment);
+  const decisionDna = renderDecisionDNASection(assessment);
+  const executiveCommandDeck = renderExecutiveCommandDeck({
+    statusTitle,
+    statusDetail,
+    executiveDecision,
+    executiveAction,
+    confidenceFrame,
+    recommendations,
+    missingInformation,
+    nextStepPlan,
+    reviewStatus: String(assessment?.reviewSubmission?.reviewStatus || '').trim().toLowerCase(),
+    rolePresentation
+  });
+  const executiveSupportDisclosure = renderExecutiveSupportDisclosure({
+    title: boardroomMode ? 'Boardroom support detail' : 'Supporting detail',
+    copy: boardroomMode
+      ? 'Open this only when you need the committee-ready backup: confidence caveats, comparison logic, analyst readout, or challenge tools.'
+      : 'Open this only when you need the analyst, evidence, benchmark, value, or AI challenge layer behind the headline decision view.',
+    badge: 'Open if challenged',
+    body: boardroomMode
+      ? `
+          ${decisionDna}
+          ${renderBoardroomSummaryBand({ executiveDecision, confidenceFrame, nextStepPlan, scenarioNarrative, analystSummary })}
+          ${treatmentRecommendationLens}
+          ${comparisonHighlight || recommendationCards}
+          ${renderAnalystSummaryBlock(analystSummary)}
+          <section class="results-secondary-band results-secondary-band--boardroom">
+            ${comparisonHighlight ? recommendationCards : ''}
+            ${confidenceNeedsBlock}
+            ${renderAssessmentChallengeDisclosure()}
+            ${renderAssessmentValueBand(assessmentValue)}
+            ${renderExecutiveBenchmarkContext(assessment, r, runMetadata)}
+          </section>`
+      : `
+          ${decisionDna}
+          ${renderAssessmentChallengeDisclosure()}
+          ${renderAnalystSummaryBlock(analystSummary)}
+          ${treatmentRecommendationLens}
+          ${comparisonHighlight || recommendationCards}
+          ${comparisonHighlight ? recommendationCards : ''}
+          ${renderAssessmentValueBand(assessmentValue)}
+          ${renderExecutiveBenchmarkContext(assessment, r, runMetadata)}
+          <section class="results-secondary-band">
+            ${renderTrustExplanationLayer({
+              confidenceNeedsBlock,
+              evidenceGapPlan,
+              explanationPanel,
+              impactMix,
+              thresholdModel,
+              results: r,
+              assessmentIntelligence,
+              assessment,
+              citations,
+              primaryGrounding,
+              supportingReferences,
+              missingInformation
+            })}
+          </section>`
+  });
 
   const executiveMetrics = `<div class="results-exec-metrics">
     <div class="results-impact-card results-impact-card--headline">
@@ -4998,54 +5263,26 @@ function renderResults(id, isShared) {
       ${assessmentFreshnessWarning ? `<div class="banner banner--info mb-6"><span class="banner-icon">ℹ</span><span class="banner-text">${escapeHtml(assessmentFreshnessWarning)}</span></div>` : ''}
       ${renderReviewerBriefPanel(assessment, rolePresentation)}
       ${executiveHero}
+      ${resultsWorkflowStatus && typeof renderAssessmentWorkflowStatusStrip === 'function'
+        ? renderAssessmentWorkflowStatusStrip(resultsWorkflowStatus)
+        : ''}
+      ${resultsDecisionStack && typeof renderAssessmentDecisionStack === 'function'
+        ? renderAssessmentDecisionStack(resultsDecisionStack)
+        : ''}
+      ${resultsChallengeStory && typeof renderAssessmentChallengeStory === 'function'
+        ? renderAssessmentChallengeStory(resultsChallengeStory)
+        : ''}
       ${reviewSubmitBanner}
-      ${renderDecisionDNASection(assessment)}
-      ${renderReviewMeetingRoom(assessment)}
+      ${reviewMeetingRoom}
+      ${resultsManagerBlock ? `<div class="results-manager-grid">${resultsManagerBlock}</div>` : ''}
+      ${executiveCommandDeck}
       <div class="results-executive-band">
-        ${boardroomMode ? renderBoardroomModeIntro(comparison) : ''}
         ${renderExecutiveScenarioStatement(assessment, scenarioNarrative)}
-        ${renderHeroMetric(
-          r,
-          confidenceFrame,
-          AppState.draft?.geography || assessment?.geography || ''
-        )}
         ${renderDecisionRail(statusTitle, statusDetail, executiveDecision, executiveAction, assessmentIntelligence.confidence, rolePresentation, hasAssessmentLocalFallback(assessment))}
-        ${boardroomMode ? renderExecutiveBrief(statusTitle, executiveDecision, executiveAction, executiveAnnualView) : ''}
         ${executiveMetrics}
         <div id="results-assumption-explainer-host" style="display:none"></div>
-        ${renderAssessmentChallengeDisclosure()}
-        ${renderAssessmentValueBand(assessmentValue)}
-        ${renderExecutiveBenchmarkContext(assessment, r, runMetadata)}
       </div>
-      ${boardroomMode
-        ? `${renderBoardroomSummaryBand({ executiveDecision, confidenceFrame, nextStepPlan, scenarioNarrative, analystSummary })}
-           ${treatmentRecommendationLens}
-           ${comparisonHighlight || recommendationCards}
-           ${renderAnalystSummaryBlock(analystSummary)}
-           <section class="results-secondary-band results-secondary-band--boardroom">
-             ${comparisonHighlight ? recommendationCards : ''}
-             ${confidenceNeedsBlock}
-           </section>`
-        : `${renderAnalystSummaryBlock(analystSummary)}
-           ${treatmentRecommendationLens}
-           ${comparisonHighlight || recommendationCards}
-           <section class="results-secondary-band">
-             ${comparisonHighlight ? recommendationCards : ''}
-             ${renderTrustExplanationLayer({
-               confidenceNeedsBlock,
-               evidenceGapPlan,
-               explanationPanel,
-               impactMix,
-               thresholdModel,
-               results: r,
-               assessmentIntelligence,
-               assessment,
-               citations,
-               primaryGrounding,
-               supportingReferences,
-               missingInformation
-             })}
-           </section>`}
+      ${executiveSupportDisclosure}
     </section>`;
 
   const technicalTab = window.ResultsTabs.renderTechnicalTab({

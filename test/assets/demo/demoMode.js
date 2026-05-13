@@ -150,7 +150,7 @@ const DemoMode = (() => {
       await _sleep(800);
 
       _setStatus('Analysing scenario with AI...');
-      if (typeof Router !== 'undefined') Router.navigate('/wizard/2');
+      if (typeof Router !== 'undefined') Router.navigate('/wizard/3');
       await _sleep(1200);
 
       let aiResult = null;
@@ -258,10 +258,10 @@ const DemoMode = (() => {
       await _sleep(600);
 
       _setStatus('Preparing simulation...');
-      if (typeof Router !== 'undefined') Router.navigate('/wizard/3');
+      if (typeof Router !== 'undefined') Router.navigate('/wizard/4');
       await _sleep(1400);
 
-      if (typeof Router !== 'undefined') Router.navigate('/wizard/4');
+      if (typeof Router !== 'undefined') Router.navigate('/wizard/5');
       await _sleep(800);
 
       _setStatus('Running Monte Carlo simulation...');

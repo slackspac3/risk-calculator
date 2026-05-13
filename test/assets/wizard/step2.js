@@ -319,14 +319,45 @@ function renderWizard2() {
     selectedRisks,
     scenarioGeographies
   });
+  const scenarioValidation = {
+    errors: [],
+    warnings: getStep2NarrativeReadiness(draft, selectedRisks, scenarioGeographies).slice(0, 2)
+  };
+  const decisionReadiness = typeof buildDecisionReadinessModel === 'function'
+    ? buildDecisionReadinessModel({
+        draft,
+        selectedRisks,
+        scenarioGeographies,
+        validation: scenarioValidation
+      })
+    : null;
+  const challengePass = typeof buildAssessmentChallengePass === 'function'
+    ? buildAssessmentChallengePass({
+        draft,
+        selectedRisks,
+        validation: scenarioValidation,
+        readiness: decisionReadiness
+      })
+    : null;
+  const workflowStatus = typeof buildAssessmentWorkflowStatusModel === 'function'
+    ? buildAssessmentWorkflowStatusModel({
+        stage: 'scenario',
+        draft,
+        selectedRisks,
+        scenarioGeographies,
+        validation: scenarioValidation,
+        readiness: decisionReadiness,
+        challenge: challengePass
+      })
+    : null;
   const contextPreviewModel = buildContextInfluencePreviewModel({
     buId: draft.buId
   });
   setPage(`
-    <main class="page" aria-label="Step 2: Refine the Scenario">
+    <main class="page" aria-label="Step 3: Refine the Scenario">
       <div class="wizard-layout container container--narrow">
         <div class="wizard-header">
-          ${UI.renderStepper(2)}
+          ${UI.renderStepper(3)}
           <h2 class="wizard-step-title">Refine the Scenario</h2>
           <p class="wizard-step-desc">Tighten the scenario wording first, then open AI structure or optional fields only if they make the estimate cleaner and easier to challenge.</p>
           <div class="wizard-status-stack">
@@ -336,6 +367,9 @@ function renderWizard2() {
           </div>
         </div>
         <div class="wizard-body">
+          ${workflowStatus && typeof renderAssessmentWorkflowStatusStrip === 'function'
+            ? renderAssessmentWorkflowStatusStrip(workflowStatus)
+            : ''}
           <section class="wizard-ia-section anim-fade-in">
             <div class="results-section-heading">Clarify the scenario</div>
             <div class="form-help" style="margin-top:8px">Write one coherent scenario first. Keep the support modules below as optional aids rather than part of the main task.</div>
@@ -348,7 +382,7 @@ function renderWizard2() {
             description: 'This is the one required task on this step. Keep the wording to one coherent assessment scope so the estimate stays credible.',
             className: 'card anim-fade-in',
             headerExtras: UI.sectionStatusBadge('Required', 'gold'),
-            body: `<div class="form-group"><textarea class="form-textarea" id="narrative" rows="5" placeholder="Describe the risk: What could happen? Who might cause it? What assets are at risk? What are the potential impacts?" style="min-height:160px">${draft.enhancedNarrative || draft.narrative || ''}</textarea><div id="narrative-diff-panel" class="narrative-diff-panel hidden" aria-live="polite"></div><button type="button" class="btn btn--ghost btn--sm" id="btn-toggle-diff" style="display:none;margin-top:8px">Show what changed</button></div>`
+            body: `<div class="form-group"><textarea class="form-textarea" id="narrative" rows="5" placeholder="Describe the risk: What could happen? Who might cause it? What assets are at risk? What are the potential impacts?" style="min-height:160px">${escapeHtml(String(draft.enhancedNarrative || draft.narrative || ''))}</textarea><div id="narrative-diff-panel" class="narrative-diff-panel hidden" aria-live="polite"></div><button type="button" class="btn btn--ghost btn--sm" id="btn-toggle-diff" style="display:none;margin-top:8px">Show what changed</button></div>`
           })}
           ${renderStep2TopEvidenceNudge(draft)}
           ${UI.disclosureSection({
@@ -360,7 +394,7 @@ function renderWizard2() {
             body: `<div class="wizard-section-head">
               <div class="wizard-section-copy">
                 <h3 class="wizard-section-title">${draft.llmAssisted ? 'AI has structured this scenario' : 'Let AI analyse and structure this scenario'}</h3>
-                <p class="wizard-section-description">${draft.llmAssisted ? 'The FAIR inputs are pre-loaded for Step 3. Run again if you have changed the narrative significantly.' : 'AI will read the narrative, identify the most credible threat path, surface assumptions, and pre-load defensible FAIR starting ranges for Step 3. Your narrative stays editable.'}</p>
+                <p class="wizard-section-description">${draft.llmAssisted ? 'The FAIR inputs are pre-loaded for Step 4. Run again if you have changed the narrative significantly.' : 'AI will read the narrative, identify the most credible threat path, surface assumptions, and pre-load defensible FAIR starting ranges for Step 4. Your narrative stays editable.'}</p>
               </div>
               ${UI.sectionStatusBadge('Assistive only', 'neutral')}
             </div>
@@ -368,7 +402,7 @@ function renderWizard2() {
               <span id="llm-btn-text">${draft.llmAssisted ? '🔄 Re-run AI analysis' : '🤖 Analyse scenario and pre-load FAIR inputs'}</span>
             </button>
             <p style="text-align:center;font-size:.75rem;color:var(--text-muted);margin-top:8px">Retrieves relevant internal docs and uses AI to suggest structured narrative improvements and FAIR inputs with citations.</p>
-            <div class="form-help" id="wizard2-ai-status" style="text-align:center;margin-top:8px">${draft.llmAssisted ? 'AI has already analysed this scenario. Re-run if the narrative has changed significantly.' : 'AI reads the scenario, reasons about the threat path and assumptions, and pre-loads starting values for Step 3. Takes around 10–15 seconds.'}</div>`
+            <div class="form-help" id="wizard2-ai-status" style="text-align:center;margin-top:8px">${draft.llmAssisted ? 'AI has already analysed this scenario. Re-run if the narrative has changed significantly.' : 'AI reads the scenario, reasons about the threat path and assumptions, and pre-loads starting values for Step 4. Takes around 10–15 seconds.'}</div>`
           })}
           <div id="llm-output-area"></div>
           ${renderStep2WhyItMattersCard(draft, selectedRisks, scenarioGeographies)}
@@ -437,12 +471,12 @@ function renderWizard2() {
         </div>
         <div class="wizard-footer">
           <button class="btn btn--ghost" id="btn-back-2">← Back</button>
-          <button class="btn btn--primary" id="btn-next-2">Continue to estimation →</button>
+          <button class="btn btn--primary" id="btn-next-2">Continue to estimate →</button>
         </div>
       </div>
     </main>`);
 
-  document.getElementById('btn-back-2').addEventListener('click', () => { saveDraft(); Router.navigate('/wizard/1'); });
+  document.getElementById('btn-back-2').addEventListener('click', () => { saveDraft(); Router.navigate('/wizard/2'); });
   document.getElementById('narrative').addEventListener('input', function() {
     invalidateStep2AiAnalysisIfNeeded(this.value);
     AppState.draft.enhancedNarrative = this.value;
@@ -476,7 +510,7 @@ function renderWizard2() {
     recordStep2NarrativeEditIfNeeded(n);
     AppState.draft.enhancedNarrative = n;
     AppState.draft.narrative = AppState.draft.narrative || n;
-    saveDraft(); Router.navigate('/wizard/3');
+    saveDraft(); Router.navigate('/wizard/4');
   });
   ensureStep2NarrativeDiffStyles();
   bindNarrativeDiffToggle();
@@ -792,7 +826,18 @@ function renderWizard2AiChangeSummary(result, previousNarrative) {
   const wordingNote = String(previousNarrative || '').trim()
     ? '<div class="form-help" style="margin-top:10px">Your own narrative remains editable below. Keep it, edit it, or rerun AI if the structure still feels off.</div>'
     : '';
-  return `<div class="card card--elevated mt-4 anim-fade-in"><div class="context-panel-title">What AI changed</div><ol style="margin:12px 0 0 18px;display:flex;flex-direction:column;gap:8px">${summaryItems.map(item => `<li style="color:var(--text-secondary)">${item}</li>`).join('')}</ol>${wordingNote}</div>`;
+  const provenance = typeof buildAssessmentProvenanceModel === 'function'
+    ? buildAssessmentProvenanceModel({
+        ...((typeof AppState !== 'undefined' && AppState?.draft) ? AppState.draft : {}),
+        usedFallback: result?.usedFallback === true,
+        aiUnavailable: result?.aiUnavailable === true,
+        aiQualityState: result?.usedFallback ? 'fallback' : 'ai'
+      }, { stage: 'scenario' })
+    : null;
+  const sourceBadge = provenance
+    ? `<span class="badge badge--${provenance.tone === 'warning' ? 'warning' : provenance.tone === 'success' ? 'success' : 'neutral'}">${escapeHtml(provenance.label)}</span>`
+    : '';
+  return `<div class="card card--elevated mt-4 anim-fade-in"><div class="wizard-premium-head" style="margin-bottom:var(--sp-3)"><div class="context-panel-title">What AI changed</div>${sourceBadge}</div><ol style="margin:12px 0 0 18px;display:flex;flex-direction:column;gap:8px">${summaryItems.map(item => `<li style="color:var(--text-secondary)">${item}</li>`).join('')}</ol>${wordingNote}</div>`;
 }
 
 function renderWizard2AiReadyBand(result) {
@@ -805,7 +850,7 @@ function renderWizard2AiReadyBand(result) {
     <div>
       <div class="wizard-summary-band__label">AI structure ready</div>
       <strong>${escapeHtml(String(result?.scenarioTitle || 'Scenario ready for estimation'))}</strong>
-      <div class="wizard-summary-band__copy">The FAIR starting ranges are now loaded for Step 3. Keep the narrative editable, challenge the estimate, and only open the deeper evidence layer if you want to understand or defend the setup.</div>
+      <div class="wizard-summary-band__copy">The FAIR starting ranges are now loaded for Step 4. Keep the narrative editable, challenge the estimate, and only open the deeper evidence layer if you want to understand or defend the setup.</div>
     </div>
     <div class="wizard-summary-band__meta">
       <span class="badge badge--${confidenceTone}">${escapeHtml(confidenceLabel)}${evidenceQuality ? ` · ${escapeHtml(evidenceQuality)}` : ''}</span>
