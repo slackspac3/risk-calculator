@@ -309,6 +309,12 @@ Additional validation after the latest uncommitted UI changes on top of `test-po
   - `assets/wizard/step1.js` now guards the optional Basic preview shell lookup behind `typeof document.querySelector === 'function'`
   - `node --test tests/unit/step1PromptIdeas.test.js` -> passed (`41` tests)
   - `npm run check:syntax` -> passed
+  - follow-up commit `7936511` on `test-poc` passed `Deploy Test PoC`
+  - promoted to `master` by cherry-picking the missing `test-poc` commits onto `origin/master` without force-push
+  - `master` promotion commits: `8fe7db8`, `145077e`, `e51d549`, `001ae32`
+  - local promotion checks on `master`: `node --test tests/unit/step1PromptIdeas.test.js`, `npm run check:syntax`, and `npm run check:smoke` -> passed
+  - `Deploy GitHub Pages` for `master` run `25813577225` -> passed
+  - live root `https://slackspac3.github.io/risk-calculator/` fetched after deploy and is serving `20260426v14` assets
 
 Current local asset version under test:
 
