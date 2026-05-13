@@ -304,6 +304,11 @@ Additional validation after the latest uncommitted UI changes on top of `test-po
   - focused Step 5/Results browser smoke: `npm run test:e2e -- tests/e2e/critical-path.spec.js -g "critical path: step 5 review"` -> passed
   - `npm run check:smoke` -> passed; asset version now `20260426v14`
   - `git diff --check` -> passed
+- 2026-05-13 CI follow-up:
+  - Test PoC deploy failed in `tests/unit/step1PromptIdeas.test.js` because `updateStep1GuidedPreview()` used `document.querySelector` against a unit-test document mock that only implements `getElementById`
+  - `assets/wizard/step1.js` now guards the optional Basic preview shell lookup behind `typeof document.querySelector === 'function'`
+  - `node --test tests/unit/step1PromptIdeas.test.js` -> passed (`41` tests)
+  - `npm run check:syntax` -> passed
 
 Current local asset version under test:
 
