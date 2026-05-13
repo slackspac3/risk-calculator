@@ -243,6 +243,19 @@ async function expectNoClientCrashOnRoute(page, route, assertion) {
   expect(pageErrors, `Unexpected page errors on ${route}: ${pageErrors.join(' | ')}`).toEqual([]);
 }
 
+async function openDisclosureIfPresent(page, selector) {
+  const disclosure = page.locator(selector).first();
+  if (await disclosure.count() === 0) return false;
+  const isOpen = await disclosure.evaluate(node => !!node.open);
+  if (!isOpen) {
+    await disclosure.evaluate(node => {
+      node.open = true;
+      node.dispatchEvent(new Event('toggle'));
+    });
+  }
+  return true;
+}
+
 function expectHostedApiOriginRequests(requests, label = 'API') {
   expect(Array.isArray(requests), `${label} request capture must be an array`).toBeTruthy();
   expect(requests.length, `${label} requests were not observed`).toBeGreaterThan(0);
@@ -392,7 +405,7 @@ test('stale draft autosave shows a recovery dialog instead of silently overwriti
     });
   });
 
-  await expectNoClientCrashOnRoute(page, '/#/wizard/1', async () => {
+  await expectNoClientCrashOnRoute(page, '/#/wizard/2', async () => {
     await page.locator('#guided-event').fill('Third-party outage');
     await expect(page.getByText(/latest version available/i)).toBeVisible();
     await expect(page.getByRole('button', { name: /load latest/i })).toBeVisible();
@@ -400,7 +413,7 @@ test('stale draft autosave shows a recovery dialog instead of silently overwriti
   });
 });
 
-test('wizard step 1 shows per-risk AI rating controls for generated risks and saves the chosen score', async ({ page }) => {
+test('wizard intake shows per-risk AI rating controls for generated risks and saves the chosen score', async ({ page }) => {
   const seededUserSettings = buildSeededUserSettings({
     userProfile: {
       department: 'Operations',
@@ -485,9 +498,12 @@ test('wizard step 1 shows per-risk AI rating controls for generated risks and sa
     });
   });
 
-  await expectNoClientCrashOnRoute(page, '/#/wizard/1', async () => {
-    await expect(page.getByText('Business continuity and recovery failure')).toBeVisible();
-    const stars = page.locator('.step1-risk-feedback__star[data-risk-feedback-id="risk-ops-1"]');
+  await expectNoClientCrashOnRoute(page, '/#/wizard/2', async () => {
+    await page.getByRole('button', { name: /^Advanced$/ }).click();
+    await expect(page.locator('html')).toHaveAttribute('data-experience-mode', 'advanced');
+    const riskCard = page.locator('.risk-pick-card').filter({ hasText: 'Business continuity and recovery failure' }).last();
+    await expect(riskCard).toBeVisible();
+    const stars = riskCard.locator('.step1-risk-feedback__star[data-risk-feedback-id="risk-ops-1"]');
     await expect(stars).toHaveCount(5);
     await stars.nth(3).click();
     await expect(page.locator('#risk-feedback-status-risk-ops-1')).toContainText('Saved');
@@ -537,7 +553,7 @@ test('draft recovery restores the latest local draft after refresh', async ({ pa
     }
   });
 
-  await expectNoClientCrashOnRoute(page, '/#/wizard/1', async () => {
+  await expectNoClientCrashOnRoute(page, '/#/wizard/2', async () => {
     await expect(page.locator('#guided-event')).toHaveValue(/Identity provider outage/);
     await expect(page.getByText(/recovered your latest draft from this browser/i)).toBeVisible();
   });
@@ -564,31 +580,18 @@ test('results route redirects unauthenticated users to login', async ({ page }) 
   });
 });
 
-test('wizard step 1 dry-run examples prefill the scenario and shortlist', async ({ page }) => {
-  const seededUserSettings = {
+test('wizard guide path changes keep the start options visible', async ({ page }) => {
+  const seededUserSettings = buildSeededUserSettings({
     userProfile: {
       fullName: 'Alex Trafton',
       jobTitle: 'Risk Manager',
       businessUnit: 'G42',
-      department: 'Security',
-      focusAreas: ['Resilience'],
-      preferredOutputs: 'Executive summaries',
-      workingContext: 'Support regulated services.'
-    },
-    onboardedAt: '2026-03-17T00:00:00.000Z',
-    _overrideKeys: []
-  };
+      department: 'Security'
+    }
+  });
   await seedAuthenticatedUser(page, { userSettings: seededUserSettings });
   await mockSharedApis(page, {
-    settings: {
-      geography: 'United Arab Emirates',
-      applicableRegulations: ['UAE PDPL'],
-      entityContextLayers: [],
-      companyStructure: [],
-      aiInstructions: 'Use British English.',
-      benchmarkStrategy: 'Prefer GCC and UAE benchmark references.',
-      typicalDepartments: ['Security']
-    },
+    settings: {},
     userState: {
       userSettings: seededUserSettings,
       assessments: [],
@@ -599,21 +602,27 @@ test('wizard step 1 dry-run examples prefill the scenario and shortlist', async 
   });
 
   await expectNoClientCrashOnRoute(page, '/#/wizard/1', async () => {
-    await expect(page.getByRole('heading', { name: /guided scenario builder/i })).toBeVisible();
-    await expect(page.locator('[data-path="import"]')).toBeVisible();
-    await page.evaluate(() => {
-      applyDryRunScenario(STEP1_DRY_RUN_SCENARIOS[0]);
-    });
-    await expect(page.locator('#guided-event')).toContainText('critical supplier');
-    await expect(page.locator('#intake-risk-statement')).toContainText('critical supplier');
-    await expect(page.locator('.risk-select-checkbox:checked')).toHaveCount(3);
-    await expect(page.getByText(/review ai reasoning and related context/i)).toBeVisible();
-    await expect(page.getByText(/no extra context yet/i)).toBeVisible();
-    await expect(page.getByRole('button', { name: /continue to scenario review/i })).toBeVisible();
+    const guideLaneSwitch = () => page.locator('.app-stage-shell.is-current .step1-guide-lane-switch');
+    const guideLaneOption = path => page.locator(`.app-stage-shell.is-current .step1-guide-lane-switch [data-path="${path}"]`);
+    const guideContinue = () => page.locator('.app-stage-shell.is-current [data-guide-next]');
+    await expect(page.getByRole('heading', { name: /choose how to start/i })).toBeVisible();
+    await expect(guideLaneSwitch()).toBeVisible();
+    await expect(guideContinue()).toHaveCount(1);
+    await guideLaneOption('draft').click();
+    await expect(page).toHaveURL(/#\/wizard\/1$/);
+    await expect(guideLaneSwitch()).toBeVisible();
+    await expect(guideLaneOption('draft')).toHaveAttribute('aria-pressed', 'true');
+    await expect(guideContinue()).toHaveCount(1);
+    await guideLaneOption('import').click();
+    await expect(page).toHaveURL(/#\/wizard\/1$/);
+    await expect(guideLaneSwitch()).toBeVisible();
+    await expect(guideLaneOption('import')).toHaveAttribute('aria-pressed', 'true');
+    await expect(guideContinue()).toHaveCount(1);
+    await expect(page.getByRole('heading', { name: /scenario intake/i })).toHaveCount(0);
   });
 });
 
-test('wizard handoff guidance carries the scenario cleanly into steps 2 and 3', async ({ page }) => {
+test('wizard intake dry-run examples prefill the scenario and shortlist', async ({ page }) => {
   const seededUserSettings = {
     userProfile: {
       fullName: 'Alex Trafton',
@@ -647,25 +656,75 @@ test('wizard handoff guidance carries the scenario cleanly into steps 2 and 3', 
     }
   });
 
-  await expectNoClientCrashOnRoute(page, '/#/wizard/1', async () => {
-    await expect(page.getByRole('heading', { name: /assessment context/i })).toBeVisible();
-    await page.locator('#wizard-bu').selectOption({ index: 1 });
-    await expect(page.locator('[data-path="import"]')).toBeVisible();
+  await expectNoClientCrashOnRoute(page, '/#/wizard/2', async () => {
+    await expect(page.getByRole('heading', { name: /^scenario intake$/i })).toBeVisible();
+    await openDisclosureIfPresent(page, '#step1-basic-setup-support');
+    await expect(page.locator('[data-path="import"]').last()).toBeVisible();
     await page.evaluate(() => {
       applyDryRunScenario(STEP1_DRY_RUN_SCENARIOS[0]);
     });
-    await page.getByRole('button', { name: /continue to scenario review/i }).click();
-    await expect(page).toHaveURL(/#\/wizard\/2$/);
-    await expect(page.getByText(/what will carry into the estimate/i)).toBeVisible();
-    const continueToEstimation = page.getByRole('button', { name: /continue to estimation/i });
-    await continueToEstimation.scrollIntoViewIfNeeded();
-    await continueToEstimation.click();
+    await expect(page.locator('[data-path="import"]').last()).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByText(/dry-run example loaded/i)).toBeVisible();
+    await expect(page.locator('#intake-risk-statement').last()).toContainText('critical supplier');
+    await expect(page.locator('.risk-select-checkbox:checked')).toHaveCount(3);
+    await expect(page.getByRole('button', { name: /continue to step 3 scenario review/i })).toBeVisible();
+  });
+});
+
+test('wizard handoff guidance carries the scenario cleanly into steps 3 and 4', async ({ page }) => {
+  const seededUserSettings = {
+    userProfile: {
+      fullName: 'Alex Trafton',
+      jobTitle: 'Risk Manager',
+      businessUnit: 'G42',
+      department: 'Security',
+      focusAreas: ['Resilience'],
+      preferredOutputs: 'Executive summaries',
+      workingContext: 'Support regulated services.'
+    },
+    onboardedAt: '2026-03-17T00:00:00.000Z',
+    _overrideKeys: []
+  };
+  await seedAuthenticatedUser(page, { userSettings: seededUserSettings });
+  await mockSharedApis(page, {
+    settings: {
+      geography: 'United Arab Emirates',
+      applicableRegulations: ['UAE PDPL'],
+      entityContextLayers: [],
+      companyStructure: [],
+      aiInstructions: 'Use British English.',
+      benchmarkStrategy: 'Prefer GCC and UAE benchmark references.',
+      typicalDepartments: ['Security']
+    },
+    userState: {
+      userSettings: seededUserSettings,
+      assessments: [],
+      learningStore: { templates: {} },
+      draft: null,
+      _meta: { revision: 1, updatedAt: Date.now() }
+    }
+  });
+
+  await expectNoClientCrashOnRoute(page, '/#/wizard/2', async () => {
+    await openDisclosureIfPresent(page, '#step1-basic-setup-support');
+    await expect(page.getByRole('heading', { name: /choose business context first/i })).toBeVisible();
+    await page.locator('#wizard-bu').selectOption({ index: 1 });
+    await page.evaluate(() => {
+      applyDryRunScenario(STEP1_DRY_RUN_SCENARIOS[0]);
+    });
+    await page.getByRole('button', { name: /continue to step 3 scenario review/i }).click();
     await expect(page).toHaveURL(/#\/wizard\/3$/);
-    const handoffDisclosure = page.getByText(/review handoff, scope, and calibration only if needed/i);
-    await expect(handoffDisclosure).toBeVisible();
-    await handoffDisclosure.click();
-    await expect(page.getByText(/scenario handoff/i)).toBeVisible();
-    await expect(page.getByText(/quant readiness/i)).toBeVisible();
+    await expect(page.getByRole('heading', { name: /refine the scenario/i })).toBeVisible();
+    const step3Workflow = page.locator('.assessment-workflow-strip').first();
+    await expect(step3Workflow).toContainText('Scenario review');
+    await expect(step3Workflow).toContainText('Source');
+    await expect(page.locator('#narrative')).toContainText(/critical supplier/i);
+    const continueToEstimate = page.getByRole('button', { name: /continue to estimate/i });
+    await continueToEstimate.scrollIntoViewIfNeeded();
+    await continueToEstimate.click();
+    await expect(page).toHaveURL(/#\/wizard\/4$/);
+    await expect(page.getByRole('heading', { name: /tune the estimate, then move into review/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /continue to review & run/i })).toBeVisible();
   });
 });
 
@@ -712,6 +771,52 @@ test('pressing Enter signs in and opens the personal workspace', async ({ page }
     await expect(
       page.getByText(/personal workspace/i).or(page.getByRole('heading', { name: /let the platform know who you are/i }))
     ).toBeVisible();
+  });
+});
+
+test('repeated login submits keep the PoC warning acknowledgement clickable', async ({ page }) => {
+  await mockSharedApis(page, {
+    loginUser: {
+      username: 'alex.trafton',
+      displayName: 'Alex Trafton',
+      role: 'user',
+      businessUnitEntityId: 'bu-digital-platforms',
+      departmentEntityId: 'dept-security'
+    },
+    userState: {
+      userSettings: {
+        userProfile: {
+          fullName: 'Alex Trafton',
+          jobTitle: 'Risk Manager',
+          businessUnit: 'G42',
+          department: 'Security',
+          focusAreas: ['Resilience'],
+          preferredOutputs: 'Executive summaries',
+          workingContext: 'Support regulated services.'
+        },
+        onboardedAt: '2026-03-17T00:00:00.000Z',
+        _overrideKeys: []
+      },
+      assessments: [],
+      learningStore: { templates: {} },
+      draft: null,
+      _meta: { revision: 1, updatedAt: Date.now() }
+    },
+    settings: {}
+  });
+
+  await expectNoClientCrashOnRoute(page, '/#/login', async () => {
+    await page.getByLabel(/username/i).fill('alex.trafton');
+    await page.getByLabel(/password/i).fill('secret');
+    await page.locator('#login-form').evaluate(form => {
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    });
+    await expect(page.getByRole('heading', { name: /PoC data warning/i })).toBeVisible();
+    await expect(page.locator('.modal-backdrop')).toHaveCount(1);
+    await page.getByRole('button', { name: /I Understand/i }).click();
+    await expect(page.locator('.modal-backdrop')).toHaveCount(0);
+    await expect(page).toHaveURL(/#\/dashboard$/);
   });
 });
 
@@ -815,6 +920,277 @@ test('authenticated user dashboard renders without crashing', async ({ page }) =
     await expect(page.locator('#btn-dashboard-start-sample')).toBeVisible();
     await expect(page.locator('#btn-dashboard-start-template')).toBeVisible();
     await expect(page.getByText(/workspace tools/i).first()).toBeVisible();
+  });
+});
+
+test('wizard step 2 basic mode keeps the intake simple and hides expert panels', async ({ page }) => {
+  const seededUserSettings = buildSeededUserSettings({
+    userProfile: {
+      fullName: 'Alex Trafton',
+      jobTitle: 'Risk Manager',
+      businessUnit: 'G42',
+      department: 'Security'
+    }
+  });
+  await seedAuthenticatedUser(page, { userSettings: seededUserSettings });
+  await mockSharedApis(page, {
+    settings: {},
+    userState: {
+      userSettings: seededUserSettings,
+      assessments: [],
+      learningStore: { templates: {} },
+      draft: {
+        buId: 'bu-cloud',
+        buName: 'Cloud Infrastructure & Platform',
+        geographies: ['United Arab Emirates'],
+        geography: 'United Arab Emirates'
+      },
+      _meta: { revision: 1, updatedAt: Date.now() }
+    }
+  });
+
+  await expectNoClientCrashOnRoute(page, '/#/wizard/2', async () => {
+    await expect(page.locator('html')).toHaveAttribute('data-experience-mode', 'basic');
+    await expect(page.locator('.step1-basic-intake')).toBeVisible();
+    await expect(page.getByRole('heading', { name: /tell us two things/i })).toBeVisible();
+    await expect(page.locator('#guided-event')).toBeVisible();
+    await expect(page.locator('#guided-impact')).toBeVisible();
+    await expect(page.locator('#btn-build-guided-narrative')).toBeVisible();
+    await expect(page.locator('#step1-basic-workflow-ribbon')).toBeVisible();
+    await expect(page.locator('#step1-basic-workflow-ribbon')).toContainText(/No draft yet/i);
+    await expect(page.locator('.step1-command-deck')).toHaveCount(0);
+    await expect(page.locator('.step1-guided-scout')).toHaveCount(0);
+    await page.locator('#guided-event').fill('A critical supplier has a prolonged platform outage during a peak customer period.');
+    await page.locator('#guided-impact').fill('Customer disruption, operational backlog, and reputational damage.');
+    await expect(page.locator('#step1-basic-workflow-ribbon')).toContainText(/Live AI first/i);
+    await expect(page.locator('#step1-basic-workflow-ribbon')).toContainText(/Ready to build/i);
+    await expect(page.locator('.step1-basic-intake__head .badge')).toContainText(/Build the draft/i);
+    await expect(page.locator('#btn-build-guided-narrative')).toHaveText(/Build draft/i);
+    await expect(page.locator('.step1-basic-intake__draft')).toContainText(/Ready for AI build/i);
+    await expect(page.locator('#guided-preview')).toContainText(/Click Build draft once/i);
+    await expect(page.locator('.step1-basic-intake__draft')).not.toContainText(/Local preview only/i);
+    await expect(page.locator('#guided-preview-status')).toBeHidden();
+    await expect(page.locator('#step1-basic-setup-support')).toBeVisible();
+    await expect(page.locator('#step1-basic-setup-support [data-path="import"]').last()).not.toBeVisible();
+    await openDisclosureIfPresent(page, '#step1-basic-setup-support');
+    await expect(page.locator('#step1-basic-setup-support [data-path="import"]').last()).toBeVisible();
+    await page.getByRole('button', { name: /^Advanced$/ }).click();
+    await expect(page.locator('html')).toHaveAttribute('data-experience-mode', 'advanced');
+    await expect(page.locator('.step1-command-deck')).toBeVisible();
+  });
+});
+
+test('wizard step 2 basic mode shows an existing built draft preview before step 3', async ({ page }) => {
+  const seededUserSettings = buildSeededUserSettings({
+    userProfile: {
+      fullName: 'Alex Trafton',
+      jobTitle: 'Risk Manager',
+      businessUnit: 'G42',
+      department: 'Security'
+    }
+  });
+  const builtDraft = 'A critical supplier for a customer-facing digital service experiences a prolonged platform outage during a peak business period. The outage delays fulfilment and creates customer, regulatory, and reputational pressure.';
+  await seedAuthenticatedUser(page, { userSettings: seededUserSettings });
+  await mockSharedApis(page, {
+    settings: {},
+    userState: {
+      userSettings: seededUserSettings,
+      assessments: [],
+      learningStore: { templates: {} },
+      draft: {
+        buId: 'bu-cloud',
+        buName: 'Cloud Infrastructure & Platform',
+        geographies: ['United Arab Emirates'],
+        geography: 'United Arab Emirates',
+        step1Path: 'guided',
+        guidedInput: {
+          event: '',
+          impact: '',
+          asset: '',
+          cause: '',
+          urgency: 'medium'
+        },
+        narrative: builtDraft,
+        sourceNarrative: 'Critical supplier outage impacting customer fulfilment.',
+        enhancedNarrative: builtDraft,
+        aiQualityState: 'ai',
+        llmAssisted: true
+      },
+      _meta: { revision: 1, updatedAt: Date.now() }
+    }
+  });
+
+  await expectNoClientCrashOnRoute(page, '/#/wizard/2', async () => {
+    await expect(page.locator('html')).toHaveAttribute('data-experience-mode', 'basic');
+    await expect(page.locator('.step1-basic-intake')).toBeVisible();
+    await expect(page.locator('#guided-preview-title')).toHaveText(/First draft ready/i);
+    await expect(page.locator('#guided-preview')).toContainText(/critical supplier/i);
+    await expect(page.locator('#step1-basic-workflow-ribbon')).toContainText(/Live AI draft/i);
+    await expect(page.locator('#step1-basic-workflow-ribbon')).toContainText(/Preview visible/i);
+    await expect(page.locator('.step1-basic-intake__action')).toContainText(/Draft is ready/i);
+    await expect(page.locator('#btn-next-1')).toBeEnabled();
+  });
+});
+
+test('wizard step 2 basic mode surfaces required business context before intake', async ({ page }) => {
+  const seededUserSettings = buildSeededUserSettings({
+    userProfile: {
+      fullName: 'Alex Trafton',
+      jobTitle: 'Risk Manager',
+      businessUnit: 'G42',
+      department: 'Security'
+    }
+  });
+  await seedAuthenticatedUser(page, { userSettings: seededUserSettings });
+  await mockSharedApis(page, {
+    settings: {},
+    userState: {
+      userSettings: seededUserSettings,
+      assessments: [],
+      learningStore: { templates: {} },
+      draft: {
+        geographies: ['United Arab Emirates'],
+        geography: 'United Arab Emirates'
+      },
+      _meta: { revision: 1, updatedAt: Date.now() }
+    }
+  });
+
+  await expectNoClientCrashOnRoute(page, '/#/wizard/2', async () => {
+    await expect(page.locator('html')).toHaveAttribute('data-experience-mode', 'basic');
+    await expect(page.locator('#step1-required-context')).toBeVisible();
+    await expect(page.locator('#step1-required-context')).toContainText(/Required before AI build/i);
+    await expect(page.locator('#step1-required-context #wizard-bu')).toBeVisible();
+    await expect(page.locator('#wizard-bu')).toHaveCount(1);
+    await expect(page.locator('#btn-build-guided-narrative')).toBeDisabled();
+    await expect(page.locator('#step1-basic-setup-support')).toContainText(/Optional/i);
+    const order = await page.locator('#step1-required-context').evaluate((contextNode) => {
+      const intakeNode = document.querySelector('.step1-basic-intake');
+      if (!intakeNode || !contextNode.parentElement) return -1;
+      return Array.from(contextNode.parentElement.children).indexOf(contextNode)
+        - Array.from(contextNode.parentElement.children).indexOf(intakeNode.closest('.step1-primary-zone'));
+    });
+    expect(order).toBeLessThan(0);
+  });
+});
+
+test('top bar experience mode toggle switches basic and advanced views', async ({ page }) => {
+  const seededUserSettings = buildSeededUserSettings({
+    userProfile: {
+      fullName: 'Alex Trafton',
+      jobTitle: 'Risk Manager',
+      businessUnit: 'G42',
+      department: 'Security'
+    }
+  });
+  await seedAuthenticatedUser(page, { userSettings: seededUserSettings });
+  await mockSharedApis(page, {
+    settings: {},
+    userState: {
+      userSettings: seededUserSettings,
+      assessments: [],
+      learningStore: { templates: {} },
+      draft: null,
+      _meta: { revision: 1, updatedAt: Date.now() }
+    }
+  });
+
+  await expectNoClientCrashOnRoute(page, '/#/dashboard', async () => {
+    await expect(page.locator('html')).toHaveAttribute('data-experience-mode', 'basic');
+    await expect(page.locator('.app-agent-rail')).toHaveCount(0);
+    await page.getByRole('button', { name: /^Advanced$/ }).click();
+    await expect(page.locator('html')).toHaveAttribute('data-experience-mode', 'advanced');
+    await expect(page.locator('.app-agent-rail')).toHaveCount(1);
+    await page.getByRole('button', { name: /^Basic$/ }).click();
+    await expect(page.locator('html')).toHaveAttribute('data-experience-mode', 'basic');
+    await expect(page.locator('.app-agent-rail')).toHaveCount(0);
+  });
+});
+
+test('dashboard shortcuts ignore browser refresh modifiers but still resume drafts with Alt/Option + R', async ({ page }) => {
+  const seededUserSettings = buildSeededUserSettings({
+    userProfile: {
+      businessUnitEntityId: 'bu-digital',
+      departmentEntityId: 'dept-security',
+      businessUnit: 'Digital Platforms',
+      department: 'Security Operations'
+    }
+  });
+  const activeDraft = {
+    id: 'draft_refresh_shortcut',
+    startedAt: Date.now(),
+    createdAt: Date.now(),
+    scenarioTitle: 'GitHub exposure',
+    narrative: 'Commercially sensitive code has been exposed via GitHub.',
+    sourceNarrative: 'Commercially sensitive code has been exposed via GitHub.',
+    geography: 'United Arab Emirates',
+    geographies: ['United Arab Emirates'],
+    riskCandidates: [{ id: 'cyber-credential-exposure', label: 'Credential exposure' }],
+    selectedRiskIds: ['cyber-credential-exposure'],
+    guidedInput: {
+      event: 'Commercially sensitive code has been exposed via GitHub.',
+      asset: '',
+      cause: '',
+      impact: '',
+      urgency: 'medium'
+    }
+  };
+
+  await seedAuthenticatedUser(page, {
+    username: 'taylor.bu',
+    displayName: 'Taylor BU',
+    role: 'bu_admin',
+    businessUnitEntityId: 'bu-digital',
+    userSettings: seededUserSettings
+  });
+  await mockSharedApis(page, {
+    settings: {
+      geography: 'United Arab Emirates',
+      applicableRegulations: ['UAE PDPL'],
+      entityContextLayers: [],
+      companyStructure: [
+        { id: 'bu-digital', type: 'business_unit', name: 'Digital Platforms', ownerUsername: 'taylor.bu' },
+        { id: 'dept-security', type: 'Department / Function', name: 'Security Operations', parentId: 'bu-digital', ownerUsername: '' }
+      ],
+      aiInstructions: 'Use British English.',
+      benchmarkStrategy: 'Prefer GCC and UAE benchmark references.',
+      typicalDepartments: ['Security']
+    },
+    userState: {
+      userSettings: seededUserSettings,
+      assessments: [],
+      learningStore: { templates: {} },
+      draft: activeDraft,
+      _meta: { revision: 1, updatedAt: Date.now() }
+    }
+  });
+
+  await expectNoClientCrashOnRoute(page, '/#/dashboard', async () => {
+    await expect(page).toHaveURL(/#\/dashboard$/);
+    await expect(page.locator('#btn-dashboard-continue-draft')).toHaveCount(1);
+
+    await page.evaluate(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'r',
+        metaKey: true,
+        shiftKey: true,
+        bubbles: true,
+        cancelable: true
+      }));
+    });
+
+    await expect(page).toHaveURL(/#\/dashboard$/);
+
+    await page.evaluate(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'r',
+        altKey: true,
+        bubbles: true,
+        cancelable: true
+      }));
+    });
+
+    await expect(page).toHaveURL(/#\/wizard\/2$/);
   });
 });
 
@@ -961,8 +1337,8 @@ test('first-run onboarding can launch the sample assessment path', async ({ page
     await page.getByRole('button', { name: /^Continue$/ }).click();
     await page.getByRole('button', { name: /^Continue$/ }).click();
     await page.getByRole('button', { name: /try sample assessment/i }).click();
-    await expect(page).toHaveURL(/#\/wizard\/1$/);
-    await expect(page.locator('#intake-risk-statement')).not.toHaveValue('');
+    await expect(page).toHaveURL(/#\/wizard\/2$/);
+    await expect(page.locator('#intake-risk-statement').last()).not.toHaveValue('');
     await expect(page.locator('.risk-select-checkbox:checked')).toHaveCount(3);
   });
 });
@@ -1856,7 +2232,6 @@ test('admin activity summary cards filter the recent audit table', async ({ page
         .at(-1);
       button?.click();
     });
-    await expect(page.locator('#audit-log-active-filter')).toHaveCount(0);
     await expect(page.locator('#audit-log-search').last()).toHaveValue('');
     await expect(auditTableRows).toHaveCount(5);
   });
@@ -1936,7 +2311,7 @@ test('authenticated admin document library renders without crashing', async ({ p
 
 
 
-test('wizard step 1 clear all keeps manually added risks unselected after rerender', async ({ page }) => {
+test('wizard intake clear all keeps manually added risks unselected after rerender', async ({ page }) => {
   const seededUserSettings = {
     userProfile: {
       fullName: 'Alex Trafton',
@@ -1970,7 +2345,9 @@ test('wizard step 1 clear all keeps manually added risks unselected after rerend
     }
   });
 
-  await expectNoClientCrashOnRoute(page, '/#/wizard/1', async () => {
+  await expectNoClientCrashOnRoute(page, '/#/wizard/2', async () => {
+    await page.getByRole('button', { name: /^Advanced$/ }).click();
+    await expect(page.locator('html')).toHaveAttribute('data-experience-mode', 'advanced');
     const addManualRiskCandidate = async title => {
       await page.evaluate(riskTitle => {
         clearLoadedDryRunFlag?.();
@@ -1984,16 +2361,17 @@ test('wizard step 1 clear all keeps manually added risks unselected after rerend
         renderWizard1();
       }, title);
     };
-    const manualRiskCheckbox = (title) => page.locator('.risk-pick-card').filter({ hasText: title }).locator('.risk-select-checkbox');
+    const manualRiskCheckbox = (title) => page.locator('.risk-pick-card').filter({ hasText: title }).locator('.risk-select-checkbox').last();
 
     await addManualRiskCandidate('Cloud storage exposure');
     await addManualRiskCandidate('Privileged access misuse');
 
     await expect(manualRiskCheckbox('Cloud storage exposure')).toBeChecked();
     await expect(manualRiskCheckbox('Privileged access misuse')).toBeChecked();
-    await expect(page.getByRole('button', { name: /^Clear All$/ })).toBeVisible();
+    const clearAllButton = page.getByRole('button', { name: /^Clear All$/ }).last();
+    await expect(clearAllButton).toBeVisible();
     await expect(page.locator('.risk-select-checkbox:checked')).toHaveCount(2);
-    await page.getByRole('button', { name: /^Clear All$/ }).click({ force: true });
+    await clearAllButton.click({ force: true });
     await expect(page.locator('.risk-select-checkbox:checked')).toHaveCount(0);
 
     // Step 1 replaces the risk list DOM during persistAndRenderStep1, so re-query after an explicit rerender.
@@ -2046,10 +2424,18 @@ test('dashboard archive helpers move the assessment into archived items after th
 
   await expectNoClientCrashOnRoute(page, '/#/dashboard', async () => {
     const activeRow = page.locator('.dashboard-assessment-row[data-assessment-id="assess-1"]').first();
+    const moreButton = activeRow.getByText(/^More$/);
     const floatingMenu = page.locator('.results-actions-disclosure-menu--floating');
     await expect(activeRow).toBeVisible();
-    await activeRow.getByText(/^More$/).click();
-    await floatingMenu.getByRole('button', { name: /^Archive$/ }).click({ force: true });
+    await moreButton.click();
+    const [menuBox, triggerBox] = await Promise.all([
+      floatingMenu.boundingBox(),
+      moreButton.boundingBox()
+    ]);
+    expect(menuBox).not.toBeNull();
+    expect(triggerBox).not.toBeNull();
+    expect(Math.abs((menuBox.x + menuBox.width) - (triggerBox.x + triggerBox.width))).toBeLessThan(160);
+    await floatingMenu.getByRole('button', { name: /^Archive$/ }).click();
     const confirmButton = page.getByRole('button', { name: /^Archive$/ }).last();
     await expect(confirmButton).toBeVisible();
     await expect(page.getByText('Recent work')).toBeVisible();
@@ -2248,6 +2634,78 @@ test('admin user actions menu keeps only one current-user dropdown open at a tim
   });
 });
 
+test('admin user actions menu can reset a password from the floating menu', async ({ page }) => {
+  const settings = {
+    geography: 'United Arab Emirates',
+    companyStructure: [
+      { id: 'bu-g42', name: 'G42', type: 'Holding company', parentId: '', ownerUsername: '' },
+      { id: 'dept-sec', name: 'Security', type: 'Department / function', parentId: 'bu-g42', ownerUsername: '' }
+    ],
+    entityContextLayers: [],
+    applicableRegulations: ['UAE PDPL'],
+    aiInstructions: 'Use British English.',
+    benchmarkStrategy: 'Prefer GCC and UAE benchmark references.',
+    typicalDepartments: ['Security']
+  };
+  const accounts = [
+    {
+      username: 'alex.trafton',
+      displayName: 'Alex Trafton',
+      role: 'user',
+      businessUnitEntityId: 'bu-g42',
+      departmentEntityId: 'dept-sec'
+    }
+  ];
+  const observedActions = [];
+
+  await seedAuthenticatedUser(page, {
+    username: 'admin',
+    displayName: 'Global Admin',
+    role: 'admin',
+    adminSettings: settings,
+    preferredAdminSection: 'users'
+  });
+  await page.addInitScript(() => {
+    localStorage.setItem('rq_admin_api_secret', 'test-admin-secret');
+  });
+  await page.route('**/api/users', async route => {
+    const request = route.request();
+    if (request.method() === 'PATCH') {
+      const payload = request.postDataJSON();
+      observedActions.push(payload?.action || '');
+      if (payload?.action === 'reset-password') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            account: accounts[0],
+            accounts,
+            password: 'Reset!234'
+          })
+        });
+        return;
+      }
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ accounts, storage: { writable: true, mode: 'shared-kv' } })
+    });
+  });
+  await mockSharedApis(page, { settings, skipUsers: true });
+
+  await expectNoClientCrashOnRoute(page, '/#/admin/settings/users', async () => {
+    const row = page.locator('.managed-account-row[data-username="alex.trafton"]');
+    const floatingMenu = page.locator('.results-actions-disclosure-menu--floating');
+    await row.getByText(/^More$/).evaluate(button => button.click());
+    await floatingMenu.getByRole('button', { name: 'Reset Password' }).click();
+    await page.locator('.modal-footer button').last().click();
+    await expect(row.locator('code').last()).toContainText('Reset!234');
+    await expect(page.getByText(/password reset for alex\.trafton\./i)).toBeVisible();
+    expect(observedActions).toContain('reset-password');
+  });
+});
+
 test('admin user actions menu blocks click-through and stays usable on the last row', async ({ page }) => {
   const settings = {
     geography: 'United Arab Emirates',
@@ -2334,5 +2792,57 @@ test('admin user actions menu blocks click-through and stays usable on the last 
 
     await lastRow.getByText(/^More$/).evaluate(button => button.click());
     await expect(resetPasswordButton).toBeVisible();
+  });
+});
+
+test('admin document row actions menu can delete a document from the floating menu', async ({ page }) => {
+  const seededDocs = [
+    { id: 'doc-alpha', title: 'Alpha control guide', tags: ['cyber'], lastUpdated: '2026-03-01', excerpt: 'Alpha', url: 'https://example.com/alpha' },
+    { id: 'doc-beta', title: 'Beta continuity note', tags: ['business-continuity'], lastUpdated: '2026-03-02', excerpt: 'Beta', url: 'https://example.com/beta' }
+  ];
+  await seedAuthenticatedUser(page, {
+    username: 'admin',
+    displayName: 'Global Admin',
+    role: 'admin',
+    adminSettings: {
+      geography: 'United Arab Emirates',
+      companyStructure: [],
+      entityContextLayers: [],
+      applicableRegulations: ['UAE PDPL'],
+      aiInstructions: 'Use British English.',
+      benchmarkStrategy: 'Prefer GCC and UAE benchmark references.',
+      typicalDepartments: ['Security']
+    },
+    preferredAdminSection: 'org'
+  });
+  await page.addInitScript(({ seededDocs }) => {
+    localStorage.setItem('rq_doc_override', JSON.stringify(seededDocs));
+  }, { seededDocs });
+  await mockSharedApis(page, {
+    settings: {
+      geography: 'United Arab Emirates',
+      companyStructure: [],
+      entityContextLayers: [],
+      applicableRegulations: ['UAE PDPL'],
+      aiInstructions: 'Use British English.',
+      benchmarkStrategy: 'Prefer GCC and UAE benchmark references.',
+      typicalDepartments: ['Security']
+    }
+  });
+
+  await expectNoClientCrashOnRoute(page, '/#/admin/docs', async () => {
+    await expect(page.locator('#main-content').getByRole('heading', { name: /^Document Library$/ }).first()).toBeVisible();
+    const rows = page.locator('.admin-doc-row');
+    const floatingMenu = page.locator('.results-actions-disclosure-menu--floating');
+    const initialCount = await rows.count();
+    expect(initialCount).toBeGreaterThan(0);
+
+    const firstRow = rows.first();
+    await firstRow.getByText(/^More$/).evaluate(button => button.click());
+    await floatingMenu.getByRole('button', { name: /^Delete$/ }).click();
+    await page.locator('.modal-footer button').last().click();
+
+    await expect(rows).toHaveCount(initialCount - 1);
+    await expect(page.getByText(/^Deleted\.$/)).toBeVisible();
   });
 });

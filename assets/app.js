@@ -8,7 +8,7 @@
 const TOLERANCE_THRESHOLD = 5_000_000;
 const DEFAULT_FX_RATE = 3.6725;
 const DEFAULT_COMPASS_PROXY_URL = resolveCompassProxyUrl();
-const APP_ASSET_VERSION = '20260416v1';
+const APP_ASSET_VERSION = '20260426v14';
 const APP_RELEASE = Object.freeze((typeof window !== 'undefined' && window.__RISK_CALCULATOR_RELEASE__) || {
   version: '0.10.0-pilot.1',
   channel: 'pilot',
@@ -27,6 +27,7 @@ const DRAFT_RECOVERY_STORAGE_PREFIX = 'rq_draft_recovery';
 const SESSION_LLM_STORAGE_PREFIX = 'rq_llm_session';
 const SESSION_LLM_HEALTH_STORAGE_PREFIX = 'rq_llm_health';
 const SESSION_PILOT_AI_WARNING_STORAGE_PREFIX = 'rq_pilot_ai_warned';
+const EXPERIENCE_MODE_STORAGE_PREFIX = 'rq_experience_mode';
 const MAX_AI_UPLOAD_BYTES = 5 * 1024 * 1024;
 const MAX_AI_UPLOAD_CHARS = 20000;
 const MAX_ASSESSMENT_VERSION_HISTORY = 5;
@@ -1058,6 +1059,7 @@ const AppState = {
   currency: 'USD',
   fxRate: DEFAULT_FX_RATE,
   mode: 'basic',
+  experienceMode: 'basic',
   currentUser: null,
   draft: {},
   buList: [],
@@ -2811,8 +2813,7 @@ function triggerResultsTab(tabName) {
 
 function handleGlobalDesktopShortcut(event) {
   if (event.defaultPrevented || isEditableTarget(event.target)) return;
-  if (!(event.altKey || event.metaKey)) return;
-  if (event.ctrlKey) return;
+  if (!event.altKey || event.metaKey || event.ctrlKey) return;
 
   const key = String(event.key || '').toLowerCase();
   const route = typeof window !== 'undefined' ? String(window.location.hash || '#/').toLowerCase() : '#/';
@@ -3638,6 +3639,7 @@ const USER_SETTINGS_KEYS = [
   'benchmarkStrategy',
   'defaultLinkMode',
   'adminContextSummary',
+  'experienceMode',
   'userProfile',
   'onboardedAt'
 ];
@@ -3684,6 +3686,10 @@ const USER_FOCUS_OPTIONS = [
   'Data protection',
   'Executive reporting'
 ];
+
+function normaliseExperienceMode(value = '') {
+  return String(value || '').trim().toLowerCase() === 'advanced' ? 'advanced' : 'basic';
+}
 
 const GEOGRAPHY_OPTIONS = [
   'United Arab Emirates',
@@ -3830,6 +3836,7 @@ function getUserSettingsDefaults(globalSettings = getAdminSettings()) {
     benchmarkStrategy: inheritedSettings.benchmarkStrategy,
     defaultLinkMode: inheritedSettings.defaultLinkMode,
     adminContextSummary: inheritedSettings.adminContextSummary,
+    experienceMode: 'basic',
     onboardedAt: '',
     userProfile: {
       fullName: '',
@@ -4009,10 +4016,12 @@ function activateAuthenticatedState() {
     updateDraftAssessmentState({ draft: {}, draftDirty: false, draftLastSavedAt: 0 });
     resetSimulationState();
     LLMService.clearCompassConfig();
+    syncExperienceModeState();
     renderAppBar();
     return;
   }
 
+  syncExperienceModeState({ persist: true });
   updateDraftAssessmentState({ draft: {}, draftDirty: false, draftLastSavedAt: 0 });
   resetSimulationState();
   loadDraft();
@@ -4059,6 +4068,9 @@ function ensureDraftShape() {
     startedAt: draftStartedAt,
     createdAt: Number(AppState.draft.createdAt || draftStartedAt),
     templateId: AppState.draft.templateId || null,
+    step1Path: ['guided', 'draft', 'import'].includes(String(AppState.draft.step1Path || '').trim())
+      ? String(AppState.draft.step1Path || '').trim()
+      : 'guided',
     buId: AppState.draft.buId || null,
     buName: AppState.draft.buName || null,
     contextNotes: AppState.draft.contextNotes || '',
@@ -4067,6 +4079,10 @@ function ensureDraftShape() {
     scenarioTitle: AppState.draft.scenarioTitle || '',
     loadedDryRunId: AppState.draft.loadedDryRunId || '',
     llmAssisted: !!AppState.draft.llmAssisted,
+    aiQualityState: AppState.draft.aiQualityState || '',
+    guidedDraftPreview: AppState.draft.guidedDraftPreview || '',
+    guidedDraftSource: AppState.draft.guidedDraftSource || '',
+    guidedDraftStatus: AppState.draft.guidedDraftStatus || '',
     llmContext: legacyLlmContext,
     step1LlmContext,
     step2LlmContext,
@@ -4116,6 +4132,9 @@ function ensureDraftShape() {
     inferredAssumptions: Array.isArray(AppState.draft.inferredAssumptions) ? AppState.draft.inferredAssumptions : [],
     missingInformation: Array.isArray(AppState.draft.missingInformation) ? AppState.draft.missingInformation : [],
     aiAlignment: AppState.draft.aiAlignment && typeof AppState.draft.aiAlignment === 'object' ? AppState.draft.aiAlignment : null,
+    decisionReadiness: AppState.draft.decisionReadiness && typeof AppState.draft.decisionReadiness === 'object' ? AppState.draft.decisionReadiness : null,
+    assessmentChallengePass: AppState.draft.assessmentChallengePass && typeof AppState.draft.assessmentChallengePass === 'object' ? AppState.draft.assessmentChallengePass : null,
+    assessmentManagerTrace: AppState.draft.assessmentManagerTrace && typeof AppState.draft.assessmentManagerTrace === 'object' ? AppState.draft.assessmentManagerTrace : null,
     obligationBasis: obligationBasisSource ? buildResolvedObligationSnapshot({
       context: obligationBasisSource,
       capturedAt: Number(obligationBasisSource.capturedAt || 0)
@@ -4399,6 +4418,7 @@ function buildResolvedUserSettings(saved = {}, defaults = getUserSettingsDefault
     ...saved,
     ...normaliseUserGeographies(saved, globalSettings),
     applicableRegulations: Array.isArray(saved.applicableRegulations) ? saved.applicableRegulations : [...defaults.applicableRegulations],
+    experienceMode: normaliseExperienceMode(saved.experienceMode || defaults.experienceMode),
     userProfile: reconciledProfile,
     companyContextSections: saved.companyContextSections && typeof saved.companyContextSections === 'object'
       ? saved.companyContextSections
@@ -4435,6 +4455,7 @@ function buildStoredUserSettings(settings = {}, defaults = getUserSettingsDefaul
     geographyPrimary: merged.geographyPrimary || merged.geography,
     geographySecondary: merged.geographySecondary || '',
     geographyTertiary: merged.geographyTertiary || '',
+    experienceMode: normaliseExperienceMode(merged.experienceMode),
     userProfile: merged.userProfile,
     onboardedAt: merged.onboardedAt || '',
     _overrideKeys: []
@@ -4476,6 +4497,78 @@ function saveUserSettings(settings) {
   updateWorkspaceSyncState('settings');
 }
 
+function getExperienceModeStorageKey(username = AuthService.getCurrentUser()?.username || '') {
+  const safeUsername = String(username || '').trim().toLowerCase();
+  return safeUsername ? `${EXPERIENCE_MODE_STORAGE_PREFIX}__${safeUsername}` : EXPERIENCE_MODE_STORAGE_PREFIX;
+}
+
+function readStoredExperienceMode(username = AuthService.getCurrentUser()?.username || '') {
+  try {
+    return normaliseExperienceMode(localStorage.getItem(getExperienceModeStorageKey(username)) || '');
+  } catch {
+    return 'basic';
+  }
+}
+
+function persistExperienceMode(mode, username = AuthService.getCurrentUser()?.username || '') {
+  try {
+    localStorage.setItem(getExperienceModeStorageKey(username), normaliseExperienceMode(mode));
+  } catch {}
+}
+
+function applyExperienceModeToDocument(mode = AppState.experienceMode) {
+  const nextMode = normaliseExperienceMode(mode);
+  AppState.experienceMode = nextMode;
+  AppState.mode = nextMode;
+  if (typeof document === 'undefined') return nextMode;
+  document.documentElement.dataset.experienceMode = nextMode;
+  document.body?.classList.toggle('app-experience-basic', nextMode === 'basic');
+  document.body?.classList.toggle('app-experience-advanced', nextMode === 'advanced');
+  return nextMode;
+}
+
+function getExperienceMode() {
+  return normaliseExperienceMode(AppState.experienceMode || readStoredExperienceMode());
+}
+
+function isAdvancedExperienceMode() {
+  return getExperienceMode() === 'advanced';
+}
+
+function syncExperienceModeState({ persist = false } = {}) {
+  const user = AuthService.getCurrentUser?.();
+  const settingsMode = user?.username ? getUserSettings().experienceMode : '';
+  const storedMode = readStoredExperienceMode(user?.username || '');
+  const nextMode = normaliseExperienceMode(settingsMode || storedMode || 'basic');
+  applyExperienceModeToDocument(nextMode);
+  if (persist) persistExperienceMode(nextMode, user?.username || '');
+  return nextMode;
+}
+
+function setExperienceMode(mode, options = {}) {
+  const nextMode = applyExperienceModeToDocument(mode);
+  const user = AuthService.getCurrentUser?.();
+  persistExperienceMode(nextMode, user?.username || '');
+  if (user?.username && options.persistUserSettings !== false) {
+    const settings = getUserSettings();
+    if (normaliseExperienceMode(settings.experienceMode) !== nextMode) {
+      saveUserSettings({ ...settings, experienceMode: nextMode });
+    }
+  }
+  if (options.toast !== false) {
+    UI.toast(nextMode === 'advanced'
+      ? 'Advanced view enabled. Inspector panels and deeper controls are visible.'
+      : 'Basic view enabled. The workspace is simplified for guided use.', 'info', 2600);
+  }
+  if (options.renderAppBar !== false) renderAppBar();
+  if (options.rerender !== false) Router.resolve();
+  return nextMode;
+}
+
+window.getExperienceMode = getExperienceMode;
+window.setExperienceMode = setExperienceMode;
+window.isAdvancedExperienceMode = isAdvancedExperienceMode;
+
 function confirmDestructiveAction(options = {}) {
   return UI.confirm({
     title: options.title || 'Confirm action',
@@ -4510,7 +4603,7 @@ function launchGuidedAssessmentStart() {
 
 function launchPilotSampleAssessment() {
   resetDraft();
-  Router.navigate('/wizard/1');
+  Router.navigate('/wizard/2');
   window.setTimeout(() => {
     // The sample path should feel relevant to the user’s current function rather than always loading the same generic case.
     const experienceModel = typeof getStep1ExampleExperienceModel === 'function'
@@ -7537,6 +7630,471 @@ function isUserWorkspaceRoute(routeHash = '') {
     || route.startsWith('/results/');
 }
 
+function getAgenticShellSurface(routeHash = '') {
+  const route = String(routeHash || '').trim().toLowerCase();
+  if (route.startsWith('/results')) return 'results';
+  if (route.startsWith('/wizard/')) return 'wizard';
+  if (route.startsWith('/admin/')) return 'admin';
+  if (route === '/settings') return 'settings';
+  return 'dashboard';
+}
+
+function getAgenticAdminSectionLabel(routeHash = '') {
+  const route = String(routeHash || '').trim().toLowerCase();
+  const section = route.split('/')[3] || route.split('/')[2] || 'home';
+  const labels = {
+    home: 'Platform home',
+    org: 'Organisation setup',
+    company: 'AI company builder',
+    defaults: 'Platform defaults',
+    governance: 'Governance inputs',
+    feedback: 'Feedback tuning',
+    access: 'System access',
+    users: 'User accounts',
+    audit: 'Audit log',
+    bu: 'Org customisation',
+    docs: 'Document library'
+  };
+  return labels[section] || 'Admin surface';
+}
+
+function getAgenticShellRouteLabel(routeHash = '') {
+  const route = String(routeHash || '').trim().toLowerCase();
+  if (route === '/dashboard') return 'Workspace';
+  if (route === '/settings') return 'Settings';
+  if (route.startsWith('/wizard/1')) return 'Assessment guide';
+  if (route.startsWith('/wizard/2')) return 'Scenario intake';
+  if (route.startsWith('/wizard/3')) return 'Scenario shaping';
+  if (route.startsWith('/wizard/4')) return 'Quant estimate';
+  if (route.startsWith('/wizard/5')) return 'Decision gate';
+  if (route.startsWith('/results')) return 'Results';
+  if (route.startsWith('/admin/')) return getAgenticAdminSectionLabel(route);
+  return 'Workspace';
+}
+
+function buildAgenticShellTimeline(surface = 'dashboard', routeHash = '') {
+  const route = String(routeHash || '').trim().toLowerCase();
+  const wizardStepMatch = route.match(/^\/wizard\/([1-5])(?:$|[/?#])/);
+  const wizardStep = wizardStepMatch ? Number(wizardStepMatch[1]) : (route.startsWith('/results') ? 5 : 0);
+  const wizardPhase = wizardStep <= 2 ? 1 : wizardStep === 3 ? 2 : wizardStep === 4 ? 3 : wizardStep >= 5 ? 4 : 0;
+  if (surface === 'wizard' || surface === 'results') {
+    const steps = [
+      { label: 'Observe', copy: 'Classify the signal and select the strongest lens.' },
+      { label: 'Shape', copy: 'Lock the scenario path, asset, and impact.' },
+      { label: 'Quantify', copy: 'Tune ranges, evidence, and core FAIR inputs.' },
+      { label: 'Decide', copy: 'Challenge the draft and turn the result into action.' }
+    ];
+    return steps.map((step, index) => {
+      const ordinal = index + 1;
+      return {
+        label: step.label,
+        copy: step.copy,
+        state: wizardPhase > ordinal ? 'complete' : wizardPhase === ordinal ? 'active' : 'pending'
+      };
+    });
+  }
+  if (surface === 'admin') {
+    return [
+      { label: 'Govern', copy: 'Shared context, defaults, and access controls.', state: route.includes('/admin/home') ? 'active' : 'complete' },
+      { label: 'Tune', copy: 'Adjust the current control surface before teams rely on it.', state: route.includes('/admin/settings/') ? 'active' : route.includes('/admin/') ? 'pending' : 'pending' },
+      { label: 'Release', copy: 'Keep `/test/` and live promotion aligned.', state: route.includes('/admin/docs') || route.includes('/admin/bu') ? 'active' : 'pending' }
+    ];
+  }
+  return [
+    { label: 'Monitor', copy: 'Stay aware of new drafts, reviews, and stale context.', state: route === '/dashboard' ? 'active' : 'complete' },
+    { label: 'Resume', copy: 'Pick up the active scenario without rebuilding context.', state: route.startsWith('/wizard/') || route.startsWith('/results') ? 'active' : 'pending' },
+    { label: 'Steer', copy: 'Adjust role context, settings, and next actions.', state: route === '/settings' ? 'active' : 'pending' }
+  ];
+}
+
+function buildAgenticShellModel(routeHash = getRouteMeta().currentHash) {
+  const currentUser = AuthService.getCurrentUser?.();
+  const route = String(routeHash || '').trim() || '/';
+  if (!currentUser || route.startsWith('/help')) {
+    return { visible: false };
+  }
+  if (!isAdvancedExperienceMode()) {
+    return { visible: false };
+  }
+
+  const surface = getAgenticShellSurface(route);
+  const draft = AppState.draft && typeof AppState.draft === 'object' ? AppState.draft : {};
+  const selectedRisks = Array.isArray(draft.selectedRisks) ? draft.selectedRisks.filter(Boolean) : [];
+  const selectedRiskTitles = selectedRisks
+    .map(item => String(item?.title || item?.category || '').trim())
+    .filter(Boolean)
+    .slice(0, 3);
+  const scenarioGeographies = normaliseScenarioGeographies(
+    draft.geographies || draft.geography,
+    DEFAULT_ADMIN_SETTINGS.geography
+  );
+  const trust = buildEvidenceTrustSummary({
+    confidenceLabel: draft.confidenceLabel,
+    evidenceQuality: draft.evidenceQuality,
+    evidenceSummary: draft.evidenceSummary,
+    missingInformation: draft.missingInformation,
+    inputProvenance: draft.inputProvenance,
+    citations: draft.citations,
+    primaryGrounding: draft.primaryGrounding,
+    supportingReferences: draft.supportingReferences,
+    inferredAssumptions: draft.inferredAssumptions,
+    inputAssignments: draft.inputAssignments
+  });
+  const readiness = buildAssessmentReadinessModel({
+    draft,
+    selectedRisks,
+    scenarioGeographies,
+    validation: {}
+  });
+  const quant = buildQuantReadinessModel({
+    draft,
+    validation: {},
+    selectedRisks
+  });
+  const safeIterations = Number(
+    draft?.results?.runMetadata?.iterations
+    || draft?.safeIterations
+    || draft?.iterations
+    || AppState?.simulation?.iterations
+    || 10000
+  );
+  const review = buildReviewReadinessModel({
+    draft,
+    validation: {},
+    selectedRisks,
+    safeIterations
+  });
+  const results = draft.results && typeof draft.results === 'object' ? draft.results : null;
+  const postureTone = results?.toleranceBreached
+    ? 'danger'
+    : results?.nearTolerance
+      ? 'warning'
+      : results?.annualReviewTriggered
+        ? 'neutral'
+        : 'success';
+  const postureLabel = results?.toleranceBreached
+    ? 'Above tolerance'
+    : results?.nearTolerance
+      ? 'Near tolerance'
+      : results?.annualReviewTriggered
+        ? 'Annual review'
+        : results
+          ? 'Within tolerance'
+          : 'Run pending';
+  const lensLabel = String(draft?.scenarioLens?.label || draft?.scenarioLens?.key || '').trim() || 'Lens fit pending';
+  const scenarioTitle = resolveScenarioDisplayTitle(draft);
+  const topRecommendation = Array.isArray(draft.recommendations)
+    ? draft.recommendations
+      .map(item => String(item?.title || item?.summary || item || '').trim())
+      .find(Boolean)
+    : '';
+  const guidance = Array.isArray(draft.workflowGuidance)
+    ? draft.workflowGuidance.map(item => String(item || '').trim()).filter(Boolean)
+    : [];
+  const passiveNotice = typeof buildPassiveStateNoticeModel === 'function'
+    ? (buildPassiveStateNoticeModel().find(Boolean) || null)
+    : null;
+  const completedAssessments = typeof getAssessments === 'function'
+    ? (getAssessments() || []).filter(item => item && typeof item === 'object' && item.results).length
+    : 0;
+  const dashboardReviewCount = Number(AppState.dashboardReviewInboxMeta?.count || 0);
+  const adminReviewCount = Number(AppState.adminReviewQueueMeta?.count || 0);
+  const activeDraft = !!String(draft.enhancedNarrative || draft.narrative || draft.sourceNarrative || '').trim();
+  const guidedEvent = String(draft.guidedInput?.event || '').trim();
+  const guidedImpact = String(draft.guidedInput?.impact || '').trim();
+  const geographyLabel = scenarioGeographies.length ? scenarioGeographies.join(', ') : 'Geography not set';
+  const businessUnitLabel = String(draft.buName || draft.businessUnit || draft.buId || '').trim() || 'Business unit not set';
+  const sharedNotes = [
+    guidance[0],
+    selectedRiskTitles.length ? `Primary scope: ${selectedRiskTitles.join(', ')}` : '',
+    trust.topGap ? `Top gap: ${trust.topGap}` : '',
+    passiveNotice?.title || ''
+  ].filter(Boolean).slice(0, 2);
+
+  const model = {
+    visible: true,
+    surface,
+    routeLabel: getAgenticShellRouteLabel(route),
+    eyebrow: 'Agent workspace',
+    title: scenarioTitle,
+    statusLabel: readiness.label,
+    statusTone: readiness.tone || 'neutral',
+    goal: 'Inspect the current state, blocker, and next checkpoint without duplicating the page.',
+    workingLabel: 'State delta',
+    workingCopy: guidance[0] || readiness.summary,
+    waitingLabel: 'Needs attention',
+    waitingCopy: trust.topGap || readiness.summary,
+    actionLabel: 'Next checkpoint',
+    actionCopy: topRecommendation || trust.topGap || readiness.summary,
+    metrics: [],
+    notes: sharedNotes,
+    telemetryRows: [
+      { label: 'Surface', value: getAgenticShellRouteLabel(route) },
+      { label: 'State', value: readiness.label },
+      { label: 'Evidence', value: trust.evidenceQuality || `${trust.totalEvidenceCount} basis item${trust.totalEvidenceCount === 1 ? '' : 's'}` }
+    ],
+    timeline: buildAgenticShellTimeline(surface, route)
+  };
+
+  if (route.startsWith('/wizard/1')) {
+    const lane = String(draft.step1Path || 'guided').trim() || 'guided';
+    const contextValue = String(draft.buName || draft.buId || '').trim() || 'Open';
+    model.eyebrow = 'Assessment Guide';
+    model.statusLabel = activeDraft ? 'Draft ready' : 'Choose the route';
+    model.statusTone = activeDraft ? 'success' : 'neutral';
+    model.goal = 'Inspector for the selected lane, draft state, and Step 2 handoff.';
+    model.workingLabel = 'Route state';
+    model.workingCopy = activeDraft
+      ? `Draft ready under ${lensLabel}; Step 2 will reopen the intake workspace.`
+      : `Lane ${lane} selected; no event signal staged yet.`;
+    model.waitingLabel = 'Decision needed';
+    model.waitingCopy = activeDraft
+      ? 'Resume intake unless the start lane is wrong.'
+      : 'Change the lane only if the guided path is not the right start.';
+    model.actionCopy = activeDraft ? 'Resume the intake workspace.' : 'Continue to Step 2 intake.';
+    model.metrics = [
+      { label: 'Lane', value: lane },
+      { label: 'Draft', value: activeDraft ? 'Ready' : 'Blank' },
+      { label: 'Context', value: contextValue }
+    ];
+    model.telemetryRows = [
+      { label: 'Lane', value: lane },
+      { label: 'Draft state', value: activeDraft ? 'Ready' : 'Blank' },
+      { label: 'Handoff', value: activeDraft ? 'Resume Step 2' : 'Open intake' }
+    ];
+  } else if (route.startsWith('/wizard/2')) {
+    const hasBusinessUnit = !!String(draft.buId || '').trim();
+    const intakeState = [
+      hasBusinessUnit ? 'context set' : 'context missing',
+      guidedEvent ? 'event captured' : 'event missing',
+      guidedImpact ? 'impact captured' : 'impact missing',
+      activeDraft ? 'draft staged' : 'draft open',
+      selectedRisks.length ? `${selectedRisks.length} scoped risk${selectedRisks.length === 1 ? '' : 's'}` : 'scope open'
+    ];
+    const intakeBlocker = !hasBusinessUnit
+      ? 'Pick the business unit so governed context and regulations carry forward.'
+      : !guidedEvent
+        ? 'Add one concrete event signal.'
+        : !guidedImpact
+          ? 'Name the main business impact.'
+          : !activeDraft
+            ? 'Build the first draft from the event and impact.'
+            : !selectedRisks.length
+              ? 'Select the risks that belong in this scenario.'
+              : 'Review the staged draft and continue.';
+    const intakeBlockerShort = !hasBusinessUnit
+      ? 'Business unit missing'
+      : !guidedEvent
+        ? 'Event missing'
+        : !guidedImpact
+          ? 'Impact missing'
+          : !activeDraft
+            ? 'Draft not built'
+            : !selectedRisks.length
+              ? 'Scope open'
+              : 'Ready to review';
+    const intakeCheckpoint = !hasBusinessUnit
+      ? 'Set business context, then capture event and impact.'
+      : !guidedEvent
+        ? 'Enter one concrete event signal.'
+        : !guidedImpact
+          ? 'Add the impact that matters most.'
+          : !activeDraft
+            ? 'Build the first draft.'
+            : !selectedRisks.length
+              ? 'Choose the in-scope risks.'
+              : 'Continue to scenario review.';
+    model.eyebrow = 'Scenario Scout';
+    model.statusLabel = readiness.label;
+    model.statusTone = readiness.tone || 'neutral';
+    model.goal = 'Live inspector for intake progress, blocker, and scope readiness.';
+    model.workingLabel = 'Intake state';
+    model.workingCopy = intakeState.join(' · ');
+    model.waitingLabel = 'Current blocker';
+    model.waitingCopy = intakeBlocker;
+    model.actionCopy = topRecommendation || intakeCheckpoint;
+    model.metrics = [
+      { label: 'Lens', value: lensLabel },
+      { label: 'Scope', value: selectedRisks.length ? `${selectedRisks.length} risk${selectedRisks.length === 1 ? '' : 's'}` : 'Open' },
+      { label: 'Evidence', value: trust.totalEvidenceCount ? `${trust.totalEvidenceCount} basis item${trust.totalEvidenceCount === 1 ? '' : 's'}` : 'Thin' }
+    ];
+    model.telemetryRows = [
+      { label: 'Event', value: guidedEvent ? 'Captured' : 'Missing' },
+      { label: 'Impact', value: guidedImpact ? 'Captured' : 'Missing' },
+      { label: 'Blocker', value: intakeBlockerShort }
+    ];
+  } else if (route.startsWith('/wizard/3')) {
+    const assetLabel = String(getStructuredScenarioField(draft.structuredScenario, 'assetService') || '').trim() || 'Asset not locked';
+    const driverLabel = String(getStructuredScenarioField(draft.structuredScenario, 'primaryDriver') || '').trim() || 'Driver not locked';
+    model.eyebrow = 'Scenario Architect';
+    model.statusLabel = readiness.label;
+    model.statusTone = readiness.tone || 'neutral';
+    model.goal = 'Lock the causal path, affected service, and business impact before estimating.';
+    model.workingCopy = guidance[0] || `Carrying forward ${assetLabel.toLowerCase()} and ${driverLabel.toLowerCase()} into a cleaner scenario narrative.`;
+    model.waitingCopy = trust.topGap
+      || (!String(draft.buId || '').trim()
+        ? 'Pick the business unit so governed context and obligations carry into the draft.'
+        : 'Confirm the narrative and challenge any weak assumptions before estimating.');
+    model.actionCopy = topRecommendation || readiness.summary;
+    model.metrics = [
+      { label: 'Asset', value: assetLabel },
+      { label: 'Driver', value: driverLabel },
+      { label: 'Geo', value: geographyLabel }
+    ];
+  } else if (route.startsWith('/wizard/4')) {
+    model.eyebrow = 'Quant Engine';
+    model.statusLabel = quant.status;
+    model.statusTone = quant.tone || 'warning';
+    const quantFactors = Array.isArray(quant.factors) ? quant.factors : [];
+    const firstQuantFactor = quantFactors[0] || null;
+    model.goal = 'Inspector for estimate readiness, largest gap, and the next range to test.';
+    model.workingLabel = 'Range state';
+    model.workingCopy = firstQuantFactor
+      ? `${quant.status} · ${firstQuantFactor.label}: ${firstQuantFactor.value}`
+      : quant.status;
+    model.waitingLabel = 'Biggest gap';
+    model.waitingCopy = trust.topGap || firstQuantFactor?.copy || 'No blocking gap flagged in the current estimate.';
+    model.actionCopy = quant.nextFocus;
+    model.metrics = quantFactors.slice(0, 3).map(factor => ({
+      label: factor.label,
+      value: factor.value
+    }));
+    model.notes = quantFactors
+      .map(factor => String(factor.copy || '').trim())
+      .filter(Boolean)
+      .slice(0, 2);
+    model.telemetryRows = [
+      { label: 'Mode', value: draft.advancedMode ? 'Advanced' : 'Basic' },
+      { label: 'Readiness', value: quant.status },
+      { label: 'Next test', value: quant.nextFocus }
+    ];
+  } else if (route.startsWith('/wizard/5')) {
+    model.eyebrow = 'Decision Gate';
+    model.statusLabel = review.reviewGateLabel;
+    model.statusTone = review.errors?.length ? 'danger' : review.warnings?.length ? 'warning' : 'success';
+    model.goal = 'Challenge the draft one more time before you commit to the run.';
+    model.workingCopy = review.reviewGateCopy;
+    model.waitingCopy = review.runDecisionCopy;
+    model.actionCopy = review.topGap || review.runDecisionCopy;
+    model.metrics = [
+      { label: 'Scope', value: review.scopeLabel },
+      { label: 'Confidence', value: trust.confidenceLabel || 'Working estimate' },
+      { label: 'Evidence', value: trust.evidenceQuality || `${trust.totalEvidenceCount} basis item${trust.totalEvidenceCount === 1 ? '' : 's'}` }
+    ];
+    model.notes = [
+      review.trustHeadline,
+      review.topGap ? `Challenge next: ${review.topGap}` : ''
+    ].filter(Boolean).slice(0, 2);
+  } else if (route.startsWith('/results')) {
+    const p90Loss = Number(results?.eventLoss?.p90 || results?.lm?.p90 || 0);
+    const aleMean = Number(results?.ale?.mean || results?.annualLoss?.mean || 0);
+    model.eyebrow = 'Executive Readout';
+    model.statusLabel = postureLabel;
+    model.statusTone = postureTone;
+    model.goal = 'Turn the current run into one clear management action and a review trail.';
+    model.workingCopy = String(draft?.assessmentIntelligence?.executiveAction || topRecommendation || '').trim()
+      || 'The run is ready for leadership challenge and treatment discussion.';
+    model.waitingCopy = trust.topGap || 'Decide whether to treat, accept, monitor, or rerun based on the current posture.';
+    model.actionCopy = topRecommendation || model.waitingCopy;
+    model.metrics = [
+      { label: 'Posture', value: postureLabel },
+      { label: 'P90 loss', value: p90Loss > 0 ? fmtCurrency(p90Loss) : 'Pending' },
+      { label: 'ALE', value: aleMean > 0 ? fmtCurrency(aleMean) : 'Pending' }
+    ];
+    model.notes = [
+      trust.confidenceLabel ? `${trust.confidenceLabel}${trust.evidenceQuality ? ` · ${trust.evidenceQuality}` : ''}` : '',
+      topRecommendation ? `Lead action: ${topRecommendation}` : ''
+    ].filter(Boolean).slice(0, 2);
+  } else if (route.startsWith('/admin/')) {
+    const staleAdmin = !!(AppState.adminSettingsStaleNotice || AppState.managedAccountsStaleNotice);
+    model.eyebrow = 'Control Tower';
+    model.title = getAgenticAdminSectionLabel(route);
+    model.statusLabel = staleAdmin
+      ? 'Refresh recommended'
+      : adminReviewCount
+        ? `${adminReviewCount} review item${adminReviewCount === 1 ? '' : 's'}`
+        : 'Control plane steady';
+    model.statusTone = staleAdmin ? 'warning' : adminReviewCount ? 'neutral' : 'success';
+    model.goal = 'Keep governed context, access controls, and promotion flow aligned before release.';
+    model.workingCopy = staleAdmin
+      ? 'Another session changed governed state. Refresh before saving more admin edits.'
+      : `You are on ${getAgenticAdminSectionLabel(route).toLowerCase()}, the shared control surface for the pilot.`;
+    model.waitingCopy = adminReviewCount
+      ? `${adminReviewCount} admin review item${adminReviewCount === 1 ? '' : 's'} still need attention.`
+      : 'No admin escalations are waiting right now.';
+    model.actionCopy = staleAdmin
+      ? 'Pull the latest shared settings before promoting more changes.'
+      : 'Keep `/test/` as the proving ground before moving anything to live.';
+    model.metrics = [
+      { label: 'Section', value: getAgenticAdminSectionLabel(route) },
+      { label: 'Review queue', value: adminReviewCount ? String(adminReviewCount) : 'Clear' },
+      { label: 'Settings source', value: String(AppState.adminSettingsCacheSource || 'none').replace(/^\w/, char => char.toUpperCase()) }
+    ];
+    model.notes = [
+      passiveNotice?.title || '',
+      'Promotion path: `/test/` first, then live after sign-off.'
+    ].filter(Boolean).slice(0, 2);
+  } else if (route === '/settings') {
+    model.eyebrow = 'Operator Setup';
+    model.title = businessUnitLabel;
+    model.statusLabel = passiveNotice ? 'Sync available' : 'Personal context ready';
+    model.statusTone = passiveNotice ? 'warning' : 'success';
+    model.goal = 'Tune the inherited context that shapes your drafts, reviews, and saved workspace state.';
+    model.workingCopy = activeDraft
+      ? `Current draft: ${scenarioTitle}. Settings changes will affect the next decisions you make.`
+      : 'Use settings to lock role context, defaults, and the way your workspace behaves.';
+    model.waitingCopy = passiveNotice?.title || 'Review your context before you start a new assessment or reopen an old one.';
+    model.actionCopy = passiveNotice?.body || 'Tighten role context and inherited defaults before the next run.';
+    model.metrics = [
+      { label: 'BU', value: businessUnitLabel },
+      { label: 'Geo', value: geographyLabel },
+      { label: 'Reviews', value: dashboardReviewCount ? `${dashboardReviewCount} waiting` : 'Clear' }
+    ];
+  } else {
+    model.eyebrow = 'Command Workspace';
+    model.title = activeDraft ? scenarioTitle : 'Ready for the next assessment';
+    model.statusLabel = passiveNotice
+      ? 'Sync available'
+      : activeDraft
+        ? 'Draft in progress'
+        : completedAssessments
+          ? `${completedAssessments} saved assessment${completedAssessments === 1 ? '' : 's'}`
+          : 'Ready to begin';
+    model.statusTone = passiveNotice ? 'warning' : activeDraft ? 'success' : 'neutral';
+    model.goal = 'Inspector for active draft, review queue, and saved-result next step.';
+    model.workingLabel = 'Queue state';
+    model.workingCopy = activeDraft
+      ? `Live draft in motion under the ${lensLabel} lens${selectedRiskTitles.length ? ` with ${selectedRiskTitles.length} scoped risk${selectedRiskTitles.length === 1 ? '' : 's'}` : ''}.`
+      : dashboardReviewCount
+        ? `${dashboardReviewCount} review item${dashboardReviewCount === 1 ? '' : 's'} are waiting in your workspace.`
+        : `Draft clear · ${completedAssessments} saved · ${dashboardReviewCount} reviews.`;
+    model.waitingLabel = 'Open loop';
+    model.waitingCopy = passiveNotice?.title
+      || (dashboardReviewCount
+        ? 'Work the newest review or reopen the scenario that needs a decision next.'
+        : completedAssessments
+          ? 'Resume the strongest saved assessment or start a focused new scenario.'
+          : 'No open loop. Start only when there is a concrete event signal.');
+    model.actionCopy = passiveNotice?.body
+      || topRecommendation
+      || (activeDraft ? 'Resume the active draft.' : 'Start a guided assessment from one event signal.');
+    model.metrics = [
+      { label: 'Draft', value: activeDraft ? 'Open' : 'Clear' },
+      { label: 'Assessments', value: completedAssessments ? String(completedAssessments) : '0' },
+      { label: 'Reviews', value: dashboardReviewCount ? String(dashboardReviewCount) : '0' }
+    ];
+    model.telemetryRows = [
+      { label: 'Draft', value: activeDraft ? 'Open' : 'Clear' },
+      { label: 'Saved', value: completedAssessments ? `${completedAssessments} result${completedAssessments === 1 ? '' : 's'}` : 'None yet' },
+      { label: 'Review queue', value: dashboardReviewCount ? `${dashboardReviewCount} waiting` : 'Clear' }
+    ];
+  }
+
+  return model;
+}
+
+window.getAgenticShellModel = buildAgenticShellModel;
+
 function shouldAttemptUserRouteEntryRefresh(routeHash = '', routeMeta = getRouteMeta()) {
   if (!AuthService.isAuthenticated?.()) return false;
   if (!isUserWorkspaceRoute(routeHash)) return false;
@@ -8596,17 +9154,25 @@ async function loadContextSupportSource(fileInputId, helpId) {
 }
 
 function composeGuidedNarrative(guidedInput = {}, { lensLabel = '', lensKey = '' } = {}) {
-  const event = String(guidedInput.event || '').trim();
-  const asset = String(guidedInput.asset || '').trim();
-  const cause = String(guidedInput.cause || '').trim();
-  const impact = String(guidedInput.impact || '').trim();
+  const cleanGuidedSentencePart = (value = '') => String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/[.!?]+$/g, '')
+    .trim();
+  const sentenceCase = (value = '') => {
+    const text = cleanGuidedSentencePart(value);
+    if (!text) return '';
+    return text.charAt(0).toUpperCase() + text.slice(1);
+  };
+  const event = cleanGuidedSentencePart(guidedInput.event);
+  const asset = cleanGuidedSentencePart(guidedInput.asset);
+  const cause = cleanGuidedSentencePart(guidedInput.cause);
+  const impact = cleanGuidedSentencePart(guidedInput.impact);
   const urgency = String(guidedInput.urgency || 'medium').trim().toLowerCase();
-  const urgencyPrefix = urgency ? `${urgency.charAt(0).toUpperCase() + urgency.slice(1)}-urgency` : 'Material';
   if (!event && !asset && !cause && !impact) return '';
 
   const resolvedLensLabel = String(lensLabel || '').trim();
   const resolvedLensKey = normaliseScenarioLensHint(lensKey || lensLabel);
-  const lensPrefix = resolvedLensLabel ? `${resolvedLensLabel} ` : '';
   const lowerFirst = (value = '') => {
     const text = String(value || '').trim();
     if (!text) return '';
@@ -8841,6 +9407,16 @@ function composeGuidedNarrative(guidedInput = {}, { lensLabel = '', lensKey = ''
         followOn: 'Once upstream constraints begin to propagate across tiers, management usually has to decide which builds to prioritise, what visibility can be demanded, and whether the current sequence is still realistic.'
       };
     }
+    if (/(critical supplier|supplier|vendor|third party|third-party)/.test(text)
+      && /(outage|platform outage|service outage|service disruption|availability|unavailable|prolonged disruption|customer-facing digital service)/.test(text)) {
+      return {
+        positioning: 'This points to a third-party service resilience issue rather than only an internal technology incident.',
+        affected: 'the supplier-managed service, fallback process, and customer-commitment path around the affected digital service',
+        driver: 'supplier platform instability, weak fallback coverage, or late visibility over a service dependency that customers rely on',
+        impact: 'customer disruption, operational backlog, regulatory complaint risk, and reputational strain',
+        followOn: 'Once a supplier-managed service outage affects customers, management usually has to stabilise workarounds, challenge the supplier recovery plan, and decide whether continuity arrangements are strong enough.'
+      };
+    }
     if (hasSupplierDeliverySignals(text)
       && !/(procurement|sourcing|tender|bid|contract award|vendor selection|critical spend|award decision|single[- ]source|sole source|supplier concentration)/.test(text)) {
       return {
@@ -8851,7 +9427,7 @@ function composeGuidedNarrative(guidedInput = {}, { lensLabel = '', lensKey = ''
         followOn: 'Once a delivery-critical supplier slips, management usually has to decide whether to re-sequence the deployment, accelerate fallback options, or accept wider delay across dependent projects.'
       };
     }
-    if (/single[- ]source|sole source|supplier shortfall|supplier concentration|critical supplier/.test(text)) {
+    if (/single[- ]source|sole source|supplier shortfall|supplier concentration|concentrated spend|single approved supplier|single approved source|one supplier|limited fallback|weak fallback|no fallback/.test(text)) {
       return {
         positioning: 'This points to a concentration and resilience issue in the supplier base, not just an isolated vendor problem.',
         affected: 'the supplier concentration, fallback options, and continuity posture for the category in scope',
@@ -9019,35 +9595,31 @@ function composeGuidedNarrative(guidedInput = {}, { lensLabel = '', lensKey = ''
   };
   const defaults = defaultsByLens[resolvedLensKey] || defaultsByLens.general;
   const resolvedArea = asset || inferredContext?.affected || defaults.affected;
-  const resolvedDriver = cause || inferredContext?.driver || '';
-  const resolvedImpact = impact
-    ? (inferredContext?.impact && !String(impact).toLowerCase().includes(String(inferredContext.impact).toLowerCase())
-        ? `${lowerFirst(impact)}, alongside ${lowerFirst(inferredContext.impact)}`
-        : impact)
-    : (inferredContext?.impact || defaults.impact);
+  const resolvedDriver = cause || '';
+  const resolvedImpact = impact || inferredContext?.impact || defaults.impact;
   const parts = [];
   if (event) {
-    parts.push(`${urgencyPrefix} ${lensPrefix}scenario: ${event.charAt(0).toUpperCase() + event.slice(1)}.`);
+    parts.push(`${sentenceCase(event)}.`);
   } else if (cause) {
-    parts.push(`${urgencyPrefix} ${lensPrefix}scenario: ${cause.charAt(0).toUpperCase() + cause.slice(1)} could trigger a material issue.`);
+    parts.push(`${sentenceCase(cause)} could trigger a material issue.`);
   }
   if (inferredContext?.positioning) {
     // Keep the draft preview closer to a real management scenario by naming the issue shape, not just restating the user's sentence.
     parts.push(inferredContext.positioning);
   }
-  parts.push(`The area most exposed is ${resolvedArea}.`);
+  parts.push(`The main exposure is ${resolvedArea}.`);
   if (resolvedDriver) {
-    parts.push(`The most likely driver is ${lowerFirst(resolvedDriver)}.`);
+    parts.push(`The likely driver is ${lowerFirst(resolvedDriver)}.`);
   }
-  parts.push(`If this develops, it could create ${lowerFirst(resolvedImpact)}.`);
-  const followOn = inferredContext?.followOn || defaults.followOn;
-  if (followOn) {
-    parts.push(followOn);
-  }
+  parts.push(`The likely impact is ${lowerFirst(resolvedImpact)}.`);
   if (asset && /identity|directory|sso|email|azure ad|active directory/i.test(`${event} ${asset} ${cause}`.toLowerCase())) {
     parts.push('Likely knock-on effects include mailbox compromise, privileged misuse, downstream service disruption, and data exposure if the event is not contained quickly.');
   }
-  return parts.join(' ');
+  return parts
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .replace(/\.\.+/g, '.')
+    .trim();
 }
 
 // ─── APP BAR ──────────────────────────────────────────────────
@@ -9325,7 +9897,7 @@ function renderLanding() {
         border-radius: var(--radius-xl);
         padding: var(--sp-5);
         cursor: pointer;
-        transition: all var(--transition-base);
+        transition: border-color var(--transition-base), background var(--transition-base), box-shadow var(--transition-base), transform var(--transition-base);
         text-align: left;
         width: 100%;
       }
@@ -9386,7 +9958,11 @@ function loadTemplate(tmpl) {
     learningNote: learned.note
   });
   saveDraft();
-  Router.navigate('/wizard/1');
+  if (typeof openDraftWorkspaceRoute === 'function') {
+    openDraftWorkspaceRoute();
+  } else {
+    Router.navigate('/wizard/2');
+  }
   UI.toast(learned.note ? `Template loaded with learned defaults: "${tmpl.label}".` : `Template loaded: "${tmpl.label}". Review inputs and run the simulation.`, 'info', 4500);
 }
 
@@ -9877,6 +10453,686 @@ function renderAssessmentReadinessStrip(model = {}) {
         <strong>${escapeHtml(String(item.value || ''))}</strong>
       </div>`).join('')}
     </div>` : ''}
+  </section>`;
+}
+
+function buildAssessmentProvenanceModel(record = {}, {
+  stage = '',
+  isShared = false,
+  importedSource = false,
+  localPreview = false
+} = {}) {
+  const rawSource = String(record?.aiQualityState || record?.guidedDraftSource || record?.draftSource || record?.source || '').trim().toLowerCase();
+  const hasAiAssist = record?.llmAssisted === true || rawSource === 'ai' || rawSource === 'live' || rawSource === 'live-ai';
+  const hasFallback = record?.usedFallback === true || record?.aiUnavailable === true || /fallback|deterministic/.test(rawSource);
+  const hasImported = importedSource || record?.importedSource === true || /import|template|example|register/.test(rawSource);
+  const hasSavedResult = stage === 'results' || isShared || !!(record?.results || record?.completedAt || record?.savedAt || record?.id);
+  const hasLocalPreview = localPreview || /local|manual|analyst|preview/.test(rawSource) || (!hasAiAssist && !hasFallback && !hasImported);
+  let runtimeLabel = 'Local preview';
+  let tone = 'neutral';
+  let detail = 'Built from the current typed answers and saved assessment context.';
+  if (hasImported) {
+    runtimeLabel = 'Imported source';
+    tone = 'neutral';
+    detail = 'Started from existing material, a register entry, or a worked example.';
+  } else if (hasFallback) {
+    runtimeLabel = 'Fallback';
+    tone = 'warning';
+    detail = 'Live AI was unavailable or degraded, so the app used a deterministic fallback.';
+  } else if (hasAiAssist) {
+    runtimeLabel = 'Live AI';
+    tone = 'success';
+    detail = 'Generated or refined through the live AI path, then kept editable by the user.';
+  } else if (hasLocalPreview) {
+    runtimeLabel = 'Local preview';
+    tone = 'neutral';
+    detail = 'Previewed locally from typed answers before live AI or saved-result review.';
+  }
+  return {
+    label: hasSavedResult ? 'Saved result' : runtimeLabel,
+    runtimeLabel,
+    tone,
+    detail: hasSavedResult && runtimeLabel !== 'Local preview'
+      ? `${detail} This view is reading the saved result snapshot.`
+      : detail,
+    saved: hasSavedResult,
+    imported: hasImported,
+    fallback: hasFallback,
+    liveAi: hasAiAssist && !hasFallback,
+    localPreview: hasLocalPreview && !hasAiAssist && !hasFallback && !hasImported
+  };
+}
+
+function buildAssessmentWorkflowStatusModel({
+  stage = 'scenario',
+  draft = {},
+  assessment = null,
+  selectedRisks = [],
+  scenarioGeographies = [],
+  validation = {},
+  readiness = null,
+  challenge = null,
+  results = null,
+  isShared = false
+} = {}) {
+  const record = assessment || draft || {};
+  const errors = Array.isArray(validation?.errors) ? validation.errors.filter(Boolean) : [];
+  const warnings = Array.isArray(validation?.warnings) ? validation.warnings.filter(Boolean) : [];
+  const risks = Array.isArray(selectedRisks) ? selectedRisks.filter(Boolean) : [];
+  const geos = Array.isArray(scenarioGeographies) ? scenarioGeographies.filter(Boolean) : [];
+  const provenance = buildAssessmentProvenanceModel(record, { stage, isShared });
+  const narrativeReady = !!String(record.enhancedNarrative || record.narrative || record.guidedDraftPreview || '').trim();
+  const stageMeta = {
+    scenario: {
+      label: 'Scenario review',
+      step: 'Step 3',
+      action: narrativeReady ? 'Continue to estimate' : 'Write scenario',
+      detail: narrativeReady ? 'Scenario wording is ready for estimate setup.' : 'A coherent scenario narrative is still needed.'
+    },
+    review: {
+      label: 'Review and run',
+      step: 'Step 5',
+      action: errors.length ? 'Resolve blockers' : 'Run simulation',
+      detail: errors[0] || 'Ready to run once the owner accepts the current assumptions.'
+    },
+    results: {
+      label: 'Decision view',
+      step: 'Results',
+      action: results?.toleranceBreached ? 'Assign treatment owner' : 'Record decision',
+      detail: results?.toleranceBreached
+        ? 'Tolerance was breached, so ownership and response need to be clear.'
+        : 'Use the saved result to capture the management decision.'
+    }
+  }[stage] || {
+    label: 'Assessment workflow',
+    step: 'Working',
+    action: 'Continue',
+    detail: 'Move the assessment to the next clear decision point.'
+  };
+  const readinessStatus = readiness?.status || (errors.length ? 'Needs gating' : warnings.length ? 'Ready with review points' : 'Working');
+  const readinessDetail = readiness?.summary || errors[0] || warnings[0] || 'Assessment Manager is tracking scope, evidence, challenge, and output review.';
+  const challengeStatus = challenge?.status || 'Challenge pending';
+  const challengeDetail = challenge?.changed || challenge?.summary || 'Challenge pass will explain whether the decision changed.';
+  return {
+    stage,
+    label: stageMeta.label,
+    step: stageMeta.step,
+    cards: [
+      {
+        label: 'Workflow',
+        value: stageMeta.label,
+        detail: stageMeta.detail,
+        tone: errors.length ? 'danger' : stage === 'results' ? 'success' : 'neutral'
+      },
+      {
+        label: 'Source',
+        value: provenance.label,
+        detail: provenance.saved && provenance.runtimeLabel !== provenance.label
+          ? `AI basis: ${provenance.runtimeLabel}`
+          : provenance.detail,
+        tone: provenance.tone
+      },
+      {
+        label: 'Readiness',
+        value: readinessStatus,
+        detail: readinessDetail,
+        tone: readiness?.tone || (errors.length ? 'danger' : warnings.length ? 'warning' : 'neutral')
+      },
+      {
+        label: 'Next action',
+        value: stageMeta.action,
+        detail: challengeDetail,
+        tone: challenge?.tone || (results?.toleranceBreached ? 'danger' : 'success')
+      }
+    ],
+    meta: [
+      risks.length ? `${risks.length} risk${risks.length === 1 ? '' : 's'} in scope` : 'No scoped risks yet',
+      geos.length ? `${geos.length} geograph${geos.length === 1 ? 'y' : 'ies'}` : (record.geography || 'No geography set'),
+      challengeStatus
+    ],
+    provenance
+  };
+}
+
+function renderAssessmentWorkflowStatusStrip(model = {}) {
+  const cards = Array.isArray(model.cards) ? model.cards.filter(Boolean) : [];
+  if (!cards.length) return '';
+  const meta = Array.isArray(model.meta) ? model.meta.filter(Boolean) : [];
+  return `<section class="assessment-workflow-strip assessment-workflow-strip--${escapeHtml(String(model.stage || 'working'))} anim-fade-in" aria-label="Assessment workflow status">
+    <div class="assessment-workflow-strip__header">
+      <div>
+        <span>${escapeHtml(String(model.step || 'Assessment'))}</span>
+        <strong>${escapeHtml(String(model.label || 'Assessment workflow'))}</strong>
+      </div>
+      ${meta.length ? `<div class="assessment-workflow-strip__meta">${meta.slice(0, 3).map(item => `<span>${escapeHtml(String(item))}</span>`).join('')}</div>` : ''}
+    </div>
+    <div class="assessment-workflow-strip__grid">
+      ${cards.map((card, index) => `<div class="assessment-workflow-strip__card assessment-workflow-strip__card--${escapeHtml(String(card.tone || 'neutral'))}" style="--workflow-index:${index}">
+        <span>${escapeHtml(String(card.label || 'Signal'))}</span>
+        <strong>${escapeHtml(String(card.value || 'Working'))}</strong>
+        <p>${escapeHtml(String(card.detail || ''))}</p>
+      </div>`).join('')}
+    </div>
+  </section>`;
+}
+
+function buildDecisionReadinessModel({
+  draft = {},
+  selectedRisks = [],
+  scenarioGeographies = [],
+  validation = {},
+  safeIterations = 0,
+  results = null
+} = {}) {
+  const assessment = buildAssessmentReadinessModel({ draft, selectedRisks, scenarioGeographies, validation });
+  const quant = buildQuantReadinessModel({ draft, validation, selectedRisks });
+  const p = draft?.fairParams || {};
+  const narrativeReady = !!String(draft.enhancedNarrative || draft.narrative || '').trim();
+  const hasBusinessContext = !!String(draft.buId || draft.buName || '').trim();
+  const hasGeography = (Array.isArray(scenarioGeographies) && scenarioGeographies.length)
+    || !!String(draft.geography || '').trim();
+  const citations = Array.isArray(draft.citations) ? draft.citations.filter(Boolean) : [];
+  const provenance = Array.isArray(draft.inputProvenance) ? draft.inputProvenance.filter(Boolean) : [];
+  const missing = Array.isArray(draft.missingInformation) ? draft.missingInformation.filter(Boolean) : [];
+  const warnings = Array.isArray(validation?.warnings) ? validation.warnings.filter(Boolean) : [];
+  const errors = Array.isArray(validation?.errors) ? validation.errors.filter(Boolean) : [];
+  const evidenceCount = citations.length + provenance.length
+    + (Array.isArray(draft.primaryGrounding) ? draft.primaryGrounding.filter(Boolean).length : 0)
+    + (Array.isArray(draft.supportingReferences) ? draft.supportingReferences.filter(Boolean).length : 0);
+  const requiredEstimateFields = [
+    'tefLikely',
+    'threatCapLikely',
+    'controlStrLikely',
+    'irLikely',
+    'biLikely',
+    'dbLikely'
+  ];
+  const estimateCoverage = requiredEstimateFields.filter(key => Number.isFinite(Number(p[key])) && Number(p[key]) > 0).length;
+  const blockingGaps = [];
+  const openGaps = [];
+  const addUnique = (list, value) => {
+    const text = String(value || '').trim();
+    if (text && !list.includes(text)) list.push(text);
+  };
+
+  errors.forEach(item => addUnique(blockingGaps, item));
+  if (!hasBusinessContext) addUnique(blockingGaps, 'Select the business unit so inherited context and regulation scope are available.');
+  if (!narrativeReady) addUnique(blockingGaps, 'Build or enter a coherent scenario narrative.');
+  if (!selectedRisks.length) addUnique(blockingGaps, 'Confirm at least one risk that belongs in this scenario.');
+  if (estimateCoverage < 4) addUnique(openGaps, 'Complete the main frequency, exposure, and cost inputs before using the result for review.');
+  if (!hasGeography) addUnique(openGaps, 'Add the geography so regulation and cost context are less generic.');
+  if (evidenceCount < 2) addUnique(openGaps, 'Attach or cite one direct evidence item for the scenario path or largest estimate driver.');
+  missing.slice(0, 2).forEach(item => addUnique(openGaps, item));
+  warnings.slice(0, 2).forEach(item => addUnique(openGaps, item));
+
+  const baseScore = Math.round(((Number(assessment.score || 0) * 0.55) + (Number(quant.totalScore || 0) * 0.45)));
+  const resultPenalty = results?.toleranceBreached ? 8 : results?.nearTolerance ? 4 : 0;
+  const blockerPenalty = Math.min(24, blockingGaps.length * 8);
+  const score = Math.max(0, Math.min(100, baseScore - blockerPenalty - resultPenalty));
+  const status = blockingGaps.length
+    ? 'Needs gating'
+    : score >= 82
+      ? 'Decision-ready'
+      : score >= 62
+        ? 'Ready with challenge'
+        : 'Needs more grounding';
+  const tone = blockingGaps.length
+    ? 'danger'
+    : score >= 82
+      ? 'success'
+      : score >= 62
+        ? 'warning'
+        : 'neutral';
+  const requiredControls = [
+    selectedRisks.length ? 'Confirm scope owner for the selected risk shortlist.' : 'Nominate a risk owner before sign-off.',
+    evidenceCount >= 2 ? 'Keep evidence pack linked to the saved result.' : 'Add a minimum evidence pack for review.',
+    results?.toleranceBreached ? 'Document the escalation and response owner before closure.' : 'Record response owner and next review date.'
+  ];
+  const humanApprovers = [
+    draft.buName || draft.businessUnit || 'Business owner',
+    selectedRisks.some(risk => /regulat|compliance|privacy|legal/i.test(`${risk?.title || ''} ${risk?.category || ''}`))
+      ? 'Compliance or Legal reviewer'
+      : 'Risk owner'
+  ];
+
+  return {
+    score,
+    status,
+    tone,
+    summary: blockingGaps[0]
+      || openGaps[0]
+      || assessment.summary
+      || 'The current scenario, estimate, and evidence are ready for management review.',
+    blockingGaps: blockingGaps.slice(0, 4),
+    openGaps: openGaps.slice(0, 4),
+    requiredControls: requiredControls.slice(0, 4),
+    humanApprovers: Array.from(new Set(humanApprovers.map(item => String(item || '').trim()).filter(Boolean))).slice(0, 3),
+    metrics: [
+      { label: 'Scenario', value: narrativeReady ? 'Defined' : 'Missing' },
+      { label: 'Scope', value: selectedRisks.length ? `${selectedRisks.length} risk${selectedRisks.length === 1 ? '' : 's'}` : 'Open' },
+      { label: 'Evidence', value: evidenceCount ? `${evidenceCount} item${evidenceCount === 1 ? '' : 's'}` : 'Thin' },
+      { label: 'Estimate', value: `${estimateCoverage}/${requiredEstimateFields.length}` }
+    ],
+    quant,
+    assessment,
+    safeIterations: Number(safeIterations || 0)
+  };
+}
+
+function buildAssessmentChallengePass({
+  draft = {},
+  selectedRisks = [],
+  validation = {},
+  readiness = null
+} = {}) {
+  const findings = [];
+  const addFinding = (title, detail, severity = 'review') => {
+    const cleanTitle = String(title || '').trim();
+    const cleanDetail = String(detail || '').trim();
+    if (!cleanTitle || findings.some(item => item.title === cleanTitle)) return;
+    findings.push({ title: cleanTitle, detail: cleanDetail, severity });
+  };
+  const missing = Array.isArray(draft.missingInformation) ? draft.missingInformation.filter(Boolean) : [];
+  const errors = Array.isArray(validation?.errors) ? validation.errors.filter(Boolean) : [];
+  const warnings = Array.isArray(validation?.warnings) ? validation.warnings.filter(Boolean) : [];
+  const citations = Array.isArray(draft.citations) ? draft.citations.filter(Boolean) : [];
+  const provenance = Array.isArray(draft.inputProvenance) ? draft.inputProvenance.filter(Boolean) : [];
+  const p = draft?.fairParams || {};
+  const evidenceCount = citations.length + provenance.length
+    + (Array.isArray(draft.primaryGrounding) ? draft.primaryGrounding.filter(Boolean).length : 0)
+    + (Array.isArray(draft.supportingReferences) ? draft.supportingReferences.filter(Boolean).length : 0);
+
+  errors.slice(0, 2).forEach(item => addFinding('Blocking model issue', item, 'blocker'));
+  if (!selectedRisks.length) {
+    addFinding('Scope is not locked', 'No risk is selected yet, so the assessment could drift into a generic scenario.', 'blocker');
+  }
+  if (missing[0]) {
+    addFinding('Evidence gap remains', missing[0], 'review');
+  }
+  if (warnings[0]) {
+    addFinding('Estimate warning', warnings[0], 'review');
+  }
+  if (evidenceCount < 2) {
+    addFinding('Thin evidence basis', 'Challenge the draft against at least one direct source or internal operating fact before sign-off.', 'review');
+  }
+  if (Number(p.controlStrLikely || 0) >= 0.8) {
+    addFinding('Control strength may be optimistic', 'Confirm the saved control-strength view with evidence, especially if the result is near tolerance.', 'review');
+  }
+  if (Number(p.tefLikely || 0) >= 3 && evidenceCount < 3) {
+    addFinding('Frequency needs support', 'The likely event frequency is high enough that incident history or operational evidence should support it.', 'review');
+  }
+  if (!findings.length) {
+    addFinding('No blocking challenge found', 'The scenario can move forward, but final approval still needs human judgement.', 'clear');
+  }
+
+  const hasBlocker = findings.some(item => item.severity === 'blocker');
+  const hasReview = findings.some(item => item.severity === 'review');
+  return {
+    status: hasBlocker ? 'Challenge required' : hasReview ? 'Passed with review points' : 'Challenge passed',
+    tone: hasBlocker ? 'danger' : hasReview ? 'warning' : 'success',
+    summary: hasBlocker
+      ? 'The Challenge Agent found a blocking issue before this can be treated as decision-ready.'
+      : hasReview
+        ? 'The Challenge Agent did not block progress, but highlighted review points for the owner.'
+        : 'The Challenge Agent did not find a blocking scope, evidence, or estimate issue.',
+    findings: findings.slice(0, 4),
+    changed: hasBlocker
+      ? 'Run held at review posture until blockers are addressed.'
+      : hasReview
+        ? 'Draft kept; readiness lowered until review points are confirmed.'
+        : 'Draft kept; output review can proceed.',
+    readinessScore: readiness?.score ?? null,
+    createdAt: Date.now()
+  };
+}
+
+function buildAssessmentChallengeStory(challenge = {}, readiness = null) {
+  if (!challenge || typeof challenge !== 'object') return null;
+  const findings = Array.isArray(challenge.findings) ? challenge.findings.filter(Boolean) : [];
+  const blocker = findings.find(item => item?.severity === 'blocker');
+  const review = findings.find(item => item?.severity === 'review');
+  const leadingFinding = blocker || review || findings[0] || null;
+  const changed = String(challenge.changed || '').trim();
+  const reason = leadingFinding
+    ? `${leadingFinding.title || 'Challenge finding'}: ${leadingFinding.detail || challenge.summary || ''}`.trim()
+    : String(challenge.summary || 'No challenge finding has been recorded yet.').trim();
+  const nextPosture = challenge.tone === 'danger'
+    ? 'Hold for owner review'
+    : challenge.tone === 'warning'
+      ? 'Proceed with review points'
+      : 'Proceed';
+  return {
+    label: 'Decision changed because',
+    tone: challenge.tone || readiness?.tone || 'neutral',
+    reason,
+    before: 'Draft output',
+    after: nextPosture,
+    changed: changed || (challenge.tone === 'success'
+      ? 'No decision posture change was needed.'
+      : 'Readiness was adjusted by the challenge pass.'),
+    score: readiness?.score ?? challenge.readinessScore ?? null
+  };
+}
+
+function renderAssessmentChallengeStory(story = {}) {
+  if (!story || typeof story !== 'object' || !story.reason) return '';
+  const score = story.score == null ? '' : `<span>${escapeHtml(String(Math.round(Number(story.score || 0))))}/100 readiness</span>`;
+  return `<section class="assessment-challenge-story assessment-challenge-story--${escapeHtml(String(story.tone || 'neutral'))} anim-fade-in">
+    <div class="assessment-challenge-story__copy">
+      <span>${escapeHtml(String(story.label || 'Decision changed because'))}</span>
+      <strong>${escapeHtml(String(story.reason))}</strong>
+      <p>${escapeHtml(String(story.changed || 'The Assessment Manager recorded the challenge outcome.'))}</p>
+    </div>
+    <div class="assessment-challenge-story__path" aria-label="Challenge decision path">
+      <div><span>Before</span><strong>${escapeHtml(String(story.before || 'Draft output'))}</strong></div>
+      <i aria-hidden="true"></i>
+      <div><span>After</span><strong>${escapeHtml(String(story.after || 'Review'))}</strong></div>
+      ${score}
+    </div>
+  </section>`;
+}
+
+function buildAssessmentDecisionStackModel({
+  assessment = {},
+  draft = null,
+  selectedRisks = [],
+  readiness = null,
+  challenge = null,
+  results = null,
+  executiveDecision = null,
+  executiveAction = '',
+  statusTitle = '',
+  isShared = false
+} = {}) {
+  const record = assessment || draft || {};
+  const risks = Array.isArray(selectedRisks) ? selectedRisks.filter(Boolean) : [];
+  const provenance = buildAssessmentProvenanceModel(record, {
+    stage: results ? 'results' : 'review',
+    isShared
+  });
+  const blockers = Array.isArray(readiness?.blockingGaps) ? readiness.blockingGaps.filter(Boolean) : [];
+  const gaps = Array.isArray(readiness?.openGaps) ? readiness.openGaps.filter(Boolean) : [];
+  const challengeFindings = Array.isArray(challenge?.findings) ? challenge.findings.filter(Boolean) : [];
+  const topChallenge = challengeFindings.find(item => item?.severity === 'blocker')
+    || challengeFindings.find(item => item?.severity === 'review')
+    || challengeFindings[0]
+    || null;
+  const recommendedDecision = executiveDecision?.decision
+    || statusTitle
+    || (results?.toleranceBreached ? 'Escalate treatment' : results?.nearTolerance ? 'Review response' : 'Monitor within appetite');
+  const topBlocker = blockers[0]
+    || gaps[0]
+    || (topChallenge ? `${topChallenge.title || 'Challenge point'}: ${topChallenge.detail || ''}`.trim() : '')
+    || 'No blocking issue recorded.';
+  const nextAction = executiveAction
+    || executiveDecision?.priority
+    || readiness?.requiredControls?.[0]
+    || (results?.toleranceBreached ? 'Assign the treatment owner and escalation path.' : 'Record the decision and next review date.');
+  const owner = Array.isArray(readiness?.humanApprovers) && readiness.humanApprovers.length
+    ? readiness.humanApprovers[0]
+    : (record.ownerName || record.owner || record.buName || record.businessUnit || 'Business owner');
+  return {
+    title: 'Decision Stack',
+    subtitle: 'The management answer, the caveat, and the next action in one scan.',
+    tone: results?.toleranceBreached || readiness?.tone === 'danger'
+      ? 'danger'
+      : readiness?.tone === 'warning' || challenge?.tone === 'warning'
+        ? 'warning'
+        : 'success',
+    cards: [
+      {
+        label: 'Recommendation',
+        value: recommendedDecision,
+        detail: executiveDecision?.rationale || statusTitle || 'Assessment Manager recommendation based on the saved result and challenge posture.',
+        tone: results?.toleranceBreached ? 'danger' : 'success'
+      },
+      {
+        label: 'Readiness',
+        value: readiness?.status || 'Working',
+        detail: readiness?.summary || 'Decision readiness is being calculated from scenario, scope, evidence, and estimate coverage.',
+        tone: readiness?.tone || 'neutral'
+      },
+      {
+        label: 'Top blocker',
+        value: blockers.length ? 'Blocking gap' : topChallenge ? 'Challenge point' : 'No blocker',
+        detail: topBlocker,
+        tone: blockers.length ? 'danger' : gaps.length || topChallenge ? 'warning' : 'success'
+      },
+      {
+        label: 'Next action',
+        value: nextAction,
+        detail: risks.length ? `${risks.length} scoped risk${risks.length === 1 ? '' : 's'} carry into this action.` : 'Scope should be confirmed before committee use.',
+        tone: results?.toleranceBreached ? 'danger' : 'neutral'
+      },
+      {
+        label: 'Owner',
+        value: owner,
+        detail: 'Human owner remains accountable for sign-off and treatment decisions.',
+        tone: 'neutral'
+      },
+      {
+        label: 'Source',
+        value: provenance.label,
+        detail: provenance.saved && provenance.runtimeLabel !== provenance.label
+          ? `${provenance.runtimeLabel} basis. ${provenance.detail}`
+          : provenance.detail,
+        tone: provenance.tone
+      }
+    ]
+  };
+}
+
+function renderAssessmentDecisionStack(model = {}) {
+  const cards = Array.isArray(model.cards) ? model.cards.filter(Boolean) : [];
+  if (!cards.length) return '';
+  return `<section class="assessment-decision-stack assessment-decision-stack--${escapeHtml(String(model.tone || 'neutral'))} anim-fade-in">
+    <div class="assessment-decision-stack__head">
+      <div>
+        <span>Management view</span>
+        <h2>${escapeHtml(String(model.title || 'Decision Stack'))}</h2>
+        <p>${escapeHtml(String(model.subtitle || 'The decision answer and next action in one scan.'))}</p>
+      </div>
+      <div class="assessment-decision-stack__signal" aria-hidden="true">
+        <span></span><span></span><span></span>
+      </div>
+    </div>
+    <div class="assessment-decision-stack__grid">
+      ${cards.map((card, index) => `<article class="assessment-decision-stack__card assessment-decision-stack__card--${escapeHtml(String(card.tone || 'neutral'))}" style="--decision-index:${index}">
+        <span>${escapeHtml(String(card.label || 'Signal'))}</span>
+        <strong>${escapeHtml(String(card.value || 'Working'))}</strong>
+        <p>${escapeHtml(String(card.detail || ''))}</p>
+      </article>`).join('')}
+    </div>
+  </section>`;
+}
+
+function buildAssessmentManagerRunModel({
+  stage = 'intake',
+  draft = {},
+  selectedRisks = [],
+  validation = {},
+  readiness = null,
+  challenge = null,
+  safeIterations = 0,
+  results = null
+} = {}) {
+  const scenarioReady = !!String(draft.enhancedNarrative || draft.narrative || draft.guidedDraftPreview || draft.guidedInput?.event || '').trim();
+  const hasContext = !!String(draft.buId || draft.buName || '').trim();
+  const evidenceCount = (Array.isArray(draft.citations) ? draft.citations.filter(Boolean).length : 0)
+    + (Array.isArray(draft.inputProvenance) ? draft.inputProvenance.filter(Boolean).length : 0)
+    + (Array.isArray(draft.primaryGrounding) ? draft.primaryGrounding.filter(Boolean).length : 0)
+    + (Array.isArray(draft.supportingReferences) ? draft.supportingReferences.filter(Boolean).length : 0);
+  const estimateReady = !!(draft?.fairParams && Number(draft.fairParams.tefLikely || 0) > 0 && Number(draft.fairParams.irLikely || 0) > 0);
+  const challengeModel = challenge || buildAssessmentChallengePass({ draft, selectedRisks, validation, readiness });
+  const readinessModel = readiness || buildDecisionReadinessModel({ draft, selectedRisks, validation, results, safeIterations });
+  const stageIndex = stage === 'results' ? 5 : stage === 'review' ? 4 : stage === 'estimate' ? 3 : stage === 'scenario' ? 2 : 1;
+  const steps = [
+    {
+      key: 'context',
+      label: 'Context loaded',
+      agent: 'Assessment Manager',
+      state: hasContext ? 'done' : stageIndex <= 1 ? 'active' : 'blocked',
+      detail: hasContext ? `${draft.buName || 'Business context'} is in scope.` : 'Business context is needed before decision-ready AI output.'
+    },
+    {
+      key: 'scenario',
+      label: 'Scenario framed',
+      agent: 'Scenario Builder',
+      state: scenarioReady ? 'done' : stageIndex === 1 ? 'active' : 'pending',
+      detail: scenarioReady ? 'A scenario signal is available for drafting and review.' : 'Capture the event and impact first.'
+    },
+    {
+      key: 'evidence',
+      label: 'Evidence mission',
+      agent: 'Evidence Agent',
+      state: evidenceCount >= 2 ? 'done' : stageIndex >= 2 ? 'active' : 'pending',
+      detail: evidenceCount >= 2 ? `${evidenceCount} evidence/provenance items are linked.` : 'Collect direct evidence for the scenario or largest estimate driver.'
+    },
+    {
+      key: 'challenge',
+      label: 'Challenge pass',
+      agent: 'Challenge Agent',
+      state: challengeModel.tone === 'danger' ? 'blocked' : stageIndex >= 4 || results ? 'done' : 'active',
+      detail: challengeModel.status
+    },
+    {
+      key: 'output',
+      label: results ? 'Output reviewed' : 'Ready to run',
+      agent: 'Output Review',
+      state: results ? 'done' : estimateReady && !validation?.errors?.length ? 'active' : 'pending',
+      detail: results
+        ? 'Result, trace, and decision-readiness snapshot were saved.'
+        : `${Number(safeIterations || 0).toLocaleString('en-US')} iteration run will use the current saved assumptions.`
+    }
+  ];
+  const missions = [
+    {
+      label: 'Evidence mission',
+      status: evidenceCount >= 2 ? 'Complete' : 'Open',
+      detail: evidenceCount >= 2 ? 'Evidence is available for challenge.' : 'Add one direct source or provenance note.'
+    },
+    {
+      label: 'Challenge mission',
+      status: challengeModel.status,
+      detail: challengeModel.changed
+    },
+    {
+      label: 'Readiness mission',
+      status: readinessModel.status,
+      detail: readinessModel.summary
+    }
+  ];
+  return {
+    title: 'Assessment Manager',
+    subtitle: 'One manager coordinates scenario, evidence, challenge, and output review.',
+    stage,
+    status: readinessModel.status,
+    tone: readinessModel.tone,
+    score: readinessModel.score,
+    steps,
+    missions,
+    readiness: readinessModel,
+    challenge: challengeModel,
+    updatedAt: Date.now()
+  };
+}
+
+function renderDecisionReadinessCard(readiness = {}, { compact = false } = {}) {
+  if (!readiness || typeof readiness !== 'object') return '';
+  const metrics = Array.isArray(readiness.metrics) ? readiness.metrics.filter(Boolean) : [];
+  const blockers = Array.isArray(readiness.blockingGaps) ? readiness.blockingGaps.filter(Boolean) : [];
+  const gaps = Array.isArray(readiness.openGaps) ? readiness.openGaps.filter(Boolean) : [];
+  const controls = Array.isArray(readiness.requiredControls) ? readiness.requiredControls.filter(Boolean) : [];
+  const approvers = Array.isArray(readiness.humanApprovers) ? readiness.humanApprovers.filter(Boolean) : [];
+  const score = Math.max(0, Math.min(100, Math.round(Number(readiness.score || 0))));
+  const detailRows = [
+    blockers.length ? { label: 'Blocking gaps', items: blockers, tone: 'danger' } : null,
+    !compact && gaps.length ? { label: 'Open review gaps', items: gaps, tone: 'warning' } : null,
+    !compact && controls.length ? { label: 'Required controls', items: controls, tone: 'neutral' } : null
+  ].filter(Boolean);
+
+  return `<section class="decision-readiness-card decision-readiness-card--${escapeHtml(String(readiness.tone || 'neutral'))} ${compact ? 'decision-readiness-card--compact' : ''}">
+    <div class="decision-readiness-card__head">
+      <div>
+        <div class="wizard-summary-band__label">Decision readiness</div>
+        <strong>${escapeHtml(String(readiness.status || 'Working'))}</strong>
+        <p>${escapeHtml(String(readiness.summary || ''))}</p>
+      </div>
+      <div class="decision-readiness-card__score" style="--readiness-score:${score}" aria-label="Decision readiness score">
+        <span>${escapeHtml(String(score))}</span>
+        <small>/100</small>
+      </div>
+    </div>
+    ${metrics.length ? `<div class="decision-readiness-card__metrics">
+      ${metrics.map(item => `<div><span>${escapeHtml(String(item.label || 'Signal'))}</span><strong>${escapeHtml(String(item.value || ''))}</strong></div>`).join('')}
+    </div>` : ''}
+    ${detailRows.length ? `<div class="decision-readiness-card__detail">
+      ${detailRows.map(row => `<div class="decision-readiness-card__row decision-readiness-card__row--${escapeHtml(row.tone)}">
+        <span>${escapeHtml(row.label)}</span>
+        <ul>${row.items.slice(0, compact ? 1 : 3).map(item => `<li>${escapeHtml(String(item))}</li>`).join('')}</ul>
+      </div>`).join('')}
+    </div>` : ''}
+    ${!compact && approvers.length ? `<div class="decision-readiness-card__approvers">
+      <span>Human review</span>
+      ${approvers.map(item => `<strong>${escapeHtml(String(item))}</strong>`).join('')}
+    </div>` : ''}
+  </section>`;
+}
+
+function renderAssessmentManagerPanel(model = {}, { compact = false, title = '' } = {}) {
+  if (!model || typeof model !== 'object') return '';
+  const steps = Array.isArray(model.steps) ? model.steps.filter(Boolean) : [];
+  const missions = Array.isArray(model.missions) ? model.missions.filter(Boolean) : [];
+  const challenge = model.challenge || {};
+  const runwayNodes = steps.map((step, index) => `<span class="assessment-manager-panel__runway-node assessment-manager-panel__runway-node--${escapeHtml(String(step.state || 'pending'))}" style="--node-index:${index}" title="${escapeHtml(String(step.label || 'Step'))}"></span>`).join('');
+  return `<section class="assessment-manager-panel ${compact ? 'assessment-manager-panel--compact' : ''} assessment-manager-panel--${escapeHtml(String(model.tone || 'neutral'))} anim-fade-in">
+    <div class="assessment-manager-panel__header">
+      <div>
+        <div class="wizard-summary-band__label">${escapeHtml(title || model.title || 'Assessment Manager')}</div>
+        <h3>${escapeHtml(String(model.status || 'Working assessment'))}</h3>
+        <p>${escapeHtml(String(model.subtitle || 'Coordinates scenario, evidence, challenge, and output review.'))}</p>
+      </div>
+      <div class="assessment-manager-panel__score">
+        <span>${escapeHtml(String(Math.round(Number(model.score || 0))))}</span>
+        <small>ready</small>
+      </div>
+    </div>
+    ${steps.length ? `<div class="assessment-manager-panel__runway" aria-hidden="true">
+      <div class="assessment-manager-panel__runway-orbit">
+        <span class="assessment-manager-panel__runway-beam"></span>
+        ${runwayNodes}
+        <span class="assessment-manager-panel__packet assessment-manager-panel__packet--one"></span>
+        <span class="assessment-manager-panel__packet assessment-manager-panel__packet--two"></span>
+      </div>
+      <div class="assessment-manager-panel__runway-caption">
+        <span>Manager-led run</span>
+        <strong>${escapeHtml(String(challenge.status || model.status || 'Working'))}</strong>
+      </div>
+    </div>` : ''}
+    ${steps.length ? `<div class="assessment-manager-panel__timeline" aria-label="Assessment Manager timeline">
+      ${steps.map(step => `<div class="assessment-manager-panel__step assessment-manager-panel__step--${escapeHtml(String(step.state || 'pending'))}">
+        <span class="assessment-manager-panel__dot" aria-hidden="true"></span>
+        <div>
+          <strong>${escapeHtml(String(step.label || 'Step'))}</strong>
+          <small>${escapeHtml(String(step.agent || 'Agent'))}</small>
+          ${compact ? '' : `<p>${escapeHtml(String(step.detail || ''))}</p>`}
+        </div>
+      </div>`).join('')}
+    </div>` : ''}
+    <div class="assessment-manager-panel__body">
+      <div class="assessment-manager-panel__challenge">
+        <span class="badge badge--${challenge.tone === 'danger' ? 'danger' : challenge.tone === 'warning' ? 'warning' : 'success'}">Challenge Agent</span>
+        <strong>${escapeHtml(String(challenge.status || 'Challenge pending'))}</strong>
+        <p>${escapeHtml(String(challenge.summary || 'The challenge pass will check scope, evidence, and assumption strength.'))}</p>
+      </div>
+      ${!compact && missions.length ? `<div class="assessment-manager-panel__missions">
+        ${missions.map(item => `<div>
+          <span>${escapeHtml(String(item.label || 'Mission'))}</span>
+          <strong>${escapeHtml(String(item.status || 'Open'))}</strong>
+          <p>${escapeHtml(String(item.detail || ''))}</p>
+        </div>`).join('')}
+      </div>` : ''}
+    </div>
   </section>`;
 }
 
@@ -11163,6 +12419,7 @@ function renderLogin() {
         return;
       }
       let settled = false;
+      const ackId = createModalScopedId('poc-login-ack');
       const finish = () => {
         if (settled) return;
         settled = true;
@@ -11180,50 +12437,63 @@ function renderLogin() {
             <div class="banner banner--warning" role="alert"><span class="banner-icon">△</span><span class="banner-text">Treat this environment as a PoC sandbox, not as a live production record.</span></div>
           </div>
         `,
-        footer: `<button class="btn btn--primary" id="btn-poc-login-ack" type="button">I Understand</button>`,
+        footer: `<button class="btn btn--primary" id="${ackId}" type="button">I Understand</button>`,
         onClose: finish
       });
-      document.getElementById('btn-poc-login-ack')?.addEventListener('click', () => {
+      (dialog.element || document).querySelector(`#${ackId}`)?.addEventListener('click', () => {
         finish();
         dialog.close();
       });
     });
   }
 
+  let loginInFlight = false;
   const login = async () => {
+    if (loginInFlight) return;
+    loginInFlight = true;
+    const loginButton = document.getElementById('btn-login');
+    if (loginButton) {
+      loginButton.disabled = true;
+      loginButton.setAttribute('aria-busy', 'true');
+    }
     const username = document.getElementById('login-user').value;
     const pw = document.getElementById('login-pass').value;
-    const result = await AuthService.login(username, pw);
-    if (result.success) {
-      const hydration = await hydrateAuthenticatedWorkspaceContext(result.user.username);
-      activateAuthenticatedState();
-      if (!hydration.adminSettingsLoaded) {
-        UI.toast('Shared organisation settings could not be loaded yet. Refresh before starting a new assessment if BU or function context looks wrong.', 'warning', 7000);
+    try {
+      const result = await AuthService.login(username, pw);
+      if (result.success) {
+        const hydration = await hydrateAuthenticatedWorkspaceContext(result.user.username);
+        activateAuthenticatedState();
+        if (!hydration.adminSettingsLoaded) {
+          UI.toast('Shared organisation settings could not be loaded yet. Refresh before starting a new assessment if BU or function context looks wrong.', 'warning', 7000);
+        }
+        await showPocUsageNotice();
+        UI.toast(`Logged in as ${result.user.displayName}.`, 'success');
+        if (userNeedsOrganisationSelection(AuthService.getCurrentUser())) {
+          renderLogin();
+        } else {
+          Router.navigate(getDefaultRouteForCurrentUser());
+        }
       }
-      await showPocUsageNotice();
-      UI.toast(`Logged in as ${result.user.displayName}.`, 'success');
-      if (userNeedsOrganisationSelection(AuthService.getCurrentUser())) {
-        renderLogin();
-      } else {
-        Router.navigate(getDefaultRouteForCurrentUser());
+      else {
+        const loginMessage = /too many login attempts/i.test(String(result.error || ''))
+          ? 'Too many login attempts. Please wait and try again.'
+          : 'Invalid username or password';
+        document.getElementById('login-err').textContent = `⚠ ${loginMessage}`;
+        document.getElementById('login-err').classList.remove('hidden');
+        document.getElementById('login-user').classList.add('error');
+        document.getElementById('login-pass').classList.add('error');
       }
-    }
-    else {
-      const loginMessage = /too many login attempts/i.test(String(result.error || ''))
-        ? 'Too many login attempts. Please wait and try again.'
-        : 'Invalid username or password';
-      document.getElementById('login-err').textContent = `⚠ ${loginMessage}`;
-      document.getElementById('login-err').classList.remove('hidden');
-      document.getElementById('login-user').classList.add('error');
-      document.getElementById('login-pass').classList.add('error');
+    } finally {
+      const currentLoginButton = document.getElementById('btn-login');
+      if (currentLoginButton) {
+        currentLoginButton.disabled = false;
+        currentLoginButton.removeAttribute('aria-busy');
+      }
+      loginInFlight = false;
     }
   };
 
   document.getElementById('login-form').addEventListener('submit', event => {
-    event.preventDefault();
-    login();
-  });
-  document.getElementById('btn-login').addEventListener('click', event => {
     event.preventDefault();
     login();
   });
@@ -11466,9 +12736,9 @@ function getCommonHelpContent() {
     feedbackChangeBody: 'Repeated feedback improves retrieval, ranking, and prompt assembly in stages. Stronger shared changes should come only after the same live-AI pattern repeats often enough to justify it.',
     dashboardPurpose: 'Use the dashboard as the front door: resume active work, review what needs attention, and start something new only when you have one real scenario to work through.',
     dashboardBestUse: 'Resume the assessment that already needs attention first, then start a new one only when there is a clear new scenario to model.',
-    stepChips: ['Dashboard', 'Step 1', 'Step 2', 'Step 3', 'Review & Run', 'Results', 'Settings'],
+    stepChips: ['Dashboard', 'Guide', 'Intake', 'Scenario', 'Estimate', 'Review & Run', 'Results', 'Settings'],
     stepFinalCards: [
-      { title: 'Review & Run', body: 'Challenge the assumptions that matter most, then run. This is the place to tighten the decision before quantification, not to restart the drafting stage.' },
+      { title: 'Review & Run', body: 'Challenge the assumptions that matter most, then run. This is the place to tighten the decision before you commit the simulation, not to restart the drafting stage.' },
       { title: 'Results', body: 'Read the executive story first, then open the technical detail only when you need to validate ranges, evidence, or drivers.' },
       { title: 'Settings', body: 'Keep the context and preferences you own current so future drafts, guidance, and review cues stay grounded.' }
     ],
@@ -11527,7 +12797,7 @@ function getHelpAudienceModel({
       feedbackChangeBody: 'Repeated live-AI feedback can eventually influence the global baseline, but only after enough corroborating signals and review. Use AI Feedback & Tuning to watch the signal quality before you let it affect everyone else.',
       dashboardPurpose: 'Use Platform Home as the admin front door, then move into the admin console only when you need to change structure, defaults, access, or AI readiness.',
       dashboardBestUse: 'Open the next admin workbench that needs attention, or preview the user workspace only when you need to understand the downstream impact of an admin change.',
-      stepChips: ['Platform Home', 'Step 1', 'Step 2', 'Step 3', 'Review & Run', 'Results', 'Admin'],
+      stepChips: ['Platform Home', 'Guide', 'Intake', 'Scenario', 'Estimate', 'Review & Run', 'Results', 'Admin'],
       stepFinalCards: [
         { title: 'Review & Run', body: 'Use this to challenge assumptions before a scenario becomes a shared reference point.' },
         { title: 'Results', body: 'Read the executive story first, then validate the technical detail and evidence layers if you need to defend the result.' },
@@ -11590,7 +12860,7 @@ function getHelpAudienceModel({
       feedbackChangeBody: 'Your repeated feedback improves your own workflow first. When similar live-AI patterns repeat across other users, the same signal can later influence your function, your business unit, and the wider platform.',
       dashboardPurpose: `Use the active queue as an oversight lane for ${businessUnitName} first, then keep the owned function context for ${functionName} current before new work starts.`,
       dashboardBestUse: `Open the next item that needs review, revisit the reassessment lane when assumptions drift, and start new work only when a fresh issue clearly belongs in your owned scope.`,
-      stepChips: ['Dashboard', 'Step 1', 'Step 2', 'Step 3', 'Review & Run', 'Results', 'Settings'],
+      stepChips: ['Dashboard', 'Guide', 'Intake', 'Scenario', 'Estimate', 'Review & Run', 'Results', 'Settings'],
       stepFinalCards: [
         { title: 'Review & Run', body: 'Challenge the assumptions that most affect the business-unit decision and the owned-function response before you run.' },
         { title: 'Results', body: 'Use the executive view for the BU decision first, then open technical detail only when you need to validate evidence or ranges.' },
@@ -11633,7 +12903,7 @@ function getHelpAudienceModel({
       feedbackChangeBody: 'Your repeated feedback improves your own workflow first. When similar live-AI patterns repeat across other users, the same signal can later influence your business unit and the wider platform.',
       dashboardPurpose: `Use the active queue as the primary review lane for ${businessUnitName}, then keep the business-unit and function context aligned before new work starts.`,
       dashboardBestUse: 'Open the next item that needs review, use the watchlist and reassessment lane to keep important scenarios current, and start a new assessment only when a new issue clearly needs its own decision path.',
-      stepChips: ['Dashboard', 'Step 1', 'Step 2', 'Step 3', 'Review & Run', 'Results', 'Settings'],
+      stepChips: ['Dashboard', 'Guide', 'Intake', 'Scenario', 'Estimate', 'Review & Run', 'Results', 'Settings'],
       stepFinalCards: [
         { title: 'Review & Run', body: 'Challenge the assumptions that most affect the business-unit decision before you run.' },
         { title: 'Results', body: 'Use the executive result to decide whether the business unit needs review, escalation, or treatment now, then open technical detail only when you need to validate drivers or evidence.' },
@@ -11676,7 +12946,7 @@ function getHelpAudienceModel({
       feedbackChangeBody: 'Your repeated feedback improves your own workflow first. When similar live-AI patterns repeat across other users, the same signal can later influence your function, your business unit, and the wider platform.',
       dashboardPurpose: `Use the active queue as the primary review lane for ${functionName}, then keep the owned function context current before new work starts.`,
       dashboardBestUse: 'Open the next function-level item that needs review, revisit the reassessment lane when assumptions drift, and start a new assessment only when a fresh issue clearly belongs to the function you own.',
-      stepChips: ['Dashboard', 'Step 1', 'Step 2', 'Step 3', 'Review & Run', 'Results', 'Settings'],
+      stepChips: ['Dashboard', 'Guide', 'Intake', 'Scenario', 'Estimate', 'Review & Run', 'Results', 'Settings'],
       stepFinalCards: [
         { title: 'Review & Run', body: 'Challenge the assumptions that most affect the function-level decision before you run.' },
         { title: 'Results', body: 'Use the executive result to decide what the function needs to do now, then open technical detail only when you need to validate drivers, ranges, or evidence.' },
@@ -11718,7 +12988,7 @@ function getHelpAudienceModel({
     feedbackChangeBody: 'Your repeated feedback shapes your own guidance first. When similar live-AI patterns repeat across other users, the same signal can later influence function, BU, and wider platform behaviour.',
     dashboardPurpose: 'Know what to do next. Resume your draft or open the latest result that needs your attention before starting something new.',
     dashboardBestUse: 'Resume your current draft, reopen a result that needs explanation, or start a new assessment when you have one real scenario to work through.',
-    stepChips: ['Dashboard', 'Step 1', 'Step 2', 'Step 3', 'Review & Run', 'Results', 'Settings'],
+    stepChips: ['Dashboard', 'Guide', 'Intake', 'Scenario', 'Estimate', 'Review & Run', 'Results', 'Settings'],
     stepFinalCards: [
       { title: 'Review & Run', body: 'Challenge the assumptions that matter most, then run. Do not turn this into another writing stage.' },
       { title: 'Results', body: 'Read the executive story first, then open technical detail only when you need to explain or challenge the result.' },
@@ -11823,10 +13093,11 @@ function renderHelpPage() {
             <div class="help-flow-grid">
               ${[
                 'Dashboard: start, resume, or review work that needs attention.',
-                'AI-Assisted Risk & Context Builder: create the first scenario draft and choose what stays in scope.',
+                'Guide: choose the start lane and understand what the platform will ask for next.',
+                'Scenario Intake: capture the event, impact, and first AI-assisted draft.',
                 'Refine the Scenario: tighten the narrative into one coherent event.',
                 'Estimate the Scenario: express the loss path in plain language or advanced tuning.',
-                'Monte Carlo simulation: run the estimate through uncertainty ranges.',
+                'Review & Run: challenge the assumptions, then run the simulation.',
                 'Executive and technical review: interpret posture, confidence, drivers, and challenge points.',
                 'Compare a better outcome: test whether a treatment materially changes the decision.',
                 'Export: create a decision memo, printable output, or other supporting artefacts.'
@@ -12044,8 +13315,17 @@ function renderHelpPage() {
           `
         }),
         renderHelpDisclosure('steps', {
-          title: 'Step 1: AI-Assisted Risk & Context Builder',
-          summary: 'Get to one plausible draft and choose what stays in scope.',
+          title: 'Step 1: Guide',
+          summary: 'Choose the start lane and know what Step 2 will ask for.',
+          body: `
+            <p class="help-body-copy"><strong>What to do:</strong> choose whether you want guided intake, your own draft, or a register/example path. This step is orientation only.</p>
+            <p class="help-body-copy"><strong>Good use:</strong> confirm the route, check the context you expect to carry forward, and move on quickly.</p>
+            <p class="help-body-copy"><strong>Common mistake:</strong> expecting the main drafting work to happen here. The action-first intake workspace is Step 2.</p>
+          `
+        }),
+        renderHelpDisclosure('steps', {
+          title: 'Step 2: Scenario Intake',
+          summary: 'Do the actual intake and let AI build the first draft.',
           body: `
             <p class="help-body-copy"><strong>What to do:</strong> answer the prompts in plain language, keep the scenario focused, then keep only the risks that clearly belong in this event path.</p>
             <p class="help-body-copy"><strong>Good input:</strong> one triggering condition, one main asset or service, one clear impact path.</p>
@@ -12053,7 +13333,7 @@ function renderHelpPage() {
           `
         }),
         renderHelpDisclosure('steps', {
-          title: 'Step 2: Refine the Scenario',
+          title: 'Step 3: Refine the Scenario',
           summary: 'Turn the draft into one coherent scenario that can be challenged.',
           body: `
             <p class="help-body-copy"><strong>What to do:</strong> write one scenario in your own words, then use the coach and evidence guidance to tighten what is vague.</p>
@@ -12061,7 +13341,7 @@ function renderHelpPage() {
           `
         }),
         renderHelpDisclosure('steps', {
-          title: 'Step 3: Estimate the Scenario',
+          title: 'Step 4: Estimate the Scenario',
           summary: 'Use plain language first; open advanced tuning only when it materially improves the model.',
           body: `
             <p class="help-body-copy"><strong>What to do:</strong> work from frequency to exposure to cost. Use basic mode unless there is a clear reason to open advanced tuning.</p>
@@ -12069,7 +13349,7 @@ function renderHelpPage() {
           `
         }),
         renderHelpDisclosure('steps', {
-          title: 'Review & Run, Results, and Settings',
+          title: 'Step 5, Results, and Settings',
           summary: 'How to use the final assessment stages well before opening the role-specific add-on guidance below.',
           body: `
             ${renderHelpMiniCards(commonHelp.stepFinalCards)}
@@ -12314,8 +13594,8 @@ const FloatingActionDisclosureController = (() => {
   let backdropEl = null;
   const WIDE_MENU_SELECTOR = '.dashboard-hero-overflow, .dashboard-row-overflow, .admin-footer-overflow, .admin-frontdoor-overflow';
 
-  function ensureBackdrop() {
-    const host = getFloatingDisclosureHost();
+  function ensureBackdrop(disclosure = activeDisclosure) {
+    const host = getFloatingDisclosureHost(disclosure);
     if (backdropEl && backdropEl.parentNode !== host) host.appendChild(backdropEl);
     if (backdropEl && host.contains(backdropEl)) return backdropEl;
     backdropEl = document.createElement('div');
@@ -12325,8 +13605,8 @@ const FloatingActionDisclosureController = (() => {
     return backdropEl;
   }
 
-  function showBackdrop() {
-    const backdrop = ensureBackdrop();
+  function showBackdrop(disclosure = activeDisclosure) {
+    const backdrop = ensureBackdrop(disclosure);
     backdrop.hidden = false;
   }
 
@@ -12335,8 +13615,18 @@ const FloatingActionDisclosureController = (() => {
     backdropEl.hidden = true;
   }
 
-  function getFloatingDisclosureHost() {
-    return document.querySelector('main.page') || document.getElementById('main-content') || document.body;
+  function getFloatingDisclosureHost(disclosure = null) {
+    if (disclosure instanceof Element) {
+      const owningStage = disclosure.closest('.app-stage-shell');
+      if (owningStage) return owningStage;
+      const owningPage = disclosure.closest('main.page');
+      if (owningPage) return owningPage;
+      const stagePage = owningStage?.querySelector?.('main.page');
+      if (stagePage) return stagePage;
+      const mainContent = disclosure.closest('#main-content');
+      if (mainContent) return mainContent;
+    }
+    return document.getElementById('main-content') || document.body;
   }
 
   function getMenuState(disclosure) {
@@ -12410,7 +13700,7 @@ const FloatingActionDisclosureController = (() => {
     };
     menu.classList.add('results-actions-disclosure-menu--floating');
     menu.dataset.menuVariant = getMenuVariant(disclosure);
-    getFloatingDisclosureHost().appendChild(menu);
+    getFloatingDisclosureHost(disclosure).appendChild(menu);
     disclosure.dataset.floatingMenu = 'true';
     return menu;
   }
@@ -12420,12 +13710,14 @@ const FloatingActionDisclosureController = (() => {
     if (!disclosure || !disclosure.open) return;
     const menu = ensureFloatingMenu(disclosure);
     const summary = disclosure.querySelector('summary');
-    if (!menu || !summary) return;
+    const host = getFloatingDisclosureHost(disclosure);
+    if (!menu || !summary || !host) return;
 
     const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
     const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
     const gap = 8;
     const summaryRect = summary.getBoundingClientRect();
+    const hostRect = host.getBoundingClientRect();
     const maxHeight = Math.max(160, viewportHeight - (gap * 2));
 
     menu.style.maxHeight = `${Math.round(maxHeight)}px`;
@@ -12450,8 +13742,8 @@ const FloatingActionDisclosureController = (() => {
 
     disclosure.dataset.menuPlacement = placement;
     menu.dataset.menuPlacement = placement;
-    menu.style.left = `${Math.round(left)}px`;
-    menu.style.top = `${Math.round(top)}px`;
+    menu.style.left = `${Math.round(left - hostRect.left)}px`;
+    menu.style.top = `${Math.round(top - hostRect.top)}px`;
     menu.style.visibility = '';
   }
 
@@ -12504,7 +13796,7 @@ const FloatingActionDisclosureController = (() => {
     disclosure.addEventListener('toggle', () => {
       if (disclosure.open) {
         setActiveDisclosure(disclosure);
-        showBackdrop();
+        showBackdrop(disclosure);
         ensureFloatingMenu(disclosure);
         updateActiveDisclosurePosition();
         return;

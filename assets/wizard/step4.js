@@ -13,7 +13,9 @@
 //   recordAssessmentRerunLearning, needsReview, isTreatmentVariantAssessment,
 //   startSimulationState, updateSimulationProgressState, completeSimulationState,
 //   failSimulationState, cancelSimulationState, ASSESSMENT_LIFECYCLE_STATUS,
-//   getAssessmentById, renderPilotWarningBanner, setPage
+//   getAssessmentById, renderPilotWarningBanner, buildDecisionReadinessModel,
+//   buildAssessmentChallengePass, buildAssessmentManagerRunModel,
+//   renderAssessmentManagerPanel, renderDecisionReadinessCard, setPage
 
 function renderPreRunAssumptionExplainer(draft, liveInputAssignments = []) {
   const entries = buildParameterChallengeEntries({
@@ -231,16 +233,70 @@ function renderWizard4() {
     inferredAssumptions: draft.inferredAssumptions,
     citations: draft.citations
   });
+  const decisionReadiness = typeof buildDecisionReadinessModel === 'function'
+    ? buildDecisionReadinessModel({
+        draft,
+        selectedRisks,
+        scenarioGeographies: getScenarioGeographies(),
+        validation,
+        safeIterations
+      })
+    : null;
+  const challengePass = typeof buildAssessmentChallengePass === 'function'
+    ? buildAssessmentChallengePass({
+        draft,
+        selectedRisks,
+        validation,
+        readiness: decisionReadiness
+      })
+    : null;
+  const managerModel = typeof buildAssessmentManagerRunModel === 'function'
+    ? buildAssessmentManagerRunModel({
+        stage: 'review',
+        draft,
+        selectedRisks,
+        validation,
+        readiness: decisionReadiness,
+        challenge: challengePass,
+        safeIterations
+      })
+    : null;
+  const workflowStatus = typeof buildAssessmentWorkflowStatusModel === 'function'
+    ? buildAssessmentWorkflowStatusModel({
+        stage: 'review',
+        draft,
+        selectedRisks,
+        scenarioGeographies: getScenarioGeographies(),
+        validation,
+        readiness: decisionReadiness,
+        challenge: challengePass
+      })
+    : null;
+  const challengeStory = typeof buildAssessmentChallengeStory === 'function'
+    ? buildAssessmentChallengeStory(challengePass, decisionReadiness)
+    : null;
   const draftFreshnessWarning = buildDraftFreshnessWarning(draft);
   setPage(`
-    <main class="page" aria-label="Step 4: Review and Run Simulation">
+    <main class="page" aria-label="Step 5: Review and Run Simulation">
       <div class="wizard-layout container container--narrow">
         <div class="wizard-header">
-          ${UI.renderStepper(4)}
+          ${UI.renderStepper(5)}
           <h2 class="wizard-step-title">Review &amp; Run Simulation</h2>
           <p class="wizard-step-desc">Check the summary, confirm the main assumptions look credible, then run the simulation with confidence. Open deeper detail only if something needs challenge before the run.</p>
         </div>
         <div class="wizard-body">
+          ${workflowStatus && typeof renderAssessmentWorkflowStatusStrip === 'function'
+            ? renderAssessmentWorkflowStatusStrip(workflowStatus)
+            : ''}
+          ${managerModel && typeof renderAssessmentManagerPanel === 'function'
+            ? renderAssessmentManagerPanel(managerModel, { title: 'Assessment Manager' })
+            : ''}
+          ${decisionReadiness && typeof renderDecisionReadinessCard === 'function'
+            ? renderDecisionReadinessCard(decisionReadiness, { compact: true })
+            : ''}
+          ${challengeStory && typeof renderAssessmentChallengeStory === 'function'
+            ? renderAssessmentChallengeStory(challengeStory)
+            : ''}
           ${renderPreRunReviewRail(draft, validation, selectedRisks, safeIterations)}
           ${draftFreshnessWarning ? `<div class="banner banner--info anim-fade-in" style="margin-top:var(--sp-4)"><span class="banner-icon">ℹ</span><span class="banner-text">${escapeHtml(draftFreshnessWarning)}</span></div>` : ''}
           ${renderPreRunTrustSummary(draft, safeIterations)}
@@ -321,7 +377,7 @@ function renderWizard4() {
       </div>
     </main>`);
 
-  document.getElementById('btn-back-4')?.addEventListener('click', () => Router.navigate('/wizard/3'));
+  document.getElementById('btn-back-4')?.addEventListener('click', () => Router.navigate('/wizard/4'));
   document.getElementById('btn-run-sim')?.addEventListener('click', runSimulation);
   document.getElementById('btn-cancel-sim')?.addEventListener('click', () => {
     const w = AppState.simulationRunToken;
@@ -360,6 +416,7 @@ async function runSimulation() {
   const runPayload = buildSimulationRunPayload();
   const validation = validateFairParams(runPayload);
   if (!validation.valid) return;
+  const selectedRisks = getSelectedRisks();
   const runtimeWarnings = Array.isArray(validation.warnings) ? validation.warnings : [];
   const runAreaEl = document.getElementById('run-area');
   const simProgressEl = document.getElementById('sim-progress');
@@ -498,6 +555,36 @@ async function runSimulation() {
     };
     results.applicableRegulations = [...(draftForAssessment.applicableRegulations || [])];
     const assessmentIntelligence = buildAssessmentIntelligence(draftForAssessment, results, validation.normalizedParams, scenario);
+    const decisionReadiness = typeof buildDecisionReadinessModel === 'function'
+      ? buildDecisionReadinessModel({
+          draft: draftForAssessment,
+          selectedRisks,
+          scenarioGeographies: getScenarioGeographies(),
+          validation,
+          safeIterations: validation.normalizedParams.iterations,
+          results
+        })
+      : null;
+    const assessmentChallengePass = typeof buildAssessmentChallengePass === 'function'
+      ? buildAssessmentChallengePass({
+          draft: draftForAssessment,
+          selectedRisks,
+          validation,
+          readiness: decisionReadiness
+        })
+      : null;
+    const assessmentManagerTrace = typeof buildAssessmentManagerRunModel === 'function'
+      ? buildAssessmentManagerRunModel({
+          stage: 'results',
+          draft: draftForAssessment,
+          selectedRisks,
+          validation,
+          readiness: decisionReadiness,
+          challenge: assessmentChallengePass,
+          safeIterations: validation.normalizedParams.iterations,
+          results
+        })
+      : null;
     results.runMetadata = RiskEngine.createRunMetadata({
       ...validation.normalizedParams,
       seed: results.runConfig?.seed ?? validation.normalizedParams.seed
@@ -521,6 +608,9 @@ async function runSimulation() {
       inputAssignments: buildLiveInputSourceAssignments(AppState.draft),
       results,
       assessmentIntelligence,
+      decisionReadiness,
+      assessmentChallengePass,
+      assessmentManagerTrace,
       completedAt: Date.now()
     };
     if (progressText) progressText.textContent = 'Saving the assessment and opening results…';

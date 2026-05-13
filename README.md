@@ -36,15 +36,47 @@ Core capabilities:
 
 1. Dashboard
 2. Start or resume an assessment
-3. Step 1: AI-assisted risk and context builder
-4. Step 2: scenario refinement and narrative shaping
-5. Step 3: estimation and advanced tuning
-6. Review & Run
-7. Results
+3. Step 1: Guide
+   - choose guided questions, paste a draft, or start from an example/register
+4. Step 2: Intake
+   - build the first scenario draft from the selected start path
+5. Step 3: Scenario
+   - refine structure, narrative, assumptions, and supporting context
+6. Step 4: Estimate
+   - use plain-language estimation or advanced tuning
+7. Step 5: Review & Run
+8. Results
    - Executive Summary
    - Technical Detail
    - Appendix & Evidence
-8. Compare a better outcome, export, submit for review, or revisit later
+9. Compare a better outcome, export, submit for review, or revisit later
+
+## Current User Experience Model
+
+The authenticated workspace defaults to `Basic` mode. Every user can switch between `Basic` and `Advanced` from the top bar, next to the currency toggle.
+
+Current desktop-first UX behavior:
+- Step 1 is an orientation screen, not the drafting workspace
+- Step 1 uses one wide decision stage with three persistent start choices:
+  - answer two questions
+  - paste my draft
+  - use an example/register
+- the selected-route explanation and the single `Continue to Step 2 intake` action stay visible in the hero
+- Step 1 now includes a compact live route runway so users can see the selected route, signal state, and Step 2 handoff without opening another panel
+- switching between guided, draft, and import/example keeps the user on Step 1 and keeps all options visible
+- Step 2 in Basic mode stays intentionally simple: two plain-language prompts, one build action, and a draft preview, with setup/context/risk-review controls behind support disclosures
+- Step 2 Basic now includes a compact Parallax-inspired workflow ribbon for source, workflow state, draft state, and next action, so users can see live-AI-first/fallback status without opening expert panels
+- after Step 2 builds a draft, the preview is shown immediately on the same screen and restored from saved assisted-draft state before the user continues to Step 3
+- Step 2 now shows a compact `Assessment Manager` timeline so users understand the journey without opening expert panels; optional setup uses a tabbed support drawer instead of one long dense stack
+- the Assessment Manager surfaces now use a Parallax-inspired signal runway, animated agent packets, and a conic readiness gauge so the AI workflow feels active without adding more controls
+- if Step 2 is missing required business context, the business-unit/geography picker is promoted above the intake and the draft build stays locked until it is selected
+- Advanced mode restores the denser command deck, live scout, prompt ideas, context dock, and full shortlist controls
+- Step 3, Step 5, and Results now share a compact workflow/status strip that keeps source, readiness, challenge posture, and next action visible without reopening expert panels
+- Step 5 and Results share the same decision-readiness model: readiness score, blocking gaps, review gaps, required controls, human approvers, Challenge Agent findings, and an Assessment Manager replay trace
+- Results now lead with a `Decision Stack`: recommendation, readiness, top blocker, next action, owner, and source in one management scan
+- Challenge Agent output now includes a short `Decision changed because...` story so users can see why the posture moved from draft output to proceed, review, or hold
+- AI output surfaces now distinguish `Live AI`, `Fallback`, `Local preview`, `Saved result`, and `Imported source` labels where the workflow source matters
+- the standard-user dashboard now opens with a featured risk-workflow strip inspired by agent marketplace patterns: a live launch runway, large launch cards, teal directional markers, and restrained motion that points users toward guided, register-led, or sample-based starts
 
 ## Enterprise Risk Coverage
 
@@ -140,6 +172,13 @@ Current AI behavior:
 - wizard steps can still carry short-term runtime context memory across the draft flow
 - bounded AI rewriting is used where draft quality matters
 - explicit fallback and unavailable states are surfaced instead of silently masquerading as live AI
+- Basic Step 2 does not show a full local draft before the user asks to build; the first build click tries live AI, then automatically stages an explicit fallback draft from the typed answers if live AI is unavailable
+- once an assisted or fallback Step 2 draft exists, saved draft state preserves the preview provenance so Basic mode cannot show an empty draft placeholder while Step 3 is available
+- the browser now also builds a deterministic Assessment Manager view around trusted workflows: context loaded, scenario framed, evidence mission, Challenge Agent, and output review
+- decision readiness is separate from AI prose and Monte Carlo output; it records blockers, open gaps, required controls, and human-review owners so final results are easier to challenge
+- the Challenge Agent pass is visible before simulation and persisted into saved results as a replayable review point
+- the Assessment Manager narrative is now the visible wrapper for scenario, evidence, challenge, and output review; specialist labels remain only as trace detail
+- provenance labels are explicit across the main AI/result surfaces so fallback or local-preview output does not look like live AI
 - retrieval uses a stronger local hybrid scorer with lens-aware and concept-aware matching, but browser-local learning weights no longer authoritatively shape inference quality
 - domain guardrails now explicitly keep common continuity, counterparty-credit, ESG/human-rights, and geopolitical scenarios from drifting into adjacent cyber, fraud, or procurement lanes unless the user input actually supports that crossover
 - remaining browser-side helper AI stays assistive-only for bounded UX features such as company-context drafting and scenario memory; it is not part of the trusted assessment or review path
@@ -372,8 +411,17 @@ Current global-admin priorities:
 
 Current productization work now includes:
 - premium UI polish across dashboard, wizard, results, settings, admin, and document library
-- committed Step 1 start modes for guided, draft, and import/example paths instead of a single long scroll
+- Basic/Advanced experience modes that are switchable from the top bar for every authenticated user
+- a more agentic dashboard front door with featured workflow cards, branded teal section markers, and hover/entry motion for the primary start paths
+- the landing dashboard now has Parallax-inspired live runways for both standard and oversight users: standard users see a launch runway above workflow cards, while BU/function oversight users see a command runway inside the hero
+- a redesigned Step 1 guide that uses one desktop-wide decision stage, one Continue action, and persistent guided/draft/import route cards instead of a dense multi-panel workspace
 - Step 1 now avoids background AI preview/prompt-idea traffic and keeps the authoritative draft path on one explicit server call
+- Basic Step 2 now sends the user from two plain-language answers straight to the build action, with graceful fallback draft staging if the live AI call fails
+- Basic Step 2 now restores built draft previews from saved assisted narrative/provenance state before Step 3, avoiding a false empty-preview state after build
+- Basic Step 2 now promotes missing required business context above the intake instead of burying it inside setup support
+- Step 2, Step 5, and Results now share an Assessment Manager / Challenge Agent / decision-readiness layer inspired by the Parallax42 decision-council pattern
+- Assessment Manager visuals now include an agentic signal runway, packet motion, hover polish, and a live readiness gauge for Step 2, Step 5, and Results, with reduced-motion coverage
+- a golden journey unit test now checks readiness, challenge, and replay-trace behavior for a supplier outage scenario
 - tighter Step 1 domain hardening for continuity, finance, ESG, and geopolitical scenarios so shortlist and narrative drift is reduced even in deterministic fallback mode
 - scenario memory and overlap checks in Step 1 without letting browser-local precedent silently steer inference quality
 - stronger AI quality and coherence signaling
@@ -512,6 +560,15 @@ Open:
 
 Do not use `file://`.
 
+The static server only serves the browser app. It does not execute the Vercel serverless API routes under `api/`. With the current release bootstrap, `http://localhost:8080` is intended to test the local UI against the hosted pilot API. If you need to test the API routes themselves locally, run them through Vercel dev with a complete `.env.local`.
+
+For local testing against the hosted pilot API, prefer the fixed `8080` origin above instead of an arbitrary port. The hosted Vercel API allowlist is expected to include:
+- `https://slackspac3.github.io`
+- `http://localhost:8080`
+- `http://127.0.0.1:8080`
+
+If local AI suddenly stops working while the hosted pilot environment is otherwise healthy, verify `ALLOWED_ORIGINS` on the Vercel project still includes those origins and redeploy the current production deployment so the change takes effect.
+
 ## Environment Configuration
 
 Do not commit real secrets, credentials, or tokens.
@@ -533,6 +590,9 @@ That file covers the expected configuration for:
 AI environment notes:
 - server-side pilot environments should provide real `COMPASS_API_KEY`, `COMPASS_API_URL`, and `COMPASS_MODEL` values
 - the frontend defaults to the hosted proxy path and should normally run keyless in the browser
+- local browser testing that needs real hosted AI should use the fixed localhost origin above so the hosted API CORS allowlist can stay narrow and explicit
+- local serverless API testing also needs `SESSION_SIGNING_SECRET` or `ADMIN_API_SECRET`; otherwise login can render locally but authenticated API workflows cannot mint or validate server session tokens
+- if live AI returns fallback while CORS and auth are healthy, test the provider credential directly from `.env.local`; a provider `Invalid API Key` response means the key, not the UI, is blocking live generation
 - pilot and production should rely on the hosted proxy plus the server-reported mode in `Admin > System Access`
 - localhost-only overrides exist for debugging, but they do not replace the server-reported mode used for operational trust
 

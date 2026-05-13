@@ -44,7 +44,7 @@ function loadStep1AssistHarness() {
 
   const buildButton = {
     dataset: {},
-    textContent: 'Build scenario with AI',
+    textContent: 'Build first draft',
     disabled: false,
     setAttribute() {},
     removeAttribute() {}
@@ -161,7 +161,7 @@ function loadStep1AssistHarness() {
   };
 }
 
-test('guided draft server failure keeps Step 1 in manual mode instead of building a local fallback draft', async () => {
+test('guided draft server failure stages a fallback draft instead of blocking the user', async () => {
   const harness = loadStep1AssistHarness();
 
   await harness.buildGuidedScenarioDraft();
@@ -169,23 +169,23 @@ test('guided draft server failure keeps Step 1 in manual mode instead of buildin
   assert.equal(harness.clearCalls.length, 1);
   assert.equal(harness.clearCalls[0].nextNarrative, 'Local guided draft preview');
   assert.equal(harness.clearCalls[0].options?.clearGeneratedRisks, true);
-  assert.equal(harness.seedCalls.length, 0);
-  assert.equal(harness.appState.draft.guidedDraftPreview, '');
-  assert.equal(harness.appState.draft.guidedDraftSource, '');
-  assert.equal(harness.appState.draft.guidedDraftStatus, '');
-  assert.equal(harness.appState.draft.aiQualityState, '');
-  assert.equal(harness.appState.draft.narrative, '');
-  assert.equal(harness.appState.draft.sourceNarrative, '');
-  assert.equal(harness.appState.draft.enhancedNarrative, '');
+  assert.equal(harness.seedCalls.length, 1);
+  assert.equal(harness.appState.draft.guidedDraftPreview, 'Local guided draft preview');
+  assert.equal(harness.appState.draft.guidedDraftSource, 'fallback');
+  assert.match(harness.appState.draft.guidedDraftStatus, /fallback draft was loaded/i);
+  assert.equal(harness.appState.draft.aiQualityState, 'fallback');
+  assert.equal(harness.appState.draft.narrative, 'Local guided draft preview');
+  assert.equal(harness.appState.draft.sourceNarrative, 'Local guided draft preview');
+  assert.equal(harness.appState.draft.enhancedNarrative, 'Local guided draft preview');
   assert.equal(harness.saveCalls.length, 1);
   assert.equal(harness.rerenderCalls.length, 1);
   assert.equal(harness.refreshCalls.length, 2);
-  assert.equal(harness.retryHandlers.length, 1);
+  assert.equal(harness.retryHandlers.length, 0);
   assert.deepEqual(harness.toasts, [
     {
-      message: 'AI draft generation is unavailable right now. Continue manually or try again.',
+      message: 'Live AI is unavailable, so a fallback draft and 2 risks were loaded. Review before continuing.',
       tone: 'warning',
-      duration: 5000
+      duration: 6500
     }
   ]);
 });

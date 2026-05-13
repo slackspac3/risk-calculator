@@ -1097,6 +1097,89 @@ function renderUserDashboard() {
         </div>
       </div>`
     : '';
+  const dashboardAgentRunwayItems = [
+    { label: 'Context', value: contextReadinessLabel || 'Ready' },
+    { label: 'Draft', value: hasDraft ? 'Resumeable' : 'Blank' },
+    { label: 'AI path', value: 'Live first' },
+    { label: 'Output', value: 'Decision-ready' }
+  ];
+  const dashboardAgentStripMarkup = !isOversightUser ? `
+    <section class="dashboard-agent-strip dashboard-agent-strip--launcher" aria-label="Featured risk workflows">
+      <div class="dashboard-agent-strip__head">
+        <div>
+          <div class="dashboard-agent-strip__eyebrow">Featured risk agents</div>
+          <strong>Choose the route. The platform does the setup.</strong>
+        </div>
+        <span class="dashboard-agent-strip__hint">One click starts a governed run</span>
+      </div>
+      <div class="dashboard-agent-strip__runway" aria-label="Current launch runway">
+        <div class="dashboard-agent-strip__runway-copy">
+          <span>Live launch runway</span>
+          <strong>${hasDraft ? 'Draft waiting in the lane' : 'Ready for a new assessment'}</strong>
+        </div>
+        <div class="dashboard-agent-strip__runway-visual" aria-hidden="true">
+          <span class="dashboard-agent-strip__runway-beam"></span>
+          ${dashboardAgentRunwayItems.map((item, index) => `<span class="dashboard-agent-strip__runway-node ${index === 0 || index === 2 ? 'is-live' : ''}" style="--runway-index:${index}"></span>`).join('')}
+          <span class="dashboard-agent-strip__packet dashboard-agent-strip__packet--one"></span>
+          <span class="dashboard-agent-strip__packet dashboard-agent-strip__packet--two"></span>
+        </div>
+        <div class="dashboard-agent-strip__runway-metrics">
+          ${dashboardAgentRunwayItems.map(item => `<div>
+            <span>${escapeDashboardText(item.label)}</span>
+            <strong>${escapeDashboardText(item.value)}</strong>
+          </div>`).join('')}
+        </div>
+      </div>
+      <div class="dashboard-agent-strip__rail">
+        ${[
+          {
+            id: 'btn-dashboard-agent-guided',
+            tone: 'guided',
+            meta: 'Agent 01',
+            status: 'Recommended',
+            label: 'Assessment flow',
+            title: 'Guided risk builder',
+            copy: 'Answer two prompts, then let AI build the first scenario draft.',
+            action: 'Launch'
+          },
+          {
+            id: 'btn-dashboard-agent-register',
+            tone: 'register',
+            meta: 'Agent 02',
+            status: 'Ready',
+            label: 'Source material',
+            title: 'Register scout',
+            copy: 'Upload an existing register and turn it into candidate assessments.',
+            action: 'Upload'
+          },
+          {
+            id: 'btn-dashboard-agent-sample',
+            tone: 'sample',
+            meta: 'Agent 03',
+            status: 'Demo path',
+            label: 'Worked example',
+            title: 'Scenario demo runner',
+            copy: 'Load a realistic scenario when you want to see the full flow fast.',
+            action: 'Preview'
+          }
+        ].map((agent, index) => `<article class="dashboard-agent-card dashboard-agent-card--${agent.tone}" style="--agent-card-index:${index}">
+          <div class="dashboard-agent-card__topline">
+            <span>${escapeDashboardText(agent.meta)}</span>
+            <strong><i aria-hidden="true"></i>${escapeDashboardText(agent.status)}</strong>
+          </div>
+          <div class="dashboard-agent-card__mark" aria-hidden="true"><span></span><span></span><span></span></div>
+          <div class="dashboard-agent-card__copy">
+            <span>${escapeDashboardText(agent.label)}</span>
+            <strong>${escapeDashboardText(agent.title)}</strong>
+            <p>${escapeDashboardText(agent.copy)}</p>
+          </div>
+          <button class="dashboard-agent-card__action" id="${agent.id}" type="button" aria-label="${escapeDashboardText(agent.action)} ${escapeDashboardText(agent.title)}">${escapeDashboardText(agent.action)}</button>
+        </article>`).join('')}
+      </div>
+      <div class="dashboard-agent-strip__pager" aria-hidden="true">
+        <span class="is-active"></span><span></span><span></span><span></span><span></span>
+      </div>
+    </section>` : '';
   const inheritedContextModel = buildInheritedContextDisplayModel({
     user,
     userSettings: settings,
@@ -1285,6 +1368,48 @@ function renderUserDashboard() {
       tone: 'neutral'
     }
   ];
+  const oversightRunwayItems = [
+    {
+      label: 'Queue',
+      value: openAssessmentRows.length ? `${openAssessmentRows.length} to review` : 'Clear'
+    },
+    {
+      label: 'Context',
+      value: contextReadinessLabel
+    },
+    {
+      label: 'Scope',
+      value: capability.canManageBusinessUnit ? 'BU managed' : 'Function managed'
+    },
+    {
+      label: 'Next',
+      value: contextNeedsAttention
+        ? 'Tighten context'
+        : queueNeedsAttention
+          ? 'Review queue'
+          : 'Start when needed'
+    }
+  ];
+  const oversightRunwayMarkup = isOversightUser ? `
+    <div class="dashboard-oversight-runway" aria-label="Oversight command runway">
+      <div class="dashboard-oversight-runway__copy">
+        <span>Command runway</span>
+        <strong>${escapeDashboardText(contextNeedsAttention ? 'Context first' : queueNeedsAttention ? 'Review lane active' : 'Oversight lane is clear')}</strong>
+        <p>${escapeDashboardText(roleFrontDoor.heroHint)}</p>
+      </div>
+      <div class="dashboard-oversight-runway__visual" aria-hidden="true">
+        <span class="dashboard-oversight-runway__beam"></span>
+        ${oversightRunwayItems.map((item, index) => `<span class="dashboard-oversight-runway__node ${index === 0 && queueNeedsAttention ? 'is-hot' : index === 1 && contextNeedsAttention ? 'is-hot' : index < 3 ? 'is-live' : ''}" style="--runway-index:${index}"></span>`).join('')}
+        <span class="dashboard-oversight-runway__packet dashboard-oversight-runway__packet--one"></span>
+        <span class="dashboard-oversight-runway__packet dashboard-oversight-runway__packet--two"></span>
+      </div>
+      <div class="dashboard-oversight-runway__metrics">
+        ${oversightRunwayItems.map(item => `<div>
+          <span>${escapeDashboardText(item.label)}</span>
+          <strong>${escapeDashboardText(item.value)}</strong>
+        </div>`).join('')}
+      </div>
+    </div>` : '';
   const renderDashboardEmptyState = ({ title, body, primaryId, primaryLabel, secondaryId = '', secondaryLabel = '' }) => `<div class="empty-state dashboard-empty-state">
     <strong>${title}</strong>
     <div style="margin-top:8px">${body}</div>
@@ -1444,6 +1569,7 @@ function renderUserDashboard() {
       });
   const standardStartModule = !isOversightUser ? `
     ${boardBriefSupportMarkup}
+    ${dashboardAgentStripMarkup}
     <div class="dashboard-start-module">
       <div class="dashboard-start-head">
         <div class="context-panel-title">Start a risk scenario</div>
@@ -1505,6 +1631,7 @@ function renderUserDashboard() {
                   </div>
                 `).join('')}
               </div>
+              ${oversightRunwayMarkup}
               <div class="dashboard-hero-actions flex items-center gap-3 mt-6" style="flex-wrap:wrap">
                 <button class="btn btn--primary btn--lg" id="btn-dashboard-new-assessment" aria-label="${roleFrontDoor.primaryActionLabel}">${roleFrontDoor.primaryActionLabel}</button>
                 ${shouldShowOversightDirectStartAction
@@ -1760,6 +1887,15 @@ function renderUserDashboard() {
     AppState.dashboardStartIntent = 'register';
     openDraftWorkspaceRoute();
   });
+  document.getElementById('btn-dashboard-agent-guided')?.addEventListener('click', () => {
+    launchGuidedAssessmentStart();
+  });
+  document.getElementById('btn-dashboard-agent-register')?.addEventListener('click', () => {
+    resetDraft();
+    AppState.dashboardStartIntent = 'register';
+    openDraftWorkspaceRoute();
+  });
+  document.getElementById('btn-dashboard-agent-sample')?.addEventListener('click', () => launchSampleStart());
   document.getElementById('btn-dashboard-start-template')?.addEventListener('click', () => {
     launchTemplateStart();
   });
@@ -2273,7 +2409,10 @@ function renderUserDashboard() {
   document.querySelectorAll('#portfolio-heatmap [data-id]').forEach(el =>
     el.addEventListener('click', () => Router.navigate('/results/' + el.dataset.id))
   );
-  document.querySelector('main.page')?.addEventListener('click', async event => {
+  const dashboardActionHost = document.querySelector('.app-stage-shell.is-current')
+    || document.querySelector('#main-content .app-stage-shell:last-of-type')
+    || document.querySelector('main.page');
+  dashboardActionHost?.addEventListener('click', async event => {
     const target = event.target.closest('button');
     if (!target) return;
     const row = target.closest('.dashboard-assessment-row');
@@ -2458,9 +2597,21 @@ function renderUserDashboard() {
 }
 
 function openDraftWorkspaceRoute() {
-  Router.navigate('/wizard/1');
-  if (typeof window !== 'undefined' && window.location.hash !== '#/wizard/1') {
-    window.location.hash = '/wizard/1';
+  const draft = AppState?.draft && typeof AppState.draft === 'object' ? AppState.draft : {};
+  const hasDraftSignal = !!String(
+    draft.enhancedNarrative
+    || draft.narrative
+    || draft.sourceNarrative
+    || draft.guidedInput?.event
+    || draft.loadedDryRunId
+    || draft.uploadedRegisterName
+    || draft.templateId
+    || ''
+  ).trim() || (Array.isArray(draft.riskCandidates) && draft.riskCandidates.length > 0);
+  const targetRoute = hasDraftSignal ? '/wizard/2' : '/wizard/1';
+  Router.navigate(targetRoute);
+  if (typeof window !== 'undefined' && window.location.hash !== `#${targetRoute}`) {
+    window.location.hash = targetRoute;
   }
   Router.resolve?.();
 }

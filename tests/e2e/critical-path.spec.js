@@ -221,17 +221,17 @@ async function seedAndMock(page) {
   });
 }
 
-test('critical path: step 4 review → run simulation → results with all tabs', async ({ page }) => {
+test('critical path: step 5 review → run simulation → results with all tabs', async ({ page }) => {
   await seedAndMock(page);
 
   const pageErrors = [];
   page.on('pageerror', error => pageErrors.push(error.message));
 
-  // Navigate to Step 4 (Review & Run)
-  await page.goto('/#/wizard/4');
+  // Navigate to Step 5 (Review & Run)
+  await page.goto('/#/wizard/5');
   await page.waitForLoadState('networkidle');
 
-  // Step 4 should render with the review surface
+  // Step 5 should render with the review surface
   await expect(page.getByRole('heading', { name: /Review & Run Simulation/i })).toBeVisible({ timeout: 10000 });
   await expect(page.getByText(/Run Monte Carlo simulation/i)).toBeVisible();
 
@@ -239,6 +239,8 @@ test('critical path: step 4 review → run simulation → results with all tabs'
   await expect(page.getByText('Review gate', { exact: true })).toBeVisible();
   await expect(page.getByText('Run trust summary', { exact: true })).toBeVisible();
   await expect(page.getByText('Run decision', { exact: true })).toBeVisible();
+  await expect(page.locator('.assessment-workflow-strip').first()).toContainText('Review and run');
+  await expect(page.locator('.assessment-challenge-story').first()).toContainText('Decision changed because');
 
   // Click Run Simulation
   await page.click('#btn-run-sim');
@@ -266,6 +268,10 @@ test('critical path: step 4 review → run simulation → results with all tabs'
 
   // Check executive tab content rendered (hero metric)
   await expect(page.locator('.results-hero-metric, .results-metric-hero, [class*="hero"]').first()).toBeVisible({ timeout: 5000 });
+  await expect(page.locator('.assessment-workflow-strip').first()).toContainText('Decision view');
+  await expect(page.locator('.assessment-decision-stack').first()).toContainText('Decision Stack');
+  await expect(page.locator('.assessment-decision-stack').first()).toContainText('Recommendation');
+  await expect(page.locator('.assessment-decision-stack').first()).toContainText('Source');
 
   // Verify technical tab is clickable
   const techTab = page.getByRole('tab', { name: /technical/i }).or(page.locator('[data-tab="technical"]'));
@@ -293,8 +299,8 @@ test('critical path: results page renders JSON export action', async ({ page }) 
   const pageErrors = [];
   page.on('pageerror', error => pageErrors.push(error.message));
 
-  // Navigate to Step 4 and run simulation
-  await page.goto('/#/wizard/4');
+  // Navigate to Step 5 and run simulation
+  await page.goto('/#/wizard/5');
   await page.waitForLoadState('networkidle');
   await expect(page.getByText(/Run Monte Carlo simulation/i)).toBeVisible({ timeout: 10000 });
   await page.click('#btn-run-sim');

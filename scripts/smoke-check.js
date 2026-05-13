@@ -217,7 +217,11 @@ expect(e2eSmokeSpecJs.includes('authenticated admin document library renders wit
 expect(e2eSmokeSpecJs.includes('dashboard archive helpers move the assessment into archived items after the confirm modal opens'), 'Playwright smoke suite is missing dashboard archive state coverage');
 expect(e2eSmokeSpecJs.includes('first-run onboarding can launch the sample assessment path'), 'Playwright smoke suite is missing first-run onboarding sample-path coverage');
 expect(e2eSmokeSpecJs.includes('dashboard duplicate assessment creates a new editable draft'), 'Playwright smoke suite is missing dashboard duplicate-assessment coverage');
-expect(e2eSmokeSpecJs.includes('wizard step 1 clear all keeps manually added risks unselected after rerender'), 'Playwright smoke suite is missing wizard clear-all coverage');
+expect(
+  e2eSmokeSpecJs.includes('wizard step 1 clear all keeps manually added risks unselected after rerender')
+    || e2eSmokeSpecJs.includes('wizard intake clear all keeps manually added risks unselected after rerender'),
+  'Playwright smoke suite is missing wizard clear-all coverage'
+);
 expect(e2eSmokeSpecJs.includes('admin can update user access and the request carries the expected role assignment'), 'Playwright smoke suite is missing admin role update coverage');
 expect(ciWorkflow.includes('ai_quality:'), 'Pilot AI Quality workflow is missing the AI-quality job');
 expect(!ciWorkflow.includes('validate_app:'), 'Pilot AI Quality workflow must not duplicate the app-integrity validation job');

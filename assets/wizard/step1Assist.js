@@ -453,7 +453,7 @@
       renderWizard1();
       window.scheduleStep1ScenarioCrossReferenceRefresh?.({ immediate: true, force: true, narrativeOverride: finalDraft });
       mountAiTraceLinks();
-      if (result.aiUnavailable) {
+      if (result.aiUnavailable && guidedDraftSource !== 'fallback') {
         _renderStep1AiUnavailableBanner('guided-preview', buildGuidedScenarioDraft);
       }
       const selectedCount = getSelectedRisks().length;
@@ -468,15 +468,27 @@
       UI.toast(toastCopy, toastTone, 5000);
     } catch (error) {
       clearStep1StaleAssistState(localDraft, { clearGeneratedRisks: true });
-      AppState.draft.aiQualityState = '';
+      const fallbackStatus = 'Live AI was unavailable, so a fallback draft was loaded from your answers. Review before continuing.';
+      AppState.draft.guidedDraftPreview = localDraft;
+      AppState.draft.guidedDraftSource = 'fallback';
+      AppState.draft.guidedDraftStatus = fallbackStatus;
+      AppState.draft.aiQualityState = 'fallback';
+      AppState.draft.narrative = localDraft;
+      AppState.draft.sourceNarrative = localDraft;
+      AppState.draft.enhancedNarrative = localDraft;
+      AppState.draft.llmAssisted = false;
+      const fallbackRiskCount = typeof seedRisksFromScenarioDraft === 'function'
+        ? seedRisksFromScenarioDraft(localDraft, { force: true, replaceGenerated: true })
+        : 0;
       saveDraft();
       renderWizard1();
       window.scheduleStep1ScenarioCrossReferenceRefresh?.({ immediate: true, force: true, narrativeOverride: localDraft });
-      _renderStep1AiUnavailableBanner('guided-preview', buildGuidedScenarioDraft, error);
       UI.toast(
-        'AI draft generation is unavailable right now. Continue manually or try again.',
+        fallbackRiskCount
+          ? `Live AI is unavailable, so a fallback draft and ${fallbackRiskCount} risk${fallbackRiskCount === 1 ? '' : 's'} were loaded. Review before continuing.`
+          : 'Live AI is unavailable, so a fallback draft was loaded automatically. Review before continuing.',
         'warning',
-        5000
+        6500
       );
     } finally {
       resetButton();

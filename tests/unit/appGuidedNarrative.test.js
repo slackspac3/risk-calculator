@@ -70,3 +70,23 @@ test('composeGuidedNarrative keeps payroll processor incidents out of supplier-d
   assert.match(narrative, /payroll processing, employee bank-detail handling, and incident-ownership path/i);
   assert.doesNotMatch(narrative, /supplier-dependency and delivery issue|infrastructure deployment|milestone plan|dependent business projects|project slippage/i);
 });
+
+test('composeGuidedNarrative keeps supplier platform outages concise and out of concentration drift', () => {
+  const composeGuidedNarrative = loadComposeGuidedNarrative();
+  const event = 'A critical supplier for a customer-facing digital service experiences a prolonged platform outage during a peak business period. The outage delays service fulfilment, increases manual workaround activity, and creates a risk of missed customer commitments, regulatory complaints, and reputational damage.';
+  const narrative = composeGuidedNarrative({
+    event,
+    impact: 'Customer service disruption, operational backlog, regulatory complaint risk, and reputational impact.',
+    urgency: 'medium'
+  }, {
+    lensLabel: 'General enterprise risk',
+    lensKey: 'general'
+  });
+
+  assert.match(narrative, /^A critical supplier for a customer-facing digital service experiences a prolonged platform outage/i);
+  assert.match(narrative, /third-party service resilience issue/i);
+  assert.match(narrative, /supplier-managed service, fallback process, and customer-commitment path/i);
+  assert.doesNotMatch(narrative, /Medium-urgency|General enterprise risk scenario|supplier concentration|concentrated spend|pricing power|commercial leverage/i);
+  assert.doesNotMatch(narrative, /\.\./);
+  assert.ok(narrative.length < 700, `Expected concise local draft, received ${narrative.length} chars`);
+});
