@@ -315,6 +315,17 @@ Additional validation after the latest uncommitted UI changes on top of `test-po
   - local promotion checks on `master`: `node --test tests/unit/step1PromptIdeas.test.js`, `npm run check:syntax`, and `npm run check:smoke` -> passed
   - `Deploy GitHub Pages` for `master` run `25813577225` -> passed
   - live root `https://slackspac3.github.io/risk-calculator/` fetched after deploy and is serving `20260426v14` assets
+- 2026-05-13 full QA scan on production `master`:
+  - baseline: `master` at `46ef6a4` with only generated `.playwright-cli/` and `output/` untracked
+  - `npm run qa:app` passed all non-browser gates before the Playwright step: syntax, taxonomy projection, smoke guardrails, unit tests (`554`), eval fixture contract, and README scan (`145` checks)
+  - the `qa:app` browser step initially failed with `listen EPERM` on `127.0.0.1`, which is a local sandbox/server-bind issue rather than an app failure
+  - reran the package-managed browser suite with local-server permission: `npm run test:e2e` -> passed (`53` tests)
+  - `npm run qa:ai` -> failed and remains the release-level AI-quality blocker
+  - failing AI-quality metrics from `test-results/eval/qa-release-report.json`: `passRate 0.000 < 0.080`, `primaryLensAccuracy 0.538 < 0.650`, `avgValidRiskRecall 0.313 < 0.350`, `avgInvalidRiskLeakageRate 0.156 > 0.150`, `avgAnchorCoverage 0.082 < 0.200`
+  - passing AI retrieval metrics: `retrievalCoverage 0.568 >= 0.550`, `avgRetrievalF1 0.474 >= 0.450`
+  - weakest deterministic eval areas by primary-lens accuracy: Operational, Financial, Regulatory, Cyber, and Third-Party all at `0/6`; Business Continuity, Strategic, Transformation Delivery, and ESG remain low
+  - latest `master` GitHub Pages workflows are green, and live root HTML still serves `20260426v14`
+  - `git diff --check` -> passed after the QA scan docs update
 
 Current local asset version under test:
 
