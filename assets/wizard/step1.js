@@ -5206,7 +5206,9 @@ function updateStep1GuidedPreview() {
   const previewSource = String(previewModel.source || '').trim().toLowerCase();
   const hasEventSignal = !!String(AppState.draft?.guidedInput?.event || '').trim();
   const hasImpactSignal = !!String(AppState.draft?.guidedInput?.impact || '').trim();
-  const basicDraftShell = document.querySelector('.step1-basic-intake__draft');
+  const basicDraftShell = typeof document.querySelector === 'function'
+    ? document.querySelector('.step1-basic-intake__draft')
+    : null;
   const shouldShowPreview = !!previewText && !(basicDraftShell && previewSource === 'local');
   const previewPlaceholder = hasEventSignal && hasImpactSignal
     ? 'Click Build draft once. If live AI is unavailable, a fallback draft will be loaded automatically.'
