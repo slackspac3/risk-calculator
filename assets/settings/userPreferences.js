@@ -153,6 +153,14 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
           </select>
         </div>
       </div>
+      <div class="form-group mt-4">
+        <label class="form-label" for="user-experience-mode">Default interface mode</label>
+        <select class="form-select" id="user-experience-mode">
+          <option value="basic" ${normaliseExperienceMode(settings.experienceMode) === 'basic' ? 'selected' : ''}>Basic - guided workspace</option>
+          <option value="advanced" ${normaliseExperienceMode(settings.experienceMode) === 'advanced' ? 'selected' : ''}>Advanced - inspector and expert controls</option>
+        </select>
+        <span class="form-help">You can still switch instantly from the top bar on any page.</span>
+      </div>
       <div class="grid-2 mt-4">
         <div class="form-group">
           <label class="form-label" for="user-geo-secondary">Secondary Geography</label>
@@ -645,6 +653,7 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
           workingContext: document.getElementById('user-working-context').value.trim()
         },
         defaultLinkMode: document.getElementById('user-link-mode').value === 'yes',
+        experienceMode: normaliseExperienceMode(document.getElementById('user-experience-mode')?.value || getExperienceMode?.() || 'basic'),
         riskAppetiteStatement: document.getElementById('user-appetite').value.trim() || globalSettings.riskAppetiteStatement,
         applicableRegulations: regsInput.getTags(),
         aiInstructions: document.getElementById('user-ai-instructions').value.trim(),
@@ -661,6 +670,13 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
     if (renderToken !== activeUserSettingsRenderToken) return;
     const { payload, businessUnitEntityId, departmentEntityId } = buildUserSettingsPayload();
     saveUserSettings(payload);
+    if (typeof setExperienceMode === 'function' && normaliseExperienceMode(payload.experienceMode) !== getExperienceMode()) {
+      setExperienceMode(payload.experienceMode, {
+        persistUserSettings: false,
+        rerender: false,
+        toast: false
+      });
+    }
     if (renderToken !== activeUserSettingsRenderToken) return;
     if (!AppState.draft.geography) AppState.draft.geography = getEffectiveSettings().geography;
     saveDraft();

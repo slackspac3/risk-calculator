@@ -81,7 +81,7 @@ const UI = (() => {
     backdrop.querySelector('.modal-close').addEventListener('click', close);
     backdrop.addEventListener('click', e => { if (e.target === backdrop) close(); });
     document.addEventListener('keydown', esc);
-    return { close };
+    return { close, element: backdrop, backdrop, dialog: backdrop.querySelector('.modal') };
   }
 
   // ─── Citation Modal ───────────────────────────────────────
@@ -143,10 +143,11 @@ const UI = (() => {
   // ─── Stepper ──────────────────────────────────────────────
   function renderStepper(currentStep) {
     const steps = [
-      { n: 1, label: 'Risk Builder' },
-      { n: 2, label: 'Scenario' },
-      { n: 3, label: 'FAIR Inputs' },
-      { n: 4, label: 'Review & Run' }
+      { n: 1, label: 'Guide' },
+      { n: 2, label: 'Intake' },
+      { n: 3, label: 'Scenario' },
+      { n: 4, label: 'FAIR Inputs' },
+      { n: 5, label: 'Review & Run' }
     ];
     return `<nav class="stepper" aria-label="Assessment steps" role="list">
       ${steps.map((s, i) => {

@@ -163,7 +163,7 @@
   function handleCurrencyChange(newCurrency) {
     if (AppState.currency === newCurrency) return;
     const hash = String(window.location.hash || '');
-    const onWizard = /^#\/wizard\/[1-4]/.test(hash);
+    const onWizard = /^#\/wizard\/[1-5]/.test(hash);
     if (onWizard) {
       const narrativeEl = document.getElementById('narrative')
         || document.getElementById('intake-risk-statement');
@@ -204,7 +204,10 @@
             { href: '#/settings', label: isOversightUser ? (nonAdminCapability?.experience?.primaryActionLabel || 'Role Context') : 'Personal Settings', active: currentHash.startsWith('#/settings') }
           ]
         : [
-            { href: '#/', label: 'Home', active: currentHash === '#/' || currentHash === '' }
+            { href: '#/', label: 'Home', active: currentHash === '#/' || currentHash === '' },
+            { href: '#/about', label: 'About', active: currentHash.startsWith('#/about') },
+            { href: '#/privacy', label: 'Privacy', active: currentHash.startsWith('#/privacy') },
+            { href: '#/contact', label: 'Contact', active: currentHash.startsWith('#/contact') }
           ];
     return {
       currentUser,
@@ -219,6 +222,9 @@
       const currentUser = AuthService.getCurrentUser();
       const currentHash = String(window.location.hash || '#/');
       const navModel = getAppBarNavModel(currentUser, currentHash);
+      const experienceMode = typeof getExperienceMode === 'function'
+        ? getExperienceMode()
+        : String(AppState.experienceMode || AppState.mode || 'basic');
       const bar = document.getElementById('app-bar');
       closeNotifDrawer();
       bar.innerHTML = `
@@ -241,7 +247,11 @@
             <a href="#/help" class="btn btn--ghost btn--sm bar-top-action${currentHash.startsWith('#/help') ? ' active' : ''}" id="btn-open-help"${currentHash.startsWith('#/help') ? ' aria-current="page"' : ''}>Help</a>
             <span class="bar-nav-link" style="pointer-events:none">${currentUser.displayName}</span>
             <button type="button" class="btn btn--ghost btn--sm" id="btn-sign-out">Sign Out</button>
-          ` : `<a href="#/login" class="bar-nav-link bar-nav-link--admin">Sign In</a>`}
+            <div class="experience-toggle" role="group" aria-label="Experience mode">
+              <button type="button" id="experience-basic" class="${experienceMode === 'basic' ? 'active' : ''}" aria-pressed="${experienceMode === 'basic' ? 'true' : 'false'}">Basic</button>
+              <button type="button" id="experience-advanced" class="${experienceMode === 'advanced' ? 'active' : ''}" aria-pressed="${experienceMode === 'advanced' ? 'true' : 'false'}">Advanced</button>
+            </div>
+          ` : `<a href="#/login" class="btn btn--primary btn--sm">PoC Access</a>`}
           <div class="currency-toggle" role="group" aria-label="Currency">
             <button id="cur-usd" class="${AppState.currency==='USD'?'active':''}">USD</button>
             <button id="cur-aed" class="${AppState.currency==='AED'?'active':''}">AED</button>
@@ -259,6 +269,12 @@
       bindNotifSync();
       document.getElementById('cur-usd').addEventListener('click', () => handleCurrencyChange('USD'));
       document.getElementById('cur-aed').addEventListener('click', () => handleCurrencyChange('AED'));
+      document.getElementById('experience-basic')?.addEventListener('click', () => {
+        if (typeof setExperienceMode === 'function') setExperienceMode('basic');
+      });
+      document.getElementById('experience-advanced')?.addEventListener('click', () => {
+        if (typeof setExperienceMode === 'function') setExperienceMode('advanced');
+      });
       document.getElementById('btn-notif-bell')?.addEventListener('click', event => {
         event.preventDefault();
         event.stopPropagation();

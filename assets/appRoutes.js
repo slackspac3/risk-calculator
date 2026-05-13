@@ -5,9 +5,12 @@
     register(router) {
       return router
         .on('/login', renderLogin)
+        .on('/about', renderPublicAboutPage)
+        .on('/privacy', renderPublicPrivacyPage)
+        .on('/contact', renderPublicContactPage)
         .on('/', () => {
           if (!AuthService.isAuthenticated()) {
-            Router.navigate('/login');
+            renderLanding();
             return;
           }
           Router.navigate(typeof getDefaultRouteForCurrentUser === 'function'
@@ -15,10 +18,11 @@
             : '/dashboard');
         })
         .on('/dashboard', withAuth(renderUserDashboard))
-        .on('/wizard/1', withAuth(renderWizard1))
-        .on('/wizard/2', withAuth(renderWizard2))
-        .on('/wizard/3', withAuth(renderWizard3))
-        .on('/wizard/4', withAuth(renderWizard4))
+        .on('/wizard/1', withAuth(renderWizardGuide))
+        .on('/wizard/2', withAuth(renderWizard1))
+        .on('/wizard/3', withAuth(renderWizard2))
+        .on('/wizard/4', withAuth(renderWizard3))
+        .on('/wizard/5', withAuth(renderWizard4))
         .on('/results/:id', withAuth(params => renderResults(params.id)))
         .on('/settings', withAuth(renderUserSettings))
         .on('/help', withAuth(renderHelpPage))
@@ -37,7 +41,7 @@
         .on('/admin/docs', withAdmin(renderAdminDocs))
         .notFound(() => {
           if (!AuthService.isAuthenticated()) {
-            Router.navigate('/login');
+            Router.navigate('/');
             return;
           }
           const fallbackRoute = typeof getDefaultRouteForCurrentUser === 'function'

@@ -106,16 +106,20 @@ const AdminAuditLogSection = (() => {
   }
 
   function buildAuditSearchHaystack(entry = {}) {
+    const safeEntry = entry && typeof entry === 'object' ? entry : {};
+    const safeDetails = safeEntry.details && typeof safeEntry.details === 'object' && !Array.isArray(safeEntry.details)
+      ? safeEntry.details
+      : {};
     return [
-      entry.ts,
-      entry.actorUsername,
-      entry.actorRole,
-      entry.category,
-      entry.eventType,
-      entry.target,
-      entry.status,
-      entry.source,
-      ...Object.entries(entry.details || {}).flatMap(([key, value]) => [key, formatAuditValue(value)])
+      safeEntry.ts,
+      safeEntry.actorUsername,
+      safeEntry.actorRole,
+      safeEntry.category,
+      safeEntry.eventType,
+      safeEntry.target,
+      safeEntry.status,
+      safeEntry.source,
+      ...Object.entries(safeDetails).flatMap(([key, value]) => [key, formatAuditValue(value)])
     ]
       .filter(Boolean)
       .join(' ')
@@ -221,7 +225,9 @@ const AdminAuditLogSection = (() => {
 
   function renderSection({ auditCache }) {
     const auditSummary = auditCache.summary || {};
-    const loadedEntries = Array.isArray(auditCache.entries) ? auditCache.entries : [];
+    const loadedEntries = Array.isArray(auditCache.entries)
+      ? auditCache.entries.filter(entry => entry && typeof entry === 'object' && !Array.isArray(entry))
+      : [];
     const activeFilter = getActiveFilter();
     const secondaryFilters = getActiveSecondaryFilters();
     const filteredEntries = loadedEntries.filter((entry) => {
@@ -328,9 +334,21 @@ const AdminAuditLogSection = (() => {
   }
 
   function bind({ rerenderCurrentAdminSection }) {
-    document.getElementById('btn-refresh-audit-log')?.addEventListener('click', async () => {
-      const btn = document.getElementById('btn-refresh-audit-log');
-      const status = document.getElementById('audit-log-status');
+    const getActiveControl = (selector) => {
+      const matches = Array.from(document.querySelectorAll(selector));
+      for (let index = matches.length - 1; index >= 0; index -= 1) {
+        const node = matches[index];
+        const rect = typeof node.getBoundingClientRect === 'function'
+          ? node.getBoundingClientRect()
+          : null;
+        if (!rect || rect.width > 0 || rect.height > 0) return node;
+      }
+      return matches.at(-1) || null;
+    };
+
+    getActiveControl('#btn-refresh-audit-log')?.addEventListener('click', async () => {
+      const btn = getActiveControl('#btn-refresh-audit-log');
+      const status = getActiveControl('#audit-log-status');
       const originalText = btn?.textContent || 'Refresh Logs';
       const originalStatus = status?.textContent || '';
       if (btn) {
@@ -359,32 +377,32 @@ const AdminAuditLogSection = (() => {
         rerenderCurrentAdminSection();
       });
     });
-    document.getElementById('audit-log-search')?.addEventListener('input', (event) => {
+    getActiveControl('#audit-log-search')?.addEventListener('input', (event) => {
       activeSearchQuery = String(event?.target?.value || '');
       visibleAuditRowCount = DEFAULT_VISIBLE_AUDIT_ROWS;
       rerenderCurrentAdminSection();
     });
-    document.getElementById('audit-log-role-filter')?.addEventListener('change', (event) => {
+    getActiveControl('#audit-log-role-filter')?.addEventListener('change', (event) => {
       activeRoleFilter = normaliseFilterValue(event?.target?.value) || 'all';
       visibleAuditRowCount = DEFAULT_VISIBLE_AUDIT_ROWS;
       rerenderCurrentAdminSection();
     });
-    document.getElementById('audit-log-category-filter')?.addEventListener('change', (event) => {
+    getActiveControl('#audit-log-category-filter')?.addEventListener('change', (event) => {
       activeCategoryFilter = normaliseFilterValue(event?.target?.value) || 'all';
       visibleAuditRowCount = DEFAULT_VISIBLE_AUDIT_ROWS;
       rerenderCurrentAdminSection();
     });
-    document.getElementById('audit-log-status-filter')?.addEventListener('change', (event) => {
+    getActiveControl('#audit-log-status-filter')?.addEventListener('change', (event) => {
       activeStatusFilter = normaliseFilterValue(event?.target?.value) || 'all';
       visibleAuditRowCount = DEFAULT_VISIBLE_AUDIT_ROWS;
       rerenderCurrentAdminSection();
     });
-    document.getElementById('audit-log-source-filter')?.addEventListener('change', (event) => {
+    getActiveControl('#audit-log-source-filter')?.addEventListener('change', (event) => {
       activeSourceFilter = normaliseFilterValue(event?.target?.value) || 'all';
       visibleAuditRowCount = DEFAULT_VISIBLE_AUDIT_ROWS;
       rerenderCurrentAdminSection();
     });
-    document.getElementById('btn-clear-audit-filters')?.addEventListener('click', () => {
+    getActiveControl('#btn-clear-audit-filters')?.addEventListener('click', () => {
       activeFilterKey = '';
       activeSearchQuery = '';
       activeRoleFilter = 'all';
@@ -395,11 +413,11 @@ const AdminAuditLogSection = (() => {
       expandedEntryIds.clear();
       rerenderCurrentAdminSection();
     });
-    document.getElementById('btn-show-more-audit-rows')?.addEventListener('click', () => {
+    getActiveControl('#btn-show-more-audit-rows')?.addEventListener('click', () => {
       visibleAuditRowCount += DEFAULT_VISIBLE_AUDIT_ROWS;
       rerenderCurrentAdminSection();
     });
-    document.getElementById('btn-show-all-audit-rows')?.addEventListener('click', () => {
+    getActiveControl('#btn-show-all-audit-rows')?.addEventListener('click', () => {
       visibleAuditRowCount = Number.MAX_SAFE_INTEGER;
       rerenderCurrentAdminSection();
     });

@@ -548,7 +548,7 @@ function loadDraft() {
   }
 }
 
-function clearDraftScopedWizardUiState(scopePrefix = '/wizard/1::') {
+function clearDraftScopedWizardUiState(scopePrefix = '/wizard/2::') {
   if (!AppState || !AppState.disclosureState || typeof AppState.disclosureState !== 'object') return;
   const safePrefixes = (Array.isArray(scopePrefix) ? scopePrefix : [scopePrefix])
     .map(prefix => String(prefix || '').trim().toLowerCase())
@@ -571,10 +571,13 @@ function resetDraft() {
     '/wizard/1::',
     '/wizard/2::',
     '/wizard/3::',
-    '/wizard/4::'
+    '/wizard/4::',
+    '/wizard/5::'
   ]);
   if (AppState && Object.prototype.hasOwnProperty.call(AppState, 'mode')) {
-    AppState.mode = 'basic';
+    AppState.mode = typeof window?.getExperienceMode === 'function'
+      ? window.getExperienceMode()
+      : 'basic';
   }
   if (AppState) {
     AppState.forceWizardDisclosureDefaults = true;
