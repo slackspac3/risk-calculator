@@ -932,7 +932,7 @@ test('displayed guided prompt ideas default to an explicit AI action until the u
   const html = internals.renderStep1GuidedPromptIdeaPanel(displayedModel);
 
   assert.equal(displayedModel.explicitAiFlow, true);
-  assert.match(html, /Step 1 of 2/i);
+  assert.match(html, /Optional sharpening/i);
   assert.match(html, /Generate prompt ideas and check the lens/i);
   assert.match(html, /btn-generate-guided-prompt-ideas/i);
 });
@@ -1237,7 +1237,7 @@ test('step 1 busy helper marks AI buttons as active work instead of plain disabl
   const internals = loadStep1Internals();
   const classes = new Set();
   const button = {
-    textContent: 'Build scenario with AI',
+    textContent: 'Build first draft',
     disabled: false,
     dataset: {},
     attributes: {},
@@ -1256,13 +1256,13 @@ test('step 1 busy helper marks AI buttons as active work instead of plain disabl
   const restore = internals.setStep1ButtonBusy(button, 'Building…');
   assert.equal(button.disabled, true);
   assert.equal(button.textContent, 'Building…');
-  assert.equal(button.dataset.idleLabel, 'Build scenario with AI');
+  assert.equal(button.dataset.idleLabel, 'Build first draft');
   assert.equal(button.attributes['aria-busy'], 'true');
   assert.equal(classes.has('btn--step1-ai-busy'), true);
 
   restore();
   assert.equal(button.disabled, false);
-  assert.equal(button.textContent, 'Build scenario with AI');
+  assert.equal(button.textContent, 'Build first draft');
   assert.equal(button.attributes['aria-busy'], undefined);
   assert.equal(classes.has('btn--step1-ai-busy'), false);
 });

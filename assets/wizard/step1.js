@@ -14,6 +14,28 @@ function _setStep1ButtonBusy(button, busyLabel, idleLabel) {
   };
 }
 
+function getStep1DraftSourceKey(draft = AppState.draft || {}) {
+  const rawSource = String(draft?.guidedDraftSource || draft?.aiQualityState || '').trim().toLowerCase();
+  if (rawSource === 'live') return 'ai';
+  if (rawSource === 'deterministic_fallback' || rawSource === 'stub') return 'fallback';
+  if (rawSource === 'manual_only') return 'manual';
+  if (rawSource === 'local' && String(draft?.guidedDraftPreview || '').trim()) return 'fallback';
+  if (!rawSource && draft?.llmAssisted && String(draft?.enhancedNarrative || draft?.narrative || draft?.guidedDraftPreview || '').trim()) return 'ai';
+  if (!rawSource && String(draft?.guidedDraftPreview || '').trim()) return 'fallback';
+  return rawSource;
+}
+
+function hasStep1StagedGuidedDraft(draft = AppState.draft || {}) {
+  const source = getStep1DraftSourceKey(draft);
+  if (!source) return false;
+  if (source === 'local') return false;
+  if (String(draft?.guidedDraftSource || '').trim() && source !== 'local') return true;
+  if (String(draft?.guidedDraftPreview || draft?.aiNarrativeBaseline || draft?.enhancedNarrative || '').trim()) {
+    return source !== 'local';
+  }
+  return false;
+}
+
 function getStep1RecommendedAction(draft, selectedRisks) {
   const selectedCount = Array.isArray(selectedRisks) ? selectedRisks.length : 0;
   if (!String(draft.narrative || '').trim() && !selectedCount) {
@@ -32,6 +54,285 @@ function getStep1RecommendedAction(draft, selectedRisks) {
     title: 'Review the selected risks and continue',
     copy: `You already have ${selectedCount} risk${selectedCount === 1 ? '' : 's'} selected. Remove anything out of scope, then continue to scenario review.`
   };
+}
+
+function buildStep1IntakeSequenceModel(draft = AppState.draft || {}) {
+  const hasEventSignal = !!String(draft.guidedInput?.event || '').trim();
+  const hasImpactSignal = !!String(draft.guidedInput?.impact || '').trim();
+  const hasDraftStage = hasStep1StagedGuidedDraft(draft);
+
+  const steps = [
+    {
+      number: '1',
+      label: 'Describe the event',
+      copy: 'Add one concrete event, trigger, or failure signal.',
+      state: hasEventSignal ? 'complete' : 'active'
+    },
+    {
+      number: '2',
+      label: 'Name the impact',
+      copy: 'State the main business, regulatory, or operational effect.',
+      state: !hasEventSignal ? 'pending' : hasImpactSignal ? 'complete' : 'active'
+    },
+    {
+      number: '3',
+      label: 'Build the first draft',
+      copy: 'Turn the signal into a scoped scenario draft.',
+      state: !hasEventSignal || !hasImpactSignal ? 'pending' : hasDraftStage ? 'complete' : 'active'
+    },
+    {
+      number: '4',
+      label: 'Review and continue',
+      copy: 'Tighten the draft, then move into scenario review.',
+      state: !hasEventSignal || !hasImpactSignal || !hasDraftStage ? 'pending' : 'active'
+    }
+  ];
+
+  let nextAction = {
+    title: '1. Describe the event',
+    copy: 'Start with one concrete signal so the scout has something real to classify.',
+    kicker: 'Event first'
+  };
+  if (hasEventSignal && !hasImpactSignal) {
+    nextAction = {
+      title: '2. Name the main impact',
+      copy: 'Add the impact you care about so the first draft stays tightly scoped.',
+      kicker: 'Impact needed'
+    };
+  } else if (hasEventSignal && hasImpactSignal && !hasDraftStage) {
+    nextAction = {
+      title: '3. Build the first draft',
+      copy: 'Your signal is ready. Build now, then review the draft and lens fit below.',
+      kicker: 'Ready to build'
+    };
+  } else if (hasEventSignal && hasImpactSignal && hasDraftStage) {
+    nextAction = {
+      title: '4. Review the draft and continue',
+      copy: 'Tighten the wording if needed, then continue into scenario review with a defensible draft.',
+      kicker: 'Draft ready'
+    };
+  }
+
+  return {
+    hasEventSignal,
+    hasImpactSignal,
+    hasDraftStage,
+    steps,
+    nextAction
+  };
+}
+
+function renderStep1CommandProgressMarkup(steps = []) {
+  return steps.map((step) => `<div class="step1-command-deck__progress-step step1-command-deck__progress-step--${escapeHtml(step.state)}">
+    <div class="step1-command-deck__progress-top">
+      <span class="step1-command-deck__progress-index">${step.state === 'complete' ? '✓' : escapeHtml(step.number)}</span>
+      <span class="step1-command-deck__progress-state">${escapeHtml(step.state === 'active' ? 'Now' : step.state === 'complete' ? 'Done' : 'Later')}</span>
+    </div>
+    <strong>${escapeHtml(step.label)}</strong>
+    <span>${escapeHtml(step.copy)}</span>
+  </div>`).join('');
+}
+
+function buildStep1BasicWorkflowRibbonModel(draft = AppState.draft || {}) {
+  const hasBusinessContext = !!String(draft?.buId || '').trim();
+  const hasEventSignal = !!String(draft?.guidedInput?.event || '').trim();
+  const hasImpactSignal = !!String(draft?.guidedInput?.impact || '').trim();
+  const hasStagedDraft = hasStep1StagedGuidedDraft(draft);
+  const sourceKey = getStep1DraftSourceKey(draft);
+  const intakeSequence = buildStep1IntakeSequenceModel(draft);
+  const sourceLabel = hasStagedDraft
+    ? sourceKey === 'ai'
+      ? 'Live AI draft'
+      : sourceKey === 'fallback'
+        ? 'Fallback draft'
+        : sourceKey === 'manual'
+          ? 'Manual draft'
+          : 'Assisted draft'
+    : hasEventSignal && hasImpactSignal
+      ? 'Live AI first'
+      : 'No draft yet';
+  const sourceCopy = hasStagedDraft
+    ? sourceKey === 'ai'
+      ? 'Generated by the hosted AI path and ready to review.'
+      : sourceKey === 'fallback'
+        ? 'Live AI was unavailable, so a safe fallback was staged.'
+        : sourceKey === 'manual'
+          ? 'Continue manually or retry AI when available.'
+          : 'Built draft is staged for review.'
+    : hasEventSignal && hasImpactSignal
+      ? 'Build tries AI first; fallback is automatic if needed.'
+      : 'Nothing is sent until the build action is used.';
+  const workflowLabel = !hasBusinessContext
+    ? 'Context required'
+    : !hasEventSignal
+      ? 'Waiting for event'
+      : !hasImpactSignal
+        ? 'Impact needed'
+        : hasStagedDraft
+          ? 'Reviewing draft'
+          : 'Ready to build';
+  const workflowCopy = !hasBusinessContext
+    ? 'Select the business unit so context and regulations are correct.'
+    : !hasEventSignal
+      ? 'Add one concrete event or trigger.'
+      : !hasImpactSignal
+        ? 'Name the main business, customer, regulatory, or operational impact.'
+        : hasStagedDraft
+          ? 'Preview is visible. Continue only if the scenario still fits.'
+          : 'The two required inputs are ready for the build action.';
+  const draftLabel = hasStagedDraft
+    ? 'Preview visible'
+    : hasEventSignal && hasImpactSignal
+      ? 'Not built'
+      : 'Blank';
+  const draftCopy = hasStagedDraft
+    ? 'Step 3 will refine this draft, not create it for the first time.'
+    : hasEventSignal && hasImpactSignal
+      ? 'Click Build draft once to stage the first scenario draft.'
+      : 'The draft area stays quiet until the required inputs exist.';
+  const state = !hasBusinessContext
+    ? 'blocked'
+    : hasStagedDraft
+      ? 'ready'
+      : hasEventSignal && hasImpactSignal
+        ? 'armed'
+        : 'waiting';
+
+  return {
+    state,
+    cards: [
+      {
+        key: 'source',
+        label: 'Source',
+        value: sourceLabel,
+        copy: sourceCopy,
+        tone: hasStagedDraft ? (sourceKey === 'fallback' || sourceKey === 'manual' ? 'warning' : 'live') : 'neutral'
+      },
+      {
+        key: 'workflow',
+        label: 'Current workflow',
+        value: workflowLabel,
+        copy: workflowCopy,
+        tone: state === 'blocked' ? 'warning' : state === 'ready' ? 'live' : 'neutral'
+      },
+      {
+        key: 'draft',
+        label: 'Draft state',
+        value: draftLabel,
+        copy: draftCopy,
+        tone: hasStagedDraft ? 'live' : 'neutral'
+      },
+      {
+        key: 'action',
+        label: 'Next action',
+        value: intakeSequence.nextAction.kicker || intakeSequence.nextAction.title,
+        copy: intakeSequence.nextAction.copy,
+        tone: state === 'blocked' ? 'warning' : 'action'
+      }
+    ]
+  };
+}
+
+function renderStep1BasicWorkflowRibbonInner(model = buildStep1BasicWorkflowRibbonModel()) {
+  return `<div class="step1-basic-workflow-ribbon__grid">
+    ${model.cards.map((card) => `<div class="step1-basic-workflow-ribbon__item step1-basic-workflow-ribbon__item--${escapeHtml(card.key)} step1-basic-workflow-ribbon__item--${escapeHtml(card.tone)}">
+      <div class="step1-basic-workflow-ribbon__label"><span aria-hidden="true"></span>${escapeHtml(card.label)}</div>
+      <strong>${escapeHtml(card.value)}</strong>
+      <p>${escapeHtml(card.copy)}</p>
+    </div>`).join('')}
+  </div>`;
+}
+
+function renderStep1BasicWorkflowRibbon(draft = AppState.draft || {}) {
+  const model = buildStep1BasicWorkflowRibbonModel(draft);
+  return `<section class="step1-basic-workflow-ribbon anim-fade-in" id="step1-basic-workflow-ribbon" data-workflow-state="${escapeHtml(model.state)}" aria-label="Step 2 workflow status">
+    ${renderStep1BasicWorkflowRibbonInner(model)}
+  </section>`;
+}
+
+function refreshStep1BasicWorkflowRibbon(draft = AppState.draft || {}) {
+  const ribbon = document.getElementById('step1-basic-workflow-ribbon');
+  if (!ribbon) return;
+  const model = buildStep1BasicWorkflowRibbonModel(draft);
+  ribbon.dataset.workflowState = model.state;
+  ribbon.innerHTML = renderStep1BasicWorkflowRibbonInner(model);
+}
+
+function setStep1NodeText(selector, value = '') {
+  if (typeof document.querySelector !== 'function') return;
+  const node = document.querySelector(selector);
+  if (node) node.textContent = String(value || '');
+}
+
+function updateStep1CommandDeckState() {
+  if (typeof document === 'undefined') return;
+  const draft = AppState.draft || {};
+  const intakeSequence = buildStep1IntakeSequenceModel(draft);
+  const progress = document.getElementById('step1-command-progress');
+  if (progress) progress.innerHTML = renderStep1CommandProgressMarkup(intakeSequence.steps);
+
+  [
+    '#step1-intake-next-title',
+    '#step1-command-next-title'
+  ].forEach(selector => setStep1NodeText(selector, intakeSequence.nextAction.title));
+  [
+    '#step1-intake-next-copy',
+    '#step1-command-next-copy'
+  ].forEach(selector => setStep1NodeText(selector, intakeSequence.nextAction.copy));
+  [
+    '#step1-intake-next-kicker',
+    '#step1-command-next-kicker'
+  ].forEach(selector => setStep1NodeText(selector, intakeSequence.nextAction.kicker));
+
+  const previewModel = getStep1DisplayedGuidedPreviewModel(draft);
+  const hasEventSignal = !!String(draft.guidedInput?.event || '').trim();
+  const hasImpactSignal = !!String(draft.guidedInput?.impact || '').trim();
+  const hasStagedDraft = hasStep1StagedGuidedDraft(draft);
+  const hasBusinessContext = !!String(draft.buId || '').trim();
+  const heroActionTitle = !hasEventSignal || !hasImpactSignal
+    ? 'Complete steps 1 and 2, then build'
+    : hasStagedDraft
+      ? 'Rebuild if you want a stronger first pass'
+      : 'Build the first draft now';
+  const heroActionCopy = !hasEventSignal || !hasImpactSignal
+    ? 'Keep the opening tight: one event and one impact. Once those are in place, build the first draft.'
+    : hasStagedDraft
+      ? 'The deck already has a staged draft. Rebuild only after editing the event or impact.'
+      : 'The signal is ready. Build the first draft, then review the working draft and optional prompt ideas below.';
+  const basicNextLabel = !hasBusinessContext
+    ? 'Select context'
+    : !hasEventSignal
+    ? 'Add the event'
+    : !hasImpactSignal
+      ? 'Name the impact'
+      : hasStagedDraft
+        ? 'Review or continue'
+        : 'Build the draft';
+  setStep1NodeText('#step1-guided-hero-action-title', heroActionTitle);
+  setStep1NodeText('#step1-guided-hero-action-copy', heroActionCopy);
+  setStep1NodeText('#step1-basic-next-label', basicNextLabel);
+
+  const buildButton = document.getElementById('btn-build-guided-narrative');
+  if (buildButton && !buildButton.classList.contains('btn--step1-ai-busy')) {
+    const isBasicIntake = !!document.querySelector('.step1-basic-intake');
+    if (isBasicIntake) {
+      buildButton.disabled = !hasBusinessContext;
+      buildButton.setAttribute('aria-disabled', hasBusinessContext ? 'false' : 'true');
+    }
+    buildButton.textContent = hasStagedDraft
+      ? (isBasicIntake ? 'Rebuild draft' : 'Rebuild first draft')
+      : (isBasicIntake ? 'Build draft' : 'Build first draft');
+  }
+
+  const scoutHost = document.getElementById('step1-guided-scout-host');
+  if (scoutHost) {
+    scoutHost.innerHTML = renderStep1GuidedScoutPanel(
+      draft,
+      previewModel,
+      getStep1DisplayedPromptIdeaModel(draft)
+    );
+  }
+  refreshStep1BasicWorkflowRibbon(draft);
 }
 
 function renderStep1SelectedRisksSummary(selectedRisks, riskCandidates) {
@@ -1162,9 +1463,9 @@ function renderStep1GuidedPromptIdeaPanel(promptIdeaModel = null) {
       ? `<span class="badge badge--neutral">AI lens check: ${escapeHtml(String(recommendedLens.label || '').trim())}</span>`
       : '';
     return `<div class="step1-ai-sequence">
-      <div class="step1-ai-sequence__label">Step 1 of 2</div>
+      <div class="step1-ai-sequence__label">Optional sharpening</div>
       <div class="step1-ai-sequence__title">Generate prompt ideas and check the lens</div>
-      <div class="form-help" id="guided-prompt-ideas-status">${escapeHtml(sourceCopy)}</div>
+      <div class="form-help" id="guided-prompt-ideas-status">${escapeHtml(sourceCopy)} Use this only if you want help sharpening the wording before or after the first build.</div>
       ${isLoading ? `<div class="step1-ai-thinking" role="status" aria-live="polite">
         <span class="step1-ai-thinking__spinner" aria-hidden="true"></span>
         <div class="step1-ai-thinking__copy">
@@ -1385,9 +1686,14 @@ function rememberStep1LivePreview(signature, preview = '', status = '', source =
 }
 
 function getStep1DisplayedGuidedPreviewModel(draft = AppState.draft || {}) {
-  const builtPreview = String(draft?.guidedDraftPreview || '').trim();
+  const builtSourceKey = getStep1DraftSourceKey(draft);
+  const persistedBuiltPreview = String(draft?.guidedDraftPreview || '').trim();
+  const restoredBuiltPreview = builtSourceKey && builtSourceKey !== 'local'
+    ? String(draft?.enhancedNarrative || draft?.narrative || '').trim()
+    : '';
+  const builtPreview = persistedBuiltPreview || restoredBuiltPreview;
   const builtStatus = String(draft?.guidedDraftStatus || '').trim();
-  const builtSource = String(draft?.guidedDraftSource || '').trim();
+  const builtSource = builtSourceKey || (builtPreview ? 'fallback' : 'local');
   if (builtPreview) {
     return {
       preview: builtPreview,
@@ -1413,8 +1719,8 @@ function getStep1DisplayedGuidedPreviewModel(draft = AppState.draft || {}) {
   }
   return {
     preview: getStep1GuidedPreviewText(draft),
-    status: '',
-    source: ''
+    status: 'Not live AI. Built from typed answers only.',
+    source: 'local'
   };
 }
 
@@ -1818,7 +2124,7 @@ function getStep1ExampleExperienceModel(settings = getEffectiveSettings(), draft
 
 function renderStep1FeaturedExampleCard(example, recommendedExamples = [], learnedExamples = [], functionLabel = 'your function') {
   if (!example) return '';
-  const disclosureKey = getDisclosureStateKey('/wizard/1', 'worked example');
+  const disclosureKey = getDisclosureStateKey('/wizard/2', 'worked example');
   return `<details class="wizard-disclosure wizard-disclosure--support anim-fade-in" data-disclosure-state-key="${escapeHtml(disclosureKey)}" ${getDisclosureOpenState(disclosureKey, false) ? 'open' : ''}>
     <summary>Worked examples <span class="badge badge--neutral">${escapeHtml(functionLabel)} starter set</span></summary>
     <div class="wizard-disclosure-body">
@@ -2539,15 +2845,133 @@ function renderStep1ScenarioCrossReferenceBand(draft = AppState.draft, context =
   </div>`;
 }
 
-function renderStep1GuidedBuilderCard(draft, recommendation, functionLabel = 'your role', promptIdeaModel = null) {
+function renderStep1GuidedScoutPanel(draft = AppState.draft || {}, previewModel = null, promptIdeaModel = null) {
+  const eventSignal = String(draft?.guidedInput?.event || '').trim();
+  const impactSignal = String(draft?.guidedInput?.impact || '').trim();
+  const preview = String(previewModel?.preview || '').trim();
+  const previewStatus = String(previewModel?.status || '').trim();
+  const hasStagedDraft = hasStep1StagedGuidedDraft(draft);
+  const source = String(promptIdeaModel?.source || '').trim().toLowerCase();
+  const recommendedLens = normaliseStep1PromptIdeaRecommendedLens(
+    promptIdeaModel?.recommendedLens,
+    promptIdeaModel?.preferredLens && source === 'fallback' ? promptIdeaModel.preferredLens : null
+  );
+  const confidence = normaliseStep1PromptIdeaConfidence(promptIdeaModel?.confidence);
+  const rationale = String(promptIdeaModel?.why || '').trim();
+  const followUpQuestion = String(promptIdeaModel?.followUpQuestion || '').trim();
+  const hasPromptAssist = !!(
+    source
+    || recommendedLens?.key
+    || confidence
+    || rationale
+    || followUpQuestion
+    || (Array.isArray(promptIdeaModel?.promptSuggestions) && promptIdeaModel.promptSuggestions.length)
+  );
+  const scoutStatus = hasStagedDraft
+    ? 'Draft staged'
+    : hasPromptAssist
+      ? 'Scenario scout active'
+      : eventSignal
+        ? 'Signal captured'
+        : 'Listening for signal';
+  const scoutCopy = hasStagedDraft
+    ? 'The agent has enough structure to hold a working scenario and keep refining it before review.'
+    : hasPromptAssist
+      ? 'The agent is classifying the signal, checking the lens, and shaping the first coherent scenario path.'
+      : eventSignal
+        ? 'The event signal is in place. Run the scout to tighten the lens and build a cleaner narrative.'
+        : 'Add one concrete event and the scout will start classifying the scenario.';
+  const metrics = [
+    { label: 'Signal', value: eventSignal ? 'Tracked' : 'Idle' },
+    { label: 'Lens', value: recommendedLens?.label || 'Pending' },
+    { label: 'Draft', value: hasStagedDraft ? 'Ready' : preview ? 'Previewing' : 'Open' }
+  ];
+  const timeline = [
+    {
+      label: 'Observe',
+      copy: eventSignal ? 'Signal captured from the event prompt.' : 'Waiting for the first concrete event signal.',
+      state: eventSignal ? 'complete' : 'active'
+    },
+    {
+      label: 'Shape',
+      copy: hasPromptAssist
+        ? `${recommendedLens?.label || 'Lens fit pending'}${confidence ? ` · ${confidence} confidence` : ''}`
+        : 'Prompt ideas and lens fit will appear here.',
+      state: hasPromptAssist ? (hasStagedDraft ? 'complete' : 'active') : 'pending'
+    },
+    {
+      label: 'Draft',
+      copy: hasStagedDraft
+        ? `Working narrative staged${previewStatus ? ` · ${previewStatus}` : ''}.`
+        : preview
+          ? 'Local preview is forming. Build the first draft when the signal is ready.'
+          : 'Build the scenario once the signal and lens look coherent.',
+      state: hasStagedDraft ? 'active' : 'pending'
+    }
+  ];
+  return `<section class="step1-guided-scout" aria-label="Scenario scout">
+    <div class="step1-guided-scout__live">
+      <div class="step1-guided-scout__live-core">
+        <span class="step1-guided-scout__pulse" aria-hidden="true"></span>
+        <div>
+          <div class="step1-guided-scout__eyebrow">Scenario scout</div>
+          <strong>${escapeHtml(scoutStatus)}</strong>
+        </div>
+      </div>
+      <span class="step1-guided-scout__state">${escapeHtml(impactSignal ? 'Impact tracked' : 'Impact open')}</span>
+    </div>
+    <div class="step1-guided-scout__title">Live intake analysis</div>
+    <p class="step1-guided-scout__copy">${escapeHtml(scoutCopy)}</p>
+    <div class="step1-guided-scout__viz" aria-hidden="true">
+      <span class="step1-guided-scout__gridline step1-guided-scout__gridline--1"></span>
+      <span class="step1-guided-scout__gridline step1-guided-scout__gridline--2"></span>
+      <span class="step1-guided-scout__scan"></span>
+      <span class="step1-guided-scout__lane"></span>
+      <div class="step1-guided-scout__nodes">
+        <span class="step1-guided-scout__node step1-guided-scout__node--1"></span>
+        <span class="step1-guided-scout__node step1-guided-scout__node--2"></span>
+        <span class="step1-guided-scout__node step1-guided-scout__node--3"></span>
+        <span class="step1-guided-scout__node step1-guided-scout__node--4"></span>
+        <span class="step1-guided-scout__node step1-guided-scout__node--5"></span>
+      </div>
+    </div>
+    <div class="step1-guided-scout__metrics">
+      ${metrics.map((metric) => `<div class="step1-guided-scout__metric">
+        <span>${escapeHtml(metric.label)}</span>
+        <strong>${escapeHtml(metric.value)}</strong>
+      </div>`).join('')}
+    </div>
+    <div class="step1-guided-scout__timeline">
+      ${timeline.map((item) => `<div class="step1-guided-scout__timeline-item step1-guided-scout__timeline-item--${escapeHtml(item.state)}">
+        <span class="step1-guided-scout__timeline-dot" aria-hidden="true"></span>
+        <div>
+          <strong>${escapeHtml(item.label)}</strong>
+          <span>${escapeHtml(item.copy)}</span>
+        </div>
+      </div>`).join('')}
+    </div>
+    ${followUpQuestion ? `<div class="step1-guided-scout__follow-up">
+      <strong>Waiting on you</strong>
+      <span>${escapeHtml(followUpQuestion)}</span>
+    </div>` : ''}
+  </section>`;
+}
+
+function renderStep1BasicGuidedBuilderCard(draft, recommendation, promptIdeaModel = null) {
   const previewModel = getStep1DisplayedGuidedPreviewModel(draft);
   const draftPreview = String(previewModel.preview || '').trim();
   const draftPreviewStatus = String(previewModel.status || '').trim();
   const draftPreviewSource = String(previewModel.source || '').trim();
-  const draftSourceBanner = draftPreviewSource === 'fallback' && typeof renderAIStatusBanner === 'function'
-    ? renderAIStatusBanner()
-    : '';
-  const optionalContextDisclosureKey = getDisclosureStateKey('/wizard/1', 'add more context only if you need it');
+  const showDraftPreview = draftPreview && draftPreviewSource !== 'local';
+  const visibleDraftPreview = showDraftPreview ? draftPreview : '';
+  const draftSourceLabel = draftPreviewSource === 'ai'
+    ? 'Live AI draft'
+    : draftPreviewSource === 'fallback'
+      ? 'Fallback draft'
+      : draftPreviewSource === 'manual'
+        ? 'Manual draft'
+        : '';
+  const optionalContextDisclosureKey = getDisclosureStateKey('/wizard/2', 'basic optional context');
   const safePromptIdeaModel = promptIdeaModel && typeof promptIdeaModel === 'object'
     ? promptIdeaModel
     : buildStep1GuidedPromptIdeaModel(draft);
@@ -2557,76 +2981,278 @@ function renderStep1GuidedBuilderCard(draft, recommendation, functionLabel = 'yo
       ? (promptCards[0]?.prompt || 'Describe what happened or what could happen.')
       : 'Describe what happened or what could happen.'
   ).trim();
-  return `<div class="card card--primary wizard-primary-card anim-fade-in anim-delay-1">
-    <div class="wizard-premium-head" style="margin-bottom:var(--sp-5)">
+  const hasEventSignal = !!String(draft.guidedInput?.event || '').trim();
+  const hasImpactSignal = !!String(draft.guidedInput?.impact || '').trim();
+  const hasStagedDraft = hasStep1StagedGuidedDraft(draft);
+  const hasBusinessContext = !!String(draft.buId || '').trim();
+  const nextLabel = !hasBusinessContext
+    ? 'Select context'
+    : !hasEventSignal
+    ? 'Add the event'
+    : !hasImpactSignal
+      ? 'Name the impact'
+      : hasStagedDraft
+        ? 'Review or continue'
+        : 'Build the draft';
+  const draftStatusLabel = draftSourceLabel && showDraftPreview
+    ? `${draftSourceLabel}${draftPreviewStatus ? ` · ${draftPreviewStatus}` : ''}`
+    : '';
+  const draftPreviewTitle = visibleDraftPreview
+    ? 'First draft ready'
+    : hasEventSignal && hasImpactSignal
+      ? 'Ready for AI build'
+      : 'Draft will appear here';
+  const draftPreviewPlaceholder = hasEventSignal && hasImpactSignal
+    ? 'Click Build draft once. If live AI is unavailable, a fallback draft will be loaded automatically.'
+    : 'Answer the two prompts, then build the first AI draft.';
+  const agentStripTitle = hasStagedDraft
+    ? 'Draft staged by the assessment run'
+    : hasEventSignal && hasImpactSignal
+      ? 'AI build is ready'
+      : 'Assessment Manager is waiting';
+  const agentStripCopy = hasStagedDraft
+    ? 'Review the draft, then continue when the scenario still matches your intent.'
+    : hasEventSignal && hasImpactSignal
+      ? 'One click sends your answers to the live AI path first; fallback is automatic if unavailable.'
+      : 'Add the event and impact. The manager will frame, build, challenge, and prepare the draft.';
+
+  return `<div class="card card--primary wizard-primary-card anim-fade-in step1-basic-intake">
+    <div class="step1-basic-intake__head">
       <div>
-        <h3>Guided scenario builder</h3>
-        <p>Answer a few plain-language prompts. The platform will turn them into a structured starting point you can edit before continuing.</p>
-        <div class="wizard-builder-note">
-          <strong>${recommendation.title}</strong>
-      <span>${recommendation.copy} Your current examples are tuned for ${escapeHtml(functionLabel.toLowerCase())} work.</span>
-    </div>
+        <div class="wizard-summary-band__label">Basic intake</div>
+        <h3>Tell us two things</h3>
+        <p>Keep it simple. Describe the event, name the impact, then build the first draft.</p>
       </div>
-      <span class="badge badge--gold">Recommended</span>
+      <span class="badge badge--gold" id="step1-basic-next-label">${escapeHtml(nextLabel)}</span>
     </div>
-    ${draftSourceBanner}
-    <div class="grid-2">
+
+    <div class="step1-basic-intake__steps" aria-label="Basic intake steps">
+      <div class="step1-basic-intake__step ${hasEventSignal ? 'is-complete' : 'is-active'}">
+        <span>1</span>
+        <strong>What happened?</strong>
+      </div>
+      <div class="step1-basic-intake__step ${hasImpactSignal ? 'is-complete' : hasEventSignal ? 'is-active' : ''}">
+        <span>2</span>
+        <strong>Why does it matter?</strong>
+      </div>
+      <div class="step1-basic-intake__step ${hasStagedDraft ? 'is-complete' : hasEventSignal && hasImpactSignal ? 'is-active' : ''}">
+        <span>3</span>
+        <strong>Build draft</strong>
+      </div>
+    </div>
+
+    <div class="step1-basic-intake__agent-strip" aria-live="polite">
+      <div class="step1-basic-intake__agent-viz" aria-hidden="true">
+        <span class="${hasEventSignal ? 'is-lit' : ''}"></span>
+        <span class="${hasImpactSignal ? 'is-lit' : ''}"></span>
+        <span class="${hasStagedDraft ? 'is-lit' : hasEventSignal && hasImpactSignal ? 'is-armed' : ''}"></span>
+      </div>
+      <div>
+        <strong>${escapeHtml(agentStripTitle)}</strong>
+        <span>${escapeHtml(agentStripCopy)}</span>
+      </div>
+    </div>
+
+    <div class="step1-basic-intake__form">
       <div class="form-group">
         <label class="form-label" for="guided-event">What happened or what could happen?</label>
-        <textarea class="form-textarea" id="guided-event" rows="3" placeholder="Example: ${escapeHtml(primaryPrompt)}">${draft.guidedInput?.event || ''}</textarea>
+        <textarea class="form-textarea step1-basic-intake__event" id="guided-event" rows="4" placeholder="Example: ${escapeHtml(primaryPrompt)}">${escapeHtml(String(draft.guidedInput?.event || ''))}</textarea>
       </div>
       <div class="form-group">
-        <label class="form-label" for="guided-impact">What is the main impact you care about?</label>
-        <input class="form-input" id="guided-impact" type="text" placeholder="Example: service outage, regulatory breach, customer harm, financial exposure, recovery strain" value="${draft.guidedInput?.impact || ''}">
+        <label class="form-label" for="guided-impact">What is the main impact?</label>
+        <input class="form-input" id="guided-impact" type="text" placeholder="Example: service outage, regulatory issue, customer harm, financial loss" value="${escapeHtml(String(draft.guidedInput?.impact || ''))}">
       </div>
     </div>
-    <details class="wizard-disclosure wizard-disclosure--compact" data-disclosure-state-key="${escapeHtml(optionalContextDisclosureKey)}" data-disclosure-default-open="false" ${getDisclosureOpenState(optionalContextDisclosureKey, false) ? 'open' : ''} style="margin-top:var(--sp-4)">
-      <summary>Add more context only if you need it <span class="badge badge--neutral">Optional</span></summary>
+
+    <details class="wizard-disclosure wizard-disclosure--compact step1-basic-intake__optional" data-disclosure-state-key="${escapeHtml(optionalContextDisclosureKey)}" data-disclosure-default-open="false" ${getDisclosureOpenState(optionalContextDisclosureKey, false) ? 'open' : ''}>
+      <summary>Add affected system or cause <span class="badge badge--neutral">Optional</span></summary>
       <div class="wizard-disclosure-body">
         <div class="grid-2">
           <div class="form-group">
             <label class="form-label" for="guided-asset">What is affected?</label>
-            <input class="form-input" id="guided-asset" type="text" placeholder="Example: payment platform, shared identity service, cloud data store" value="${draft.guidedInput?.asset || ''}">
+            <input class="form-input" id="guided-asset" type="text" placeholder="Example: payment platform, shared identity service, cloud data store" value="${escapeHtml(String(draft.guidedInput?.asset || ''))}">
           </div>
           <div class="form-group">
-            <label class="form-label" for="guided-cause">What is the likely cause or trigger?</label>
-            <input class="form-input" id="guided-cause" type="text" placeholder="Example: supplier breach, phishing-led compromise, weak recovery process, control gap" value="${draft.guidedInput?.cause || ''}">
+            <label class="form-label" for="guided-cause">Likely cause or trigger</label>
+            <input class="form-input" id="guided-cause" type="text" placeholder="Example: supplier breach, phishing, weak recovery process" value="${escapeHtml(String(draft.guidedInput?.cause || ''))}">
           </div>
         </div>
-        <div class="grid-2 mt-4">
-          <div class="form-group">
-            <label class="form-label" for="guided-urgency">How urgent does it feel?</label>
-            <select class="form-select" id="guided-urgency">
-              <option value="low" ${draft.guidedInput?.urgency === 'low' ? 'selected' : ''}>Low</option>
-              <option value="medium" ${!draft.guidedInput?.urgency || draft.guidedInput?.urgency === 'medium' ? 'selected' : ''}>Medium</option>
-              <option value="high" ${draft.guidedInput?.urgency === 'high' ? 'selected' : ''}>High</option>
-              <option value="critical" ${draft.guidedInput?.urgency === 'critical' ? 'selected' : ''}>Critical</option>
-            </select>
-          </div>
+        <div class="form-group">
+          <label class="form-label" for="guided-urgency">How urgent does it feel?</label>
+          <select class="form-select" id="guided-urgency">
+            <option value="low" ${draft.guidedInput?.urgency === 'low' ? 'selected' : ''}>Low</option>
+            <option value="medium" ${!draft.guidedInput?.urgency || draft.guidedInput?.urgency === 'medium' ? 'selected' : ''}>Medium</option>
+            <option value="high" ${draft.guidedInput?.urgency === 'high' ? 'selected' : ''}>High</option>
+            <option value="critical" ${draft.guidedInput?.urgency === 'critical' ? 'selected' : ''}>Critical</option>
+          </select>
         </div>
       </div>
     </details>
-    <div class="step1-guided-stage mt-4">
-      <div id="guided-prompt-ideas-panel">
-        ${renderStep1GuidedPromptIdeaPanel({
-          ...safePromptIdeaModel,
-          explicitAiFlow: true
-        })}
+
+    <div class="step1-basic-intake__action">
+      <button class="btn btn--primary btn--lg step1-guided-cta" id="btn-build-guided-narrative" type="button" ${hasBusinessContext ? '' : 'disabled aria-disabled="true"'}>${hasStagedDraft ? 'Rebuild draft' : 'Build draft'}</button>
+      <div>
+        <strong>${!hasBusinessContext ? 'Select business context first.' : hasStagedDraft ? 'Draft is ready.' : hasEventSignal && hasImpactSignal ? 'Ready to build.' : 'Complete the two fields first.'}</strong>
+        <span>${!hasBusinessContext ? 'Choose the business unit above so the AI uses the right context and regulations.' : hasStagedDraft ? 'Review the preview below, rebuild only if you changed the intake, or continue to Step 3.' : hasEventSignal && hasImpactSignal ? 'The platform will turn this into a scenario draft you can review.' : 'No modelling knowledge needed. One event and one impact is enough to start.'}</span>
       </div>
     </div>
-    <div class="step1-guided-stage mt-4">
-      <div class="step1-ai-sequence__label">Step 2 of 2</div>
-      <div class="step1-ai-sequence__title">Build the scenario with AI</div>
-      <div class="admin-inline-actions step1-guided-actions">
-        <button class="btn btn--primary" id="btn-build-guided-narrative" type="button">Build scenario with AI</button>
-        <span class="form-help">Use a prompt idea if it helps, or ignore the suggestions and build straight from your own wording.</span>
+
+    <div class="step1-basic-intake__draft ${visibleDraftPreview ? '' : 'step1-basic-intake__draft--empty'}">
+      <div class="step1-basic-intake__draft-head">
+        <div>
+          <div class="wizard-summary-band__label">Draft preview</div>
+          <strong id="guided-preview-title">${escapeHtml(draftPreviewTitle)}</strong>
+        </div>
+        ${draftStatusLabel ? `<span class="badge badge--neutral" id="guided-preview-status">${escapeHtml(draftStatusLabel)}</span>` : '<span class="badge badge--neutral" id="guided-preview-status" style="display:none"></span>'}
+      </div>
+      <p id="guided-preview">${escapeHtml(visibleDraftPreview || draftPreviewPlaceholder)}</p>
+    </div>
+  </div>`;
+}
+
+function renderStep1GuidedBuilderCard(draft, recommendation, functionLabel = 'your role', promptIdeaModel = null) {
+  if (typeof isAdvancedExperienceMode === 'function' && !isAdvancedExperienceMode()) {
+    return renderStep1BasicGuidedBuilderCard(draft, recommendation, promptIdeaModel);
+  }
+  const previewModel = getStep1DisplayedGuidedPreviewModel(draft);
+  const draftPreview = String(previewModel.preview || '').trim();
+  const draftPreviewStatus = String(previewModel.status || '').trim();
+  const draftPreviewSource = String(previewModel.source || '').trim();
+  const draftSourceBanner = draftPreviewSource === 'fallback' && typeof renderAIStatusBanner === 'function'
+    ? renderAIStatusBanner()
+    : '';
+  const optionalContextDisclosureKey = getDisclosureStateKey('/wizard/2', 'add more context only if you need it');
+  const safePromptIdeaModel = promptIdeaModel && typeof promptIdeaModel === 'object'
+    ? promptIdeaModel
+    : buildStep1GuidedPromptIdeaModel(draft);
+  const promptCards = Array.isArray(safePromptIdeaModel.promptSuggestions) ? safePromptIdeaModel.promptSuggestions : [];
+  const primaryPrompt = String(
+    safePromptIdeaModel.state === STEP1_PROMPT_IDEA_CONFIDENCE_STATES.high
+      ? (promptCards[0]?.prompt || 'Describe what happened or what could happen.')
+      : 'Describe what happened or what could happen.'
+  ).trim();
+  const hasEventSignal = !!String(draft.guidedInput?.event || '').trim();
+  const hasImpactSignal = !!String(draft.guidedInput?.impact || '').trim();
+  const hasStagedDraft = hasStep1StagedGuidedDraft(draft);
+  const intakeSequence = buildStep1IntakeSequenceModel(draft);
+  const heroActionTitle = !hasEventSignal || !hasImpactSignal
+    ? 'Complete steps 1 and 2, then build'
+    : hasStagedDraft
+      ? 'Rebuild if you want a stronger first pass'
+      : 'Build the first draft now';
+  const heroActionCopy = !hasEventSignal || !hasImpactSignal
+    ? 'Keep the opening tight: one event and one impact. Once those are in place, build the first draft.'
+    : hasStagedDraft
+      ? 'The deck already has a staged draft. Rebuild only after editing the event or impact.'
+      : 'The signal is ready. Build the first draft, then review the working draft and optional prompt ideas below.';
+  return `<div class="card card--primary wizard-primary-card wizard-primary-card--agentic anim-fade-in anim-delay-1 step1-command-deck">
+    <div class="wizard-premium-head step1-command-deck__head">
+      <div>
+        <div class="wizard-summary-band__label">Guided intake deck</div>
+        <h3>Start with one concrete signal</h3>
+        <p>Describe the event, name the impact, then build the first scenario draft immediately.</p>
+        <div class="wizard-builder-note">
+          <strong>${escapeHtml(String(recommendation.title || 'Recommended path'))}</strong>
+          <span>${escapeHtml(String(recommendation.copy || ''))} Keep the opening input tight: one event, one impact, then build.</span>
+        </div>
+      </div>
+      <div class="step1-command-deck__head-meta">
+        <span class="badge badge--neutral">Live scout</span>
+        <span class="badge badge--gold">Recommended</span>
       </div>
     </div>
-    ${draftPreview ? `${renderStep1AiQualityStrip(draft)}<div class="card mt-4 wizard-draft-preview" style="padding:var(--sp-4);background:var(--bg-elevated)">
-      <div class="context-panel-title">Draft preview</div>
-      <div class="form-help" id="guided-preview-status" style="margin-top:4px;${draftPreviewStatus ? '' : 'display:none'}">${draftPreviewStatus ? `${draftPreviewSource === 'ai' ? 'AI-built draft' : draftPreviewSource === 'fallback' ? 'Deterministic fallback draft' : draftPreviewSource === 'manual' ? 'Manual draft' : draftPreviewSource === 'local' ? 'Local draft' : 'AI-checked preview'} · ${escapeHtml(draftPreviewStatus)}` : ''}</div>
-      <p class="context-panel-copy" id="guided-preview">${escapeHtml(String(draftPreview))}</p>
-    </div>${renderStep1AiFeedbackCard('draft', draft)}` : '<div class="form-help wizard-preview-placeholder" id="guided-preview">Answer the prompts and build the scenario with AI. The platform will create a clean starting statement for you.</div>'}
+    ${draftSourceBanner}
+    <div class="step1-command-deck__progress" id="step1-command-progress" aria-label="Intake sequence">
+      ${renderStep1CommandProgressMarkup(intakeSequence.steps)}
+    </div>
+    <div class="step1-command-deck__next-callout">
+      <div class="step1-command-deck__next-copy">
+        <div class="step1-command-deck__next-label">Do this next</div>
+        <strong id="step1-command-next-title">${escapeHtml(intakeSequence.nextAction.title)}</strong>
+        <span id="step1-command-next-copy">${escapeHtml(intakeSequence.nextAction.copy)}</span>
+      </div>
+      <span class="step1-command-deck__next-kicker" id="step1-command-next-kicker">${escapeHtml(intakeSequence.nextAction.kicker)}</span>
+    </div>
+    <div class="step1-command-deck__body">
+      <div class="step1-command-deck__signal-grid">
+        <div class="step1-command-deck__lane">
+          <div class="step1-command-deck__prompt-copy">
+            <div class="context-panel-title">Scenario signal</div>
+            <div class="form-help" style="margin-top:6px">Keep the wording plain. The fastest route is event first, impact second, then build.</div>
+          </div>
+          <div class="grid-2">
+            <div class="form-group">
+              <label class="form-label" for="guided-event">What happened or what could happen?</label>
+              <textarea class="form-textarea" id="guided-event" rows="5" placeholder="Example: ${escapeHtml(primaryPrompt)}">${escapeHtml(String(draft.guidedInput?.event || ''))}</textarea>
+            </div>
+            <div class="step1-command-deck__impact-stack">
+              <div class="form-group">
+                <label class="form-label" for="guided-impact">What is the main impact you care about?</label>
+                <input class="form-input" id="guided-impact" type="text" placeholder="Example: service outage, regulatory breach, customer harm, financial exposure, recovery strain" value="${escapeHtml(String(draft.guidedInput?.impact || ''))}">
+              </div>
+              <details class="wizard-disclosure wizard-disclosure--compact" data-disclosure-state-key="${escapeHtml(optionalContextDisclosureKey)}" data-disclosure-default-open="false" ${getDisclosureOpenState(optionalContextDisclosureKey, false) ? 'open' : ''}>
+                <summary>Add more context only if you need it <span class="badge badge--neutral">Optional</span></summary>
+                <div class="wizard-disclosure-body">
+                  <div class="grid-2">
+                    <div class="form-group">
+                      <label class="form-label" for="guided-asset">What is affected?</label>
+                      <input class="form-input" id="guided-asset" type="text" placeholder="Example: payment platform, shared identity service, cloud data store" value="${escapeHtml(String(draft.guidedInput?.asset || ''))}">
+                    </div>
+                    <div class="form-group">
+                      <label class="form-label" for="guided-cause">What is the likely cause or trigger?</label>
+                      <input class="form-input" id="guided-cause" type="text" placeholder="Example: supplier breach, phishing-led compromise, weak recovery process, control gap" value="${escapeHtml(String(draft.guidedInput?.cause || ''))}">
+                    </div>
+                  </div>
+                  <div class="grid-2 mt-4">
+                    <div class="form-group">
+                      <label class="form-label" for="guided-urgency">How urgent does it feel?</label>
+                      <select class="form-select" id="guided-urgency">
+                        <option value="low" ${draft.guidedInput?.urgency === 'low' ? 'selected' : ''}>Low</option>
+                        <option value="medium" ${!draft.guidedInput?.urgency || draft.guidedInput?.urgency === 'medium' ? 'selected' : ''}>Medium</option>
+                        <option value="high" ${draft.guidedInput?.urgency === 'high' ? 'selected' : ''}>High</option>
+                        <option value="critical" ${draft.guidedInput?.urgency === 'critical' ? 'selected' : ''}>Critical</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </details>
+            </div>
+          </div>
+          <div class="step1-command-deck__hero-actions">
+            <button class="btn btn--primary btn--lg step1-guided-cta" id="btn-build-guided-narrative" type="button">${hasStagedDraft ? 'Rebuild first draft' : 'Build first draft'}</button>
+            <div class="step1-command-deck__hero-actions-copy">
+              <strong id="step1-guided-hero-action-title">${escapeHtml(heroActionTitle)}</strong>
+              <span id="step1-guided-hero-action-copy">${escapeHtml(heroActionCopy)}</span>
+            </div>
+          </div>
+        </div>
+        <div class="step1-command-deck__analysis" id="step1-guided-scout-host">
+          ${renderStep1GuidedScoutPanel(draft, previewModel, safePromptIdeaModel)}
+        </div>
+      </div>
+      <div class="step1-command-deck__action-grid">
+        <div class="step1-guided-stage step1-guided-stage--build step1-command-deck__build-stage">
+          <div class="step1-ai-sequence__label">Step 4</div>
+          <div class="step1-ai-sequence__title">Review the first draft</div>
+          <div class="form-help">Once built, the first scenario lands here so you can tighten it before moving on.</div>
+          <div class="step1-guided-preview-shell">
+            ${draftPreview ? `${renderStep1AiQualityStrip(draft)}<div class="card wizard-draft-preview" style="padding:var(--sp-4);background:var(--bg-elevated)">
+              <div class="context-panel-title">Draft preview</div>
+              <div class="form-help" id="guided-preview-status" style="margin-top:4px;${draftPreviewStatus ? '' : 'display:none'}">${draftPreviewStatus ? `${draftPreviewSource === 'ai' ? 'AI-built draft' : draftPreviewSource === 'fallback' ? 'Deterministic fallback draft' : draftPreviewSource === 'manual' ? 'Manual draft' : draftPreviewSource === 'local' ? 'Local draft' : 'AI-checked preview'} · ${escapeHtml(draftPreviewStatus)}` : ''}</div>
+              <p class="context-panel-copy" id="guided-preview">${escapeHtml(String(draftPreview))}</p>
+            </div>${renderStep1AiFeedbackCard('draft', draft)}` : '<div class="form-help wizard-preview-placeholder" id="guided-preview">Build the scenario once and the draft preview will stage here.</div>'}
+          </div>
+        </div>
+        <div class="step1-guided-stage step1-command-deck__ideas-stage">
+          <div id="guided-prompt-ideas-panel">
+            ${renderStep1GuidedPromptIdeaPanel({
+              ...safePromptIdeaModel,
+              explicitAiFlow: true
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
   </div>`;
 }
 
@@ -2636,7 +3262,7 @@ function renderStep1SupportBand({ draft, hasScenarioDraft, hasImportedSource, fe
     <div class="form-help" style="margin-top:8px">Use these only when you need existing context, a faster starting point, or a different source for the shortlist.</div>
     <div class="wizard-support-band__stack">
       ${activeDryRun ? renderLoadedDryRunBanner(activeDryRun) : ''}
-      ${draft.learningNote ? `<div class="wizard-summary-band wizard-summary-band--quiet"><div><div class="wizard-summary-band__label">Learnt from prior use</div><strong>Saved guidance from earlier use</strong><div class="wizard-summary-band__copy">${draft.learningNote}</div></div></div>` : ''}
+      ${draft.learningNote ? `<div class="wizard-summary-band wizard-summary-band--quiet"><div><div class="wizard-summary-band__label">Learnt from prior use</div><strong>Saved guidance from earlier use</strong><div class="wizard-summary-band__copy">${escapeHtml(String(draft.learningNote || ''))}</div></div></div>` : ''}
       ${renderStep1FeaturedExampleCard(featuredDryRun, recommendedDryRuns, learnedDryRuns, functionLabel)}
       ${renderStep1OtherWaysToStart(draft, hasScenarioDraft, hasImportedSource, availableDryRuns, functionLabel)}
       <div id="scenario-cross-reference-host">
@@ -2680,9 +3306,9 @@ function renderStep1ScopeBand({ draft, selectedRisks, riskCandidates, regs }) {
 }
 
 function renderStep1OtherWaysToStart(draft, hasScenarioDraft, hasImportedSource, availableExamples = STEP1_DRY_RUN_SCENARIOS, functionLabel = 'your function', options = {}) {
-  const disclosureKey = getDisclosureStateKey('/wizard/1', 'other ways to start');
-  const importDisclosureKey = getDisclosureStateKey('/wizard/1', 'import or add risks directly');
-  const examplesDisclosureKey = getDisclosureStateKey('/wizard/1', 'browse more worked examples');
+  const disclosureKey = getDisclosureStateKey('/wizard/2', 'other ways to start');
+  const importDisclosureKey = getDisclosureStateKey('/wizard/2', 'import or add risks directly');
+  const examplesDisclosureKey = getDisclosureStateKey('/wizard/2', 'browse more worked examples');
   if (options?.examplesOnly) {
     return `<details class="wizard-disclosure wizard-disclosure--compact" data-disclosure-state-key="${escapeHtml(examplesDisclosureKey)}" data-disclosure-default-open="false" ${getDisclosureOpenState(examplesDisclosureKey, false) ? 'open' : ''}>
       <summary>Browse more worked examples <span class="badge badge--neutral">Optional</span></summary>
@@ -2718,7 +3344,7 @@ function renderStep1OtherWaysToStart(draft, hasScenarioDraft, hasImportedSource,
         <div class="form-help" style="margin-top:6px">Use AI only if you want help tightening the draft or extracting the shortlist.</div>
         <div class="form-group" style="margin-top:var(--sp-4)">
           <label class="form-label" for="intake-risk-statement">Scenario draft</label>
-          <textarea class="form-textarea" id="intake-risk-statement" rows="6" placeholder="If you already know the scenario, describe it here in plain English. Include what could happen, what is affected, likely triggers, and the business or regulatory impact.">${draft.narrative || ''}</textarea>
+          <textarea class="form-textarea" id="intake-risk-statement" rows="6" placeholder="If you already know the scenario, describe it here in plain English. Include what could happen, what is affected, likely triggers, and the business or regulatory impact.">${escapeHtml(String(draft.narrative || ''))}</textarea>
         </div>
         <div class="flex items-center gap-3" style="flex-wrap:wrap">
           <button class="btn btn--secondary" id="btn-enhance-risk-statement" type="button">Use AI to refine this draft</button>
@@ -2733,7 +3359,7 @@ function renderStep1OtherWaysToStart(draft, hasScenarioDraft, hasImportedSource,
             <div class="form-group">
               <label class="form-label" for="risk-register-file">Risk register upload</label>
               <input class="form-input" id="risk-register-file" type="file" accept=".txt,.csv,.json,.md,.tsv,.xlsx,.xls">
-              <div class="form-help">${draft.uploadedRegisterName ? `Current file: ${draft.uploadedRegisterName}${draft.registerMeta?.sheetCount ? ` · ${draft.registerMeta.sheetCount} sheet(s)` : ''}` : 'Upload TXT, CSV, TSV, JSON, Markdown, or Excel. Word and PDF still need conversion before upload.'}</div>
+              <div class="form-help">${draft.uploadedRegisterName ? `Current file: ${escapeHtml(String(draft.uploadedRegisterName || ''))}${draft.registerMeta?.sheetCount ? ` · ${escapeHtml(String(draft.registerMeta.sheetCount))} sheet(s)` : ''}` : 'Upload TXT, CSV, TSV, JSON, Markdown, or Excel. Word and PDF still need conversion before upload.'}</div>
               <div class="flex items-center gap-3 mt-4" style="flex-wrap:wrap">
                 <button class="btn btn--secondary" id="btn-register-analyse">Upload, extract, analyse and enhance risks</button>
               </div>
@@ -2801,49 +3427,153 @@ function ensureStep1ContextPrefills(draft, settings, buList) {
   return changed;
 }
 
+function renderStep1RegulationPreview(regulations = []) {
+  const safeRegulations = Array.isArray(regulations)
+    ? regulations.map(item => String(item || '').trim()).filter(Boolean)
+    : [];
+  if (!safeRegulations.length) {
+    return '<div class="form-help">Applicable regulations will appear here once the business unit, geography, and current scenario signals are in place.</div>';
+  }
+  const preview = safeRegulations.slice(0, 8);
+  const remaining = Math.max(0, safeRegulations.length - preview.length);
+  const disclosureKey = getDisclosureStateKey('/wizard/2', 'review applicable regulations');
+  const isOpen = getDisclosureOpenState(disclosureKey, false);
+  return `<div class="step1-regulation-preview">
+    <div class="citation-chips">
+      ${preview.map(tag => `<span class="badge badge--gold">${escapeHtml(tag)}</span>`).join('')}
+      ${remaining ? `<span class="badge badge--neutral">+${remaining} more</span>` : ''}
+    </div>
+    ${remaining ? `<details class="wizard-disclosure wizard-disclosure--compact step1-regulation-disclosure" data-disclosure-state-key="${escapeHtml(disclosureKey)}" data-disclosure-default-open="false" ${isOpen ? 'open' : ''}>
+      <summary>Review the full regulation set <span class="badge badge--neutral">${safeRegulations.length} total</span></summary>
+      <div class="wizard-disclosure-body">
+        <div class="citation-chips step1-regulation-scroll">
+          ${safeRegulations.map(tag => `<span class="badge badge--gold">${escapeHtml(tag)}</span>`).join('')}
+        </div>
+      </div>
+    </details>` : ''}
+  </div>`;
+}
+
 function renderStep1ContextCard(settings, draft, scenarioGeographies, regs, buList) {
   const businessUnit = buList.find(bu => bu.id === draft.buId) || null;
   const geographies = scenarioGeographies.length ? scenarioGeographies : normaliseScenarioGeographies([settings.geography], settings.geography);
   const regulations = Array.isArray(regs) ? regs : [];
-  return `<div class="card card--elevated anim-fade-in">
-    <div class="wizard-premium-head">
+  const contextDisclosureKey = getDisclosureStateKey('/wizard/2', 'review appetite and regulation context');
+  const quickPickDisclosureKey = getDisclosureStateKey('/wizard/2', 'quick geography picks');
+  const editContextDisclosureKey = getDisclosureStateKey('/wizard/2', 'edit assessment context');
+  const isContextOpen = getDisclosureOpenState(contextDisclosureKey, !businessUnit || !regulations.length);
+  const isQuickPickOpen = getDisclosureOpenState(quickPickDisclosureKey, false);
+  const isEditContextOpen = getDisclosureOpenState(editContextDisclosureKey, !draft.buId || !geographies.length);
+  const geographySummary = geographies.length
+    ? `${geographies.slice(0, 2).join(', ')}${geographies.length > 2 ? ` +${geographies.length - 2} more` : ''}`
+    : 'Stage the relevant footprint';
+  return `<section class="card card--elevated anim-fade-in step1-context-card">
+    <div class="wizard-premium-head step1-context-card__head">
       <div>
-        <div class="wizard-summary-band__label">Required before continuing</div>
+        <div class="wizard-summary-band__label">Context dock</div>
         <h3>Assessment context</h3>
-        <p class="context-panel-copy" style="margin-top:var(--sp-2)">Set the business unit and geographies first. The appetite statement and applicable regulations update from that context and carry forward into the rest of the assessment.</p>
+      </div>
+      <span class="badge badge--neutral">${regulations.length ? `${regulations.length} regs` : 'Required'}</span>
+    </div>
+    <div class="step1-context-card__shell">
+      <div class="step1-context-card__summary">
+        <div class="step1-context-card__summary-item">
+          <span>Business context</span>
+          <strong>${businessUnit?.name ? escapeHtml(businessUnit.name) : 'Choose a business unit'}</strong>
+        </div>
+        <div class="step1-context-card__summary-item">
+          <span>Geographies</span>
+          <strong>${escapeHtml(geographySummary)}</strong>
+        </div>
+        <div class="step1-context-card__summary-item">
+          <span>Regulations</span>
+          <strong>${regulations.length ? `${regulations.length} matched` : 'Pending context'}</strong>
+        </div>
+      </div>
+      <details class="wizard-disclosure wizard-disclosure--compact step1-context-card__edit" data-disclosure-state-key="${escapeHtml(editContextDisclosureKey)}" data-disclosure-default-open="${isEditContextOpen ? 'true' : 'false'}" ${isEditContextOpen ? 'open' : ''}>
+        <summary>Edit assessment context <span class="badge badge--neutral">${draft.buId && geographies.length ? 'Ready' : 'Required'}</span></summary>
+        <div class="wizard-disclosure-body">
+          <div class="grid-2 step1-context-card__inputs">
+            <div class="form-group">
+              <label class="form-label" for="wizard-bu">Business Unit <span class="required">*</span></label>
+              <select class="form-select" id="wizard-bu">
+                <option value="">— Select —</option>
+                ${buList.map(b => `<option value="${b.id}" ${draft.buId===b.id?'selected':''}>${b.name}</option>`).join('')}
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Geographies</label>
+              <div class="tag-input-wrap" id="ti-wizard-geographies"></div>
+              <span class="form-help">Stage the footprint here. Open quick picks only if you want shortcuts for common regions.</span>
+            </div>
+          </div>
+          <details class="wizard-disclosure wizard-disclosure--compact step1-context-card__quick-picks" data-disclosure-state-key="${escapeHtml(quickPickDisclosureKey)}" data-disclosure-default-open="${isQuickPickOpen ? 'true' : 'false'}" ${isQuickPickOpen ? 'open' : ''}>
+            <summary>Quick region picks <span class="badge badge--neutral">Optional</span></summary>
+            <div class="wizard-disclosure-body">
+              <div class="citation-chips step1-context-card__quick-pick-chips">
+                ${GEOGRAPHY_OPTIONS.map(option => `<button type="button" class="chip wizard-geo-chip" data-geo="${option}">${option}</button>`).join('')}
+              </div>
+            </div>
+          </details>
+        </div>
+      </details>
+      <details class="wizard-disclosure wizard-disclosure--compact step1-context-card__details" data-disclosure-state-key="${escapeHtml(contextDisclosureKey)}" data-disclosure-default-open="${isContextOpen ? 'true' : 'false'}" ${isContextOpen ? 'open' : ''}>
+        <summary>Review appetite and regulation context <span class="badge badge--neutral">${regulations.length ? `${regulations.length} regulation${regulations.length === 1 ? '' : 's'}` : 'Pending'}</span></summary>
+        <div class="wizard-disclosure-body">
+          <div class="context-grid step1-context-card__facts">
+            <div class="context-chip-panel step1-context-panel step1-context-panel--appetite">
+              <div class="context-panel-title">Risk appetite statement</div>
+              <p class="context-panel-copy">${escapeHtml(String(settings.riskAppetiteStatement || 'No risk appetite statement configured.'))}</p>
+              <div class="context-panel-foot">Current P90 per-event tolerance: ${fmtCurrency(getToleranceThreshold())}. Warning trigger: ${fmtCurrency(getWarningThreshold())}.</div>
+            </div>
+            <div class="context-chip-panel step1-context-panel step1-context-panel--regulations">
+              <div class="context-panel-title">Applicable regulations</div>
+              ${renderStep1RegulationPreview(regulations)}
+              <div class="context-panel-foot">${businessUnit?.name ? `Current business context: ${escapeHtml(businessUnit.name)}.` : 'Regulations are read-only here and update from the current assessment context.'}</div>
+            </div>
+          </div>
+        </div>
+      </details>
+    </div>
+  </section>`;
+}
+
+function renderStep1RequiredContextBand(settings, draft, scenarioGeographies, regs, buList) {
+  const geographies = scenarioGeographies.length
+    ? scenarioGeographies
+    : normaliseScenarioGeographies([settings.geography], settings.geography);
+  const regulations = Array.isArray(regs) ? regs : [];
+  const geographySummary = geographies.length
+    ? formatScenarioGeographies(geographies, settings.geography)
+    : 'Add the geography for this assessment.';
+  return `<section class="step1-required-context-band anim-fade-in" id="step1-required-context" aria-label="Required assessment context">
+    <div class="step1-required-context-band__head">
+      <div>
+        <div class="wizard-summary-band__label">Required before AI build</div>
+        <h3>Choose business context first</h3>
+        <p>This tells the AI which business unit, geography, and regulations to use before it drafts the scenario.</p>
       </div>
       <span class="badge badge--gold">Required</span>
     </div>
-    <div class="grid-2" style="margin-top:var(--sp-4)">
+    <div class="step1-required-context-band__body">
       <div class="form-group">
         <label class="form-label" for="wizard-bu">Business Unit <span class="required">*</span></label>
         <select class="form-select" id="wizard-bu">
-          <option value="">— Select —</option>
-          ${buList.map(b => `<option value="${b.id}" ${draft.buId===b.id?'selected':''}>${b.name}</option>`).join('')}
+          <option value="">— Select business unit —</option>
+          ${buList.map(b => `<option value="${escapeHtml(b.id)}" ${draft.buId===b.id?'selected':''}>${escapeHtml(b.name)}</option>`).join('')}
         </select>
       </div>
       <div class="form-group">
         <label class="form-label">Geographies</label>
         <div class="tag-input-wrap" id="ti-wizard-geographies"></div>
-        <div class="citation-chips" style="margin-top:10px">
-          ${GEOGRAPHY_OPTIONS.map(option => `<button type="button" class="chip wizard-geo-chip" data-geo="${option}">${option}</button>`).join('')}
-        </div>
-        <span class="form-help">Select all countries or regions relevant to this scenario. Applicable regulations update from the combined footprint.</span>
+        <span class="form-help">Current footprint: ${escapeHtml(geographySummary)}</span>
       </div>
     </div>
-    <div class="context-grid mt-4">
-      <div class="context-chip-panel">
-        <div class="context-panel-title">Risk appetite statement</div>
-        <p class="context-panel-copy">${escapeHtml(String(settings.riskAppetiteStatement || 'No risk appetite statement configured.'))}</p>
-        <div class="context-panel-foot">Current P90 per-event tolerance: ${fmtCurrency(getToleranceThreshold())}. Warning trigger: ${fmtCurrency(getWarningThreshold())}.</div>
-      </div>
-      <div class="context-chip-panel">
-        <div class="context-panel-title">Applicable regulations</div>
-        ${regulations.length ? `<div class="citation-chips">${regulations.map(tag => `<span class="badge badge--gold">${escapeHtml(tag)}</span>`).join('')}</div>` : '<div class="form-help">Applicable regulations will appear here once the business unit, geography, and current scenario signals are in place.</div>'}
-        <div class="context-panel-foot">${businessUnit?.name ? `Current business context: ${escapeHtml(businessUnit.name)}.` : 'Regulations are read-only here and update from the current assessment context.'}</div>
-      </div>
+    <div class="step1-required-context-band__foot">
+      <span>After you select the business unit, the draft button unlocks and regulation context updates automatically.</span>
+      <span>${regulations.length ? `${regulations.length} regulation${regulations.length === 1 ? '' : 's'} ready after context` : 'Regulations update from the selected context'}</span>
     </div>
-  </div>`;
+  </section>`;
 }
 
 function initStep1Path(draft = AppState.draft || {}) {
@@ -2855,39 +3585,229 @@ function initStep1Path(draft = AppState.draft || {}) {
   return true;
 }
 
-function renderStep1PathSelector(currentPath = 'guided') {
-  const activePath = currentPath === 'draft' || currentPath === 'import' ? currentPath : 'guided';
-  const cards = [
+function getStep1PathCards() {
+  return [
     {
       path: 'guided',
-      eyebrow: '▸ Recommended',
-      title: 'Guide me through it',
-      copy: 'Answer a few questions. AI builds your scenario draft.'
+      eyebrow: 'Recommended',
+      title: 'Answer two questions',
+      copy: 'Use this when you are starting blank. Describe the event and the impact.',
+      signal: 'Easiest start'
     },
     {
       path: 'draft',
-      eyebrow: '◌ I know what I want',
-      title: 'Bring my own draft',
-      copy: 'Paste or type a scenario. AI can refine it.'
+      eyebrow: 'I have text',
+      title: 'Paste my draft',
+      copy: 'Use this when you already have rough scenario wording to clean up.',
+      signal: 'Fast edit'
     },
     {
       path: 'import',
-      eyebrow: '○ Load existing material',
-      title: 'Start from a register or example',
-      copy: 'Upload a register, or pick a worked example to edit.'
+      eyebrow: 'Existing material',
+      title: 'Use an example',
+      copy: 'Use this when you want to start from a register or worked example.',
+      signal: 'Reuse work'
     }
   ];
-  return `<section class="anim-fade-in">
-    <div class="results-section-heading">Choose how you want to start</div>
-    <div class="form-help" style="margin-top:8px">Pick one path, commit to it, and the page will show only the controls relevant to that start method.</div>
-    <div class="step1-path-grid">
-      ${cards.map((card) => `<button type="button" class="card step1-path-card" data-path="${card.path}" aria-pressed="${activePath === card.path ? 'true' : 'false'}">
-        <div class="wizard-summary-band__label">${escapeHtml(card.eyebrow)}</div>
-        <div style="font-family:var(--font-display);font-size:var(--text-lg);font-weight:700;color:var(--text-primary);margin-top:6px">${escapeHtml(card.title)}</div>
-        <div class="context-panel-copy" style="margin-top:8px">${escapeHtml(card.copy)}</div>
+}
+
+function getStep1GuideRouteModel(activePath = 'guided') {
+  const route = activePath === 'draft' || activePath === 'import' ? activePath : 'guided';
+  const models = {
+    guided: {
+      label: 'Guided start',
+      headline: 'Answer two plain-language questions.',
+      copy: 'Best when the user knows what happened, but does not know how to write a risk scenario yet.',
+      promise: 'Step 2 will show two fields and one build button.',
+      outcome: 'First draft built for you',
+      steps: ['Describe the event', 'Name the impact', 'Build the draft'],
+      intent: 'Lowest effort'
+    },
+    draft: {
+      label: 'Draft start',
+      headline: 'Paste what you already have.',
+      copy: 'Best when the user has rough wording from notes, chat, email, or an old assessment.',
+      promise: 'Step 2 will open the draft editor first, with AI refinement available when needed.',
+      outcome: 'Your wording cleaned up',
+      steps: ['Paste text', 'Tighten wording', 'Build from draft'],
+      intent: 'Fastest edit'
+    },
+    import: {
+      label: 'Example start',
+      headline: 'Start from existing material.',
+      copy: 'Best when the user wants to reuse a register entry or load a worked example and adjust it.',
+      promise: 'Step 2 will show the upload and example tools before building the scenario.',
+      outcome: 'Reusable starting point',
+      steps: ['Pick material', 'Review fit', 'Edit into place'],
+      intent: 'Reuse work'
+    }
+  };
+  return models[route];
+}
+
+function renderStep1GuideLaneSwitch(activePath = 'guided') {
+  const cards = getStep1PathCards();
+  const active = activePath === 'draft' || activePath === 'import' ? activePath : 'guided';
+  return `<section class="step1-guide-lane-switch" aria-label="Start method">
+    <div class="step1-guide-lane-switch__options" role="tablist" aria-label="Assessment start method">
+      ${cards.map((card, index) => `<button type="button" class="step1-guide-lane-option" data-path="${escapeHtml(card.path)}" aria-pressed="${active === card.path ? 'true' : 'false'}">
+        <span class="step1-guide-lane-option__index">${String(index + 1).padStart(2, '0')}</span>
+        <span class="step1-guide-lane-option__eyebrow">${escapeHtml(card.eyebrow)}</span>
+        <strong>${escapeHtml(card.title)}</strong>
+        <span class="step1-guide-lane-option__copy">${escapeHtml(card.copy)}</span>
+        <span class="step1-guide-lane-option__signal">${escapeHtml(active === card.path ? 'Selected' : card.signal)}</span>
       </button>`).join('')}
     </div>
   </section>`;
+}
+
+function renderStep1GuideRunway({
+  activePath = 'guided',
+  hasDraftSignal = false
+} = {}) {
+  const route = getStep1GuideRouteModel(activePath);
+  const routeLabel = activePath === 'draft'
+    ? 'Draft lane'
+    : activePath === 'import'
+      ? 'Example lane'
+      : 'Guided lane';
+  const nodes = [
+    { label: 'Route', value: routeLabel, state: 'live' },
+    { label: 'Signal', value: hasDraftSignal ? 'Loaded' : 'Waiting', state: hasDraftSignal ? 'live' : 'next' },
+    { label: 'Step 2', value: 'Ready', state: 'live' }
+  ];
+  return `<div class="step1-guide-runway" aria-label="Selected route runway">
+    <div class="step1-guide-runway__head">
+      <span>Live route staging</span>
+      <strong>${escapeHtml(route.outcome)}</strong>
+    </div>
+    <div class="step1-guide-runway__track" aria-hidden="true">
+      <span class="step1-guide-runway__beam"></span>
+      ${nodes.map((node, index) => `<span class="step1-guide-runway__node step1-guide-runway__node--${escapeHtml(node.state)}" style="--route-node:${index}"></span>`).join('')}
+      <span class="step1-guide-runway__packet step1-guide-runway__packet--one"></span>
+      <span class="step1-guide-runway__packet step1-guide-runway__packet--two"></span>
+    </div>
+    <div class="step1-guide-runway__metrics">
+      ${nodes.map(node => `<div>
+        <span>${escapeHtml(node.label)}</span>
+        <strong>${escapeHtml(node.value)}</strong>
+      </div>`).join('')}
+    </div>
+  </div>`;
+}
+
+function renderStep1GuideRouteDetail({
+  activePath = 'guided',
+  hasDraftSignal = false,
+  startButtonLabel = 'Continue to Step 2 intake'
+} = {}) {
+  const route = getStep1GuideRouteModel(activePath);
+  return `<section class="step1-guide-route-detail" aria-label="Selected start details">
+    <div class="step1-guide-route-detail__copy">
+      <div class="wizard-summary-band__label">Selected path</div>
+      <h3>${escapeHtml(route.headline)}</h3>
+      <p>${escapeHtml(route.copy)}</p>
+    </div>
+    <div class="step1-guide-route-detail__steps" aria-label="What happens next">
+      ${route.steps.map((step, index) => `<div class="step1-guide-route-detail__step">
+        <span>${index + 1}</span>
+        <strong>${escapeHtml(step)}</strong>
+      </div>`).join('')}
+    </div>
+    <div class="step1-guide-route-detail__footer">
+      <div class="step1-guide-route-detail__context">
+        <span>${escapeHtml(route.intent)}</span>
+        <strong>${escapeHtml(route.outcome)}</strong>
+        <p>${escapeHtml(route.promise)}</p>
+      </div>
+      <div class="step1-guide-route-detail__handoff">
+        <span>${hasDraftSignal ? 'Existing signal' : 'Next screen'}</span>
+        <strong>${hasDraftSignal ? 'Resume the intake lane' : 'Step 2 opens ready for this route'}</strong>
+      </div>
+      <button class="btn btn--primary btn--lg step1-guide-stage__cta" data-guide-next type="button">${escapeHtml(startButtonLabel)}</button>
+    </div>
+  </section>`;
+}
+
+function renderStep1PathSelector(currentPath = 'guided', options = {}) {
+  const activePath = currentPath === 'draft' || currentPath === 'import' ? currentPath : 'guided';
+  const activeLabel = activePath === 'draft'
+    ? 'Use my own draft'
+    : activePath === 'import'
+      ? 'Example or register'
+      : 'Guided path';
+  const cards = getStep1PathCards();
+  if (options.layout === 'top') {
+    return `<section class="card card--elevated anim-fade-in step1-start-dock">
+      <div class="step1-start-dock__eyebrow">Change lane</div>
+      <div class="step1-path-tabs" role="tablist" aria-label="Scenario intake path">
+        ${cards.map((card) => `<button type="button" class="step1-path-tab" data-path="${card.path}" aria-pressed="${activePath === card.path ? 'true' : 'false'}">
+          <span class="step1-path-tab__eyebrow">${escapeHtml(card.eyebrow)}</span>
+          <strong>${escapeHtml(card.title)}</strong>
+          <span class="step1-path-tab__signal">${escapeHtml(activePath === card.path ? 'Active lane' : card.signal)}</span>
+        </button>`).join('')}
+      </div>
+    </section>`;
+  }
+  const layoutClass = options.layout === 'guide' ? ' step1-start-panel--guide' : '';
+  return `<section class="card card--elevated anim-fade-in step1-start-panel${layoutClass}">
+    <div class="step1-start-panel__head">
+      <div>
+        <h3 class="results-section-heading">Choose how you want to start</h3>
+        <div class="form-help" style="margin-top:8px">Pick one path. You can change it here before you continue to intake.</div>
+      </div>
+      <span class="badge badge--neutral">Active: ${escapeHtml(activeLabel)}</span>
+    </div>
+    <div class="step1-path-grid">
+      ${cards.map((card) => `<button type="button" class="card step1-path-card" data-path="${card.path}" aria-pressed="${activePath === card.path ? 'true' : 'false'}">
+        <div class="step1-path-card__head">
+          <div class="wizard-summary-band__label">${escapeHtml(card.eyebrow)}</div>
+          <span class="step1-path-card__node" aria-hidden="true"></span>
+        </div>
+        <div class="step1-path-card__title">${escapeHtml(card.title)}</div>
+        <div class="step1-path-card__copy">${escapeHtml(card.copy)}</div>
+        <div class="step1-path-card__foot">
+          <span>${escapeHtml(card.signal)}</span>
+          <strong>${activePath === card.path ? 'Selected' : 'Ready'}</strong>
+        </div>
+      </button>`).join('')}
+    </div>
+  </section>`;
+}
+
+function renderStep1CommandStrip({
+  draft = AppState.draft || {},
+  selectedRisks = [],
+  scenarioGeographies = [],
+  activePath = 'guided',
+  canContinue = false
+} = {}) {
+  const pathLabel = activePath === 'draft'
+    ? 'Bring your own draft'
+    : activePath === 'import'
+      ? 'Register or example'
+      : 'Guided builder';
+  const draftLabel = String(draft.narrative || draft.sourceNarrative || draft.guidedInput?.event || '').trim()
+    ? 'Scenario signal in progress'
+    : 'Waiting for first event signal';
+  return `<div class="step1-command-strip">
+    <div class="step1-command-strip__item">
+      <span>Start mode</span>
+      <strong>${escapeHtml(pathLabel)}</strong>
+    </div>
+    <div class="step1-command-strip__item">
+      <span>Business context</span>
+      <strong>${escapeHtml(String(draft.buName || draft.buId || 'Not set'))}</strong>
+    </div>
+    <div class="step1-command-strip__item">
+      <span>Scenario signal</span>
+      <strong>${escapeHtml(draftLabel)}</strong>
+    </div>
+    <div class="step1-command-strip__item">
+      <span>Continue gate</span>
+      <strong>${canContinue ? `${selectedRisks.length || 1} signal${selectedRisks.length === 1 ? '' : 's'} ready` : `${scenarioGeographies.length || 1} region${(scenarioGeographies.length || 1) === 1 ? '' : 's'} staged`}</strong>
+    </div>
+  </div>`;
 }
 
 function renderStep1HiddenNarrativeField(draft = AppState.draft || {}) {
@@ -2972,7 +3892,7 @@ function renderStep1ImportPathCard({
 }
 
 function renderStep1InsightWorkbench(draft, scenarioMemoryState, activePath = 'guided') {
-  const disclosureKey = getDisclosureStateKey('/wizard/1', 'review ai reasoning and context');
+  const disclosureKey = getDisclosureStateKey('/wizard/2', 'review ai reasoning and context');
   const alignmentMarkup = activePath === 'guided' ? '' : renderStep1AiAlignmentCard(draft.aiAlignment);
   const crossReferenceMarkup = renderStep1ScenarioCrossReferenceBand(draft);
   const scenarioMemoryMarkup = renderStep1ScenarioMemoryBand(draft, scenarioMemoryState);
@@ -2980,6 +3900,7 @@ function renderStep1InsightWorkbench(draft, scenarioMemoryState, activePath = 'g
   const activeCount = [alignmentMarkup, crossReferenceMarkup, scenarioMemoryMarkup, intakeSummaryMarkup]
     .filter(section => String(section || '').trim().length > 0)
     .length;
+  if (!activeCount) return '';
   const summaryLabel = activeCount
     ? `${activeCount} support view${activeCount === 1 ? '' : 's'} available`
     : 'No extra context yet';
@@ -4281,23 +5202,51 @@ function updateStep1GuidedPreview() {
   const preview = document.getElementById('guided-preview');
   const previewStatus = document.getElementById('guided-preview-status');
   const previewModel = getStep1DisplayedGuidedPreviewModel(AppState.draft);
+  const previewText = String(previewModel.preview || '').trim();
+  const previewSource = String(previewModel.source || '').trim().toLowerCase();
+  const hasEventSignal = !!String(AppState.draft?.guidedInput?.event || '').trim();
+  const hasImpactSignal = !!String(AppState.draft?.guidedInput?.impact || '').trim();
+  const basicDraftShell = document.querySelector('.step1-basic-intake__draft');
+  const shouldShowPreview = !!previewText && !(basicDraftShell && previewSource === 'local');
+  const previewPlaceholder = hasEventSignal && hasImpactSignal
+    ? 'Click Build draft once. If live AI is unavailable, a fallback draft will be loaded automatically.'
+    : 'Answer the two prompts, then build the first AI draft.';
   if (preview) {
-    preview.textContent = String(previewModel.preview || '').trim()
-      || 'Complete the guided questions and click “Build scenario with AI”.';
+    preview.textContent = shouldShowPreview ? previewText : previewPlaceholder;
+  }
+  const previewTitle = document.getElementById('guided-preview-title');
+  if (previewTitle) {
+    previewTitle.textContent = shouldShowPreview
+      ? 'First draft ready'
+      : hasEventSignal && hasImpactSignal
+        ? 'Ready for AI build'
+        : 'Draft will appear here';
   }
   if (previewStatus) {
-    const source = String(previewModel.source || '').trim().toLowerCase();
     const status = String(previewModel.status || '').trim();
-    previewStatus.textContent = status
-      ? `${source === 'ai' ? 'AI-built draft' : source === 'fallback' ? 'Deterministic fallback draft' : source === 'manual' ? 'Manual draft' : source === 'local' ? 'Local draft' : 'AI-checked preview'} · ${status}`
+    const sourceLabel = previewSource === 'ai'
+      ? 'Live AI draft'
+      : previewSource === 'fallback'
+        ? 'Fallback draft'
+        : previewSource === 'manual'
+          ? 'Manual draft'
+          : previewSource === 'local'
+            ? 'Local preview'
+            : 'AI-checked preview';
+    previewStatus.textContent = status && shouldShowPreview
+      ? `${sourceLabel} · ${status}`
       : '';
-    previewStatus.style.display = status ? '' : 'none';
+    previewStatus.style.display = status && shouldShowPreview ? '' : 'none';
+  }
+  if (basicDraftShell) {
+    basicDraftShell.classList.toggle('step1-basic-intake__draft--empty', !shouldShowPreview);
   }
   const promptIdeasPanel = document.getElementById('guided-prompt-ideas-panel');
   if (promptIdeasPanel) {
     promptIdeasPanel.innerHTML = renderStep1GuidedPromptIdeaPanel(getStep1DisplayedPromptIdeaModel(AppState.draft));
     bindStep1PromptIdeaPanelActions(promptIdeasPanel, getEffectiveSettings());
   }
+  updateStep1CommandDeckState();
 }
 
 function createStep1GeographySyncHandler({ buList, settings }) {
@@ -4520,7 +5469,7 @@ function bindStep1ScenarioMemoryActions() {
   });
 }
 
-function bindStep1PathSelector() {
+function bindStep1PathSelector({ rerender = renderWizard1 } = {}) {
   document.querySelectorAll('[data-path]').forEach(btn => {
     btn.addEventListener('click', () => {
       const next = String(btn.dataset.path || '').trim();
@@ -4543,7 +5492,7 @@ function bindStep1PathSelector() {
       }
       AppState.draft.step1Path = next;
       saveDraft();
-      renderWizard1();
+      if (typeof rerender === 'function') rerender();
     });
   });
 }
@@ -4705,7 +5654,7 @@ function applyStep1FreshDisclosureDefaults(root = document) {
   if (!AppState?.forceWizardDisclosureDefaults) return;
   root.querySelectorAll('details[data-disclosure-state-key][data-disclosure-default-open]').forEach((section) => {
     const key = String(section.dataset.disclosureStateKey || '').trim().toLowerCase();
-    if (!key.startsWith('/wizard/1::')) return;
+    if (!key.startsWith('/wizard/2::')) return;
     section.open = section.dataset.disclosureDefaultOpen === 'true';
   });
   AppState.forceWizardDisclosureDefaults = false;
@@ -4717,11 +5666,17 @@ function bindStep1NavigationActions({ buList, settings, wizardGeographyInput }) 
     let narrative = document.getElementById('intake-risk-statement').value.trim();
     let selected = getSelectedRisks();
     if (!buId) {
-      const framingDisclosure = Array.from(document.querySelectorAll('.wizard-support-band details'))
+      const requiredContext = document.getElementById('step1-required-context');
+      if (requiredContext) {
+        requiredContext.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      const setupDisclosure = document.getElementById('step1-basic-setup-support');
+      if (setupDisclosure && !requiredContext) setupDisclosure.open = true;
+      const framingDisclosure = Array.from(document.querySelectorAll('.wizard-support-band details, .step1-basic-support-panel details'))
         .find(node => /assessment framing and defaults/i.test(node.querySelector('summary')?.textContent || ''));
       if (framingDisclosure) framingDisclosure.open = true;
       document.getElementById('wizard-bu')?.focus();
-      UI.toast('Select the business unit in the support section before continuing.', 'warning');
+      UI.toast('Select the business unit before continuing.', 'warning');
       return;
     }
     if (!narrative) {
@@ -4746,7 +5701,7 @@ function bindStep1NavigationActions({ buList, settings, wizardGeographyInput }) 
       const selectedTitles = selected.slice(0, 3).map(item => item.title).filter(Boolean);
       const buLabel = buList.find(b => b.id === buId)?.name || AppState.draft.buName || 'the selected business unit';
       const geographyLabel = formatScenarioGeographies(wizardGeographyInput.getTags(), settings.geography);
-      // Selected-risk-only starts left Step 2 with a blank narrative, so seed a minimal editable scenario before continuing.
+      // Selected-risk-only starts left the scenario-review step with a blank narrative, so seed a minimal editable scenario before continuing.
       narrative = `Assess the potential impact of ${selectedTitles.join(', ') || 'the selected risks'} affecting ${buLabel}${geographyLabel ? ` in ${geographyLabel}` : ''}.`;
       AppState.draft.narrative = narrative;
       AppState.draft.sourceNarrative = narrative;
@@ -4761,7 +5716,126 @@ function bindStep1NavigationActions({ buList, settings, wizardGeographyInput }) 
     updateStep1ApplicableRegulations(buList, AppState.draft.geographies);
     syncStep1ScenarioTitle(AppState.draft.enhancedNarrative || AppState.draft.narrative || narrative);
     saveDraft();
-    Router.navigate('/wizard/2');
+    Router.navigate('/wizard/3');
+  });
+}
+
+function renderWizardGuide() {
+  ensureDraftShape();
+  const draft = AppState.draft;
+  const settings = getEffectiveSettings();
+  const buList = getBUList();
+  const pathInitialised = initStep1Path(draft);
+  if (ensureStep1ContextPrefills(draft, settings, buList) || pathInitialised) saveDraft();
+  const activePath = draft.step1Path === 'draft' || draft.step1Path === 'import' ? draft.step1Path : 'guided';
+  const hasDraftSignal = !!String(
+    draft.enhancedNarrative
+    || draft.narrative
+    || draft.sourceNarrative
+    || draft.guidedInput?.event
+    || draft.loadedDryRunId
+    || draft.uploadedRegisterName
+    || draft.templateId
+    || ''
+  ).trim() || getRiskCandidates().length > 0;
+  const startButtonLabel = hasDraftSignal
+    ? 'Resume Step 2 intake'
+    : 'Continue to Step 2 intake';
+
+  setPage(`
+    <main class="page" aria-label="Step 1: Assessment guide">
+      <div class="wizard-layout wizard-layout--step1 wizard-layout--guide container">
+        <section class="wizard-header wizard-header--step1 wizard-header--guide step1-guide-stage step1-guide-stage--${escapeHtml(activePath)}">
+          <div class="step1-guide-stage__topline">
+            <div>
+              <div class="wizard-summary-band__label">Step 1 of 5</div>
+              <span data-draft-save-state>Draft saves automatically</span>
+            </div>
+            <div class="step1-guide-stage__notice">
+              <span>PoC sandbox</span>
+              <strong>Use dummy data only</strong>
+            </div>
+          </div>
+
+          <div class="step1-guide-stage__hero">
+            <div class="step1-guide-stage__copy">
+              <h2 class="wizard-step-title">Choose how to start.</h2>
+              <p class="wizard-step-desc">Pick the option that matches what you have. The next screen changes to that path, and you can switch here with one click before intake.</p>
+              ${renderStep1GuideRunway({ activePath, hasDraftSignal })}
+            </div>
+            ${renderStep1GuideRouteDetail({
+              activePath,
+              hasDraftSignal,
+              startButtonLabel
+            })}
+          </div>
+
+          <div class="step1-guide-stage__decision">
+            ${renderStep1GuideLaneSwitch(activePath)}
+          </div>
+        </section>
+      </div>
+    </main>`);
+
+  bindStep1PathSelector({ rerender: renderWizardGuide });
+  updateWizardSaveState();
+  document.querySelectorAll('[data-guide-next]').forEach(button => {
+    button.addEventListener('click', () => {
+      saveDraft();
+      Router.navigate('/wizard/2');
+    });
+  });
+}
+
+function renderStep1BasicSupportTabs({ pathMarkup = '', contextMarkup = '', needsContextSetup = false } = {}) {
+  const tabs = [
+    {
+      key: 'start',
+      label: 'Start method',
+      badge: 'Switch anytime',
+      body: pathMarkup
+    },
+    {
+      key: 'context',
+      label: 'Context',
+      badge: needsContextSetup ? 'Shown above' : 'Ready',
+      body: needsContextSetup
+        ? '<div class="step1-support-tabs__empty">Business context is required for AI build and is shown above the intake. Use this drawer only if you want to switch how you started.</div>'
+        : contextMarkup
+    }
+  ];
+  return `<div class="step1-support-tabs" data-step1-support-tabs>
+    <div class="step1-support-tabs__nav" role="tablist" aria-label="Step 2 support areas">
+      ${tabs.map((tab, index) => `<button class="step1-support-tabs__tab ${index === 0 ? 'is-active' : ''}" type="button" role="tab" aria-selected="${index === 0 ? 'true' : 'false'}" data-step1-support-tab="${escapeHtml(tab.key)}">
+        <span>${escapeHtml(tab.label)}</span>
+        <small>${escapeHtml(tab.badge)}</small>
+      </button>`).join('')}
+    </div>
+    <div class="step1-support-tabs__panels">
+      ${tabs.map((tab, index) => `<section class="step1-support-tabs__panel ${index === 0 ? 'is-active' : ''}" role="tabpanel" data-step1-support-panel="${escapeHtml(tab.key)}">
+        ${tab.body}
+      </section>`).join('')}
+    </div>
+  </div>`;
+}
+
+function bindStep1BasicSupportTabs(root = document) {
+  root.querySelectorAll('[data-step1-support-tabs]').forEach(host => {
+    const buttons = Array.from(host.querySelectorAll('[data-step1-support-tab]'));
+    const panels = Array.from(host.querySelectorAll('[data-step1-support-panel]'));
+    buttons.forEach(button => {
+      button.addEventListener('click', () => {
+        const key = String(button.dataset.step1SupportTab || '').trim();
+        buttons.forEach(item => {
+          const active = item === button;
+          item.classList.toggle('is-active', active);
+          item.setAttribute('aria-selected', active ? 'true' : 'false');
+        });
+        panels.forEach(panel => {
+          panel.classList.toggle('is-active', String(panel.dataset.step1SupportPanel || '') === key);
+        });
+      });
+    });
   });
 }
 
@@ -4804,40 +5878,127 @@ function renderWizard1() {
     || (riskCandidates || []).some(risk => risk.source === 'register' || risk.source === 'ai+register' || risk.source === 'manual');
   const canContinue = !!String(draft.buId || '').trim() && (!!narrative || selectedRisks.length > 0);
   const promptIdeaModel = getStep1DisplayedPromptIdeaModel(draft, exampleModel);
+  const activePath = draft.step1Path === 'draft' || draft.step1Path === 'import' ? draft.step1Path : 'guided';
+  const intakeSequence = buildStep1IntakeSequenceModel(draft);
+  const isBasicExperience = typeof isAdvancedExperienceMode === 'function' ? !isAdvancedExperienceMode() : false;
+  const needsContextSetup = !String(draft.buId || '').trim();
+  const requiredContextSection = isBasicExperience && needsContextSetup
+    ? renderStep1RequiredContextBand(settings, draft, scenarioGeographies, regs, buList)
+    : '';
+  const contextCardMarkup = renderStep1ContextCard(settings, draft, scenarioGeographies, regs, buList);
+  const pathSelectorMarkup = renderStep1PathSelector(draft.step1Path, { layout: 'top' });
+  const supportMarkup = isBasicExperience
+    ? renderStep1BasicSupportTabs({
+        pathMarkup: pathSelectorMarkup,
+        contextMarkup: contextCardMarkup,
+        needsContextSetup
+      })
+    : `${pathSelectorMarkup}
+            ${contextCardMarkup}`;
+  const basicSupportDisclosureKey = getDisclosureStateKey('/wizard/2', 'basic setup and alternate starts');
+  const supportSection = isBasicExperience
+    ? `<details id="step1-basic-setup-support" class="wizard-disclosure wizard-disclosure--support step1-basic-support-panel anim-fade-in" data-step1-basic-support="setup" data-disclosure-state-key="${escapeHtml(basicSupportDisclosureKey)}" data-disclosure-default-open="false" ${getDisclosureOpenState(basicSupportDisclosureKey, false) ? 'open' : ''}>
+            <summary>Setup and alternate starts <span class="badge badge--neutral">Optional</span></summary>
+            <div class="step1-basic-support-panel__intro">Open this only when you need to change the start method${needsContextSetup ? '; business context is now shown above the intake.' : ', business context, geography, or existing material.'}</div>
+            <div class="wizard-disclosure-body step1-basic-support-panel__body step1-intake-topline step1-intake-topline--support">
+              ${supportMarkup}
+            </div>
+          </details>`
+    : `<section class="step1-intake-topline step1-intake-topline--support">
+            ${supportMarkup}
+          </section>`;
+  const riskReviewMarkup = `${riskCandidates.length ? renderStep1ScopeBand({ draft, selectedRisks, riskCandidates, regs }) : ''}
+          ${renderStep1SelectedRisksSummary(selectedRisks, riskCandidates)}`;
+  const shouldShowRiskReview = String(riskReviewMarkup || '').replace(/\s+/g, '').trim().length > 0;
+  const basicRiskDisclosureKey = getDisclosureStateKey('/wizard/2', 'basic review risks and shortlist');
+  const needsRiskReview = riskCandidates.length > 0 && selectedRisks.length === 0;
+  const riskReviewSection = isBasicExperience && shouldShowRiskReview
+    ? `<details id="step1-basic-risk-review" class="wizard-disclosure wizard-disclosure--support step1-basic-support-panel step1-basic-support-panel--risk anim-fade-in" data-step1-basic-support="risk-review" data-disclosure-state-key="${escapeHtml(basicRiskDisclosureKey)}" data-disclosure-default-open="${needsRiskReview ? 'true' : 'false'}" ${getDisclosureOpenState(basicRiskDisclosureKey, needsRiskReview) ? 'open' : ''}>
+            <summary>Review risks and shortlist <span class="badge badge--neutral">${riskCandidates.length || selectedRisks.length} item${(riskCandidates.length || selectedRisks.length) === 1 ? '' : 's'}</span></summary>
+            <div class="step1-basic-support-panel__intro">Open this after the first draft has generated risk suggestions, or when you want to manually adjust the shortlist.</div>
+            <div class="wizard-disclosure-body step1-basic-support-panel__body">
+              ${riskReviewMarkup}
+            </div>
+          </details>`
+    : riskReviewMarkup;
+  const basicWorkflowRibbon = isBasicExperience ? renderStep1BasicWorkflowRibbon(draft) : '';
+  const intakeValidation = {
+    errors: needsContextSetup ? ['Select business context before AI drafting.'] : [],
+    warnings: []
+  };
+  const decisionReadiness = typeof buildDecisionReadinessModel === 'function'
+    ? buildDecisionReadinessModel({
+        draft,
+        selectedRisks,
+        scenarioGeographies,
+        validation: intakeValidation
+      })
+    : null;
+  const challengePass = typeof buildAssessmentChallengePass === 'function'
+    ? buildAssessmentChallengePass({
+        draft,
+        selectedRisks,
+        validation: intakeValidation,
+        readiness: decisionReadiness
+      })
+    : null;
+  const managerModel = typeof buildAssessmentManagerRunModel === 'function'
+    ? buildAssessmentManagerRunModel({
+        stage: 'intake',
+        draft,
+        selectedRisks,
+        validation: intakeValidation,
+        readiness: decisionReadiness,
+        challenge: challengePass
+      })
+    : null;
 
   setPage(`
-    <main class="page" aria-label="Step 1: AI-Assisted Risk and Context Builder">
-      <div class="wizard-layout container container--narrow">
-        <div class="wizard-header">
-          ${UI.renderStepper(1)}
-          <h2 class="wizard-step-title">AI-Assisted Risk &amp; Context Builder</h2>
-          <p class="wizard-step-desc">Set the context first, choose how you want to start, then commit to one path before you shape the shortlist.</p>
+    <main class="page" aria-label="Step 2: Scenario Intake and Context Builder">
+      <div class="wizard-layout wizard-layout--step1 container">
+        <div class="wizard-header wizard-header--step1">
+          <div class="wizard-summary-band__label">Scenario intake</div>
+          <h2 class="wizard-step-title">${isBasicExperience ? 'Scenario Intake' : 'Scenario Intake &amp; Context Builder'}</h2>
+          <p class="wizard-step-desc">${isBasicExperience ? 'Answer two plain-language prompts. The platform will build the first draft; setup stays optional unless business context is missing.' : 'This is the action step. Follow the sequence below: describe the event, name the impact, then build the first draft. Supporting setup stays secondary unless you need it.'}</p>
           <div class="wizard-status-stack">
             <div class="form-help" data-draft-save-state>Draft saves automatically</div>
             ${renderPilotWarningBanner('ai', { compact: true })}
           </div>
+          ${isBasicExperience ? '' : `<div class="step1-intake-header__next">
+            <div class="step1-intake-header__next-copy">
+              <span class="step1-intake-header__next-label">Next recommended action</span>
+              <strong id="step1-intake-next-title">${escapeHtml(intakeSequence.nextAction.title)}</strong>
+              <span id="step1-intake-next-copy">${escapeHtml(intakeSequence.nextAction.copy)}</span>
+            </div>
+            <span class="step1-intake-header__next-kicker" id="step1-intake-next-kicker">${escapeHtml(intakeSequence.nextAction.kicker)}</span>
+          </div>`}
         </div>
+        ${basicWorkflowRibbon}
         <div class="wizard-body">
-          ${renderStep1ContextCard(settings, draft, scenarioGeographies, regs, buList)}
-          ${renderStep1PathSelector(draft.step1Path)}
-          ${renderStep1PathContent(draft.step1Path, {
-            draft,
-            recommendation,
-            functionLabel: exampleModel.functionLabel,
-            promptIdeaModel,
-            exampleModel,
-            hasScenarioDraft,
-            hasImportedSource,
-            settings,
-            scenarioMemoryState,
-            activeDryRun,
-            featuredDryRun
-          })}
-          ${riskCandidates.length ? renderStep1ScopeBand({ draft, selectedRisks, riskCandidates, regs }) : ''}
-          ${renderStep1SelectedRisksSummary(selectedRisks, riskCandidates)}
+          ${requiredContextSection}
+          ${managerModel && typeof renderAssessmentManagerPanel === 'function'
+            ? renderAssessmentManagerPanel(managerModel, { compact: true, title: 'Assessment Manager' })
+            : ''}
+          <section class="step1-primary-zone">
+            ${renderStep1PathContent(draft.step1Path, {
+              draft,
+              recommendation,
+              functionLabel: exampleModel.functionLabel,
+              promptIdeaModel,
+              exampleModel,
+              hasScenarioDraft,
+              hasImportedSource,
+              settings,
+              scenarioMemoryState,
+              activeDryRun,
+              featuredDryRun
+            })}
+          </section>
+          ${supportSection}
+          ${riskReviewSection}
         </div>
-        <div class="step1-sticky-footer">
-          <button class="btn btn--primary" id="btn-next-1" ${canContinue ? '' : 'disabled'} aria-disabled="${canContinue ? 'false' : 'true'}">Continue to Scenario Review</button>
+        <div class="step1-sticky-footer ${canContinue ? 'step1-sticky-footer--ready' : 'step1-sticky-footer--blocked'}">
+          <button class="btn btn--primary" id="btn-next-1" ${canContinue ? '' : 'disabled'} aria-disabled="${canContinue ? 'false' : 'true'}">Continue to Step 3 Scenario Review</button>
           ${renderStep1ReadinessBanner(draft, selectedRisks)}
         </div>
       </div>
@@ -4854,6 +6015,7 @@ function renderWizard1() {
   const wizardGeographyInput = UI.tagInput('ti-wizard-geographies', scenarioGeographies, syncWizardGeographies);
   updateWizardSaveState();
   bindStep1PathSelector();
+  bindStep1BasicSupportTabs();
   bindStep1PrimaryInputs({ buList, wizardGeographyInput });
   bindStep1ScenarioActions({ buList, settings, exampleModel });
   bindStep1NavigationActions({ buList, settings, wizardGeographyInput });
@@ -5258,7 +6420,7 @@ function renderSelectedRiskCards(riskCandidates, selectedRisks, regulations) {
     : selectedCount >= 1
       ? 'Good scope so far. Keep only the risks that clearly belong in one coherent assessment.'
       : 'Choose the risks that share the same event, scope, or business impact.';
-  const additionalRisksDisclosureKey = getDisclosureStateKey('/wizard/1', 'show additional possible risks');
+  const additionalRisksDisclosureKey = getDisclosureStateKey('/wizard/2', 'show additional possible risks');
   return `${linkedRecommendations.length ? `<div class="card mb-4" style="background:var(--bg-elevated)"><div class="context-panel-title">Suggested linked-risk groupings</div><div style="display:flex;flex-direction:column;gap:var(--sp-3);margin-top:var(--sp-3)">${linkedRecommendations.map(group => `<div><div style="font-size:.78rem;font-weight:600;color:var(--text-primary)">${escapeHtml(String(group.label || 'Linked risks'))}</div><div class="context-panel-copy" style="margin-top:4px">${escapeHtml(String((Array.isArray(group.risks) ? group.risks : []).join(', ')))}</div></div>`).join('')}</div><div class="context-panel-foot">${escapeHtml(String(AppState.draft.linkAnalysis || 'Treat these as linked where one control or event could trigger the others in the same scenario.'))}</div></div>` : ''}
   ${selectedReviewCount ? `<div class="wizard-summary-band wizard-summary-band--quiet premium-guidance-strip premium-guidance-strip--warning mb-4"><div><div class="wizard-summary-band__label">Scope review suggested</div><strong>${selectedReviewCount} selected risk${selectedReviewCount === 1 ? '' : 's'} may sit outside the current scenario lens</strong><div class="wizard-summary-band__copy">Keep them only if they clearly belong in the same event path, business impact, and management discussion.</div></div></div>` : ''}
   <div class="flex items-center gap-3 mb-4" style="flex-wrap:wrap">

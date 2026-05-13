@@ -3,10 +3,12 @@
 ## How To Use This File
 
 - Read this once before changing any feature area.
+- Immediately after this file, read `SESSION_HANDOFF.md` for the current branch baseline, release flow, and active repo context.
 - Use it to locate the owning module before you open files.
 - Treat it as the repo-level guardrail for UX, discoverability, persistence, role behavior, and testing.
 - Then read the local seam you are changing. This file does not replace code inspection.
-- If this file and the live code appear to conflict, trust the live code and update this document in the same change.
+- If this file, `SESSION_HANDOFF.md`, and the live code appear to conflict, trust the live code and update the docs in the same change.
+- If you changed branch state, release flow, deployment expectations, or any material repo context, update `SESSION_HANDOFF.md` before you finish the session.
 
 ## Change Approval Policy
 
@@ -61,25 +63,50 @@
 - Dashboard actions can start guided assessment, register-first assessment, sample assessment, or template-based work.
 - Admins can also open the user workspace in preview mode from `assets/admin/adminHomeSection.js`.
 
-### Step 1: AI-Assisted Risk & Context Builder
-- Owned by `assets/wizard/step1.js` with AI helpers in `assets/wizard/step1Assist.js`.
-- Current composition is intentional:
-  1. assessment context card
-  2. path selector
-  3. path-specific content
-  4. scope section only when candidates exist
-  5. selected-risks summary
-  6. sticky continue footer
+### Step 1: Assessment Guide
+- Owned by `renderWizardGuide()` in `assets/wizard/step1.js`.
+- This is the orientation and lane-selection surface, not the main drafting workspace.
+- It should explain what the intake will ask for, preserve the selected start lane, and hand off clearly to Step 2.
+- From a Basic-user perspective, Step 1 should feel like one premium decision stage: a large simple headline, three persistent route choices, one selected-route explanation, and one Continue action. Avoid duplicate "what happens next" sections, telemetry cards, or expert terms such as lane/signal/scout in the primary copy.
+- A compact route runway is allowed in Step 1 when it clarifies the selected route, signal state, and Step 2 handoff. Keep the labels plain and avoid turning it into another expert telemetry panel.
+- `wizard-layout--guide` intentionally overrides the narrower Basic Step 1 cap so the orientation screen can use desktop width; do not remove it unless Step 1 gets an equivalent wide layout.
+- Keep README's Current Workflow and UX sections aligned with this split: Step 1 is Guide, Step 2 is Intake, Step 3 is Scenario, Step 4 is Estimate, and Step 5 is Review & Run.
 - Step 1 paths are:
   - `guided`
   - `draft`
   - `import`
 - The path switcher is stateful and clears only path-specific fields when changing lanes.
+- `step1Path` is part of the draft shape and must survive `ensureDraftShape()`; do not let route selection silently reset to guided on re-render.
+
+### Step 2: Scenario Intake & Context Builder
+- Owned by `renderWizard1()` in `assets/wizard/step1.js` with AI helpers in `assets/wizard/step1Assist.js`.
+- This is the action-first intake workspace.
+- Basic mode must stay non-expert friendly: the visible default path is two plain-language prompts, one build action, and a draft preview. Path switching, business context, regulation detail, scout/inspector detail, and shortlist review should sit behind one-click support disclosures unless context is missing or user action makes them necessary.
+- Basic Step 2 may show the compact `Assessment Manager` timeline because it explains the journey without exposing expert controls. Keep it short: context, scenario, evidence mission, Challenge Agent, output review.
+- If strengthening agentic visuals, keep the Assessment Manager runway as the main visible motion. Do not add extra decorative panels that compete with the two-prompt intake or the single build action.
+- Basic Step 2 may show one compact workflow ribbon above the intake for source, current workflow, draft state, and next action. Keep it status-only; do not turn it into another telemetry panel or duplicate the Assessment Manager.
+- Basic setup support should stay tabbed or similarly segmented. Do not return to one long mixed stack of start method, context, regulation, and shortlist controls.
+- When required business context is missing in Basic mode, show the business-unit/geography picker above the intake as part of the main path. Do not rely on a `Required` badge inside a lower support disclosure for prerequisites.
+- Advanced mode keeps the command deck composition:
+  1. command deck for event, impact, first draft, and review
+  2. compact path/context dock
+  3. scope section only when candidates exist
+  4. selected-risks summary
+  5. sticky continue footer
+- The command deck's progress, scout state, and "Do this next" guidance are expected to live-update as the event and impact fields change in Advanced. Basic should use the simpler intake card and avoid competing expert telemetry in the main path.
+- Local previews must not be treated as staged AI-built drafts. Use staged draft state only after an actual build, accepted narrative, or saved narrative exists.
+- Basic mode must not show the full local preview draft before the user clicks the build action. Once event and impact are filled, show a compact ready-for-AI state and let the single build action call the AI path first.
+- Step 2 draft previews must expose provenance clearly: distinguish `Live AI draft`, `Fallback draft`, `Manual draft`, and `Local preview` so users do not mistake local seed text for live AI output.
+- If a Step 2 build succeeds or a saved assisted narrative exists, Basic mode must show `First draft ready` and the preview body before Step 3 is available. Do not allow an enabled `Continue to Step 3` state with an empty `Draft will appear here` preview.
+- `ensureDraftShape()` must preserve assisted-draft provenance fields such as `aiQualityState`, `guidedDraftPreview`, `guidedDraftSource`, and `guidedDraftStatus`; otherwise Basic Step 2 can lose the built-preview state on re-render.
+- If the first live-AI build fails, stage an explicit fallback draft from the typed answers, seed any deterministic risk suggestions available, and keep the user moving with clear fallback provenance instead of blocking on an unavailable banner.
 - Examples, dry runs, register ingestion, prompt suggestions, regulations, and shortlist generation already exist. Reuse these seams before adding new ones.
 
-### Step 2: Refine the Scenario
+### Step 3: Refine the Scenario
 - Owned by `assets/wizard/step2.js`.
 - This is the narrative-tightening step, not another broad support wall.
+- Step 3 should reuse the shared workflow/status strip for source, readiness, challenge posture, and next action. Keep it compact and status-only; do not add another dense AI panel above the narrative.
+- Step 3 AI output must show provenance clearly, especially `Live AI` vs `Fallback` vs `Local preview`.
 - Existing secondary layers already present:
   - AI narrative refinement
   - AI trace / “why this”
@@ -89,7 +116,7 @@
   - input provenance and citations
 - Material rewrites intentionally invalidate stale AI trust/state. Do not reintroduce stale scenario identity, confidence, or evidence carry-over.
 
-### Step 3: Enter the core estimate
+### Step 4: Enter the core estimate
 - Owned by `assets/wizard/step3.js`.
 - This is the FAIR-style tuning step, with plain-language guidance over the model.
 - Existing features include:
@@ -100,7 +127,7 @@
   - treatment-improvement lane for better-outcome variants
 - Most users should be able to stay in the main estimate path without opening all advanced disclosures.
 
-### Step 4: Review & Run
+### Step 5: Review & Run
 - `renderWizard4()` lives in `assets/wizard/step4.js`.
 - This step is a pre-run review surface, not a second results page.
 - It includes:
@@ -109,9 +136,15 @@
   - quality coach
   - evidence-gap plan
   - challenge-first guidance
+  - Assessment Manager timeline
+  - decision-readiness card
   - source audit
   - parameter explanation
   - run progress / cancellation
+- Step 5 should show the shared workflow/status strip above the review stack so the user sees source, readiness, challenge posture, and next action before opening detailed panels.
+- The Challenge Agent story should explain the decision change in one short line: why the posture moved to proceed, proceed with review points, or hold for owner review.
+- The Challenge Agent pass should be visible before simulation and persisted with the saved assessment as `assessmentChallengePass`.
+- Decision readiness should remain separate from Monte Carlo loss outputs: use it for blockers, open gaps, required controls, and human-review owners.
 - Changes here can easily affect the results lifecycle. Treat this as a hotspot.
 
 ### Results
@@ -126,9 +159,16 @@
   - confidence and evidence framing
   - treatment comparison
   - challenge/reviewer brief seams
+  - Assessment Manager replay and decision readiness
+  - shared workflow/status strip
+  - Decision Stack
+  - Challenge Agent story
   - appendix/evidence surfaces
   - per-user tab persistence
   - per-assessment boardroom mode persistence
+- Results should reuse persisted `assessmentManagerTrace`, `decisionReadiness`, and `assessmentChallengePass` when present, and only reconstruct them for older saved assessments.
+- Results should lead with a management-readable Decision Stack: recommendation, readiness, top blocker, next action, owner, and source. Do not bury the action behind the technical result grid.
+- Results source labels must distinguish `Saved result`, `Live AI`, `Fallback`, `Local preview`, and `Imported source` where applicable.
 
 ### Compare / export / revisit
 - Saved assessments can become baselines, treatment variants, archived records, reassessment candidates, and board-brief inputs.
@@ -189,14 +229,14 @@
 - Admin settings are rendered through admin sections and `safeRenderAdminSettings(...)` wiring in `assets/app.js`.
 
 ### Wizard steps
-- `assets/wizard/step1.js`: context, path selection, shortlist creation.
-- `assets/wizard/step1Assist.js`: Step 1 AI assist, RAG checks, AI trace links.
-- `assets/wizard/step2.js`: narrative refinement, trust, quality coach, evidence plan.
-- `assets/wizard/step3.js`: FAIR parameter entry, smart prefill, advanced mode, treatment lane.
-- Review & Run lives in `assets/results/resultsRoute.js`.
+- `assets/wizard/step1.js`: Step 1 guide plus Step 2 intake, context, path selection, shortlist creation.
+- `assets/wizard/step1Assist.js`: Step 2 intake AI assist, RAG checks, AI trace links.
+- `assets/wizard/step2.js`: Step 3 narrative refinement, trust, quality coach, evidence plan.
+- `assets/wizard/step3.js`: Step 4 FAIR parameter entry, smart prefill, advanced mode, treatment lane.
+- `assets/wizard/step4.js`: Step 5 Review & Run, validation, challenge, source audit, simulation launch.
 
 ### Results
-- `assets/results/resultsRoute.js`: Review & Run, results route, tab switching, boardroom mode, comparison, challenge/reviewer actions, exports.
+- `assets/results/resultsRoute.js`: results route, tab switching, boardroom mode, comparison, challenge/reviewer actions, revision routing, exports.
 - `assets/results/resultsViewModel.js`: role-aware results render model and normalization.
 - `assets/services/reportPresentation.js`: executive/editorial wording and decision framing.
 
@@ -282,6 +322,7 @@
 ### Local + session persistence already in use
 - `localStorage` is used as cache/persistence for user/admin state, drafts, learning memory, and some auth/session-adjacent pilot behavior.
 - `sessionStorage` is used for session-specific UI state such as results tab persistence, boardroom mode per assessment, AI trace, and one-time warnings.
+- Pilot login must stay single-flight: do not let repeated submits stack PoC warning modals, and scope modal action bindings to the modal instance rather than global fixed ids.
 
 ### Recovery trust
 - Draft recovery after refresh is already smoke-tested.
@@ -347,12 +388,13 @@ Do not reinvent these. They already exist.
 - `#/help` is a real route and is covered by smoke tests.
 
 ### Quality coach and evidence-gap planning
-- Present in Step 2, Step 4, and results surfaces.
+- Present in the intake, scenario, Review & Run, and results surfaces.
 - Reuse `buildScenarioQualityCoach(...)` and `buildEvidenceGapActionPlan(...)` rather than cloning new versions.
 
 ### Trust / confidence / provenance
-- Already present in Step 2, Review & Run, results, exports, and AI traces.
+- Already present in intake, scenario refinement, Review & Run, results, exports, and AI traces.
 - Confidence labels, evidence quality, primary grounding, supporting references, inferred assumptions, and input provenance are already part of the workflow.
+- For localhost AI issues, separate browser-origin, API-auth, and provider-health checks. A localhost-rendered UI may still be using the hosted API; a local serverless run needs a complete `.env.local`, including provider credentials and session-signing/admin secrets.
 
 ### Parameter challenge / assumption explanation
 - Pre-run and technical results surfaces already include assumption explanation and challenge layers.
@@ -383,7 +425,7 @@ Do not reinvent these. They already exist.
 
 - `assets/app.js` is still a monolithic coordination layer.
   - Shared sync, admin settings glue, initialization, and older cross-cutting helpers still live here.
-- `assets/results/resultsRoute.js` owns both Review & Run and Results.
+- `assets/wizard/step4.js` owns Review & Run, while `assets/results/resultsRoute.js` owns saved results and result-driven revision routes.
   - Small edits can create regressions across pre-run review, saved-result lifecycle, and results rendering.
 - Pilot auth is still local/session oriented.
   - `assets/services/authService.js` explicitly signals future Entra replacement.
@@ -403,7 +445,7 @@ Do not reinvent these. They already exist.
 - `assets/app.js`
   - Monolithic shell, sync, admin settings wiring, shared utilities, initialization.
 - `assets/results/resultsRoute.js`
-  - Owns both Review & Run and the main results route.
+  - Owns the main results route, result-driven revision routing, boardroom mode, and exports.
 - `assets/services/llmService.js`
   - Structured AI responses, retries, fallback, traces, and coherence logic.
 - `assets/wizard/step1.js`
@@ -432,6 +474,10 @@ Do not reinvent these. They already exist.
   - affected step file
   - `assets/wizard/step1Assist.js` or `assets/services/llmService.js` if AI is involved
   - persistence/state helpers under `assets/state/`
+- Review & Run changes:
+  - `assets/wizard/step4.js`
+  - `assets/engine/riskEngine.js` when simulation behavior is involved
+  - `assets/results/resultsRoute.js` when saved-result continuation or revision routing is involved
 - Results changes:
   - `assets/results/resultsRoute.js`
   - `assets/results/resultsViewModel.js`
@@ -461,10 +507,11 @@ Do not reinvent these. They already exist.
 ### Flows that require visual / interaction verification
 - login and role landing route
 - dashboard start paths and attention lanes
-- Step 1 path selector and sticky continue footer
-- Step 2 narrative refinement and AI trace / diff
-- Step 3 smart prefill, advanced mode, and treatment lane
-- Review & Run progress / cancellation
+- Step 1 guide path selector
+- Step 2 intake command deck, path selector, and sticky continue footer
+- Step 3 narrative refinement and AI trace / diff
+- Step 4 smart prefill, advanced mode, and treatment lane
+- Step 5 Review & Run progress / cancellation
 - results tab switching, boardroom mode, comparison, and export buttons
 - admin home front door and admin console navigation
 
@@ -499,6 +546,13 @@ Do not reinvent these. They already exist.
   - editorial reading order
   - elevated but restrained surfaces
   - motion that supports orientation, not novelty
+- Current visual QA watchpoints:
+  - authenticated mobile shell must not horizontally overflow; app bar and ambient shell elements are the first places to inspect
+  - sticky wizard footers must not obscure the active command deck or make disabled actions feel primary
+  - continuous motion must remain sparse and must be covered by `prefers-reduced-motion`, including pseudo-elements on command decks
+  - the agent rail should read as an inspector: state delta, current blocker, and next checkpoint, not a restatement of the main page
+  - Basic mode is the default for authenticated users and must keep the workspace one-click simple; Advanced mode may expose the inspector rail and expert modelling controls
+  - dashboard and guide surfaces may use bold teal triangular section markers, wide featured-workflow bands, and animated workflow cards, but the motion must clarify the available path rather than become decoration
 - Do not regress visually into:
   - flat white enterprise CRUD
   - purple default SaaS styling
@@ -510,6 +564,7 @@ Do not reinvent these. They already exist.
 - The dashboard is a working front door.
 - It currently combines:
   - start paths
+  - featured risk workflow cards
   - current attention
   - recent work
   - reassessment lane
@@ -518,6 +573,8 @@ Do not reinvent these. They already exist.
 - For oversight users, it becomes a workspace with review and revisit intent, not just “my items”.
 - The watchlist lane is intentionally secondary to the active queue.
 - Board brief must only appear when visible completed assessments justify it.
+- For standard users, the featured workflow band is allowed to feel more agentic and brand-led than the rest of the dashboard, but it must still launch real existing start paths: guided build, register/example intake, or sample/demo preview. Do not add decorative agent cards that do not map to working actions.
+- The dashboard launch/command runway is the preferred motion layer for dashboard hero surfaces. Keep it tied to real workspace state such as attention queue, context readiness, managed scope, draft state, live-first AI path, and decision-ready output rather than static decoration.
 
 ## 13. Settings IA Intent
 
@@ -584,10 +641,11 @@ Do not reinvent these. They already exist.
 - **Landing/navigation:** start with `assets/appRoutes.js`, `assets/router.js`, `assets/ui/appShellNavigation.js`.
 - **Dashboard behavior:** start with `assets/dashboard/userDashboard.js`.
 - **Personal settings:** start with `assets/settings/userPreferences.js`.
-- **Step 1:** start with `assets/wizard/step1.js` and `assets/wizard/step1Assist.js`.
-- **Step 2:** start with `assets/wizard/step2.js`.
-- **Step 3:** start with `assets/wizard/step3.js`.
-- **Review & Run / Results:** start with `assets/results/resultsRoute.js` and `assets/results/resultsViewModel.js`.
+- **Step 1 guide and Step 2 intake:** start with `assets/wizard/step1.js` and `assets/wizard/step1Assist.js`.
+- **Step 3 scenario refinement:** start with `assets/wizard/step2.js`.
+- **Step 4 estimate:** start with `assets/wizard/step3.js`.
+- **Step 5 Review & Run:** start with `assets/wizard/step4.js`.
+- **Results:** start with `assets/results/resultsRoute.js` and `assets/results/resultsViewModel.js`.
 - **Simulation semantics:** start with `assets/engine/riskEngine.js`.
 - **Exports:** start with `assets/services/exportService.js` and `assets/services/reportPresentation.js`.
 - **Admin:** start with the specific `assets/admin/*.js` section that owns the screen.

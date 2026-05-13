@@ -1066,7 +1066,7 @@ function renderEstimateActionCard(draft, recommendedKey) {
     ? `Use <strong>${getEstimatePresetLibrary()[recommendedKey].label}</strong> only if it matches the scenario pattern. Otherwise keep the AI starting values and adjust only where you have evidence.`
     : 'Start with the AI values, then change only the inputs you can justify with business, control, incident, or finance evidence.';
   return `<div class="card card--elevated anim-fade-in estimate-next-card">
-    <div class="context-panel-title">Recommended next action</div>
+    <div class="context-panel-title">Fast challenge path</div>
     <p class="context-panel-copy" style="margin-top:var(--sp-2)">${recommendation}</p>
   </div>`;
 }
@@ -1349,6 +1349,198 @@ function renderEstimateFocusStrip(draft, isAdv, validation, baselineAssessment) 
       <span class="wizard-focus-card__label">Trust signal</span>
       <strong>${escapeHtml(confidenceLabel)}</strong>
       <span>${baselineAssessment ? 'You are testing a treatment case against a locked baseline.' : 'This run will stay reproducible and challengeable after save.'}</span>
+    </div>
+    </div>`;
+}
+
+function buildEstimateCommandDeckModel(draft, validation, { isAdv = false, baselineAssessment = null } = {}) {
+  const readiness = buildQuantReadinessModel({
+    draft,
+    validation,
+    selectedRisks: getSelectedRisks()
+  });
+  const confidenceLabel = String(draft.confidenceLabel || '').trim() || 'Working estimate';
+  const warnings = Array.isArray(validation?.warnings) ? validation.warnings.map(humanizeEstimateValidationMessage).filter(Boolean) : [];
+  const errors = Array.isArray(validation?.errors) ? validation.errors.map(humanizeEstimateValidationMessage).filter(Boolean) : [];
+  const primaryIssue = errors[0] || warnings[0] || '';
+  const issueText = `${primaryIssue} ${String(readiness.nextFocus || '')} ${String((Array.isArray(draft.missingInformation) ? draft.missingInformation[0] : '') || '')}`.toLowerCase();
+  let activeStep = 1;
+  if (/threat|control|vuln|prob|exposure|attacker/i.test(issueText)) {
+    activeStep = 2;
+  } else if (/cost|loss|impact|response|disruption|business|data|legal|third|reputation/i.test(issueText)) {
+    activeStep = 3;
+  } else if (readiness.totalScore >= 80 && !errors.length) {
+    activeStep = 4;
+  }
+
+  const steps = [
+    {
+      number: '1',
+      label: 'Sense-check frequency',
+      copy: 'Anchor the expected yearly frequency before anything else.',
+      state: activeStep > 1 ? 'complete' : activeStep === 1 ? 'active' : 'pending'
+    },
+    {
+      number: '2',
+      label: 'Challenge exposure',
+      copy: 'Tune threat capability and control strength next.',
+      state: activeStep > 2 ? 'complete' : activeStep === 2 ? 'active' : 'pending'
+    },
+    {
+      number: '3',
+      label: 'Tighten core costs',
+      copy: 'Focus on response, disruption, and data impact first.',
+      state: activeStep > 3 ? 'complete' : activeStep === 3 ? 'active' : 'pending'
+    },
+    {
+      number: '4',
+      label: 'Review and continue',
+      copy: 'Only then move into committee review and the run.',
+      state: activeStep === 4 ? 'active' : 'pending'
+    }
+  ];
+
+  let nextAction = {
+    title: '1. Sense-check annual frequency',
+    copy: 'Start with the expected yearly frequency. If that anchor moves, the rest of the model follows.',
+    kicker: 'Start here',
+    buttonLabel: 'Jump to frequency',
+    targetId: 'estimate-step-frequency',
+    liveLabel: 'Checking frequency band'
+  };
+  if (activeStep === 2) {
+    nextAction = {
+      title: '2. Challenge exposure next',
+      copy: 'Tune threat capability and control strength before opening advanced controls or presets.',
+      kicker: 'Exposure focus',
+      buttonLabel: 'Jump to exposure',
+      targetId: 'estimate-step-exposure',
+      liveLabel: 'Balancing exposure'
+    };
+  } else if (activeStep === 3) {
+    nextAction = {
+      title: '3. Tighten the core cost rows',
+      copy: 'Work the core cost rows first. Conditional costs can stay closed unless they truly apply.',
+      kicker: 'Impact focus',
+      buttonLabel: 'Jump to impact',
+      targetId: 'estimate-step-cost',
+      liveLabel: 'Calibrating loss bands'
+    };
+  } else if (activeStep === 4) {
+    nextAction = {
+      title: '4. Move into review and run',
+      copy: 'The main ranges are grounded enough to continue. Open optional detail only if you need to defend the setup.',
+      kicker: 'Ready to review',
+      buttonLabel: 'Go to Review & Run',
+      targetId: 'btn-next-3',
+      liveLabel: 'Ready for committee check'
+    };
+  }
+
+  const metrics = [
+    {
+      label: 'Mode',
+      value: isAdv ? 'Advanced' : 'Basic',
+      copy: isAdv ? 'Direct exposure and tuning are open.' : 'Stay here unless you need deeper controls.'
+    },
+    {
+      label: 'Readiness',
+      value: readiness.status,
+      copy: readiness.nextFocus
+    },
+    {
+      label: 'Trust signal',
+      value: confidenceLabel,
+      copy: baselineAssessment ? 'You are tuning a treatment case against a saved baseline.' : 'Use the expected case as the plain-English anchor.'
+    },
+    {
+      label: baselineAssessment ? 'Baseline' : 'Best next gap',
+      value: baselineAssessment ? 'Treatment lane' : String((Array.isArray(draft.missingInformation) ? draft.missingInformation[0] : '') || 'None flagged').trim() || 'None flagged',
+      copy: baselineAssessment ? 'Adjust the copied baseline, then compare the uplift.' : 'Close this only if it materially changes the estimate.'
+    }
+  ];
+
+  return {
+    readiness,
+    steps,
+    nextAction,
+    metrics
+  };
+}
+
+function renderEstimateCommandDeck(draft, validation, { isAdv = false, baselineAssessment = null } = {}) {
+  const model = buildEstimateCommandDeckModel(draft, validation, { isAdv, baselineAssessment });
+  return `<div class="card card--primary wizard-primary-card wizard-primary-card--agentic estimate-command-deck anim-fade-in">
+    <div class="wizard-premium-head estimate-command-deck__head">
+      <div>
+        <div class="wizard-summary-band__label">Estimate command deck</div>
+        <h3>Tune the estimate in four moves</h3>
+        <p>Work from frequency to exposure to impact. Support and rationale stay secondary until the core range feels defendable.</p>
+      </div>
+      <div class="estimate-command-deck__head-meta">
+        <span class="badge badge--neutral">${isAdv ? 'Advanced mode' : 'Basic mode'}</span>
+        <span class="badge badge--gold">${escapeHtml(model.readiness.status)}</span>
+      </div>
+    </div>
+    <div class="estimate-command-deck__progress" aria-label="Estimate sequence">
+      ${model.steps.map((step) => `<div class="estimate-command-deck__progress-step estimate-command-deck__progress-step--${escapeHtml(step.state)}">
+        <div class="estimate-command-deck__progress-top">
+          <span class="estimate-command-deck__progress-index">${step.state === 'complete' ? '✓' : escapeHtml(step.number)}</span>
+          <span class="estimate-command-deck__progress-state">${escapeHtml(step.state === 'active' ? 'Now' : step.state === 'complete' ? 'Done' : 'Later')}</span>
+        </div>
+        <strong>${escapeHtml(step.label)}</strong>
+        <span>${escapeHtml(step.copy)}</span>
+      </div>`).join('')}
+    </div>
+    <div class="estimate-command-deck__next-callout">
+      <div class="estimate-command-deck__next-copy">
+        <div class="estimate-command-deck__next-label">Do this next</div>
+        <strong>${escapeHtml(model.nextAction.title)}</strong>
+        <span>${escapeHtml(model.nextAction.copy)}</span>
+      </div>
+      <div class="estimate-command-deck__next-actions">
+        <span class="estimate-command-deck__next-kicker">${escapeHtml(model.nextAction.kicker)}</span>
+        <button class="btn btn--primary" id="btn-estimate-next-focus" data-scroll-target="${escapeHtml(model.nextAction.targetId)}" type="button">${escapeHtml(model.nextAction.buttonLabel)}</button>
+      </div>
+    </div>
+    <div class="estimate-command-deck__body">
+      <div class="estimate-command-deck__metrics">
+        ${model.metrics.map((metric) => `<div class="estimate-command-deck__metric">
+          <span>${escapeHtml(metric.label)}</span>
+          <strong>${escapeHtml(metric.value)}</strong>
+          <p>${escapeHtml(metric.copy)}</p>
+        </div>`).join('')}
+      </div>
+      <aside class="estimate-command-deck__agent">
+        <div class="estimate-command-deck__agent-live">
+          <div>
+            <div class="estimate-command-deck__agent-label">Estimate loop</div>
+            <strong>${escapeHtml(model.nextAction.liveLabel)}</strong>
+          </div>
+          <span class="estimate-command-deck__agent-state">${escapeHtml(model.nextAction.kicker)}</span>
+        </div>
+        <div class="estimate-command-deck__agent-visual" aria-hidden="true">
+          <span class="estimate-command-deck__agent-gridline estimate-command-deck__agent-gridline--1"></span>
+          <span class="estimate-command-deck__agent-gridline estimate-command-deck__agent-gridline--2"></span>
+          <span class="estimate-command-deck__agent-lane"></span>
+          <span class="estimate-command-deck__agent-sweep"></span>
+          <div class="estimate-command-deck__agent-nodes">
+            <span class="estimate-command-deck__agent-node estimate-command-deck__agent-node--1"></span>
+            <span class="estimate-command-deck__agent-node estimate-command-deck__agent-node--2"></span>
+            <span class="estimate-command-deck__agent-node estimate-command-deck__agent-node--3"></span>
+            <span class="estimate-command-deck__agent-node estimate-command-deck__agent-node--4"></span>
+          </div>
+        </div>
+        <div class="estimate-command-deck__agent-timeline">
+          ${model.steps.map((step) => `<div class="estimate-command-deck__agent-timeline-item estimate-command-deck__agent-timeline-item--${escapeHtml(step.state)}">
+            <span class="estimate-command-deck__agent-timeline-dot" aria-hidden="true"></span>
+            <div>
+              <strong>${escapeHtml(step.label)}</strong>
+              <span>${escapeHtml(step.copy)}</span>
+            </div>
+          </div>`).join('')}
+        </div>
+      </aside>
     </div>
   </div>`;
 }
@@ -1665,7 +1857,9 @@ function renderWizard3() {
   const p = draft.fairParams || {};
   const bu = getBUList().find(b => b.id === draft.buId);
   const da = bu?.defaultAssumptions || {};
-  const isAdv = AppState.mode === 'advanced';
+  const isAdv = typeof isAdvancedExperienceMode === 'function'
+    ? isAdvancedExperienceMode()
+    : AppState.mode === 'advanced';
   const cur = AppState.currency;
   const sym = cur;
   const baselineAssessment = draft.comparisonBaselineId ? getAssessmentById(draft.comparisonBaselineId) : null;
@@ -1681,14 +1875,14 @@ function renderWizard3() {
   const v = (key, def) => p[key] != null ? p[key] : def;
 
   setPage(`
-    <main class="page" aria-label="Step 3: Estimate the Scenario">
+    <main class="page" aria-label="Step 4: Estimate the Scenario">
       <div class="wizard-layout container container--narrow">
-        <div class="wizard-header">
-          ${UI.renderStepper(3)}
+        <div class="wizard-header wizard-header--estimate">
           <div class="flex items-center justify-between">
             <div>
-              <h2 class="wizard-step-title">Estimate the Scenario in Plain Language</h2>
-              <p class="wizard-step-desc">Sense-check the suggested numbers, adjust only what you want to challenge, and keep Advanced closed unless you need direct exposure, follow-on loss, or simulation tuning.${draft.llmAssisted ? ' Suggested values are already loaded.' : ''}</p>
+              <div class="wizard-summary-band__label">Estimate workspace</div>
+              <h2 class="wizard-step-title">Tune the estimate, then move into review</h2>
+              <p class="wizard-step-desc">Stay in Basic unless you truly need deeper controls. The command deck below keeps the next move visible while you work.${draft.llmAssisted ? ' Suggested values are already loaded.' : ''}</p>
               <div class="form-help" data-draft-save-state style="margin-top:10px">Draft saves automatically</div>
               ${draft.llmAssisted ? renderPilotWarningBanner('ai', { compact: true }) : ''}
               ${/low/i.test(String(draft.confidenceLabel || '')) || (Array.isArray(draft.missingInformation) && draft.missingInformation.length) ? renderPilotWarningBanner('lowConfidence', {
@@ -1705,31 +1899,24 @@ function renderWizard3() {
           </div>
         </div>
         <div class="wizard-body">
-          <section class="wizard-ia-section anim-fade-in">
-            <div class="results-section-heading">Sanity-check the starting point</div>
-            <div class="form-help" style="margin-top:8px">Check readiness and source quality first. Then work through the core estimate from frequency to impact.</div>
-          </section>
-          ${renderEstimateFocusStrip(draft, isAdv, validation, baselineAssessment)}
-          ${renderEstimateSecondaryContextWorkbench(draft)}
-          ${renderQuantReadinessScoreCard(draft, validation)}
-          ${baselineAssessment ? `<div class="card card--elevated anim-fade-in"><div class="wizard-premium-head"><div><div class="context-panel-title">Current assessment baseline</div><p class="context-panel-copy">You are working from <strong>${escapeHtml(baselineTitle || 'the original assessment')}</strong>. Adjust the assumptions below to reflect stronger prevention, faster response, or lower disruption impact, then rerun to compare the new result against the current baseline.</p></div><span class="badge badge--gold">Treatment lane</span></div><div class="form-help" style="margin-top:10px">Baseline completed on ${new Date(baselineAssessment.completedAt || baselineAssessment.createdAt || Date.now()).toLocaleDateString('en-AE', { year: 'numeric', month: 'long', day: 'numeric' })}.</div><div class="citation-chips" style="margin-top:12px"><button type="button" class="chip treatment-prompt-chip" data-treatment-prompt="control-strength">Try stronger controls</button><button type="button" class="chip treatment-prompt-chip" data-treatment-prompt="detection-response">Try faster detection</button><button type="button" class="chip treatment-prompt-chip" data-treatment-prompt="resilience">Try lower disruption impact</button></div><div class="form-group" style="margin-top:16px"><label class="form-label" for="treatment-improvement-request">Describe the better outcome you want to test</label><textarea class="form-textarea" id="treatment-improvement-request" rows="3" placeholder="e.g. stronger privileged-access controls, faster containment, better resilience, lower business disruption">${draft.treatmentImprovementRequest || ''}</textarea><span class="form-help">Describe the improvement in plain language and let AI adjust the copied baseline values before you simulate the new case.</span></div><div class="flex items-center gap-3" style="margin-top:12px;flex-wrap:wrap"><button class="btn btn--secondary" id="btn-treatment-ai-assist" type="button">AI Assist This Better Outcome</button><span class="form-help" id="treatment-improvement-status">${escapeHtml(getStep3TreatmentAssistStatusCopy(draft))}</span></div></div>` : ''}
-          <section class="wizard-ia-section anim-fade-in">
-            <div class="results-section-heading">Enter the core estimate</div>
-            <div class="form-help" style="margin-top:8px">Work through frequency, exposure, and cost in that order. Open advanced sections only when they materially improve the model.</div>
-          </section>
+          ${renderEstimateCommandDeck(draft, validation, { isAdv, baselineAssessment })}
+          ${baselineAssessment ? `<div class="card card--elevated anim-fade-in"><div class="wizard-premium-head"><div><div class="context-panel-title">Current assessment baseline</div><p class="context-panel-copy">You are working from <strong>${escapeHtml(baselineTitle || 'the original assessment')}</strong>. Adjust the assumptions below to reflect stronger prevention, faster response, or lower disruption impact, then rerun to compare the new result against the current baseline.</p></div><span class="badge badge--gold">Treatment lane</span></div><div class="form-help" style="margin-top:10px">Baseline completed on ${new Date(baselineAssessment.completedAt || baselineAssessment.createdAt || Date.now()).toLocaleDateString('en-AE', { year: 'numeric', month: 'long', day: 'numeric' })}.</div><div class="citation-chips" style="margin-top:12px"><button type="button" class="chip treatment-prompt-chip" data-treatment-prompt="control-strength">Try stronger controls</button><button type="button" class="chip treatment-prompt-chip" data-treatment-prompt="detection-response">Try faster detection</button><button type="button" class="chip treatment-prompt-chip" data-treatment-prompt="resilience">Try lower disruption impact</button></div><div class="form-group" style="margin-top:16px"><label class="form-label" for="treatment-improvement-request">Describe the better outcome you want to test</label><textarea class="form-textarea" id="treatment-improvement-request" rows="3" placeholder="e.g. stronger privileged-access controls, faster containment, better resilience, lower business disruption">${escapeHtml(String(draft.treatmentImprovementRequest || ''))}</textarea><span class="form-help">Describe the improvement in plain language and let AI adjust the copied baseline values before you simulate the new case.</span></div><div class="flex items-center gap-3" style="margin-top:12px;flex-wrap:wrap"><button class="btn btn--secondary" id="btn-treatment-ai-assist" type="button">AI Assist This Better Outcome</button><span class="form-help" id="treatment-improvement-status">${escapeHtml(getStep3TreatmentAssistStatusCopy(draft))}</span></div></div>` : ''}
 
+          <section id="estimate-step-frequency" class="estimate-stage-card-shell">
           ${UI.wizardInputSection({
-            title: 'How often could this happen? <span data-tooltip="How many times per year this type of event could realistically occur." style="cursor:help;color:var(--color-accent-300);font-size:.8rem">ⓘ</span>',
+            title: '<span class="estimate-stage-title-kicker">Step 1</span> Sense-check frequency <span data-tooltip="How many times per year this type of event could realistically occur." style="cursor:help;color:var(--color-accent-300);font-size:.8rem">ⓘ</span>',
             description: 'Enter the number of events you think could happen in a year. Use a cautious low case, your expected case, and a severe but plausible high case.',
-            className: 'card anim-fade-in',
+            className: 'card anim-fade-in estimate-stage-card',
             headerExtras: UI.sectionStatusBadge('Required', 'gold'),
             body: `${inlineExamples.frequency}${tripleInput('tef','How often this could happen in a year', v('tefMin',da.TEF?.min||0.5), v('tefLikely',da.TEF?.likely||2), v('tefMax',da.TEF?.max||8), { minLabel: 'Low case', likelyLabel: 'Expected case', maxLabel: 'High case' })}`
           })}
+          </section>
 
+          <section id="estimate-step-exposure" class="estimate-stage-card-shell">
           ${UI.wizardInputSection({
-            title: 'How exposed are you if it happens? <span data-tooltip="This estimates how likely the event is to succeed given attacker capability and current controls." style="cursor:help;color:var(--color-accent-300);font-size:.8rem">ⓘ</span>',
+            title: '<span class="estimate-stage-title-kicker">Step 2</span> Challenge exposure <span data-tooltip="This estimates how likely the event is to succeed given attacker capability and current controls." style="cursor:help;color:var(--color-accent-300);font-size:.8rem">ⓘ</span>',
             description: isAdv ? 'Advanced mode lets you enter exposure directly if you need it. Otherwise you can still use attacker strength and control strength.' : 'Basic mode uses two simpler questions: how capable the threat is and how strong your current controls are.',
-            className: 'card anim-fade-in anim-delay-1',
+            className: 'card anim-fade-in anim-delay-1 estimate-stage-card',
             headerExtras: UI.sectionStatusBadge('Required', 'gold'),
             body: `${renderExposureModelingTip()}${isAdv?`<div class="flex items-center gap-3 mb-4"><label class="toggle"><input type="checkbox" id="vuln-direct-toggle" ${p.vulnDirect?'checked':''}><div class="toggle-track"></div></label><span class="toggle-label">Enter exposure directly</span></div>
             <div id="vuln-direct-section" ${!p.vulnDirect?'class="hidden"':''}>
@@ -1749,11 +1936,13 @@ function renderWizard3() {
               </div>
             </div>`
           })}
+          </section>
 
+          <section id="estimate-step-cost" class="estimate-stage-card-shell">
           ${UI.wizardInputSection({
-            title: 'What could this cost if it happens?',
+            title: '<span class="estimate-stage-title-kicker">Step 3</span> Tighten the core cost rows',
             description: `For each cost area, enter a low, expected, and severe per-event estimate in ${sym}. These values are added together in the simulation.`,
-            className: 'card anim-fade-in anim-delay-2',
+            className: 'card anim-fade-in anim-delay-2 estimate-stage-card',
             headerExtras: UI.sectionStatusBadge('Required', 'gold'),
             body: `${renderLossModelingTip(sym)}${inlineExamples.cost}<div class="wizard-cost-stack">
               <div class="wizard-cost-group">
@@ -1784,19 +1973,17 @@ function renderWizard3() {
               })}
             </div>`
           })}
-
-          <section class="wizard-ia-section anim-fade-in">
-            <div class="results-section-heading">Open advanced detail only if needed</div>
-            <div class="form-help" style="margin-top:8px">These sections support challenge, calibration, and tuning. Most users can finish the estimate without opening all of them.</div>
           </section>
 
+          ${renderEstimateSecondaryContextWorkbench(draft)}
+
           ${UI.disclosureSection({
-            title: 'Quick start, presets, and guidance',
+            title: 'Challenge, readiness, and optional help',
             badgeLabel: 'Optional',
             badgeTone: 'neutral',
             open: false,
             className: 'wizard-disclosure card card--elevated anim-fade-in',
-            body: `${renderEstimateQuickStartBlock(draft, recommendedPresetKey)}${renderEstimateModeNote(isAdv)}${renderEstimateSourceAtGlance(draft)}${renderEstimateOptionalHelpDetails(draft, sym)}`
+            body: `${renderQuantReadinessScoreCard(draft, validation)}${renderEstimateQuickStartBlock(draft, recommendedPresetKey)}${renderEstimateModeNote(isAdv)}${renderEstimateSourceAtGlance(draft)}${renderEstimateOptionalHelpDetails(draft, sym)}`
           })}
 
           ${renderEstimateBackgroundDetails(draft, bu, isAdv, cur, sym)}
@@ -1806,13 +1993,19 @@ function renderWizard3() {
         </div>
         <div class="wizard-footer">
           <button class="btn btn--ghost" id="btn-back-3">← Back</button>
-          <button class="btn btn--primary" id="btn-next-3">Continue to Results →</button>
+          <button class="btn btn--primary" id="btn-next-3">Continue to Review &amp; Run →</button>
         </div>
       </div>
     </main>`);
 
-  document.getElementById('mode-basic')?.addEventListener('click', () => { AppState.mode='basic'; renderWizard3(); });
-  document.getElementById('mode-advanced')?.addEventListener('click', () => { AppState.mode='advanced'; renderWizard3(); });
+  document.getElementById('mode-basic')?.addEventListener('click', () => {
+    if (typeof setExperienceMode === 'function') setExperienceMode('basic');
+    else { AppState.mode='basic'; renderWizard3(); }
+  });
+  document.getElementById('mode-advanced')?.addEventListener('click', () => {
+    if (typeof setExperienceMode === 'function') setExperienceMode('advanced');
+    else { AppState.mode='advanced'; renderWizard3(); }
+  });
   updateWizardSaveState();
   document.getElementById('secondary-toggle')?.addEventListener('change', function() {
     document.getElementById('secondary-inputs')?.classList.toggle('hidden', !this.checked);
@@ -1827,6 +2020,20 @@ function renderWizard3() {
     markDraftDirty();
     scheduleDraftAutosave();
     renderWizard3();
+  });
+  document.getElementById('btn-estimate-next-focus')?.addEventListener('click', () => {
+    const targetId = String(document.getElementById('btn-estimate-next-focus')?.dataset.scrollTarget || '').trim();
+    if (!targetId) return;
+    if (targetId === 'btn-next-3') {
+      document.getElementById('btn-next-3')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      window.setTimeout(() => document.getElementById('btn-next-3')?.focus(), 180);
+      return;
+    }
+    const target = document.getElementById(targetId);
+    if (!target) return;
+    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const focusTarget = target.querySelector('input, textarea, select, button');
+    window.setTimeout(() => focusTarget?.focus(), 180);
   });
   attachFormattedMoneyInputs();
   bindFairRationaleChips();
@@ -1974,11 +2181,11 @@ function renderWizard3() {
       resetBusy();
     }
   });
-  document.getElementById('btn-back-3').addEventListener('click', () => { saveDraft(); Router.navigate('/wizard/2'); });
+  document.getElementById('btn-back-3').addEventListener('click', () => { saveDraft(); Router.navigate('/wizard/3'); });
   document.getElementById('btn-next-3').addEventListener('click', () => {
     collectFairParams();
     if (!validateFairParams()) return;
-    saveDraft(); Router.navigate('/wizard/4');
+    saveDraft(); Router.navigate('/wizard/5');
   });
 }
 
