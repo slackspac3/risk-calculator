@@ -63,7 +63,14 @@ Latest validation on 2026-05-14 in `/Users/bhavuk.arora/risk-calculator`:
 - Results executive surface now shows a compact top value strip before the tabs: estimated value created, estimated analyst time saved, and expected annual loss.
 - Executive Summary now opens with a new decision cockpit that combines the management headline, breach likelihood, readiness, immediate management move, and the same value/time/exposure metrics.
 - Results ordering now puts submit/review guidance and the `Read this result in 3 moves` command deck above deeper workflow replay, challenge, and technical panels.
+- The `Explain this number` results metric drawer now uses a dark high-contrast surface with explicit copy colors so it remains readable inside the executive results page.
 - Browser QA used a dummy saved result at `http://127.0.0.1:8080/?v=results-cockpit5#/results/qa-cockpit`; screenshot artifact: `.playwright-cli/page-2026-05-14T07-42-24-910Z.png`.
+- Browser QA for the metric drawer used a seeded dummy result at `http://127.0.0.1:8080/?v=explainer-fix#/results/qa-cockpit` and verified readable computed colors for title, body, grid text, and panel copy.
+- Metric drawer contrast fix validation passed:
+  - `npm run check:syntax`
+  - `npm run check:smoke`
+  - `npm run test:unit` (`554` tests)
+  - `git diff --check`
 - Validation passed:
   - `npm run check:syntax`
   - `npm run check:smoke`

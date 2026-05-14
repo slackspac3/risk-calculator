@@ -13871,6 +13871,59 @@ html[data-experience-mode="basic"] .wizard-layout--step1 .wizard-summary-stack {
   background: linear-gradient(180deg, rgba(255,255,255,0.94), rgba(247,250,252,0.94));
 }
 
+#results-assumption-explainer-host {
+  margin: var(--sp-5) 0 var(--sp-6);
+  scroll-margin-top: 150px;
+}
+
+.assumption-explainer-panel {
+  position: relative;
+  overflow: hidden;
+  padding: clamp(var(--sp-5), 2.4vw, var(--sp-7));
+  border: 1px solid rgba(3, 209, 168, 0.18);
+  background:
+    radial-gradient(circle at 12% 0%, rgba(3, 209, 168, 0.2), transparent 36%),
+    radial-gradient(circle at 90% 12%, rgba(242, 251, 90, 0.12), transparent 34%),
+    linear-gradient(135deg, rgba(24, 34, 29, 0.98), rgba(8, 14, 13, 0.98));
+  box-shadow:
+    0 28px 90px rgba(0, 0, 0, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  color: rgba(247, 250, 252, 0.96);
+}
+
+.assumption-explainer-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: 72px 72px;
+  mask-image: radial-gradient(circle at 20% 10%, black, transparent 72%);
+  opacity: 0.7;
+}
+
+.assumption-explainer-panel > * {
+  position: relative;
+  z-index: 1;
+}
+
+.assumption-explainer-panel__head strong {
+  display: block;
+  margin-top: 6px;
+  color: rgba(255, 255, 255, 0.98);
+  font-family: var(--font-display);
+  font-size: clamp(1.05rem, 1.8vw, 1.45rem);
+  letter-spacing: -0.035em;
+}
+
+.assumption-explainer-panel .badge--neutral {
+  border-color: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.78);
+}
+
 .fair-assumption-panel__head,
 .assumption-explainer-panel__head,
 .meeting-room-result__head,
@@ -13890,6 +13943,10 @@ html[data-experience-mode="basic"] .wizard-layout--step1 .wizard-summary-stack {
   color: var(--text-secondary);
 }
 
+.assumption-explainer-panel__label {
+  color: rgba(196, 233, 226, 0.68);
+}
+
 .fair-assumption-panel__copy,
 .assumption-explainer-panel__copy,
 .meeting-room-result__copy {
@@ -13897,6 +13954,11 @@ html[data-experience-mode="basic"] .wizard-layout--step1 .wizard-summary-stack {
   font-size: 13px;
   line-height: 1.7;
   color: var(--text-secondary);
+}
+
+.assumption-explainer-panel__copy {
+  max-width: 96ch;
+  color: rgba(226, 232, 240, 0.78);
 }
 
 .fair-assumption-panel__grid,
@@ -13919,6 +13981,10 @@ html[data-experience-mode="basic"] .wizard-layout--step1 .wizard-summary-stack {
   margin-bottom: 6px;
 }
 
+.assumption-explainer-panel__section {
+  color: rgba(196, 233, 226, 0.62);
+}
+
 .fair-assumption-panel__grid p,
 .assumption-explainer-panel__grid p,
 .meeting-room-result__grid p {
@@ -13928,6 +13994,10 @@ html[data-experience-mode="basic"] .wizard-layout--step1 .wizard-summary-stack {
   color: var(--text-primary);
 }
 
+.assumption-explainer-panel__grid p {
+  color: rgba(247, 250, 252, 0.86);
+}
+
 .fair-assumption-panel__foot,
 .assumption-explainer-panel__foot {
   margin-top: var(--sp-4);
@@ -13935,6 +14005,12 @@ html[data-experience-mode="basic"] .wizard-layout--step1 .wizard-summary-stack {
   border-top: 1px solid var(--border);
   font-size: 12px;
   color: var(--text-secondary);
+}
+
+.assumption-explainer-panel__foot {
+  border-top-color: rgba(255, 255, 255, 0.1);
+  color: rgba(226, 232, 240, 0.64);
+  line-height: 1.65;
 }
 
 .results-metric-explain {
