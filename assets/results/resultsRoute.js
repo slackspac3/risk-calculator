@@ -1115,7 +1115,7 @@ function renderResultsExecutiveCockpit({
           <strong>${escapeHtml(metric.value)}</strong>
           <span class="results-cockpit-metric__copy">${escapeHtml(metric.copy)}</span>
           <span class="results-cockpit-metric__foot">${escapeHtml(metric.foot)}</span>
-          ${metric.explain ? `<button type="button" class="results-metric-explain" data-results-explain="${escapeHtml(metric.explain)}">Explain this number</button>` : ''}
+          ${metric.explain ? `<button type="button" class="results-metric-explain" data-results-explain="${escapeHtml(metric.explain)}" aria-expanded="false">Explain this number</button>` : ''}
         </article>`).join('')}
       </div>
       <div class="results-executive-cockpit__note">
@@ -4287,13 +4287,16 @@ function bindResultsInteractions({
         host.style.display = 'none';
         host.innerHTML = '';
         host.dataset.metricKey = '';
+        button.setAttribute('aria-expanded', 'false');
         return;
       }
       const model = buildResultsMetricExplainerModel(metricKey, assessment, r, assessmentIntelligence, assessment.results?.runMetadata || {});
       if (!model) return;
+      document.querySelectorAll('[data-results-explain]').forEach(explainButton => explainButton.setAttribute('aria-expanded', 'false'));
       host.dataset.metricKey = metricKey;
       host.innerHTML = renderResultsMetricExplainerPanel(model);
       host.style.display = 'block';
+      button.setAttribute('aria-expanded', 'true');
       host.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     });
   });
