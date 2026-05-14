@@ -550,6 +550,7 @@ Do not reinvent these. They already exist.
   - elevated but restrained surfaces
   - motion that supports orientation, not novelty
 - Current visual QA watchpoints:
+  - any light or translucent panel inside the dark app shell must set dark/inverted text tokens explicitly; do not rely on global `--text-primary` or `--text-secondary` over light backgrounds
   - authenticated mobile shell must not horizontally overflow; app bar and ambient shell elements are the first places to inspect
   - sticky wizard footers must not obscure the active command deck or make disabled actions feel primary
   - continuous motion must remain sparse and must be covered by `prefers-reduced-motion`, including pseudo-elements on command decks

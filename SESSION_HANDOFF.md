@@ -64,8 +64,17 @@ Latest validation on 2026-05-14 in `/Users/bhavuk.arora/risk-calculator`:
 - Executive Summary now opens with a new decision cockpit that combines the management headline, breach likelihood, readiness, immediate management move, and the same value/time/exposure metrics.
 - Results ordering now puts submit/review guidance and the `Read this result in 3 moves` command deck above deeper workflow replay, challenge, and technical panels.
 - The `Explain this number` results metric drawer now uses a dark high-contrast surface with explicit copy colors so it remains readable inside the executive results page.
+- A follow-up light-over-light audit used `/tmp/app_light_contrast_scan.js` across dashboard, wizard, results, settings, and admin routes; initial hits were active tabs/step dots, dashboard agent labels, Assessment Manager score text, plus static risky support-panel styles.
+- Contrast hardening now covers active results tabs, active wizard step dots, dashboard featured-agent labels, Assessment Manager score text, notification hover rows, FAIR assumption panels, reviewer meeting-room context blocks, and meeting-room mediation output cards.
 - Browser QA used a dummy saved result at `http://127.0.0.1:8080/?v=results-cockpit5#/results/qa-cockpit`; screenshot artifact: `.playwright-cli/page-2026-05-14T07-42-24-910Z.png`.
 - Browser QA for the metric drawer used a seeded dummy result at `http://127.0.0.1:8080/?v=explainer-fix#/results/qa-cockpit` and verified readable computed colors for title, body, grid text, and panel copy.
+- Light-over-light contrast hardening validation passed:
+  - `node /tmp/app_light_contrast_scan.js` -> passed with no reported findings (`[]`)
+  - `npm run check:syntax`
+  - `npm run check:smoke`
+  - `npm run test:unit` (`554` tests)
+  - `git diff --check`
+- Full e2e smoke was rerun after browser sandbox escalation and is not a useful signal for this CSS-only patch yet: `npm run test:e2e:smoke` launched Chromium successfully but failed `40/51` assertions against older route copy/selectors/seeded admin-user expectations.
 - Metric drawer contrast fix validation passed:
   - `npm run check:syntax`
   - `npm run check:smoke`
