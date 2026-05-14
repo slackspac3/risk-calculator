@@ -5731,6 +5731,12 @@ canvas { display: block; width: 100%; }
   color: #fff;
   font-size: 0.86rem;
 }
+
+.dashboard-agent-card__topline > span {
+  color: rgba(6, 20, 16, 0.74);
+  text-shadow: 0 1px 14px rgba(255, 255, 255, 0.2);
+}
+
 .dashboard-agent-strip__rail {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -6542,6 +6548,7 @@ canvas { display: block; width: 100%; }
 }
 .results-tab.active {
   background: linear-gradient(180deg, rgba(69,223,188,0.92), rgba(3,209,168,0.98));
+  color: var(--color-primary-900);
   box-shadow: 0 10px 24px rgba(3,209,168,0.18);
 }
 .results-tab:not(.active):hover {
@@ -12451,7 +12458,7 @@ html[data-experience-mode="basic"] .wizard-layout--step1 .wizard-summary-stack {
 
 .assessment-manager-panel__score span {
   display: block;
-  color: var(--color-primary-500);
+  color: var(--color-primary-900);
   font-size: 1.45rem;
   font-weight: 900;
   line-height: 1;
@@ -12459,7 +12466,7 @@ html[data-experience-mode="basic"] .wizard-layout--step1 .wizard-summary-stack {
 
 .assessment-manager-panel__score small {
   display: block;
-  color: rgba(246, 251, 244, 0.62);
+  color: rgba(6, 20, 16, 0.72);
   font-size: 0.68rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -13543,7 +13550,7 @@ html[data-experience-mode="basic"] .wizard-layout--step1 .wizard-summary-stack {
 }
 
 .notif-item:hover {
-  background: var(--surface-hover,#f9f9f9);
+  background: rgba(255, 255, 255, 0.055);
 }
 
 .notif-item--unread {
@@ -13708,7 +13715,7 @@ html[data-experience-mode="basic"] .wizard-layout--step1 .wizard-summary-stack {
   background:
     radial-gradient(circle at 28% 24%, rgba(135, 255, 225, 0.42), transparent 36%),
     linear-gradient(180deg, rgba(65, 235, 194, 0.98), rgba(19, 184, 147, 0.98));
-  color: #fff;
+  color: var(--color-primary-900);
   transform: translateY(-1px) scale(1.04);
   border-color: rgba(151, 255, 225, 0.5);
   box-shadow:
@@ -13867,8 +13874,17 @@ html[data-experience-mode="basic"] .wizard-layout--step1 .wizard-summary-stack {
   margin-top: 10px;
   padding: var(--sp-4);
   border-radius: var(--radius-lg);
-  border: 1px solid var(--border);
-  background: linear-gradient(180deg, rgba(255,255,255,0.94), rgba(247,250,252,0.94));
+}
+
+.fair-assumption-panel {
+  border: 1px solid rgba(3, 209, 168, 0.16);
+  background:
+    radial-gradient(circle at 14% 0%, rgba(3, 209, 168, 0.13), transparent 34%),
+    linear-gradient(145deg, rgba(26, 36, 31, 0.98), rgba(10, 16, 14, 0.98));
+  box-shadow:
+    0 18px 52px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.045);
+  color: rgba(247, 250, 252, 0.94);
 }
 
 #results-assumption-explainer-host {
@@ -13924,6 +13940,20 @@ html[data-experience-mode="basic"] .wizard-layout--step1 .wizard-summary-stack {
   color: rgba(255, 255, 255, 0.78);
 }
 
+.fair-assumption-panel__head strong {
+  display: block;
+  margin-top: 6px;
+  color: rgba(255, 255, 255, 0.96);
+  font-family: var(--font-display);
+  letter-spacing: -0.025em;
+}
+
+.fair-assumption-panel .badge--neutral {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(226, 232, 240, 0.76);
+}
+
 .fair-assumption-panel__head,
 .assumption-explainer-panel__head,
 .meeting-room-result__head,
@@ -13947,6 +13977,10 @@ html[data-experience-mode="basic"] .wizard-layout--step1 .wizard-summary-stack {
   color: rgba(196, 233, 226, 0.68);
 }
 
+.fair-assumption-panel__label {
+  color: rgba(196, 233, 226, 0.66);
+}
+
 .fair-assumption-panel__copy,
 .assumption-explainer-panel__copy,
 .meeting-room-result__copy {
@@ -13959,6 +13993,10 @@ html[data-experience-mode="basic"] .wizard-layout--step1 .wizard-summary-stack {
 .assumption-explainer-panel__copy {
   max-width: 96ch;
   color: rgba(226, 232, 240, 0.78);
+}
+
+.fair-assumption-panel__copy {
+  color: rgba(226, 232, 240, 0.76);
 }
 
 .fair-assumption-panel__grid,
@@ -13985,6 +14023,10 @@ html[data-experience-mode="basic"] .wizard-layout--step1 .wizard-summary-stack {
   color: rgba(196, 233, 226, 0.62);
 }
 
+.fair-assumption-panel__section {
+  color: rgba(196, 233, 226, 0.58);
+}
+
 .fair-assumption-panel__grid p,
 .assumption-explainer-panel__grid p,
 .meeting-room-result__grid p {
@@ -13996,6 +14038,10 @@ html[data-experience-mode="basic"] .wizard-layout--step1 .wizard-summary-stack {
 
 .assumption-explainer-panel__grid p {
   color: rgba(247, 250, 252, 0.86);
+}
+
+.fair-assumption-panel__grid p {
+  color: rgba(247, 250, 252, 0.84);
 }
 
 .fair-assumption-panel__foot,
@@ -14010,6 +14056,12 @@ html[data-experience-mode="basic"] .wizard-layout--step1 .wizard-summary-stack {
 .assumption-explainer-panel__foot {
   border-top-color: rgba(255, 255, 255, 0.1);
   color: rgba(226, 232, 240, 0.64);
+  line-height: 1.65;
+}
+
+.fair-assumption-panel__foot {
+  border-top-color: rgba(255, 255, 255, 0.09);
+  color: rgba(226, 232, 240, 0.62);
   line-height: 1.65;
 }
 
@@ -14037,8 +14089,11 @@ html[data-experience-mode="basic"] .wizard-layout--step1 .wizard-summary-stack {
 .meeting-room-context__block {
   padding: var(--sp-4);
   border-radius: var(--radius-lg);
-  background: rgba(255,255,255,0.6);
-  border: 1px solid var(--border);
+  background:
+    radial-gradient(circle at top right, rgba(3, 209, 168, 0.09), transparent 32%),
+    linear-gradient(145deg, rgba(27, 36, 31, 0.96), rgba(13, 19, 16, 0.94));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .meeting-room-context__label {
@@ -14046,7 +14101,7 @@ html[data-experience-mode="basic"] .wizard-layout--step1 .wizard-summary-stack {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: .08em;
-  color: var(--text-secondary);
+  color: rgba(196, 233, 226, 0.62);
   margin-bottom: 6px;
 }
 
@@ -14054,7 +14109,7 @@ html[data-experience-mode="basic"] .wizard-layout--step1 .wizard-summary-stack {
   margin: 0;
   font-size: 13px;
   line-height: 1.7;
-  color: var(--text-primary);
+  color: rgba(247, 250, 252, 0.84);
 }
 
 .meeting-room-context__actions {
@@ -14068,8 +14123,27 @@ html[data-experience-mode="basic"] .wizard-layout--step1 .wizard-summary-stack {
   margin-top: var(--sp-4);
   padding: var(--sp-4);
   border-radius: var(--radius-lg);
-  border: 1px solid rgba(217, 119, 6, 0.28);
-  background: rgba(255, 251, 235, 0.72);
+  border: 1px solid rgba(242, 251, 90, 0.18);
+  background:
+    radial-gradient(circle at top left, rgba(242, 251, 90, 0.09), transparent 34%),
+    linear-gradient(145deg, rgba(33, 39, 24, 0.96), rgba(13, 18, 14, 0.96));
+  color: rgba(247, 250, 252, 0.92);
+  box-shadow:
+    0 18px 52px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.045);
+}
+
+.meeting-room-result__label,
+.meeting-room-result__section {
+  color: rgba(231, 238, 143, 0.7);
+}
+
+.meeting-room-result__copy {
+  color: rgba(226, 232, 240, 0.76);
+}
+
+.meeting-room-result__grid p {
+  color: rgba(247, 250, 252, 0.84);
 }
 
 .meeting-room-result__actions {

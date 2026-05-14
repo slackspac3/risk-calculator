@@ -76,6 +76,7 @@ Current desktop-first UX behavior:
 - Results now lead with a `Decision Stack`: recommendation, readiness, top blocker, next action, owner, and source in one management scan
 - Results now surface a compact top value strip before the tabs: estimated value created, estimated analyst time saved, and expected annual loss stay near the result title instead of being buried in the lower report
 - Results metric explainers open in a dark, high-contrast drawer so `Explain this number` remains readable inside the executive results surface
+- Opened support panels now avoid light-over-light rendering by using explicit dark-surface treatments for FAIR assumption explainers, reviewer meeting-room context, and mediation output cards
 - Challenge Agent output now includes a short `Decision changed because...` story so users can see why the posture moved from draft output to proceed, review, or hold
 - AI output surfaces now distinguish `Live AI`, `Fallback`, `Local preview`, `Saved result`, and `Imported source` labels where the workflow source matters
 - the standard-user dashboard now opens with a featured risk-workflow strip inspired by agent marketplace patterns: a live launch runway, large launch cards, teal directional markers, and restrained motion that points users toward guided, register-led, or sample-based starts
