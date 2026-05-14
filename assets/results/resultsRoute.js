@@ -1004,6 +1004,128 @@ function renderExecutiveInsightCluster({ scenarioNarrative, executiveDecision, e
   `});
 }
 
+function renderResultsExecutiveCockpit({
+  assessment,
+  r,
+  statusClass,
+  statusIcon,
+  statusTitle,
+  statusDetail,
+  executiveHeadline,
+  executiveAction,
+  executiveDecision,
+  lifecycle,
+  exceedancePct,
+  completedLabel,
+  assessmentValue,
+  rolePresentation,
+  boardroomMode
+}) {
+  const valueUsd = Number(
+    assessmentValue?.cost?.totalDirectionalValueUsd
+    || assessmentValue?.cost?.externalEquivalentValueUsd
+    || assessmentValue?.cost?.internalCostAvoidedUsd
+    || 0
+  );
+  const valueLabel = valueUsd > 0 ? fmtCurrency(valueUsd) : 'Not estimated';
+  const hoursSaved = String(assessmentValue?.directional?.internalHoursAvoidedLabel || '').trim() || 'Not estimated';
+  const readinessScore = assessment?.decisionReadiness?.score ?? assessment?.assessmentManagerTrace?.readiness?.score ?? null;
+  const readinessLabel = Number.isFinite(Number(readinessScore))
+    ? `${Math.round(Number(readinessScore))}/100 readiness`
+    : String(lifecycle?.label || 'Review readiness');
+  const roleNoteTitle = String(rolePresentation?.executiveNoteTitle || 'Business-unit read');
+  const roleNote = String(rolePresentation?.executiveNote || 'Use this as the current decision-support view before more work starts.');
+  const metaItems = [
+    assessment?.buName || 'No business unit',
+    assessment?.geography || 'No geography',
+    completedLabel
+  ].filter(Boolean);
+  const cockpitTone = r?.toleranceBreached ? 'danger' : r?.nearTolerance ? 'warning' : 'success';
+  const eventFoot = r?.toleranceBreached
+    ? 'Above the current event tolerance.'
+    : r?.nearTolerance
+      ? 'Above the warning trigger, below tolerance.'
+      : 'Below the current warning trigger.';
+  const annualFoot = r?.annualReviewTriggered
+    ? 'At or above the annual review trigger.'
+    : 'Average-year planning view.';
+
+  const metrics = [
+    {
+      tone: 'value',
+      label: 'Estimated value created',
+      value: valueLabel,
+      copy: 'Directional effort and advisory equivalent',
+      foot: 'Not booked savings; use as leadership framing.'
+    },
+    {
+      tone: 'success',
+      label: 'Estimated analyst time saved',
+      value: hoursSaved,
+      copy: 'Manual analysis avoided',
+      foot: String(assessmentValue?.directional?.manualBaselineLabel || 'Compared with the manual baseline.')
+    },
+    {
+      tone: cockpitTone,
+      label: 'Event-loss P90',
+      value: fmtCurrency(r?.eventLoss?.p90 || 0),
+      copy: 'Severe single-event exposure',
+      foot: eventFoot,
+      explain: 'eventLossP90'
+    },
+    {
+      tone: 'warning',
+      label: 'Expected annual loss',
+      value: fmtCurrency(r?.annualLoss?.mean || 0),
+      copy: 'Average annual exposure',
+      foot: annualFoot,
+      explain: 'aleMean'
+    }
+  ];
+
+  return `<section class="results-executive-cockpit results-executive-cockpit--${escapeHtml(cockpitTone)} ${boardroomMode ? 'results-executive-cockpit--boardroom' : ''}">
+    <div class="results-executive-cockpit__main">
+      <div class="results-executive-cockpit__eyebrow">
+        <span>${boardroomMode ? 'Boardroom decision cockpit' : 'Executive decision cockpit'}</span>
+        <span class="badge ${r?.toleranceBreached ? 'badge--danger' : r?.nearTolerance ? 'badge--warning' : 'badge--success'}">${escapeHtml(String(statusTitle || 'Review'))}</span>
+        <span class="badge badge--${escapeHtml(String(lifecycle?.tone || 'neutral'))}">${escapeHtml(String(lifecycle?.label || 'Ready for review'))}</span>
+      </div>
+      <h2 class="results-executive-cockpit__title">${executiveHeadline}</h2>
+      <p class="results-executive-cockpit__copy">${escapeHtml(String(statusDetail || 'Use this result as the current decision-support view.'))}</p>
+      <div class="results-executive-cockpit__action">
+        <span class="results-driver-label">Immediate management move</span>
+        <strong>${escapeHtml(String(executiveDecision?.decision || 'Review'))}</strong>
+        <span>${escapeHtml(String(executiveAction || executiveDecision?.priority || 'Confirm the next management step for this scenario.'))}</span>
+      </div>
+      <div class="results-executive-cockpit__meta">${metaItems.map(item => `<span>${escapeHtml(String(item))}</span>`).join('')}</div>
+    </div>
+    <div class="results-executive-cockpit__side">
+      <div class="results-executive-cockpit__signal">
+        <div class="results-signal-ring ${statusClass}">
+          <div class="results-signal-ring-inner">${statusIcon}</div>
+        </div>
+        <div>
+          <strong>${exceedancePct == null ? 'Not assessed' : `${exceedancePct}% breach likelihood`}</strong>
+          <span>${escapeHtml(readinessLabel)}</span>
+        </div>
+      </div>
+      <div class="results-cockpit-metrics">
+        ${metrics.map(metric => `<article class="results-cockpit-metric results-cockpit-metric--${escapeHtml(metric.tone)}">
+          <span class="results-cockpit-metric__label">${escapeHtml(metric.label)}</span>
+          <strong>${escapeHtml(metric.value)}</strong>
+          <span class="results-cockpit-metric__copy">${escapeHtml(metric.copy)}</span>
+          <span class="results-cockpit-metric__foot">${escapeHtml(metric.foot)}</span>
+          ${metric.explain ? `<button type="button" class="results-metric-explain" data-results-explain="${escapeHtml(metric.explain)}">Explain this number</button>` : ''}
+        </article>`).join('')}
+      </div>
+      <div class="results-executive-cockpit__note">
+        <span class="results-driver-label">${escapeHtml(roleNoteTitle)}</span>
+        <p>${escapeHtml(roleNote)}</p>
+      </div>
+    </div>
+  </section>`;
+}
+
 function renderAssessmentValueBand(valueModel) {
   if (!valueModel) return '';
   const internalValueNote = valueModel.cost?.internalCostAvoidedUsd
@@ -5062,34 +5184,6 @@ function renderResults(id, isShared) {
       })
     : String(assessment.scenarioTitle || 'Risk Assessment').trim();
 
-  const executiveHero = `<div class="results-hero ${statusClass}">
-    <div class="results-hero-main">
-      <div class="results-kicker">${boardroomMode ? 'Executive mode' : 'Assessment outcome'}</div>
-      <h2 class="results-hero-title">${executiveHeadline}</h2>
-      <p class="results-hero-copy">${statusDetail}</p>
-      <div class="results-hero-tags">
-        <span class="badge ${r.toleranceBreached ? 'badge--danger' : r.nearTolerance ? 'badge--warning' : 'badge--success'}">${statusTitle}</span>
-        <span class="badge badge--${lifecycle.tone}">${lifecycle.label}</span>
-        ${boardroomMode ? '<span class="badge badge--neutral">Executive mode</span>' : ''}
-      </div>
-      <div class="results-hero-meta">${escapeHtml(String(assessment.buName || 'No business unit'))} · ${escapeHtml(String(assessment.geography || 'No geography'))} · ${escapeHtml(String(completedLabel))}</div>
-    </div>
-    <div class="results-hero-side">
-      <div class="results-signal-ring ${statusClass}">
-        <div class="results-signal-ring-inner">${statusIcon}</div>
-      </div>
-      <div class="results-signal-label">${exceedancePct == null ? 'Not assessed' : `${exceedancePct}% breach likelihood`}</div>
-      ${exceedancePct == null
-        ? '<div class="form-help">Run the simulation to see breach probability.</div>'
-        : ''}
-      <div class="results-hero-action-card">
-        <span class="results-driver-label">Immediate focus</span>
-        <strong>${escapeHtml(String(executiveDecision?.decision || 'Review'))}</strong>
-        <span>${escapeHtml(String(executiveAction || executiveDecision?.priority || 'Confirm the next management step for this scenario.'))}</span>
-        <div class="results-hero-action-card__foot">${escapeHtml(String(rolePresentation.executiveNoteTitle))}: ${escapeHtml(String(rolePresentation.executiveNote))}</div>
-      </div>
-    </div>
-  </div>`;
   const resultsSelectedRisks = Array.isArray(assessment.selectedRisks) && assessment.selectedRisks.length
     ? assessment.selectedRisks
     : (Array.isArray(assessment.riskCandidates) ? assessment.riskCandidates.filter(risk => {
@@ -5234,27 +5328,41 @@ function renderResults(id, isShared) {
           </section>`
   });
 
-  const executiveMetrics = `<div class="results-exec-metrics">
-    <div class="results-impact-card results-impact-card--headline">
-      <div class="results-impact-label">Conditional loss from one successful event</div>
-      <div class="results-impact-value ${r.toleranceBreached ? 'danger' : ''}">${fmtCurrency(r.eventLoss.p90)}</div>
-      <div class="results-impact-copy">Severe single-event view</div>
-      <div class="results-impact-foot">${r.toleranceBreached ? 'Above the current event tolerance.' : r.nearTolerance ? 'Above the warning threshold, but below tolerance.' : 'Below the current warning trigger.'}</div>
-      <button type="button" class="results-metric-explain" data-results-explain="eventLossP90">Explain this number</button>
+  const executiveCockpit = renderResultsExecutiveCockpit({
+    assessment,
+    r,
+    statusClass,
+    statusIcon,
+    statusTitle,
+    statusDetail,
+    executiveHeadline,
+    executiveAction,
+    executiveDecision,
+    lifecycle,
+    exceedancePct,
+    completedLabel,
+    assessmentValue,
+    rolePresentation,
+    boardroomMode
+  });
+  const topValueUsd = Number(
+    assessmentValue?.cost?.totalDirectionalValueUsd
+    || assessmentValue?.cost?.externalEquivalentValueUsd
+    || assessmentValue?.cost?.internalCostAvoidedUsd
+    || 0
+  );
+  const resultsTopValueStrip = `<div class="results-top-value-strip anim-fade-in" aria-label="Key value metrics">
+    <div class="results-top-value-strip__item results-top-value-strip__item--value">
+      <span>Estimated value created</span>
+      <strong>${topValueUsd > 0 ? escapeHtml(fmtCurrency(topValueUsd)) : 'Not estimated'}</strong>
     </div>
-    <div class="results-impact-card">
-      <div class="results-impact-label">Expected annualized loss</div>
-      <div class="results-impact-value">${fmtCurrency(r.annualLoss.mean)}</div>
-      <div class="results-impact-copy">Expected annual exposure</div>
-      <div class="results-impact-foot">Use this as the average-year planning view.</div>
-      <button type="button" class="results-metric-explain" data-results-explain="aleMean">Explain this number</button>
+    <div class="results-top-value-strip__item">
+      <span>Estimated analyst time saved</span>
+      <strong>${escapeHtml(String(assessmentValue?.directional?.internalHoursAvoidedLabel || 'Not estimated'))}</strong>
     </div>
-    <div class="results-impact-card">
-      <div class="results-impact-label">High-stress annualized loss</div>
-      <div class="results-impact-value warning">${fmtCurrency(r.annualLoss.p90)}</div>
-      <div class="results-impact-copy">Severe annual planning view</div>
-      <div class="results-impact-foot">${r.annualReviewTriggered ? 'At or above the annual review trigger.' : 'Still below the annual review trigger.'}</div>
-      <button type="button" class="results-metric-explain" data-results-explain="aleP90">Explain this number</button>
+    <div class="results-top-value-strip__item">
+      <span>Expected annual loss</span>
+      <strong>${escapeHtml(fmtCurrency(r?.annualLoss?.mean || 0))}</strong>
     </div>
   </div>`;
 
@@ -5262,25 +5370,24 @@ function renderResults(id, isShared) {
     <section class="results-executive-view ${boardroomMode ? 'results-executive-view--boardroom' : ''} ${activeTab === 'executive' ? '' : 'hidden'}" id="results-tab-executive" role="tabpanel" aria-labelledby="results-tab-btn-executive" tabindex="-1" data-results-panel="executive" data-page-focus>
       ${assessmentFreshnessWarning ? `<div class="banner banner--info mb-6"><span class="banner-icon">ℹ</span><span class="banner-text">${escapeHtml(assessmentFreshnessWarning)}</span></div>` : ''}
       ${renderReviewerBriefPanel(assessment, rolePresentation)}
-      ${executiveHero}
-      ${resultsWorkflowStatus && typeof renderAssessmentWorkflowStatusStrip === 'function'
-        ? renderAssessmentWorkflowStatusStrip(resultsWorkflowStatus)
+      ${executiveCockpit}
+      <div id="results-assumption-explainer-host" style="display:none"></div>
+      ${reviewSubmitBanner}
+      ${executiveCommandDeck}
+      ${resultsChallengeStory && typeof renderAssessmentChallengeStory === 'function'
+        ? renderAssessmentChallengeStory(resultsChallengeStory)
         : ''}
       ${resultsDecisionStack && typeof renderAssessmentDecisionStack === 'function'
         ? renderAssessmentDecisionStack(resultsDecisionStack)
         : ''}
-      ${resultsChallengeStory && typeof renderAssessmentChallengeStory === 'function'
-        ? renderAssessmentChallengeStory(resultsChallengeStory)
+      ${resultsWorkflowStatus && typeof renderAssessmentWorkflowStatusStrip === 'function'
+        ? renderAssessmentWorkflowStatusStrip(resultsWorkflowStatus)
         : ''}
-      ${reviewSubmitBanner}
       ${reviewMeetingRoom}
       ${resultsManagerBlock ? `<div class="results-manager-grid">${resultsManagerBlock}</div>` : ''}
-      ${executiveCommandDeck}
       <div class="results-executive-band">
         ${renderExecutiveScenarioStatement(assessment, scenarioNarrative)}
         ${renderDecisionRail(statusTitle, statusDetail, executiveDecision, executiveAction, assessmentIntelligence.confidence, rolePresentation, hasAssessmentLocalFallback(assessment))}
-        ${executiveMetrics}
-        <div id="results-assumption-explainer-host" style="display:none"></div>
       </div>
       ${executiveSupportDisclosure}
     </section>`;
@@ -5393,6 +5500,7 @@ function renderResults(id, isShared) {
           </div>
         </div>
         <div class="form-help results-export-note anim-fade-in">Exports are point-in-time snapshots. Regenerate them after material scenario, evidence, or treatment changes.</div>
+        ${resultsTopValueStrip}
 
         <div class="results-tabbar mb-6" role="tablist" aria-label="Results views">
           <button class="results-tab ${activeTab === 'executive' ? 'active' : ''}" id="results-tab-btn-executive" role="tab" aria-selected="${activeTab === 'executive' ? 'true' : 'false'}" aria-controls="results-tab-executive" tabindex="${activeTab === 'executive' ? '0' : '-1'}" data-results-tab="executive">Executive Summary</button>

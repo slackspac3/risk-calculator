@@ -168,6 +168,7 @@
   - per-assessment boardroom mode persistence
 - Results should reuse persisted `assessmentManagerTrace`, `decisionReadiness`, and `assessmentChallengePass` when present, and only reconstruct them for older saved assessments.
 - Results should lead with a management-readable Decision Stack: recommendation, readiness, top blocker, next action, owner, and source. Do not bury the action behind the technical result grid.
+- Results should show business value signals in the first scan. Keep estimated value created, estimated analyst time saved, and the main exposure metric near the result title or executive cockpit before deeper workflow/replay panels.
 - Results source labels must distinguish `Saved result`, `Live AI`, `Fallback`, `Local preview`, and `Imported source` where applicable.
 
 ### Compare / export / revisit

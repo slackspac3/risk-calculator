@@ -6,8 +6,8 @@ If this file conflicts with the code, git history, or GitHub workflow files, tru
 
 ## Last Updated
 
-- Date: 2026-05-10
-- Updated by: Codex session in local repo `/Users/bhavuk.arora/Documents/GitHub/risk-calculator`
+- Date: 2026-05-14
+- Updated by: Codex session in local repo `/Users/bhavuk.arora/risk-calculator`
 
 ## Read First
 
@@ -28,7 +28,8 @@ If this file conflicts with the code, git history, or GitHub workflow files, tru
 
 ## Current Git Snapshot
 
-- `master` local == `origin/master` at `2bbd38b`
+- Active working copy for the latest pass is `/Users/bhavuk.arora/risk-calculator`; the older `/Users/bhavuk.arora/Documents/GitHub/risk-calculator` worktree became macOS/TCC-blocked for existing-file reads during the session.
+- `master` local started from `origin/master` at `21ba51c` before the 2026-05-14 results-cockpit changes.
 - `test-poc` local == `origin/test-poc` at `802580f`
 - `master` and `test-poc` are both in sync with their own upstream branches.
 - `master` and `test-poc` are not currently a fast-forward pair.
@@ -56,6 +57,19 @@ If this file conflicts with the code, git history, or GitHub workflow files, tru
 - Do not force-push or rewrite shared branch history unless explicitly approved.
 
 ## Verified Baseline Through 2026-04-25
+
+Latest validation on 2026-05-14 in `/Users/bhavuk.arora/risk-calculator`:
+
+- Results executive surface now shows a compact top value strip before the tabs: estimated value created, estimated analyst time saved, and expected annual loss.
+- Executive Summary now opens with a new decision cockpit that combines the management headline, breach likelihood, readiness, immediate management move, and the same value/time/exposure metrics.
+- Results ordering now puts submit/review guidance and the `Read this result in 3 moves` command deck above deeper workflow replay, challenge, and technical panels.
+- Browser QA used a dummy saved result at `http://127.0.0.1:8080/?v=results-cockpit5#/results/qa-cockpit`; screenshot artifact: `.playwright-cli/page-2026-05-14T07-42-24-910Z.png`.
+- Validation passed:
+  - `npm run check:syntax`
+  - `npm run check:smoke`
+  - `npm run test:unit` (`554` tests)
+  - `npm run test:e2e:smoke` (`51` tests)
+- Note: `npm install` was run in the clean clone only to install the declared Playwright dependency for e2e validation; lockfile noise was reverted before handoff.
 
 Executed in `/Users/bhavuk.arora/Documents/GitHub/risk-calculator` on `test-poc`:
 
