@@ -94,7 +94,7 @@ async function mockSharedApis(page, {
   reviewQueueRequests = null,
   orgIntelligenceState = null
 } = {}) {
-  if (!skipUsers) await page.route('**/api/users', async route => {
+  if (!skipUsers) await page.route('**/api/users**', async route => {
     const request = route.request();
     if (request.method() === 'POST') {
       const payload = request.postDataJSON();
@@ -2523,7 +2523,7 @@ test('admin can update user access and the request carries the expected role ass
   await page.addInitScript(() => {
     localStorage.setItem('rq_admin_api_secret', 'test-admin-secret');
   });
-  await page.route('**/api/users', async route => {
+  await page.route('**/api/users**', async route => {
     const request = route.request();
     if (request.method() === 'GET') {
       await route.fulfill({
@@ -2609,7 +2609,7 @@ test('admin user actions menu keeps only one current-user dropdown open at a tim
   await page.addInitScript(() => {
     localStorage.setItem('rq_admin_api_secret', 'test-admin-secret');
   });
-  await page.route('**/api/users', async route => {
+  await page.route('**/api/users**', async route => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -2668,7 +2668,7 @@ test('admin user actions menu can reset a password from the floating menu', asyn
   await page.addInitScript(() => {
     localStorage.setItem('rq_admin_api_secret', 'test-admin-secret');
   });
-  await page.route('**/api/users', async route => {
+  await page.route('**/api/users**', async route => {
     const request = route.request();
     if (request.method() === 'PATCH') {
       const payload = request.postDataJSON();
@@ -2760,7 +2760,7 @@ test('admin user actions menu blocks click-through and stays usable on the last 
   await page.addInitScript(() => {
     localStorage.setItem('rq_admin_api_secret', 'test-admin-secret');
   });
-  await page.route('**/api/users', async route => {
+  await page.route('**/api/users**', async route => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',

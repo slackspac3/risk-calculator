@@ -126,7 +126,7 @@ async function seedAndMock(page) {
     adminSettings: SEED_ADMIN_SETTINGS
   });
 
-  await page.route('**/api/users', async route => {
+  await page.route('**/api/users**', async route => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',

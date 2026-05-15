@@ -6,7 +6,7 @@ If this file conflicts with the code, git history, or GitHub workflow files, tru
 
 ## Last Updated
 
-- Date: 2026-05-14
+- Date: 2026-05-15
 - Updated by: Codex session in local repo `/Users/bhavuk.arora/risk-calculator`
 
 ## Read First
@@ -57,6 +57,14 @@ If this file conflicts with the code, git history, or GitHub workflow files, tru
 - Do not force-push or rewrite shared branch history unless explicitly approved.
 
 ## Verified Baseline Through 2026-04-25
+
+Latest validation on 2026-05-15 in `/Users/bhavuk.arora/risk-calculator`:
+
+- The full e2e smoke cascade was cleaned up: Playwright mocks for the users API now intercept query-string variants (`**/api/users**`) in `tests/e2e/smoke.spec.js` and `tests/e2e/critical-path.spec.js`, keeping `?view=self` refreshes local instead of letting the hosted API expire seeded sessions.
+- The prior `40/51` smoke failure was an auth-mock issue, not 40 independent stale UI assertions; focused auth-heavy smoke checks passed after the route-pattern fix.
+- Validation passed:
+  - `npm run test:e2e:smoke` (`51` tests)
+  - `npm run test:e2e -- tests/e2e/critical-path.spec.js` (`2` tests)
 
 Latest validation on 2026-05-14 in `/Users/bhavuk.arora/risk-calculator`:
 

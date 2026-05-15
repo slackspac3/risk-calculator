@@ -500,6 +500,7 @@ Do not reinvent these. They already exist.
 - Run `npm run qa:release` before pushing release-affecting changes or anything that touches auth, shared settings hydration, review workflow, or browser/API integration seams.
 - Use the package-managed Playwright scripts rather than raw `npx playwright test` for release work, because the repo now treats a clean managed static SPA origin as part of the browser verification contract.
 - If a package-managed Playwright run fails locally with `listen EPERM` on `127.0.0.1`, treat that as a local execution-permission issue and rerun the same package script with approved local-server permission before calling it an app failure.
+- Playwright API route mocks must include query strings when the app may call authenticated views, e.g. use `**/api/users**` rather than `**/api/users` so `?view=self` stays intercepted and seeded sessions are not accidentally logged out by the hosted API.
 - Treat eval-threshold failures inside `qa:release` as hard blockers for real release promotion, even though CI now reports AI quality in a separate non-blocking job while the baseline is being improved.
 - Use:
   - `npm run test:eval:fixture`
