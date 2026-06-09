@@ -4,8 +4,8 @@
   const release = Object.freeze({
     version: '0.10.0-pilot.1',
     channel: 'pilot',
-    build: '2026-06-09-cleanup1',
-    assetVersion: '20260609v1',
+    build: '2026-06-09-step2ui1',
+    assetVersion: '20260609v2',
     apiOrigin: 'https://risk-calculator-eight.vercel.app'
   });
 
