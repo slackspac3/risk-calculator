@@ -40,6 +40,7 @@
 
 ### Current maturity / pilot posture
 - Release stamp in code: `0.10.0-pilot.1`.
+- Release/cache stamps must stay coherent. When user-visible JS/CSS/HTML changes are made for a testable local or pilot build, keep `index.html`, `assets/app.js`, and `assets/releaseBootstrap.js` on the same asset version, and keep the footer/version label aligned with the release family.
 - The UI and copy repeatedly position the product as pilot decision support.
 - Security, auth, and some export/integration seams are intentionally marked as pilot or integration placeholders.
 - Preserve the current posture: polished and decision-ready, but honest about pilot limitations.
@@ -94,6 +95,8 @@
   4. selected-risks summary
   5. sticky continue footer
 - The command deck's progress, scout state, and "Do this next" guidance are expected to live-update as the event and impact fields change in Advanced. Basic should use the simpler intake card and avoid competing expert telemetry in the main path.
+- Basic Step 2 now uses a conversational intake workbench as the primary surface: user message, main impact, live risk memory, agent runway, one build action, and draft preview. Keep the existing field IDs (`guided-event`, `guided-impact`, `btn-build-guided-narrative`) intact unless tests and downstream build logic are updated together.
+- The Basic live risk memory must mirror the true workflow state. If business context is missing, it should say `Context required` and keep the AI/build state blocked; do not label the next step as live AI until the required context is available.
 - Local previews must not be treated as staged AI-built drafts. Use staged draft state only after an actual build, accepted narrative, or saved narrative exists.
 - Basic mode must not show the full local preview draft before the user clicks the build action. Once event and impact are filled, show a compact ready-for-AI state and let the single build action call the AI path first.
 - Step 2 draft previews must expose provenance clearly: distinguish `Live AI draft`, `Fallback draft`, `Manual draft`, and `Local preview` so users do not mistake local seed text for live AI output.
@@ -170,6 +173,7 @@
 - Results should lead with a management-readable Decision Stack: recommendation, readiness, top blocker, next action, owner, and source. Do not bury the action behind the technical result grid.
 - Results should show business value signals in the first scan. Keep estimated value created, estimated analyst time saved, and the main exposure metric near the result title or executive cockpit before deeper workflow/replay panels.
 - Results metric explainers must stay readable on the dark executive surface. Do not reuse light assumption-panel styling for the `Explain this number` drawer unless the text tokens are also switched for contrast.
+- Results tolerance-exceedance metrics must not be labelled as breach or incident likelihood. They describe modelled probability of exceeding the appetite/tolerance threshold, not whether the underlying event has occurred or will occur.
 - Results source labels must distinguish `Saved result`, `Live AI`, `Fallback`, `Local preview`, and `Imported source` where applicable.
 
 ### Compare / export / revisit
@@ -397,6 +401,9 @@ Do not reinvent these. They already exist.
 - Already present in intake, scenario refinement, Review & Run, results, exports, and AI traces.
 - Confidence labels, evidence quality, primary grounding, supporting references, inferred assumptions, and input provenance are already part of the workflow.
 - For localhost AI issues, separate browser-origin, API-auth, and provider-health checks. A localhost-rendered UI may still be using the hosted API; a local serverless run needs a complete `.env.local`, including provider credentials and session-signing/admin secrets.
+- File-upload grounding is local-text-first. Risk-register upload in Step 2 stays limited to TXT/CSV/TSV/JSON/Markdown/Excel; Word/PDF uploads are allowed only on supporting-context surfaces and must pass the browser extraction quality check before any AI prompt claims they were used.
+- Do not reintroduce metadata-only file grounding. If a PDF/Word file cannot yield readable extracted text in the browser, show a clear conversion/paste instruction rather than sending a placeholder to AI.
+- Server-side evidence RAG now lives behind `api/_evidenceRag.js` and `api/evidence/*` with droplet-hosted Qdrant. Keep embeddings, vectors, full chunk text, and Qdrant credentials server-side, actor-scoped, and audit logged; do not reintroduce browser-retained vector stores.
 
 ### Parameter challenge / assumption explanation
 - Pre-run and technical results surfaces already include assumption explanation and challenge layers.
@@ -493,6 +500,7 @@ Do not reinvent these. They already exist.
 ### Minimum test discipline
 - Always run `npm run check:syntax`.
 - Run `npm run check:smoke` for workflow-affecting UI/state changes.
+- Run a staleness scan when changing release metadata or workflow labels: check for old asset stamps, stale footer labels, old step labels, and old results probability wording before handoff.
 - Run `npm run test:unit` when touching shared logic, evaluation scripts, or normalization/model helpers.
 - Run `npm run test:e2e:smoke` for route/auth/discoverability-sensitive changes.
 - Run `npm run qa:app` when you need the same blocking app-integrity gate CI now enforces.
@@ -601,6 +609,7 @@ Do not reinvent these. They already exist.
 - Appendix is for methodology, auditability, evidence, and supporting detail.
 - Boardroom mode is a compression of the executive surface for presentation, not a replacement for the normal results page.
 - Treatment comparison should stay decision-oriented, not just numerical delta reporting.
+- Probability labels must distinguish tolerance exceedance from incident likelihood. `lmExceedProb` is a model threshold test, not the chance that a cyber breach, outage, supplier failure, or other event is real.
 - Export surfaces should preserve the distinction between:
   - executive decision artifact
   - board note / memo
