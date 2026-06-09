@@ -474,7 +474,7 @@ Current branch tip under test:
     - Personal Settings persists `experienceMode`
   - Step 2 Basic mode is now simplified:
     - the default `/wizard/2` intake shows two primary prompts, one build action, and a draft preview
-    - a compact workflow ribbon above the intake shows source, workflow state, draft state, and next action without exposing expert telemetry
+    - the Basic opening screen does not show the workflow ribbon, Assessment Manager timeline, live-memory sidecar, or disabled sticky footer before the user can act
     - after event and impact are filled, the preview area stays in `Ready for AI build` state instead of showing a local draft before AI
     - live AI failure on the first build now stages an explicit fallback draft automatically instead of making the user retry before progress is possible
     - path switching, assessment context, regulation detail, and shortlist review are behind support disclosures unless required
@@ -503,7 +503,8 @@ Current branch tip under test:
   - local previews no longer make Basic Step 2 say `Review or continue` / `Rebuild draft` before an actual build
   - Basic Step 2 no longer shows the local preview body before build; event plus impact now shows `Ready for AI build`, and failed live-AI builds automatically stage an explicit fallback draft
   - Basic Step 2 now restores a built assisted/fallback draft preview from saved provenance or `llmAssisted` narrative state, so the screen cannot show `Draft will appear here` while Step 3 is available
-  - Basic Step 2 workflow ribbon now exposes source, workflow state, draft state, and next action before and after the first build
+  - Basic Step 2 opening now stays focused on required context, two prompts, one build action, and draft preview instead of showing the old workflow ribbon or manager timeline
+  - Step 4 conditional-cost spacing, Step 5 run-action layout, and Assessment Manager text wrapping were validated with the critical-path e2e suite
   - focused Step 2 e2e smoke passed on the current local asset stamp
 - Latest validated Parallax42 1-5 UX pass:
   - Step 3, Step 5, and Results now reuse a shared workflow/status strip for workflow stage, source, readiness, and next action
@@ -520,10 +521,13 @@ Current branch tip under test:
   - Step 1 was fully redesigned into one desktop-wide Basic-user decision stage: the selected-route panel and Continue action are in the hero, all route choices remain visible, and the duplicate lower "What happens next" section is gone
   - Step 1 start-lane selection now stays on the guide and keeps all options visible; the selected lane no longer resets to guided during draft normalization
   - Step 2 Basic intake is now visibly simpler for non-expert users: two prompts, one build action, draft preview, and support disclosures for setup/context/risk review
-  - Step 2 Basic now has a Parallax-inspired workflow ribbon for source, current workflow, draft state, and next action so users can see whether they are pre-build, live-AI-first, fallback, or ready to review
+  - Step 2 Basic no longer shows the workflow ribbon, Assessment Manager timeline, or live-memory sidecar on first load; the opening screen now focuses on required business context, two prompts, one build action, and draft preview
   - Step 2 Basic first-click UX now goes from typed answers directly to `Build draft`; fallback happens automatically and visibly if live AI fails
   - Step 2 Basic built-draft preview now survives refresh/re-render: successful build state must show `First draft ready` on Step 2 before continuing to Step 3
   - Step 2 Basic required business context is now visible above the intake and locks the draft build until selected, so users do not miss a prerequisite buried lower on the page
+  - Step 4 estimate now adds breathing room before the optional conditional-cost drawer so it does not sit flush against the final core cost row
+  - Step 5 Review & Run now keeps the Monte Carlo run button on one line at desktop width
+  - Assessment Manager timeline and mission cards now have wrapping/min-width guards so long provenance phrases like `evidence/provenance` do not spill into neighboring cards
   - standard-user dashboard now opens with a more agentic featured workflow strip, stronger section markers, and animated workflow cards for the main start paths
   - global Basic/Advanced view mode now defaults to Basic and is switchable from the app bar on every authenticated route
   - PoC login warning `I Understand` now closes reliably after repeated login submits; modal button binding is unique and scoped, and login is single-flight
@@ -542,9 +546,11 @@ Current branch tip under test:
   - verify the top-bar `Basic` / `Advanced` switch toggles the right-side agent rail
   - verify `/#/wizard/1` shows one wide decision stage with one Continue action and keeps all route cards visible when switching between guided, draft, and import
   - verify `/#/wizard/2` in Basic shows the simplified two-prompt intake and hides the dense command deck until Advanced is selected
-  - verify `/#/wizard/2` shows the compact workflow ribbon above the Basic intake and that it changes from `No draft yet` to `Live AI first` / `Ready to build` after event and impact are filled
+  - verify `/#/wizard/2` does not show the workflow ribbon, Assessment Manager timeline, live-memory sidecar, or disabled sticky footer on the Basic opening screen
   - verify `/#/wizard/2` after `Build draft` shows `First draft ready` in the draft preview before the Step 3 continue action is used
   - verify `/#/wizard/2` with no business unit selected shows `Required before AI build` above the intake and keeps `Build draft` disabled until the business unit is selected
+  - verify `/#/wizard/4` keeps the conditional cost areas drawer separated from the core cost rows
+  - verify `/#/wizard/5` keeps `Run Monte Carlo simulation (...)` on one line and Assessment Manager evidence text inside its cards
   - verify PoC login warning `I Understand` closes and reaches the dashboard
   - verify `/#/dashboard` stays on the dashboard after a hard refresh
   - verify `/#/dashboard` shows the `Featured risk workflows` strip and that its `Launch`, `Upload`, and `Preview` actions start the expected guided, register/example, and sample flows

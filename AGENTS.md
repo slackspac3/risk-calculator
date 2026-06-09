@@ -83,9 +83,9 @@
 - Owned by `renderWizard1()` in `assets/wizard/step1.js` with AI helpers in `assets/wizard/step1Assist.js`.
 - This is the action-first intake workspace.
 - Basic mode must stay non-expert friendly: the visible default path is two plain-language prompts, one build action, and a draft preview. Path switching, business context, regulation detail, scout/inspector detail, and shortlist review should sit behind one-click support disclosures unless context is missing or user action makes them necessary.
-- Basic Step 2 may show the compact `Assessment Manager` timeline because it explains the journey without exposing expert controls. Keep it short: context, scenario, evidence mission, Challenge Agent, output review.
-- If strengthening agentic visuals, keep the Assessment Manager runway as the main visible motion. Do not add extra decorative panels that compete with the two-prompt intake or the single build action.
-- Basic Step 2 may show one compact workflow ribbon above the intake for source, current workflow, draft state, and next action. Keep it status-only; do not turn it into another telemetry panel or duplicate the Assessment Manager.
+- Basic Step 2 should not show an Assessment Manager timeline, workflow ribbon, or live-memory sidecar on first load. Those surfaces made the opening screen feel like an expert console instead of a quick intake.
+- If strengthening agentic visuals, keep them out of the Basic Step 2 opening path unless they directly improve the two-prompt intake or the single build action. Assessment Manager visuals belong primarily in Step 5 review and Results replay.
+- Basic Step 2 may show status through concise badges, draft preview labels, and the required-context band. Do not add another telemetry panel above the intake.
 - Basic setup support should stay tabbed or similarly segmented. Do not return to one long mixed stack of start method, context, regulation, and shortlist controls.
 - When required business context is missing in Basic mode, show the business-unit/geography picker above the intake as part of the main path. Do not rely on a `Required` badge inside a lower support disclosure for prerequisites.
 - Advanced mode keeps the command deck composition:
@@ -95,8 +95,8 @@
   4. selected-risks summary
   5. sticky continue footer
 - The command deck's progress, scout state, and "Do this next" guidance are expected to live-update as the event and impact fields change in Advanced. Basic should use the simpler intake card and avoid competing expert telemetry in the main path.
-- Basic Step 2 now uses a conversational intake workbench as the primary surface: user message, main impact, live risk memory, agent runway, one build action, and draft preview. Keep the existing field IDs (`guided-event`, `guided-impact`, `btn-build-guided-narrative`) intact unless tests and downstream build logic are updated together.
-- The Basic live risk memory must mirror the true workflow state. If business context is missing, it should say `Context required` and keep the AI/build state blocked; do not label the next step as live AI until the required context is available.
+- Basic Step 2 now uses a conversational intake workbench as the primary surface: user message, main impact, one build action, and draft preview. Keep the existing field IDs (`guided-event`, `guided-impact`, `btn-build-guided-narrative`) intact unless tests and downstream build logic are updated together.
+- The Basic opening screen should mirror the true workflow state through the required-context band, next-action badge, disabled build action, and draft preview copy. If business context is missing, keep AI/build state blocked; do not label the next step as live AI until the required context is available.
 - Local previews must not be treated as staged AI-built drafts. Use staged draft state only after an actual build, accepted narrative, or saved narrative exists.
 - Basic mode must not show the full local preview draft before the user clicks the build action. Once event and impact are filled, show a compact ready-for-AI state and let the single build action call the AI path first.
 - Step 2 draft previews must expose provenance clearly: distinguish `Live AI draft`, `Fallback draft`, `Manual draft`, and `Local preview` so users do not mistake local seed text for live AI output.
@@ -129,6 +129,7 @@
   - advanced mode for direct exposure / secondary loss / tuning
   - treatment-improvement lane for better-outcome variants
 - Most users should be able to stay in the main estimate path without opening all advanced disclosures.
+- Keep the core-cost rows visually separated from optional/conditional cost disclosures. The conditional-cost drawer should not sit flush against the last core row.
 
 ### Step 5: Review & Run
 - `renderWizard4()` lives in `assets/wizard/step4.js`.
@@ -148,6 +149,7 @@
 - The Challenge Agent story should explain the decision change in one short line: why the posture moved to proceed, proceed with review points, or hold for owner review.
 - The Challenge Agent pass should be visible before simulation and persisted with the saved assessment as `assessmentChallengePass`.
 - Decision readiness should remain separate from Monte Carlo loss outputs: use it for blockers, open gaps, required controls, and human-review owners.
+- The Monte Carlo run action is the primary decision on this screen. Keep the action box wide enough for the full label on desktop and avoid button text wrapping inside the card.
 - Changes here can easily affect the results lifecycle. Treat this as a hotspot.
 
 ### Results
@@ -396,6 +398,7 @@ Do not reinvent these. They already exist.
 ### Quality coach and evidence-gap planning
 - Present in the intake, scenario, Review & Run, and results surfaces.
 - Reuse `buildScenarioQualityCoach(...)` and `buildEvidenceGapActionPlan(...)` rather than cloning new versions.
+- Assessment Manager timeline and mission cards must tolerate long words and provenance phrases such as `evidence/provenance`; use resilient wrapping and `min-width: 0` guards on grid children.
 
 ### Trust / confidence / provenance
 - Already present in intake, scenario refinement, Review & Run, results, exports, and AI traces.

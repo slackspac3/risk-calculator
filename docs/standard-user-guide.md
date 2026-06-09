@@ -49,7 +49,23 @@ Use the dashboard to:
 
 Do not use the dashboard as a reporting page. It is mainly a front door and work queue.
 
-### 2. Step 1: AI-assisted risk and context builder
+### 2. Step 1: Assessment guide
+
+Purpose:
+- choose how you want to start the assessment
+- understand what the intake will ask for before you begin drafting
+
+Start options:
+- answer two questions
+- paste an existing draft
+- use an example or register
+
+Use Step 1 well:
+- choose one start option
+- keep the selected option visible
+- continue to Quick Assessment when the route matches your situation
+
+### 3. Step 2: Quick Assessment intake
 
 Purpose:
 - get to one plausible scenario draft
@@ -66,16 +82,20 @@ Good example:
 Weak example:
 - `Cyber issues could hurt the business badly.`
 
-Use Step 1 well:
-- click `Build scenario draft` once and wait
+Use Step 2 well:
+- choose the business unit first if the page asks for business context
+- describe the event once in plain language
+- name the main impact
+- click `Build draft with AI` once and wait
 - keep the wording simple and specific
+- use the optional affected-system/cause drawer only when it helps
 - remove shortlist risks that do not belong in this event path
 - rate the draft or shortlist if the AI output is weak
 - read the grounding cues before you carry the draft forward:
   - stronger grounding means the scenario is clearly tied to saved context and retrieved references
   - weaker grounding means the draft still needs more challenge or evidence
 
-### 3. Step 2: Refine the scenario
+### 4. Step 3: Refine the scenario
 
 Purpose:
 - turn the first draft into one coherent narrative that another person can challenge
@@ -90,7 +110,7 @@ Good discipline:
 - one main event path
 - one explainable business impact chain
 
-### 4. Step 3: Estimate the scenario
+### 5. Step 4: Estimate the scenario
 
 Purpose:
 - express the likely frequency, exposure, and loss path clearly enough for the model to run
@@ -98,6 +118,8 @@ Purpose:
 What to do:
 - use the plain-language guidance first
 - widen ranges when you are unsure
+- complete the core cost rows before opening conditional cost areas
+- open conditional cost areas only when regulatory, third-party, or reputation/contract costs realistically apply
 - only use advanced tuning when it materially improves the assessment
 
 Do not:
@@ -116,7 +138,7 @@ What to watch:
 
 ## Review and results
 
-### Review & Run
+### Step 5: Review & Run
 
 Use this stage to challenge the scenario before you run it.
 
@@ -125,6 +147,10 @@ Ask:
 - are the major assumptions visible
 - is the loss path believable
 - is any key evidence missing
+
+When ready:
+- use the single `Run Monte Carlo simulation` action
+- treat the Assessment Manager and Challenge Agent cards as review evidence, not extra forms to complete
 
 ### Results
 
