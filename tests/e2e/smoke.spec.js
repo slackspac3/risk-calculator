@@ -1949,7 +1949,27 @@ test('admin system access reads server-reported AI mode without relying on brows
       model: 'gpt-5.1',
       proxyConfigured: false,
       checkedAt: Date.now(),
-      message: 'Hosted AI proxy is not configured. Supported workflows may continue with deterministic fallback or manual handling.'
+      message: 'Hosted AI proxy is not configured. Supported workflows may continue with deterministic fallback or manual handling.',
+      evidenceRag: {
+        provider: 'qdrant_droplet',
+        configured: true,
+        qdrantConfigured: true,
+        embeddingsConfigured: true,
+        collection: 'risk_calculator_evidence',
+        embeddingsModel: 'text-embedding-3-large',
+        browserEmbeddingsRetained: false,
+        actorScoped: true,
+        chunking: {
+          maxChunks: 96
+        },
+        lastSmokeStatus: {
+          ok: true,
+          checkedAt: new Date().toISOString(),
+          collection: 'risk_calculator_evidence',
+          qdrantReachable: true,
+          collectionExists: true
+        }
+      }
     }
   });
 
@@ -1963,6 +1983,10 @@ test('admin system access reads server-reported AI mode without relying on brows
     await expect(readinessPanel.getByText(/server ai status/i)).toBeVisible();
     await expect(readinessPanel.getByText(/deterministic fallback/i).first()).toBeVisible();
     await expect(readinessPanel.getByText(/hosted ai proxy is not configured/i)).toBeVisible();
+    await expect(readinessPanel.getByText(/server evidence rag/i)).toBeVisible();
+    await expect(readinessPanel.getByText(/risk_calculator_evidence/i)).toBeVisible();
+    await expect(readinessPanel.getByText(/text-embedding-3-large/i)).toBeVisible();
+    await expect(readinessPanel.getByText(/last qdrant smoke/i)).toBeVisible();
   });
 });
 

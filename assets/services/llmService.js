@@ -748,11 +748,11 @@ Return corrected JSON only.`;
     return _aiStatusClient ? _aiStatusClient.getCachedStatus() : null;
   }
 
-  async function fetchServerAiStatus({ force = false, probe = true } = {}) {
+  async function fetchServerAiStatus({ force = false, probe = true, ragProbe = false } = {}) {
     if (!_aiStatusClient) {
       throw new Error('AI status client is unavailable.');
     }
-    return _aiStatusClient.fetchStatus({ force, probe });
+    return _aiStatusClient.fetchStatus({ force, probe, ragProbe });
   }
 
   function _getScenarioTaxonomyProjection() {
@@ -6746,7 +6746,7 @@ Keep the numbers realistic, internally ordered, and anchored to the user's own h
 
   async function testCompassConnection() {
     if (!_isLocalDevRuntimeConfigAllowed()) {
-      const status = await fetchServerAiStatus({ force: true, probe: true });
+      const status = await fetchServerAiStatus({ force: true, probe: true, ragProbe: true });
       if (status.mode === 'live') {
         return { status: 'ok', provider: 'server_proxy', message: status.message || 'Hosted AI proxy is live.' };
       }

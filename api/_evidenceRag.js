@@ -1,6 +1,9 @@
 'use strict';
 
 const crypto = require('crypto');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const { getCompassProviderConfig } = require('./_aiRuntime');
 
 const DEFAULT_COLLECTION = 'risk_calculator_evidence';
@@ -11,6 +14,8 @@ const DEFAULT_CHUNK_CHARS = 1400;
 const DEFAULT_CHUNK_OVERLAP_CHARS = 160;
 const DEFAULT_MAX_CHUNKS = 96;
 const DEFAULT_TOP_K = 8;
+const DEFAULT_SMOKE_STATUS_DIR = path.join(os.tmpdir(), 'risk-calculator-rag');
+const SMOKE_STATUS_FILE = 'qdrant-smoke-status.json';
 
 function cleanText(value = '') {
   return String(value || '').replace(/\s+/g, ' ').trim();
@@ -57,6 +62,14 @@ function getEvidenceRagConfig() {
   };
 }
 
+function smokeStatusDir() {
+  return configuredText(process.env.RISK_RAG_SMOKE_STATUS_DIR || process.env.LOG_DIR || '') || DEFAULT_SMOKE_STATUS_DIR;
+}
+
+function smokeStatusPath() {
+  return path.join(smokeStatusDir(), SMOKE_STATUS_FILE);
+}
+
 function deriveEmbeddingsUrl(apiUrl = '') {
   const url = configuredText(apiUrl);
   if (!url) return 'https://api.core42.ai/v1/embeddings';
@@ -71,9 +84,20 @@ function evidenceRagHealth() {
     provider: 'qdrant_droplet',
     configured: Boolean(config.qdrantUrl && config.embeddingsUrl && config.embeddingsApiKey),
     qdrantConfigured: Boolean(config.qdrantUrl),
+    qdrantApiKeyConfigured: Boolean(config.qdrantApiKey),
     embeddingsConfigured: Boolean(config.embeddingsUrl && config.embeddingsApiKey),
+    embeddingsUrlConfigured: Boolean(config.embeddingsUrl),
+    embeddingsApiKeyConfigured: Boolean(config.embeddingsApiKey),
     collection: config.collection,
     embeddingsModel: config.embeddingsModel,
+    workspaceId: config.workspaceId,
+    projectId: config.projectId,
+    chunking: {
+      chunkChars: config.chunkChars,
+      chunkOverlapChars: config.chunkOverlapChars,
+      maxChunks: config.maxChunks
+    },
+    lastSmokeStatus: readLastEvidenceRagSmokeStatus(),
     browserEmbeddingsRetained: false,
     actorScoped: true
   };
@@ -242,15 +266,132 @@ async function embedTexts(texts = [], config = getEvidenceRagConfig()) {
 }
 
 async function qdrantFetch(pathname, options = {}, config = getEvidenceRagConfig()) {
+  const { timeoutMs, ...fetchOptions } = options || {};
   const headers = {
     'Content-Type': 'application/json',
-    ...(options.headers || {})
+    ...(fetchOptions.headers || {})
   };
   if (config.qdrantApiKey) headers['api-key'] = config.qdrantApiKey;
   return fetchJson(`${config.qdrantUrl}${pathname}`, {
-    ...options,
+    ...fetchOptions,
     headers
-  }, 30000);
+  }, timeoutMs || 30000);
+}
+
+function extractCollectionVectorSummary(body = {}) {
+  const vectors = body?.result?.config?.params?.vectors;
+  if (!vectors || typeof vectors !== 'object') return {};
+  if (Number.isFinite(Number(vectors.size))) {
+    return {
+      vectorSize: Number(vectors.size),
+      distance: cleanText(vectors.distance || '')
+    };
+  }
+  const firstNamedVector = Object.values(vectors).find(item => item && typeof item === 'object');
+  if (!firstNamedVector) return {};
+  return {
+    vectorSize: Number.isFinite(Number(firstNamedVector.size)) ? Number(firstNamedVector.size) : undefined,
+    distance: cleanText(firstNamedVector.distance || ''),
+    namedVectors: true
+  };
+}
+
+function sanitizeSmokeStatus(status = {}) {
+  return {
+    ok: status.ok === true,
+    skipped: status.skipped === true,
+    provider: 'qdrant_droplet',
+    collection: cleanText(status.collection || ''),
+    qdrantConfigured: status.qdrantConfigured === true,
+    qdrantApiKeyConfigured: status.qdrantApiKeyConfigured === true,
+    embeddingsConfigured: status.embeddingsConfigured === true,
+    embeddingsModel: cleanText(status.embeddingsModel || ''),
+    qdrantReachable: status.qdrantReachable === true,
+    collectionExists: status.collectionExists === true,
+    browserEmbeddingsRetained: false,
+    actorScoped: true,
+    vectorSize: Number.isFinite(Number(status.vectorSize)) ? Number(status.vectorSize) : undefined,
+    distance: cleanText(status.distance || ''),
+    namedVectors: status.namedVectors === true,
+    reason: cleanText(status.reason || ''),
+    errorCode: cleanText(status.errorCode || ''),
+    durationMs: Number.isFinite(Number(status.durationMs)) ? Number(status.durationMs) : undefined,
+    checkedAt: cleanText(status.checkedAt || new Date().toISOString())
+  };
+}
+
+function readLastEvidenceRagSmokeStatus() {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(smokeStatusPath(), 'utf8'));
+    return sanitizeSmokeStatus(parsed);
+  } catch {
+    return null;
+  }
+}
+
+function writeLastEvidenceRagSmokeStatus(status = {}) {
+  fs.mkdirSync(smokeStatusDir(), { recursive: true });
+  fs.writeFileSync(smokeStatusPath(), `${JSON.stringify(sanitizeSmokeStatus(status), null, 2)}\n`, { mode: 0o600 });
+}
+
+async function runEvidenceRagSmokeTest(options = {}) {
+  const startedAt = Date.now();
+  const config = getEvidenceRagConfig();
+  const base = {
+    provider: 'qdrant_droplet',
+    collection: config.collection,
+    qdrantConfigured: Boolean(config.qdrantUrl),
+    qdrantApiKeyConfigured: Boolean(config.qdrantApiKey),
+    embeddingsConfigured: Boolean(config.embeddingsUrl && config.embeddingsApiKey),
+    embeddingsModel: config.embeddingsModel,
+    browserEmbeddingsRetained: false,
+    actorScoped: true,
+    checkedAt: new Date().toISOString()
+  };
+  const finish = (status) => {
+    const result = sanitizeSmokeStatus({
+      ...base,
+      ...status,
+      durationMs: Date.now() - startedAt
+    });
+    if (options.writeStatus !== false) writeLastEvidenceRagSmokeStatus(result);
+    return result;
+  };
+
+  if (!config.qdrantUrl) {
+    return finish({
+      ok: false,
+      skipped: true,
+      reason: 'RISK_RAG_QDRANT_URL is not configured.'
+    });
+  }
+
+  try {
+    const body = await qdrantFetch(`/collections/${encodeURIComponent(config.collection)}`, {
+      method: 'GET',
+      timeoutMs: Number(options.timeoutMs || 8000)
+    }, config);
+    const vector = extractCollectionVectorSummary(body);
+    return finish({
+      ok: true,
+      qdrantReachable: true,
+      collectionExists: true,
+      vectorSize: vector.vectorSize,
+      distance: vector.distance,
+      namedVectors: vector.namedVectors
+    });
+  } catch (error) {
+    const status = Number(error?.status || error?.statusCode || 0);
+    return finish({
+      ok: false,
+      qdrantReachable: status === 404,
+      collectionExists: false,
+      errorCode: status ? `HTTP_${status}` : cleanText(error?.code || 'QDRANT_SMOKE_FAILED'),
+      reason: status === 404
+        ? `Qdrant is reachable, but collection "${config.collection}" does not exist yet.`
+        : cleanText(error?.message || 'Qdrant smoke check failed.')
+    });
+  }
 }
 
 async function ensureQdrantCollection(vectorSize, config = getEvidenceRagConfig()) {
@@ -508,12 +649,16 @@ module.exports = {
   getEvidenceRagConfig,
   indexEvidenceServerSide,
   normalizeDocuments,
+  readLastEvidenceRagSmokeStatus,
+  runEvidenceRagSmokeTest,
   safeMatchForClient,
   searchEvidenceServerSide,
   sessionScope,
   __unsafeInternals: {
     chunkDocument,
+    extractCollectionVectorSummary,
     qdrantSearchFilter,
+    sanitizeSmokeStatus,
     stableUuid
   }
 };

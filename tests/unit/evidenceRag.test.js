@@ -2,6 +2,9 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 
 const originalFetch = global.fetch;
 const originalEnv = {
@@ -15,6 +18,7 @@ const originalEnv = {
   RISK_RAG_QDRANT_API_KEY: process.env.RISK_RAG_QDRANT_API_KEY,
   RISK_RAG_QDRANT_COLLECTION: process.env.RISK_RAG_QDRANT_COLLECTION,
   RISK_RAG_QDRANT_URL: process.env.RISK_RAG_QDRANT_URL,
+  RISK_RAG_SMOKE_STATUS_DIR: process.env.RISK_RAG_SMOKE_STATUS_DIR,
   RISK_RAG_WORKSPACE_ID: process.env.RISK_RAG_WORKSPACE_ID
 };
 
@@ -205,4 +209,64 @@ test('evidence RAG health reports missing droplet config without exposing secret
     assert.equal(health.browserEmbeddingsRetained, false);
     assert.equal(Object.prototype.hasOwnProperty.call(health, 'qdrantApiKey'), false);
   });
+});
+
+test('qdrant smoke records sanitized reachability status for admin health', async () => {
+  const {
+    evidenceRagHealth,
+    readLastEvidenceRagSmokeStatus,
+    runEvidenceRagSmokeTest
+  } = require('../../api/_evidenceRag');
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'risk-rag-smoke-test-'));
+  const calls = [];
+
+  await withEnv({
+    COMPASS_API_KEY: 'compass-secret',
+    RISK_RAG_QDRANT_URL: 'https://droplet.example/qdrant',
+    RISK_RAG_QDRANT_API_KEY: 'qdrant-secret',
+    RISK_RAG_QDRANT_COLLECTION: 'risk_test',
+    RISK_RAG_SMOKE_STATUS_DIR: tempDir
+  }, async () => {
+    global.fetch = async (url, options = {}) => {
+      calls.push({ url: String(url), method: options.method || 'GET', headers: options.headers || {} });
+      assert.equal(String(url), 'https://droplet.example/qdrant/collections/risk_test');
+      assert.equal(options.headers['api-key'], 'qdrant-secret');
+      return jsonResponse({
+        result: {
+          status: 'green',
+          config: {
+            params: {
+              vectors: {
+                size: 3,
+                distance: 'Cosine'
+              }
+            }
+          }
+        }
+      });
+    };
+
+    const smoke = await runEvidenceRagSmokeTest({ timeoutMs: 20 });
+    assert.equal(smoke.ok, true);
+    assert.equal(smoke.qdrantReachable, true);
+    assert.equal(smoke.collectionExists, true);
+    assert.equal(smoke.vectorSize, 3);
+    assert.equal(smoke.distance, 'Cosine');
+    assert.equal(smoke.qdrantApiKeyConfigured, true);
+    assert.equal(Object.prototype.hasOwnProperty.call(smoke, 'qdrantApiKey'), false);
+    assert.equal(calls.length, 1);
+
+    const last = readLastEvidenceRagSmokeStatus();
+    assert.equal(last.ok, true);
+    assert.equal(last.collection, 'risk_test');
+
+    const health = evidenceRagHealth();
+    assert.equal(health.configured, true);
+    assert.equal(health.qdrantApiKeyConfigured, true);
+    assert.equal(health.lastSmokeStatus.ok, true);
+    assert.equal(health.lastSmokeStatus.collection, 'risk_test');
+    assert.equal(Object.prototype.hasOwnProperty.call(health, 'qdrantApiKey'), false);
+  });
+
+  fs.rmSync(tempDir, { recursive: true, force: true });
 });
