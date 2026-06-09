@@ -3738,6 +3738,8 @@ function renderStep1ContextCard(settings, draft, scenarioGeographies, regs, buLi
 }
 
 function renderStep1RequiredContextBand(settings, draft, scenarioGeographies, regs, buList) {
+  const businessUnit = buList.find(bu => bu.id === draft.buId) || null;
+  const hasBusinessContext = !!businessUnit;
   const geographies = scenarioGeographies.length
     ? scenarioGeographies
     : normaliseScenarioGeographies([settings.geography], settings.geography);
@@ -3745,14 +3747,14 @@ function renderStep1RequiredContextBand(settings, draft, scenarioGeographies, re
   const geographySummary = geographies.length
     ? formatScenarioGeographies(geographies, settings.geography)
     : 'Add the geography for this assessment.';
-  return `<section class="step1-required-context-band anim-fade-in" id="step1-required-context" aria-label="Required assessment context">
+  return `<section class="step1-required-context-band ${hasBusinessContext ? 'step1-required-context-band--ready' : ''} anim-fade-in" id="step1-required-context" aria-label="Assessment context">
     <div class="step1-required-context-band__head">
       <div>
-        <div class="wizard-summary-band__label">Required before AI build</div>
-        <h3>Choose business context first</h3>
-        <p>This tells the AI which business unit, geography, and regulations to use before it drafts the scenario.</p>
+        <div class="wizard-summary-band__label">${hasBusinessContext ? 'Context selected' : 'Required before AI build'}</div>
+        <h3>${hasBusinessContext ? 'Business context selected' : 'Choose business context first'}</h3>
+        <p>${hasBusinessContext ? 'This context will shape the draft, appetite, geography, and regulations. You can change it here before building.' : 'This tells the AI which business unit, geography, and regulations to use before it drafts the scenario.'}</p>
       </div>
-      <span class="badge badge--gold">Required</span>
+      <span class="badge ${hasBusinessContext ? 'badge--success' : 'badge--gold'}">${hasBusinessContext ? 'Ready' : 'Required'}</span>
     </div>
     <div class="step1-required-context-band__body">
       <div class="form-group">
@@ -5698,13 +5700,84 @@ function bindStep1PathSelector({ rerender = renderWizard1 } = {}) {
   });
 }
 
-function bindStep1PrimaryInputs({ buList, wizardGeographyInput }) {
-  document.getElementById('wizard-bu').addEventListener('change', function() {
+function refreshStep1ContextSupportTab(contextReady = false) {
+  const tabBadge = document.querySelector('[data-step1-support-tab="context"] small');
+  if (tabBadge) tabBadge.textContent = contextReady ? 'Ready' : 'Shown above';
+  const panelCopy = document.querySelector('[data-step1-support-panel="context"] .step1-support-tabs__empty');
+  if (panelCopy) {
+    panelCopy.textContent = `Business context is ${contextReady ? 'selected and remains' : 'required for AI build and is'} shown above the intake. Use this drawer only if you want to switch how you started.`;
+  }
+}
+
+function refreshStep1ContinueReadiness() {
+  const button = document.getElementById('btn-next-1');
+  if (!button) return;
+  const selectedRisks = getSelectedRisks();
+  const narrative = String(AppState.draft?.narrative || '').trim();
+  const canContinue = !!String(AppState.draft?.buId || '').trim() && (!!narrative || selectedRisks.length > 0);
+  button.disabled = !canContinue;
+  button.setAttribute('aria-disabled', canContinue ? 'false' : 'true');
+  const footer = button.closest('.step1-sticky-footer');
+  if (footer) {
+    footer.classList.toggle('step1-sticky-footer--ready', canContinue);
+    footer.classList.toggle('step1-sticky-footer--blocked', !canContinue);
+  }
+}
+
+function refreshPinnedStep1ContextBand({ buList, settings, scenarioGeographies, regulations }) {
+  const contextBand = document.getElementById('step1-required-context');
+  if (!contextBand) return null;
+  contextBand.outerHTML = renderStep1RequiredContextBand(
+    settings,
+    AppState.draft,
+    scenarioGeographies,
+    regulations,
+    buList
+  );
+  const nextSyncWizardGeographies = createStep1GeographySyncHandler({ buList, settings });
+  const nextWizardGeographyInput = UI.tagInput('ti-wizard-geographies', scenarioGeographies, nextSyncWizardGeographies);
+  bindStep1BusinessUnitSelect({ buList, wizardGeographyInput: nextWizardGeographyInput });
+  return nextWizardGeographyInput;
+}
+
+function bindStep1BusinessUnitSelect({ buList, wizardGeographyInput }) {
+  const select = document.getElementById('wizard-bu');
+  if (!select) return;
+  select.addEventListener('change', function() {
+    const settings = getEffectiveSettings();
     const bu = buList.find(b => b.id === this.value) || null;
     AppState.draft.buId = bu?.id || null;
     AppState.draft.buName = bu?.name || null;
-    persistAndRenderStep1({ buList, scenarioGeographies: getScenarioGeographies(), refreshRegulations: true });
+    const nextGeographies = normaliseScenarioGeographies(
+      typeof wizardGeographyInput?.getTags === 'function' ? wizardGeographyInput.getTags() : getScenarioGeographies(),
+      settings.geography
+    );
+    AppState.draft.geographies = nextGeographies;
+    AppState.draft.geography = formatScenarioGeographies(nextGeographies, settings.geography);
+    const regulationModel = updateStep1ApplicableRegulations(buList, nextGeographies);
+    saveDraft();
+
+    if (document.getElementById('step1-required-context')) {
+      refreshPinnedStep1ContextBand({
+        buList,
+        settings,
+        scenarioGeographies: nextGeographies,
+        regulations: regulationModel.selected
+      });
+      refreshStep1ContextSupportTab(!!bu);
+      updateStep1GuidedPreview();
+      refreshStep1ContinueReadiness();
+      updateWizardSaveState();
+      window.requestAnimationFrame(() => document.getElementById('wizard-bu')?.focus());
+      return;
+    }
+
+    persistAndRenderStep1({ buList, scenarioGeographies: nextGeographies, refreshRegulations: false, preserveScroll: true });
   });
+}
+
+function bindStep1PrimaryInputs({ buList, wizardGeographyInput }) {
+  bindStep1BusinessUnitSelect({ buList, wizardGeographyInput });
 
   document.querySelectorAll('.wizard-geo-chip').forEach(button => {
     button.addEventListener('click', () => {
@@ -6001,7 +6074,13 @@ function renderWizardGuide() {
   });
 }
 
-function renderStep1BasicSupportTabs({ pathMarkup = '', contextMarkup = '', needsContextSetup = false } = {}) {
+function renderStep1BasicSupportTabs({
+  pathMarkup = '',
+  contextMarkup = '',
+  needsContextSetup = false,
+  contextPinned = false,
+  contextReady = false
+} = {}) {
   const tabs = [
     {
       key: 'start',
@@ -6012,9 +6091,9 @@ function renderStep1BasicSupportTabs({ pathMarkup = '', contextMarkup = '', need
     {
       key: 'context',
       label: 'Context',
-      badge: needsContextSetup ? 'Shown above' : 'Ready',
-      body: needsContextSetup
-        ? '<div class="step1-support-tabs__empty">Business context is required for AI build and is shown above the intake. Use this drawer only if you want to switch how you started.</div>'
+      badge: contextPinned ? (contextReady ? 'Ready' : 'Shown above') : needsContextSetup ? 'Shown above' : 'Ready',
+      body: contextPinned || needsContextSetup
+        ? `<div class="step1-support-tabs__empty">Business context is ${contextReady ? 'selected and remains' : 'required for AI build and is'} shown above the intake. Use this drawer only if you want to switch how you started.</div>`
         : contextMarkup
     }
   ];
@@ -6096,7 +6175,7 @@ function renderWizard1() {
   const intakeSequence = buildStep1IntakeSequenceModel(draft);
   const isBasicExperience = typeof isAdvancedExperienceMode === 'function' ? !isAdvancedExperienceMode() : false;
   const needsContextSetup = !String(draft.buId || '').trim();
-  const requiredContextSection = isBasicExperience && needsContextSetup
+  const requiredContextSection = isBasicExperience
     ? renderStep1RequiredContextBand(settings, draft, scenarioGeographies, regs, buList)
     : '';
   const contextCardMarkup = renderStep1ContextCard(settings, draft, scenarioGeographies, regs, buList);
@@ -6105,7 +6184,9 @@ function renderWizard1() {
     ? renderStep1BasicSupportTabs({
         pathMarkup: pathSelectorMarkup,
         contextMarkup: contextCardMarkup,
-        needsContextSetup
+        needsContextSetup,
+        contextPinned: true,
+        contextReady: !needsContextSetup
       })
     : `${pathSelectorMarkup}
             ${contextCardMarkup}`;
