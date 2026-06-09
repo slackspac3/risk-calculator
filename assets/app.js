@@ -4596,7 +4596,7 @@ function launchGuidedAssessmentStart() {
     ensureStep1ContextPrefills(AppState.draft, settings, buList);
   }
   saveDraft();
-  openDraftWorkspaceRoute();
+  Router.navigate('/wizard/2');
   OrgIntelligenceService?.refresh?.().catch?.(() => {});
   return null;
 }
@@ -7853,7 +7853,7 @@ function buildAgenticShellModel(routeHash = getRouteMeta().currentHash) {
     model.waitingLabel = 'Decision needed';
     model.waitingCopy = activeDraft
       ? 'Resume intake unless the start lane is wrong.'
-      : 'Change the lane only if the guided path is not the right start.';
+      : 'Change the lane only if Quick Assessment is not the right start.';
     model.actionCopy = activeDraft ? 'Resume the intake workspace.' : 'Continue to Step 2 intake.';
     model.metrics = [
       { label: 'Lane', value: lane },
@@ -8080,7 +8080,7 @@ function buildAgenticShellModel(routeHash = getRouteMeta().currentHash) {
           : 'No open loop. Start only when there is a concrete event signal.');
     model.actionCopy = passiveNotice?.body
       || topRecommendation
-      || (activeDraft ? 'Resume the active draft.' : 'Start a guided assessment from one event signal.');
+      || (activeDraft ? 'Resume the active draft.' : 'Start Quick Assessment from one event signal.');
     model.metrics = [
       { label: 'Draft', value: activeDraft ? 'Open' : 'Clear' },
       { label: 'Assessments', value: completedAssessments ? String(completedAssessments) : '0' },
@@ -13164,11 +13164,11 @@ function renderHelpPage() {
       disclosures: [
         renderHelpDisclosure('best-results', {
           title: 'How to start well',
-          summary: 'When to use guided assessment, risk register upload, or preloaded scenarios.',
+          summary: 'When to use Quick Assessment, risk register upload, or preloaded scenarios.',
           open: true,
           body: `
             <div class="help-mini-grid">
-              <div class="help-mini-card"><strong>Guided assessment</strong><p>Best for most users. Use it when you need help turning a real situation into a clear scenario and do not already have a structured source document.</p></div>
+              <div class="help-mini-card"><strong>Quick Assessment</strong><p>Best for most users. Use it when you need help turning a real situation into a clear scenario and do not already have a structured source document.</p></div>
               <div class="help-mini-card"><strong>Upload a risk register</strong><p>Use this when you already have existing risks and want the platform to surface candidate scenarios quickly from your own source material.</p></div>
               <div class="help-mini-card"><strong>Preloaded scenarios</strong><p>Use these when you want a faster first pass, a worked example, or a realistic starting structure to adapt.</p></div>
             </div>

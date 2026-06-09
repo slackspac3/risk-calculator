@@ -3814,10 +3814,10 @@ function getStep1GuideRouteModel(activePath = 'guided') {
   const route = activePath === 'draft' || activePath === 'import' ? activePath : 'guided';
   const models = {
     guided: {
-      label: 'Guided start',
+      label: 'Quick start',
       headline: 'Answer two plain-language questions.',
       copy: 'Best when the user knows what happened, but does not know how to write a risk scenario yet.',
-      promise: 'Step 2 will show two fields and one build button.',
+      promise: 'The workbench will show two fields and one build button.',
       outcome: 'First draft built for you',
       steps: ['Describe the event', 'Name the impact', 'Build the draft'],
       intent: 'Lowest effort'
@@ -3826,7 +3826,7 @@ function getStep1GuideRouteModel(activePath = 'guided') {
       label: 'Draft start',
       headline: 'Paste what you already have.',
       copy: 'Best when the user has rough wording from notes, chat, email, or an old assessment.',
-      promise: 'Step 2 will open the draft editor first, with AI refinement available when needed.',
+      promise: 'The workbench will open the draft editor first, with AI refinement available when needed.',
       outcome: 'Your wording cleaned up',
       steps: ['Paste text', 'Tighten wording', 'Build from draft'],
       intent: 'Fastest edit'
@@ -3835,7 +3835,7 @@ function getStep1GuideRouteModel(activePath = 'guided') {
       label: 'Example start',
       headline: 'Start from existing material.',
       copy: 'Best when the user wants to reuse a register entry or load a worked example and adjust it.',
-      promise: 'Step 2 will show the upload and example tools before building the scenario.',
+      promise: 'The workbench will show the upload and example tools before building the scenario.',
       outcome: 'Reusable starting point',
       steps: ['Pick material', 'Review fit', 'Edit into place'],
       intent: 'Reuse work'
@@ -3873,7 +3873,7 @@ function renderStep1GuideRunway({
   const nodes = [
     { label: 'Route', value: routeLabel, state: 'live' },
     { label: 'Signal', value: hasDraftSignal ? 'Loaded' : 'Waiting', state: hasDraftSignal ? 'live' : 'next' },
-    { label: 'Step 2', value: 'Ready', state: 'live' }
+    { label: 'Workbench', value: 'Ready', state: 'live' }
   ];
   return `<div class="step1-guide-runway" aria-label="Selected route runway">
     <div class="step1-guide-runway__head">
@@ -3921,7 +3921,7 @@ function renderStep1GuideRouteDetail({
       </div>
       <div class="step1-guide-route-detail__handoff">
         <span>${hasDraftSignal ? 'Existing signal' : 'Next screen'}</span>
-        <strong>${hasDraftSignal ? 'Resume the intake lane' : 'Step 2 opens ready for this route'}</strong>
+        <strong>${hasDraftSignal ? 'Resume the intake lane' : 'Workbench opens ready for this route'}</strong>
       </div>
       <button class="btn btn--primary btn--lg step1-guide-stage__cta" data-guide-next type="button">${escapeHtml(startButtonLabel)}</button>
     </div>
@@ -3934,7 +3934,7 @@ function renderStep1PathSelector(currentPath = 'guided', options = {}) {
     ? 'Use my own draft'
     : activePath === 'import'
       ? 'Example or register'
-      : 'Guided path';
+      : 'Quick start';
   const cards = getStep1PathCards();
   if (options.layout === 'top') {
     return `<section class="card card--elevated anim-fade-in step1-start-dock">
@@ -5953,16 +5953,16 @@ function renderWizardGuide() {
     || ''
   ).trim() || getRiskCandidates().length > 0;
   const startButtonLabel = hasDraftSignal
-    ? 'Resume Step 2 intake'
-    : 'Continue to Step 2 intake';
+    ? 'Resume assessment workbench'
+    : 'Open assessment workbench';
 
   setPage(`
-    <main class="page" aria-label="Step 1: Assessment guide">
+    <main class="page" aria-label="Advanced assessment start options">
       <div class="wizard-layout wizard-layout--step1 wizard-layout--guide container">
         <section class="wizard-header wizard-header--step1 wizard-header--guide step1-guide-stage step1-guide-stage--${escapeHtml(activePath)}">
           <div class="step1-guide-stage__topline">
             <div>
-              <div class="wizard-summary-band__label">Step 1 of 5</div>
+              <div class="wizard-summary-band__label">Advanced start</div>
               <span data-draft-save-state>Draft saves automatically</span>
             </div>
             <div class="step1-guide-stage__notice">
@@ -5973,8 +5973,8 @@ function renderWizardGuide() {
 
           <div class="step1-guide-stage__hero">
             <div class="step1-guide-stage__copy">
-              <h2 class="wizard-step-title">Choose how to start.</h2>
-              <p class="wizard-step-desc">Pick the option that matches what you have. The next screen changes to that path, and you can switch here with one click before intake.</p>
+              <h2 class="wizard-step-title">Advanced start options.</h2>
+              <p class="wizard-step-desc">Use this screen only when Quick Assessment is not the right start. Pick a lane for an existing draft, register, or worked example.</p>
               ${renderStep1GuideRunway({ activePath, hasDraftSignal })}
             </div>
             ${renderStep1GuideRouteDetail({
@@ -6112,7 +6112,7 @@ function renderWizard1() {
   const basicSupportDisclosureKey = getDisclosureStateKey('/wizard/2', 'basic setup and alternate starts');
   const supportSection = isBasicExperience
     ? `<details id="step1-basic-setup-support" class="wizard-disclosure wizard-disclosure--support step1-basic-support-panel anim-fade-in" data-step1-basic-support="setup" data-disclosure-state-key="${escapeHtml(basicSupportDisclosureKey)}" data-disclosure-default-open="false" ${getDisclosureOpenState(basicSupportDisclosureKey, false) ? 'open' : ''}>
-            <summary>Setup and alternate starts <span class="badge badge--neutral">Optional</span></summary>
+            <summary>Advanced setup and alternate starts <span class="badge badge--neutral">Optional</span></summary>
             <div class="step1-basic-support-panel__intro">Open this only when you need to change the start method${needsContextSetup ? '; business context is now shown above the intake.' : ', business context, geography, or existing material.'}</div>
             <div class="wizard-disclosure-body step1-basic-support-panel__body step1-intake-topline step1-intake-topline--support">
               ${supportMarkup}
@@ -6168,12 +6168,12 @@ function renderWizard1() {
     : null;
 
   setPage(`
-    <main class="page" aria-label="Step 2: Scenario Intake and Context Builder">
+    <main class="page" aria-label="Quick Assessment">
       <div class="wizard-layout wizard-layout--step1 container">
         <div class="wizard-header wizard-header--step1">
-          <div class="wizard-summary-band__label">Scenario intake</div>
-          <h2 class="wizard-step-title">${isBasicExperience ? 'Scenario Intake' : 'Scenario Intake &amp; Context Builder'}</h2>
-          <p class="wizard-step-desc">${isBasicExperience ? 'Answer two plain-language prompts. The platform will build the first draft; setup stays optional unless business context is missing.' : 'This is the action step. Follow the sequence below: describe the event, name the impact, then build the first draft. Supporting setup stays secondary unless you need it.'}</p>
+          <div class="wizard-summary-band__label">${isBasicExperience ? 'Quick assessment' : 'Scenario intake'}</div>
+          <h2 class="wizard-step-title">${isBasicExperience ? 'Quick Assessment' : 'Scenario Intake &amp; Context Builder'}</h2>
+          <p class="wizard-step-desc">${isBasicExperience ? 'Describe the situation and the main impact. The platform builds the first draft; setup stays optional unless business context is missing.' : 'Follow the sequence below: describe the event, name the impact, then build the first draft. Supporting setup stays secondary unless you need it.'}</p>
           <div class="wizard-status-stack">
             <div class="form-help" data-draft-save-state>Draft saves automatically</div>
             ${renderPilotWarningBanner('ai', { compact: true })}
@@ -6212,7 +6212,7 @@ function renderWizard1() {
           ${riskReviewSection}
         </div>
         <div class="step1-sticky-footer ${canContinue ? 'step1-sticky-footer--ready' : 'step1-sticky-footer--blocked'}">
-          <button class="btn btn--primary" id="btn-next-1" ${canContinue ? '' : 'disabled'} aria-disabled="${canContinue ? 'false' : 'true'}">Continue to Step 3 Scenario Review</button>
+          <button class="btn btn--primary" id="btn-next-1" ${canContinue ? '' : 'disabled'} aria-disabled="${canContinue ? 'false' : 'true'}">Continue to Scenario Review</button>
           ${renderStep1ReadinessBanner(draft, selectedRisks)}
         </div>
       </div>

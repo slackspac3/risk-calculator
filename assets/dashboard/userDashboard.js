@@ -967,12 +967,12 @@ function renderUserDashboard() {
     ? 'Resume the live draft'
     : assessmentsNeedingReview.length
       ? 'Review the latest result'
-      : 'Start a guided assessment';
+      : 'Start a quick assessment';
   const roleLaneCopy = hasDraft
     ? 'Continue the active assessment and move it toward a decision-ready result.'
     : assessmentsNeedingReview.length
       ? 'Open the highest-priority completed scenario and confirm the next management action.'
-      : 'Use the guided path to get to a first useful result quickly, then refine only if needed.';
+      : 'Describe the scenario once, let AI build the first draft, then refine only what needs review.';
   const recommendedTemplate = typeof pickScenarioTemplateForContext === 'function'
     ? pickScenarioTemplateForContext({
         functionKey: typeof getStep1ExampleExperienceModel === 'function'
@@ -988,7 +988,7 @@ function renderUserDashboard() {
     ? oversightContextActionLabel
     : queueNeedsAttention
       ? (hasDraft ? 'Resume Review' : (capability.canManageBusinessUnit ? 'Review BU Queue' : 'Review Function Queue'))
-      : 'Start Guided Assessment';
+      : 'Start Quick Assessment';
   const roleFrontDoor = isOversightUser
     ? {
         badge: capability.canManageBusinessUnit ? 'BU Oversight Workspace' : 'Function Oversight Workspace',
@@ -1047,18 +1047,18 @@ function renderUserDashboard() {
       }
     : {
         badge: 'Personal Workspace',
-        heroCopy: 'A calm working space for moving from scenario framing to a decision-ready risk view. Start with the guided path, then open detail only when you need it.',
+        heroCopy: 'A calm working space for moving from scenario framing to a decision-ready risk view. Start with Quick Assessment, then open detail only when you need it.',
         roleLaneCopy,
         quickStatus,
-        primaryActionLabel: 'Start Guided Assessment',
-        heroHint: 'Use the guided path first. Templates, imports, and sample paths are still available when you need them.',
+        primaryActionLabel: 'Start Quick Assessment',
+        heroHint: 'Use Quick Assessment first. Templates, imports, and sample paths stay available as advanced starts.',
         secondaryActionLabel: recommendedTemplate ? 'View Worked Example' : 'Start from Template',
         secondaryActionId: recommendedTemplate ? 'sample' : 'template',
         overviewCards: [
           {
             label: 'Ready now',
             value: openAssessmentRows.length,
-            foot: hasDraft ? 'Your live draft or priority review items are ready to open.' : 'No active draft right now. Start from the guided path when needed.'
+            foot: hasDraft ? 'Your live draft or priority review items are ready to open.' : 'No active draft right now. Start Quick Assessment when needed.'
           },
           {
             label: 'Completed assessments',
@@ -1085,7 +1085,7 @@ function renderUserDashboard() {
   const boardBriefButtonMarkup = hasVisibleBoardBriefAssessments
     ? `<button class="btn btn--secondary btn--lg" id="btn-dashboard-board-brief" aria-label="Generate Board Brief">Generate Board Brief</button>`
     : '';
-  const shouldShowOversightDirectStartAction = isOversightUser && roleFrontDoor.primaryActionLabel !== 'Start Guided Assessment';
+  const shouldShowOversightDirectStartAction = isOversightUser && roleFrontDoor.primaryActionLabel !== 'Start Quick Assessment';
   const boardBriefSupportMarkup = hasVisibleBoardBriefAssessments
     ? `<div class="card card--elevated dashboard-section-card dashboard-section-card--secondary" style="margin-bottom:var(--sp-4)">
         <div class="flex items-center justify-between" style="gap:var(--sp-4);flex-wrap:wrap">
@@ -1103,7 +1103,10 @@ function renderUserDashboard() {
     { label: 'AI path', value: 'Live first' },
     { label: 'Output', value: 'Decision-ready' }
   ];
-  const dashboardAgentStripMarkup = !isOversightUser ? `
+  const showDashboardAgentStrip = !isOversightUser
+    && typeof isAdvancedExperienceMode === 'function'
+    && isAdvancedExperienceMode();
+  const dashboardAgentStripMarkup = showDashboardAgentStrip ? `
     <section class="dashboard-agent-strip dashboard-agent-strip--launcher" aria-label="Featured risk workflows">
       <div class="dashboard-agent-strip__head">
         <div>
@@ -1138,7 +1141,7 @@ function renderUserDashboard() {
             meta: 'Agent 01',
             status: 'Recommended',
             label: 'Assessment flow',
-            title: 'Guided risk builder',
+            title: 'Advanced risk builder',
             copy: 'Answer two prompts, then let AI build the first scenario draft.',
             action: 'Launch'
           },
@@ -1537,7 +1540,7 @@ function renderUserDashboard() {
         title: 'No living register rows yet.',
         body: 'Completed assessments automatically appear here so you can scan posture, next review due, and owner without opening every result.',
         primaryId: 'btn-empty-register-new',
-        primaryLabel: 'Start Guided Assessment',
+        primaryLabel: 'Start Quick Assessment',
         secondaryId: 'btn-empty-register-sample',
         secondaryLabel: 'Try Sample Assessment'
       });
@@ -1573,21 +1576,25 @@ function renderUserDashboard() {
     <div class="dashboard-start-module">
       <div class="dashboard-start-head">
         <div class="context-panel-title">Start a risk scenario</div>
-        <p class="dashboard-start-copy">Guided assessment is recommended for most users. Use register upload when you already have source material, or start from a preloaded scenario when you want a faster first pass.</p>
+        <p class="dashboard-start-copy">Quick Assessment is recommended for most users. Describe the concern once, then review the AI-built first draft.</p>
       </div>
       <div class="dashboard-start-stack">
         <div class="dashboard-start-primary">
           <div class="dashboard-start-primary__content">
-            <div class="dashboard-start-kicker">Recommended path</div>
-            <h3>Guided assessment</h3>
-            <p>Build a risk scenario step by step with AI-assisted guidance, then refine only where needed.</p>
-            <div class="dashboard-start-primary__foot">Best for new scenarios, structured walkthroughs, and decision-ready outputs.</div>
+            <div class="dashboard-start-kicker">Recommended</div>
+            <h3>Quick Assessment</h3>
+            <p>Answer two prompts, build the first scenario draft, and keep setup behind the scenes unless context is missing.</p>
+            <div class="dashboard-start-primary__foot">Best for most new scenarios and first-pass decisions.</div>
           </div>
           <div class="dashboard-start-primary__actions">
-            <button class="btn btn--primary btn--lg" id="btn-dashboard-new-assessment" aria-label="Start Guided Assessment">Start Guided Assessment</button>
-            <span class="dashboard-start-inline-note">AI-assisted wizard</span>
+            <button class="btn btn--primary btn--lg" id="btn-dashboard-new-assessment" aria-label="Start Quick Assessment">Start Quick Assessment</button>
+            <a class="btn btn--ghost btn--sm" href="#/wizard/1">Advanced start</a>
+            <span class="dashboard-start-inline-note">One-screen intake</span>
           </div>
         </div>
+        <details class="dashboard-disclosure dashboard-start-advanced">
+          <summary>Advanced starts <span class="badge badge--neutral">Register, template, sample</span></summary>
+          <div class="dashboard-disclosure-copy">Open these only when you already have source material or want to reuse a known scenario.</div>
           <div class="dashboard-start-secondary-grid">
             <div class="dashboard-start-secondary">
               <div>
@@ -1609,7 +1616,8 @@ function renderUserDashboard() {
               </div>
             </div>
           </div>
-        <div class="dashboard-start-quiet-note">Use the guided path for most new work. Use register upload, templates, or preloaded scenarios only when they match how you are starting. Workspace tools stay lower on the page so they do not compete with the start decision.</div>
+        </details>
+        <div class="dashboard-start-quiet-note">Use Quick Assessment for most new work. Open advanced starts only when they match how you are starting.</div>
       </div>
     </div>` : '';
 
@@ -1635,7 +1643,7 @@ function renderUserDashboard() {
               <div class="dashboard-hero-actions flex items-center gap-3 mt-6" style="flex-wrap:wrap">
                 <button class="btn btn--primary btn--lg" id="btn-dashboard-new-assessment" aria-label="${roleFrontDoor.primaryActionLabel}">${roleFrontDoor.primaryActionLabel}</button>
                 ${shouldShowOversightDirectStartAction
-                  ? '<button class="btn btn--secondary btn--lg" id="btn-dashboard-new-assessment-oversight" aria-label="Start Guided Assessment">Start Guided Assessment</button>'
+                  ? '<button class="btn btn--secondary btn--lg" id="btn-dashboard-new-assessment-oversight" aria-label="Start Quick Assessment">Start Quick Assessment</button>'
                   : ''}
                 ${boardBriefButtonMarkup}
                 ${renderWorkspaceToolsMenu({ includeResumeDraft: hasDraft, includeSettings: true, useSupportIds: false, includeNewAssessment: false })}
@@ -1670,7 +1678,7 @@ function renderUserDashboard() {
                 <div class="form-help" style="margin-top:8px">The queue stays primary, but you can still open the guided builder directly from here when a new issue, escalation, or management question needs its own assessment.</div>
               </div>
               <!-- Give oversight users a full-width secondary work lane instead of a utility-style action row. -->
-              <button class="btn btn--secondary btn--lg" id="btn-dashboard-new-assessment-support" type="button">Start Guided Assessment</button>
+              <button class="btn btn--secondary btn--lg" id="btn-dashboard-new-assessment-support" type="button">Start Quick Assessment</button>
             </div>
           </div>` : ''}
           ${isOversightUser ? '<div id="dashboard-review-inbox-host"></div>' : ''}
@@ -1693,9 +1701,9 @@ function renderUserDashboard() {
               `
             })).join('') : renderDashboardEmptyState({
               title: 'Nothing needs attention right now.',
-              body: 'Start a guided assessment, load the sample path, or use a template when you want a faster first pass.',
+              body: 'Start a quick assessment, load the sample path, or use a template when you want a faster first pass.',
               primaryId: 'btn-empty-next-new',
-              primaryLabel: 'Start Guided Assessment',
+              primaryLabel: 'Start Quick Assessment',
               secondaryId: 'btn-empty-next-sample',
               secondaryLabel: 'Try Sample Assessment'
             })
@@ -1754,9 +1762,9 @@ function renderUserDashboard() {
               <div class="results-section-heading">What you can start next</div>
               <div class="context-panel-copy" style="margin-top:10px">${queueNeedsAttention
                 ? 'Keep new assessments secondary until the active review lane is clear. Start paths stay available here, while workspace tools stay separate.'
-                : 'When the queue is clear and the owned context is current, start a guided assessment only when it will materially improve decision quality.'}</div>
+                : 'When the queue is clear and the owned context is current, start a quick assessment only when it will materially improve decision quality.'}</div>
               <div class="flex items-center gap-3 mt-5" style="flex-wrap:wrap">
-                ${!queueNeedsAttention && !contextNeedsAttention ? '<button type="button" class="btn btn--ghost" id="btn-dashboard-start-next-guided">Start Guided Assessment</button>' : ''}
+                ${!queueNeedsAttention && !contextNeedsAttention ? '<button type="button" class="btn btn--ghost" id="btn-dashboard-start-next-guided">Start Quick Assessment</button>' : ''}
                 <button type="button" class="btn btn--ghost" id="btn-dashboard-start-next-sample">${isOversightUser ? 'View Worked Example' : 'Try Sample Assessment'}</button>
                 <details class="results-actions-disclosure dashboard-hero-overflow">
                   <summary class="btn btn--ghost btn--sm">Other start paths</summary>
@@ -2597,18 +2605,7 @@ function renderUserDashboard() {
 }
 
 function openDraftWorkspaceRoute() {
-  const draft = AppState?.draft && typeof AppState.draft === 'object' ? AppState.draft : {};
-  const hasDraftSignal = !!String(
-    draft.enhancedNarrative
-    || draft.narrative
-    || draft.sourceNarrative
-    || draft.guidedInput?.event
-    || draft.loadedDryRunId
-    || draft.uploadedRegisterName
-    || draft.templateId
-    || ''
-  ).trim() || (Array.isArray(draft.riskCandidates) && draft.riskCandidates.length > 0);
-  const targetRoute = hasDraftSignal ? '/wizard/2' : '/wizard/1';
+  const targetRoute = '/wizard/2';
   Router.navigate(targetRoute);
   if (typeof window !== 'undefined' && window.location.hash !== `#${targetRoute}`) {
     window.location.hash = targetRoute;
