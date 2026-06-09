@@ -6059,6 +6059,20 @@ canvas { display: block; width: 100%; }
   gap: var(--sp-4);
   flex-wrap: wrap;
 }
+.dashboard-start-advanced {
+  padding: var(--sp-4);
+  border: 1px solid rgba(246,243,242,.08);
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(246,243,242,.024), rgba(246,243,242,.01));
+}
+.dashboard-start-advanced > summary {
+  cursor: pointer;
+  color: var(--text-primary);
+  font-weight: 750;
+}
+.dashboard-start-advanced .dashboard-start-secondary-grid {
+  margin-top: var(--sp-4);
+}
 .dashboard-start-inline-note {
   color: rgba(246,243,242,.58);
   font-size: .82rem;

@@ -187,12 +187,12 @@
           <div class="grid-2" style="margin-top:var(--sp-6);align-items:start">
             ${UI.dashboardSectionCard({
               title: 'Assessment workspace',
-              description: 'Start a new guided assessment from here instead of dropping straight into the wizard on login.',
+              description: 'Start a new Quick Assessment from here instead of dropping straight into the full wizard on login.',
               className: 'dashboard-section-card--spotlight',
               body: `
-                <div class="form-help">Use the same guided workflow as end users when you want to model a scenario directly or review the working experience from the front door.</div>
+                <div class="form-help">Use the same quick intake as end users when you want to model a scenario directly or review the working experience from the front door.</div>
                 <div class="flex items-center gap-3" style="flex-wrap:wrap">
-                  <button type="button" class="btn btn--primary" id="btn-admin-home-start-assessment">Start Guided Assessment</button>
+                  <button type="button" class="btn btn--primary" id="btn-admin-home-start-assessment">Start Quick Assessment</button>
                   <a class="btn btn--secondary" href="#/dashboard" id="btn-admin-home-open-workspace">Open User Workspace</a>
                 </div>
               `

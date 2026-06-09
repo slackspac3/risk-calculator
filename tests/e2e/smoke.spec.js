@@ -605,7 +605,7 @@ test('wizard guide path changes keep the start options visible', async ({ page }
     const guideLaneSwitch = () => page.locator('.app-stage-shell.is-current .step1-guide-lane-switch');
     const guideLaneOption = path => page.locator(`.app-stage-shell.is-current .step1-guide-lane-switch [data-path="${path}"]`);
     const guideContinue = () => page.locator('.app-stage-shell.is-current [data-guide-next]');
-    await expect(page.getByRole('heading', { name: /choose how to start/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /advanced start options/i })).toBeVisible();
     await expect(guideLaneSwitch()).toBeVisible();
     await expect(guideContinue()).toHaveCount(1);
     await guideLaneOption('draft').click();
@@ -618,7 +618,7 @@ test('wizard guide path changes keep the start options visible', async ({ page }
     await expect(guideLaneSwitch()).toBeVisible();
     await expect(guideLaneOption('import')).toHaveAttribute('aria-pressed', 'true');
     await expect(guideContinue()).toHaveCount(1);
-    await expect(page.getByRole('heading', { name: /scenario intake/i })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: /quick assessment/i })).toHaveCount(0);
   });
 });
 
@@ -657,7 +657,7 @@ test('wizard intake dry-run examples prefill the scenario and shortlist', async 
   });
 
   await expectNoClientCrashOnRoute(page, '/#/wizard/2', async () => {
-    await expect(page.getByRole('heading', { name: /^scenario intake$/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /^quick assessment$/i }).first()).toBeVisible();
     await openDisclosureIfPresent(page, '#step1-basic-setup-support');
     await expect(page.locator('[data-path="import"]').last()).toBeVisible();
     await page.evaluate(() => {
@@ -667,7 +667,7 @@ test('wizard intake dry-run examples prefill the scenario and shortlist', async 
     await expect(page.getByText(/dry-run example loaded/i)).toBeVisible();
     await expect(page.locator('#intake-risk-statement').last()).toContainText('critical supplier');
     await expect(page.locator('.risk-select-checkbox:checked')).toHaveCount(3);
-    await expect(page.getByRole('button', { name: /continue to step 3 scenario review/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /continue to scenario review/i })).toBeVisible();
   });
 });
 
@@ -712,7 +712,7 @@ test('wizard handoff guidance carries the scenario cleanly into steps 3 and 4', 
     await page.evaluate(() => {
       applyDryRunScenario(STEP1_DRY_RUN_SCENARIOS[0]);
     });
-    await page.getByRole('button', { name: /continue to step 3 scenario review/i }).click();
+    await page.getByRole('button', { name: /continue to scenario review/i }).click();
     await expect(page).toHaveURL(/#\/wizard\/3$/);
     await expect(page.getByRole('heading', { name: /refine the scenario/i })).toBeVisible();
     const step3Workflow = page.locator('.assessment-workflow-strip').first();
@@ -916,10 +916,15 @@ test('authenticated user dashboard renders without crashing', async ({ page }) =
     await expect(page).toHaveURL(/#\/dashboard$/);
     await expect(page.getByText(/personal workspace/i)).toBeVisible();
     await expect(page.locator('#btn-dashboard-new-assessment')).toBeVisible();
-    await expect(page.locator('#btn-dashboard-upload-register')).toBeVisible();
-    await expect(page.locator('#btn-dashboard-start-sample')).toBeVisible();
-    await expect(page.locator('#btn-dashboard-start-template')).toBeVisible();
+    await expect(page.locator('#btn-dashboard-new-assessment')).toHaveText(/start quick assessment/i);
+    await expect(page.locator('.dashboard-start-advanced > summary')).toContainText(/advanced starts/i);
+    await expect(page.locator('#btn-dashboard-upload-register')).toHaveCount(1);
+    await expect(page.locator('#btn-dashboard-start-sample')).toHaveCount(1);
+    await expect(page.locator('#btn-dashboard-start-template')).toHaveCount(1);
     await expect(page.getByText(/workspace tools/i).first()).toBeVisible();
+    await page.locator('#btn-dashboard-new-assessment').click();
+    await expect(page).toHaveURL(/#\/wizard\/2$/);
+    await expect(page.locator('.wizard-step-title').first()).toHaveText(/quick assessment/i);
   });
 });
 
@@ -1293,7 +1298,7 @@ test('function oversight dashboard does not duplicate the guided-start hero CTA 
 
   await expectNoClientCrashOnRoute(page, '/#/dashboard', async () => {
     await expect(page.getByText(/function oversight workspace/i)).toBeVisible();
-    await expect(page.locator('#btn-dashboard-new-assessment')).toHaveText(/start guided assessment/i);
+    await expect(page.locator('#btn-dashboard-new-assessment')).toHaveText(/start quick assessment/i);
     await expect(page.locator('#btn-dashboard-new-assessment-oversight')).toHaveCount(0);
   });
 });
