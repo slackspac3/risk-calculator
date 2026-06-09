@@ -23,25 +23,43 @@
     return 0;
   }
 
+  function isBasicExperienceMode() {
+    if (typeof global.isAdvancedExperienceMode === 'function') {
+      return !global.isAdvancedExperienceMode();
+    }
+    return document.documentElement?.getAttribute('data-experience-mode') === 'basic';
+  }
+
   function buildWizardStepBarMarkup(currentStep) {
-    const steps = [
-      { number: 1, label: 'Guide' },
-      { number: 2, label: 'Intake' },
-      { number: 3, label: 'Scenario' },
-      { number: 4, label: 'Estimate' },
-      { number: 5, label: 'Review & Run' }
-    ];
+    const basicMode = isBasicExperienceMode();
+    const steps = basicMode
+      ? [
+          { number: 1, label: 'Quick Assessment', routeStep: 2 },
+          { number: 2, label: 'Scenario', routeStep: 3 },
+          { number: 3, label: 'Estimate', routeStep: 4 },
+          { number: 4, label: 'Review & Run', routeStep: 5 }
+        ]
+      : [
+          { number: 1, label: 'Guide', routeStep: 1 },
+          { number: 2, label: 'Intake', routeStep: 2 },
+          { number: 3, label: 'Scenario', routeStep: 3 },
+          { number: 4, label: 'Estimate', routeStep: 4 },
+          { number: 5, label: 'Review & Run', routeStep: 5 }
+        ];
+    const activeNumber = basicMode
+      ? Math.max(1, steps.find(step => step.routeStep === currentStep)?.number || 1)
+      : currentStep;
     const getStepClass = (stepNumber) => {
-      if (stepNumber < currentStep) return 'wizard-step wizard-step--complete';
-      if (stepNumber === currentStep) return 'wizard-step wizard-step--active';
+      if (stepNumber < activeNumber) return 'wizard-step wizard-step--complete';
+      if (stepNumber === activeNumber) return 'wizard-step wizard-step--active';
       return 'wizard-step';
     };
-    const activeStep = steps.find(step => step.number === currentStep) || steps[0];
+    const activeStep = steps.find(step => step.number === activeNumber) || steps[0];
     return `<nav class="wizard-step-bar" aria-label="Assessment progress">
       <div class="wizard-step-bar__inner">
         <div class="wizard-step-bar__intro">
           <div class="wizard-step-bar__eyebrow">Assessment flow</div>
-          <div class="wizard-step-bar__headline">Step ${activeStep.number} of ${steps.length} · ${activeStep.label}</div>
+          <div class="wizard-step-bar__headline">${basicMode ? activeStep.label : `Step ${activeStep.number} of ${steps.length} · ${activeStep.label}`}</div>
         </div>
         <div class="wizard-step-track">
           ${steps.map((step, index) => `
