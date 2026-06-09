@@ -111,7 +111,7 @@ test('scenario-draft route returns manual mode for incomplete scenario input bef
   assert.equal(String(res.payload.manualReasonCode || ''), 'incomplete_scenario_input');
   assert.match(String(res.payload.manualReasonMessage || ''), /State what happened or could happen in one plain sentence/i);
   assert.match(String((res.payload.workflowGuidance || [])[0] || ''), /State what happened or could happen/i);
-  assert.equal(String(res.payload.trace?.label || ''), 'Step 1 guided draft');
+  assert.equal(String(res.payload.trace?.label || ''), 'Step 2 guided draft');
 });
 
 test('scenario-draft route returns deterministic server fallback when hosted AI proxy is not configured', async () => {
@@ -155,7 +155,7 @@ test('scenario-draft route returns deterministic server fallback when hosted AI 
   assert.equal(res.payload.aiUnavailable, true);
   assert.equal(res.payload.draftNarrativeSource, 'fallback');
   assert.equal(typeof res.payload.draftNarrative, 'string');
-  assert.equal(String(res.payload.trace?.label || ''), 'Step 1 guided draft');
+  assert.equal(String(res.payload.trace?.label || ''), 'Step 2 guided draft');
 });
 
 test('scenario-draft route keeps no-DR Outlook continuity scenarios out of cyber, AI, and fraud drift in deterministic fallback', async () => {
@@ -416,7 +416,7 @@ test('scenario-draft route keeps supplier labour fallback in the ESG lane instea
   assert.doesNotMatch(titles, /responsible ai|cyber compromise|payment fraud/i);
 });
 
-test('scenario-draft route orchestrates live generation and quality-gate server-side for Step 1 guided draft', async () => {
+test('scenario-draft route orchestrates live generation and quality-gate server-side for Step 2 guided draft', async () => {
   process.env.ALLOWED_ORIGIN = 'https://slackspac3.github.io';
   process.env.SESSION_SIGNING_SECRET = 'test-signing-secret';
   process.env.KV_REST_API_URL = 'https://example.test/kv';
@@ -496,7 +496,7 @@ test('scenario-draft route orchestrates live generation and quality-gate server-
         event: 'Azure global admin credentials found on the dark web.',
         impact: 'Control disruption and fraud exposure'
       },
-      traceLabel: 'Step 1 guided draft'
+      traceLabel: 'Step 2 guided draft'
     }),
     headers: {
       origin: 'https://slackspac3.github.io',
@@ -511,7 +511,7 @@ test('scenario-draft route orchestrates live generation and quality-gate server-
   assert.equal(res.payload.aiUnavailable, false);
   assert.equal(res.payload.scenarioLens?.key, 'identity');
   assert.match(String(res.payload.draftNarrative || ''), /global admin credentials/i);
-  assert.equal(String(res.payload.trace?.label || ''), 'Step 1 guided draft');
+  assert.equal(String(res.payload.trace?.label || ''), 'Step 2 guided draft');
 });
 
 test('scenario-draft route sends preserve-details anchors and compact context to the hosted AI prompt', async () => {
@@ -745,7 +745,7 @@ test('scenario-draft route repairs an off-lane live shortlist so it stays aligne
         event: 'Azure global admin credentials found on the dark web.',
         impact: 'Control disruption and fraud exposure'
       },
-      traceLabel: 'Step 1 guided draft'
+      traceLabel: 'Step 2 guided draft'
     }),
     headers: {
       origin: 'https://slackspac3.github.io',
@@ -956,7 +956,7 @@ test('scenario-draft route reuses identical in-flight work for simultaneous requ
       guidedInput: {
         event: 'Azure global admin credentials found on the dark web.'
       },
-      traceLabel: 'Step 1 guided draft'
+      traceLabel: 'Step 2 guided draft'
     }),
     headers: {
       origin: 'https://slackspac3.github.io',

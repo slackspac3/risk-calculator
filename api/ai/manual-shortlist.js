@@ -99,7 +99,7 @@ module.exports = async function handler(req, res) {
       ...normalisedInput,
       session
     }, {
-      traceLabelDefault: 'Step 1 manual shortlist'
+      traceLabelDefault: 'Step 2 manual shortlist'
     })
   }));
   res.status(200).json(result);

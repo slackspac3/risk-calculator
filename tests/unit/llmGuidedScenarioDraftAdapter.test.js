@@ -26,7 +26,7 @@ test('buildGuidedScenarioDraft uses the server scenario-draft endpoint and store
             secondaryKeys: []
           },
           trace: {
-            label: 'Step 1 guided draft',
+            label: 'Step 2 guided draft',
             promptSummary: 'Server prompt summary',
             response: 'Server returned guided draft',
             sources: [
@@ -76,7 +76,7 @@ test('buildGuidedScenarioDraft uses the server scenario-draft endpoint and store
       { role: ' user ', content: '  First prompt  ', debug: 'drop-me' },
       { role: 'assistant', content: '   ' }
     ],
-    traceLabel: ' Step 1 guided draft '
+    traceLabel: ' Step 2 guided draft '
   });
 
   assert.equal(fetchCalls.length, 1);
@@ -107,10 +107,10 @@ test('buildGuidedScenarioDraft uses the server scenario-draft endpoint and store
     }
   });
   assert.deepEqual(requestBody.priorMessages, [{ role: 'user', content: 'First prompt' }]);
-  assert.equal(requestBody.traceLabel, 'Step 1 guided draft');
+  assert.equal(requestBody.traceLabel, 'Step 2 guided draft');
   assert.equal(result.mode, 'live');
   assert.equal(result.scenarioLens?.key, 'identity');
-  assert.equal(service.getLatestTrace('Step 1 guided draft')?.response, 'Server returned guided draft');
+  assert.equal(service.getLatestTrace('Step 2 guided draft')?.response, 'Server returned guided draft');
 });
 
 test('buildGuidedScenarioDraft still uses the server scenario-draft endpoint even when local-dev direct Compass config is enabled', async () => {

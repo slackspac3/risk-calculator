@@ -569,6 +569,11 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
     let uploadedText = '';
     if (file) {
       const parsed = await parseRegisterFile(file);
+      if (typeof isLimitedDocumentExtraction === 'function' && isLimitedDocumentExtraction(parsed, getFileExtension(file.name))) {
+        throw new Error(typeof documentExtractionFailureMessage === 'function'
+          ? documentExtractionFailureMessage(file.name)
+          : 'The uploaded file could not be read well enough. Export it to TXT, CSV, Markdown, or paste the text.');
+      }
       if (looksLikeBinaryRegister(parsed.text) && !['xlsx', 'xls'].includes(getFileExtension(file.name))) {
         throw new Error('The uploaded file appears unreadable. Please use Excel, TXT, CSV, TSV, JSON, or Markdown.');
       }
@@ -894,7 +899,7 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
         5000
       );
     } catch (error) {
-      UI.toast('Company context build failed. Try again or shorten the source material.', 'danger', 6000);
+      UI.toast(error?.message || 'Company context build failed. Try again or shorten the source material.', 'danger', 6000);
     } finally {
       btn.disabled = false;
       btn.textContent = 'Build from Website';
@@ -960,8 +965,9 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
         5000
       );
     } catch (error) {
-      UI.toast('Company context refinement failed. Try again or shorten the prompt.', 'danger', 6000);
-      if (companyRefineStatusEl) companyRefineStatusEl.textContent = 'Company context refinement failed. Try again or shorten the prompt.';
+      const message = error?.message || 'Company context refinement failed. Try again or shorten the prompt.';
+      UI.toast(message, 'danger', 6000);
+      if (companyRefineStatusEl) companyRefineStatusEl.textContent = message;
     } finally {
       btn.disabled = false;
       btn.textContent = 'Apply Follow-Up Now';
@@ -997,7 +1003,7 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
         5000
       );
     } catch (error) {
-      UI.toast('AI assist failed. Try again in a moment.', 'danger', 6000);
+      UI.toast(error?.message || 'AI assist failed. Try again in a moment.', 'danger', 6000);
     } finally {
       btn.disabled = false;
       btn.textContent = 'AI Assist Role Context';
@@ -1030,7 +1036,7 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
         5000
       );
     } catch (error) {
-      UI.toast('AI assist failed. Try again in a moment.', 'danger', 6000);
+      UI.toast(error?.message || 'AI assist failed. Try again in a moment.', 'danger', 6000);
     } finally {
       btn.disabled = false;
       btn.textContent = 'AI Assist Personal Defaults';

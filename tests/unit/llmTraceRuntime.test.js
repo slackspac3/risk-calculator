@@ -40,7 +40,7 @@ function loadTraceRuntime() {
 test('AI traces stay in runtime memory and do not require browser storage', () => {
   const { service, internals } = loadTraceRuntime();
   const traceEntry = internals._storeAiTraceEntry({
-    label: 'Step 1 guided draft',
+    label: 'Step 2 guided draft',
     promptSummary: 'System: classify the scenario.\n\nUser: Azure admin credentials found on the dark web.',
     response: 'High-urgency Cyber scenario: Privileged credentials are actively exposed.',
     sources: [
@@ -55,6 +55,6 @@ test('AI traces stay in runtime memory and do not require browser storage', () =
 
   assert.equal(typeof traceEntry?.id, 'string');
   assert.equal(internals._readAiTrace().length, 1);
-  assert.deepEqual(service.getLatestTrace('Step 1 guided draft'), traceEntry);
+  assert.deepEqual(service.getLatestTrace('Step 2 guided draft'), traceEntry);
   assert.equal(service.getLatestTrace('Missing trace'), null);
 });

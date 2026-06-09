@@ -216,6 +216,14 @@ function renderUserOnboarding(existingSettings = getUserSettings(), startStep = 
         let uploadedText = '';
         if (file) {
           const parsed = await parseRegisterFile(file);
+          if (typeof isLimitedDocumentExtraction === 'function' && isLimitedDocumentExtraction(parsed, getFileExtension(file.name))) {
+            const message = typeof documentExtractionFailureMessage === 'function'
+              ? documentExtractionFailureMessage(file.name)
+              : 'The uploaded file could not be read well enough. Export it to TXT, CSV, Markdown, or paste the text.';
+            const help = document.getElementById('onboard-answer-file-help');
+            if (help) help.textContent = message;
+            throw new Error(message);
+          }
           uploadedText = parsed.text || '';
           onboardingAiSourceText = uploadedText;
           onboardingAiSourceName = file.name;
@@ -274,7 +282,7 @@ function renderUserOnboarding(existingSettings = getUserSettings(), startStep = 
             degraded ? 'warning' : 'success'
           );
         } catch (error) {
-          UI.toast('AI assist failed. Try again in a moment.', 'danger');
+          UI.toast(error?.message || 'AI assist failed. Try again in a moment.', 'danger');
         } finally {
           btn.disabled = false;
           btn.textContent = 'AI Assist This Step';

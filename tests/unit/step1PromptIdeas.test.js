@@ -889,7 +889,7 @@ test('manual scenario rewrite clears stale step 1 llm context', () => {
   assert.deepEqual(Array.from(internals.appState.draft.step1LlmContext || []), []);
 });
 
-test('resetStep1LiveAssistState clears cached live Step 1 prompt ideas for a new assessment', () => {
+test('resetStep1LiveAssistState clears cached live Step 2 prompt ideas for a new assessment', () => {
   const internals = loadStep1Internals();
   internals.appState.draft.step1Path = 'guided';
   internals.appState.draft.guidedInput = {

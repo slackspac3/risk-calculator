@@ -99,7 +99,7 @@ module.exports = async function handler(req, res) {
       ...normalisedInput,
       session
     }, {
-      traceLabelDefault: 'Step 1 narrative refinement'
+      traceLabelDefault: 'Step 2 narrative refinement'
     })
   }));
   res.status(200).json(result);

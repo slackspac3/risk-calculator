@@ -311,7 +311,7 @@ function toRegisterAnalysisQualityCandidate(candidate = {}) {
   };
 }
 
-function buildFallbackRegisterResult(input = {}, { aiUnavailable = false, fallbackReason = null, feedbackProfile = null, traceLabel = 'Step 1 register analysis' } = {}) {
+function buildFallbackRegisterResult(input = {}, { aiUnavailable = false, fallbackReason = null, feedbackProfile = null, traceLabel = 'Step 2 register analysis' } = {}) {
   const evidenceMeta = buildEvidenceMeta({
     citations: input.citations || [],
     businessUnit: input.businessUnit,
@@ -355,7 +355,7 @@ function buildFallbackRegisterResult(input = {}, { aiUnavailable = false, fallba
     },
     aiUnavailable,
     traceLabel,
-    promptSummary: 'Server deterministic fallback used for Step 1 register analysis.',
+    promptSummary: 'Server deterministic fallback used for Step 2 register analysis.',
     response: risks.map((risk) => risk.title).join('\n'),
     sources: input.citations || [],
     evidenceMeta,
@@ -403,7 +403,7 @@ const REGISTER_ANALYSIS_TIMEOUTS = buildWorkflowTimeoutProfile({
   qualityRepairMs: 10000
 });
 
-function buildManualRegisterAnalysisResult(input = {}, { traceLabel = 'Step 1 register analysis' } = {}) {
+function buildManualRegisterAnalysisResult(input = {}, { traceLabel = 'Step 2 register analysis' } = {}) {
   const evidenceMeta = buildEvidenceMeta({
     citations: input.citations || [],
     businessUnit: input.businessUnit,
@@ -434,7 +434,7 @@ function buildManualRegisterAnalysisResult(input = {}, { traceLabel = 'Step 1 re
       message: 'Add usable risk rows or paste cleaner TXT or CSV content before asking the server to analyse the register.'
     },
     traceLabel,
-    promptSummary: 'Server manual mode used for Step 1 register analysis because the upload did not contain usable risk rows.',
+    promptSummary: 'Server manual mode used for Step 2 register analysis because the upload did not contain usable risk rows.',
     response: 'The register-analysis step stayed in manual mode because the uploaded content was incomplete.',
     sources: input.citations || [],
     evidenceMeta,
@@ -444,7 +444,7 @@ function buildManualRegisterAnalysisResult(input = {}, { traceLabel = 'Step 1 re
 
 async function buildRegisterAnalysisWorkflow(input = {}) {
   input = normaliseRegisterAnalysisInput(input);
-  const traceLabel = sanitizeAiText(input.traceLabel || 'Step 1 register analysis', { maxChars: 120 }) || 'Step 1 register analysis';
+  const traceLabel = sanitizeAiText(input.traceLabel || 'Step 2 register analysis', { maxChars: 120 }) || 'Step 2 register analysis';
   if (!hasMeaningfulRegisterContent(input)) {
     return buildManualRegisterAnalysisResult(input, { traceLabel });
   }

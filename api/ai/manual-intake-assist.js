@@ -99,7 +99,7 @@ module.exports = async function handler(req, res) {
       ...normalisedInput,
       session
     }, {
-      traceLabelDefault: 'Step 1 intake assist'
+      traceLabelDefault: 'Step 2 intake assist'
     })
   }));
   res.status(200).json(result);

@@ -4279,7 +4279,7 @@ ${schema}`;
         maxPromptChars: 12000,
         maxCompletionTokens: 300,
         priorMessages: Array.isArray(input?.priorMessages) ? input.priorMessages : [],
-        traceLabel: input.traceLabel || 'Step 1 prompt ideas'
+        traceLabel: input.traceLabel || 'Step 2 prompt ideas'
       });
       if (!raw) {
         return buildFallbackResult();

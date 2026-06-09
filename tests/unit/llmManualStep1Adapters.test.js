@@ -18,7 +18,7 @@ test('buildManualDraftRefinement uses the server manual-draft-refinement endpoin
         json: async () => ({
           mode: 'live',
           scenarioLens: { key: 'cyber', label: 'Cyber', functionKey: 'technology' },
-          trace: { label: 'Step 1 narrative refinement', response: 'refined' }
+          trace: { label: 'Step 2 narrative refinement', response: 'refined' }
         })
       };
     }
@@ -59,7 +59,7 @@ test('buildManualIntakeAssist uses the server manual-intake-assist endpoint and 
     riskStatement: '  Key supplier misses a committed delivery date, delaying infrastructure deployment. ',
     registerText: '  Row 1\n\n  Row 2  ',
     registerMeta: { type: ' XLSX ', extension: ' XLSX ', debug: 'drop-me' },
-    traceLabel: ' Step 1 intake assist '
+    traceLabel: ' Step 2 intake assist '
   });
 
   assert.equal(fetchCalls.length, 1);
@@ -68,7 +68,7 @@ test('buildManualIntakeAssist uses the server manual-intake-assist endpoint and 
   assert.equal(requestBody.riskStatement, 'Key supplier misses a committed delivery date, delaying infrastructure deployment.');
   assert.equal(requestBody.registerText, 'Row 1\n\nRow 2');
   assert.deepEqual(requestBody.registerMeta, { type: 'xlsx', extension: 'xlsx' });
-  assert.equal(requestBody.traceLabel, 'Step 1 intake assist');
+  assert.equal(requestBody.traceLabel, 'Step 2 intake assist');
 });
 
 test('buildManualShortlist still uses the server manual-shortlist endpoint when direct Compass config is enabled locally', async () => {

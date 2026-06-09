@@ -87,7 +87,7 @@ test('logout clears session-scoped trust and preview state without removing unre
       rq_results_tab__alex: 'technical',
       'rq_boardroom__assessment-1': '1',
       rq_admin_workspace_preview: '1',
-      rip_ai_trace: JSON.stringify([{ taskName: 'Step 1 guided draft' }]),
+      rip_ai_trace: JSON.stringify([{ taskName: 'Step 2 guided draft' }]),
       rip_flags_generated: JSON.stringify({ alex: ['flag-1'] }),
       rip_flags_session_id: 'session-1',
       rip_rag_warned: '1',

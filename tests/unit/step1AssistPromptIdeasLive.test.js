@@ -97,7 +97,7 @@ test('guided prompt ideas use the live helper path when it returns a live result
 
   assert.equal(harness.capturedRequests.length, 1);
   assert.equal(harness.capturedRequests[0].businessUnit?.id, 'bu-1');
-  assert.equal(harness.capturedRequests[0].traceLabel, 'Step 1 prompt ideas');
+  assert.equal(harness.capturedRequests[0].traceLabel, 'Step 2 prompt ideas');
   assert.deepEqual(JSON.parse(JSON.stringify(result)), {
     ideas: [{ label: 'AI suggestion', prompt: 'A live AI prompt idea.' }],
     recommendedLens: { key: 'cyber', label: 'Cyber', functionKey: 'technology' },

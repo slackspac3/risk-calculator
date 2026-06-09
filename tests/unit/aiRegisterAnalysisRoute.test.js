@@ -109,7 +109,7 @@ test('register-analysis route returns manual mode for header-only uploads before
   assert.equal(res.payload.aiUnavailable, false);
   assert.deepEqual(res.payload.risks, []);
   assert.equal(String(res.payload.manualReasonCode || ''), 'incomplete_register_input');
-  assert.equal(String(res.payload.trace?.label || ''), 'Step 1 register analysis');
+  assert.equal(String(res.payload.trace?.label || ''), 'Step 2 register analysis');
 });
 
 test('register-analysis route returns deterministic server fallback when hosted AI proxy is not configured', async () => {
@@ -153,7 +153,7 @@ test('register-analysis route returns deterministic server fallback when hosted 
   assert.equal(res.payload.aiUnavailable, true);
   assert.equal(String(res.payload.fallbackReasonTitle || ''), 'Deterministic fallback register analysis loaded');
   assert.equal(Array.isArray(res.payload.risks), true);
-  assert.equal(String(res.payload.trace?.label || ''), 'Step 1 register analysis');
+  assert.equal(String(res.payload.trace?.label || ''), 'Step 2 register analysis');
 });
 
 test('register-analysis route orchestrates live extraction and quality-gate server-side', async () => {
@@ -229,7 +229,7 @@ test('register-analysis route orchestrates live extraction and quality-gate serv
         extension: 'csv',
         sheets: [{ sheetName: 'Risk Register', rowCount: 2 }]
       },
-      traceLabel: 'Step 1 register analysis'
+      traceLabel: 'Step 2 register analysis'
     }),
     headers: {
       origin: 'https://slackspac3.github.io',
@@ -245,7 +245,7 @@ test('register-analysis route orchestrates live extraction and quality-gate serv
   assert.equal(Array.isArray(res.payload.risks), true);
   assert.equal(res.payload.risks.length >= 1, true);
   assert.match(String(res.payload.summary || ''), /uploaded register/i);
-  assert.equal(String(res.payload.trace?.label || ''), 'Step 1 register analysis');
+  assert.equal(String(res.payload.trace?.label || ''), 'Step 2 register analysis');
 });
 
 test('register-analysis route trims repeated headers, noisy columns, and excess rows before the upstream AI call', async () => {
@@ -402,7 +402,7 @@ test('register-analysis route reuses the recent identical result for the same us
         extension: 'csv',
         sheets: [{ sheetName: 'Risk Register', rowCount: 1 }]
       },
-      traceLabel: 'Step 1 register analysis'
+      traceLabel: 'Step 2 register analysis'
     }),
     headers: {
       origin: 'https://slackspac3.github.io',

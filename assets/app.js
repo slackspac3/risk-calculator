@@ -8,11 +8,11 @@
 const TOLERANCE_THRESHOLD = 5_000_000;
 const DEFAULT_FX_RATE = 3.6725;
 const DEFAULT_COMPASS_PROXY_URL = resolveCompassProxyUrl();
-const APP_ASSET_VERSION = '20260426v14';
+const APP_ASSET_VERSION = '20260609v1';
 const APP_RELEASE = Object.freeze((typeof window !== 'undefined' && window.__RISK_CALCULATOR_RELEASE__) || {
   version: '0.10.0-pilot.1',
   channel: 'pilot',
-  build: '2026-03-29-roi1',
+  build: '2026-06-09-cleanup1',
   assetVersion: APP_ASSET_VERSION,
   apiOrigin: globalThis?.ApiOriginResolver ? globalThis.ApiOriginResolver.DEFAULT_API_ORIGIN : ''
 });
@@ -6193,7 +6193,7 @@ function openOrgEntityEditor({ structure = [], existingNode = null, seed = {}, o
           5000
         );
       } catch (error) {
-        UI.toast('Context build failed. Try again or shorten the source material.', 'danger', 6000);
+        UI.toast(error?.message || 'Context build failed. Try again or shorten the source material.', 'danger', 6000);
       } finally {
         btn.disabled = false;
         btn.textContent = 'AI Assist Context';
@@ -6259,8 +6259,9 @@ function openOrgEntityEditor({ structure = [], existingNode = null, seed = {}, o
           5000
         );
       } catch (error) {
-        UI.toast('Company context build failed. Try again or shorten the source material.', 'danger', 6000);
-        if (contextRefineStatusEl) contextRefineStatusEl.textContent = 'Company context build failed. Try again or shorten the source material.';
+        const message = error?.message || 'Company context build failed. Try again or shorten the source material.';
+        UI.toast(message, 'danger', 6000);
+        if (contextRefineStatusEl) contextRefineStatusEl.textContent = message;
       } finally {
         btn.disabled = false;
         btn.textContent = 'Build Context from Website';
@@ -6402,8 +6403,9 @@ function openOrgEntityEditor({ structure = [], existingNode = null, seed = {}, o
       renderOrgContextRefinementHistory();
       if (contextFollowupEl) contextFollowupEl.value = '';
     } catch (error) {
-      UI.toast('Context refinement failed. Try again or shorten the prompt.', 'danger', 6000);
-      if (contextRefineStatusEl) contextRefineStatusEl.textContent = 'Context refinement failed. Try again or shorten the prompt.';
+      const message = error?.message || 'Context refinement failed. Try again or shorten the prompt.';
+      UI.toast(message, 'danger', 6000);
+      if (contextRefineStatusEl) contextRefineStatusEl.textContent = message;
     } finally {
       btn.disabled = false;
       btn.textContent = 'Apply Follow-Up Now';
@@ -6763,7 +6765,7 @@ function openEntityContextLayerEditor({ entity, settings = getAdminSettings(), o
         5000
       );
     } catch (error) {
-      UI.toast('Context build failed. Try again or shorten the source material.', 'danger', 6000);
+      UI.toast(error?.message || 'Context build failed. Try again or shorten the source material.', 'danger', 6000);
     } finally {
       btn.disabled = false;
       btn.textContent = 'Build with AI';
@@ -6832,8 +6834,9 @@ function openEntityContextLayerEditor({ entity, settings = getAdminSettings(), o
         5000
       );
     } catch (error) {
-      UI.toast('Context refinement failed. Try again or shorten the prompt.', 'danger', 6000);
-      if (refineStatusEl) refineStatusEl.textContent = 'Context refinement failed. Try again or shorten the prompt.';
+      const message = error?.message || 'Context refinement failed. Try again or shorten the prompt.';
+      UI.toast(message, 'danger', 6000);
+      if (refineStatusEl) refineStatusEl.textContent = message;
     } finally {
       btn.disabled = false;
       btn.textContent = 'Apply Follow-Up Now';
@@ -9048,6 +9051,27 @@ function extractTextFromBinaryDocument(buffer) {
   return textChunks.join('\n').replace(/\s+/g, ' ').trim();
 }
 
+function hasUsableExtractedDocumentText(value = '', { minChars = 80 } = {}) {
+  const text = String(value || '').replace(/\s+/g, ' ').trim();
+  if (text.length < minChars) return false;
+  const letterCount = (text.match(/[A-Za-z]/g) || []).length;
+  const replacementCount = (text.match(/\uFFFD/g) || []).length;
+  return letterCount >= 24 && letterCount / text.length >= 0.18 && replacementCount <= 2;
+}
+
+function isLimitedDocumentExtraction(parsed = {}, ext = '') {
+  const meta = parsed?.meta || {};
+  const extension = String(ext || meta.extension || '').toLowerCase();
+  const isDocument = meta.type === 'document' || ['pdf', 'doc', 'docx'].includes(extension);
+  if (!isDocument) return false;
+  if (meta.extractionStatus === 'limited_browser_extraction') return true;
+  return !hasUsableExtractedDocumentText(parsed.text || '', { minChars: 80 });
+}
+
+function documentExtractionFailureMessage(fileName = 'this file') {
+  return `${fileName} could not be read well enough in the browser. Export the relevant content to TXT, CSV, Markdown, or paste the text before using it for AI grounding.`;
+}
+
 async function parseRegisterFile(file) {
   if (Number(file?.size || 0) > MAX_AI_UPLOAD_BYTES) {
     throw new Error('The uploaded file is too large for pilot AI assist. Keep files under 5 MB.');
@@ -9101,13 +9125,17 @@ async function parseRegisterFile(file) {
   if (ext === 'pdf' || ext === 'doc' || ext === 'docx') {
     const buffer = await file.arrayBuffer();
     const extracted = extractTextFromBinaryDocument(buffer);
+    const text = sanitizeAiUploadText(extracted);
+    const readable = hasUsableExtractedDocumentText(text, { minChars: 80 });
     return {
-      text: sanitizeAiUploadText(extracted || `${file.name} was uploaded, but only limited text could be extracted in the browser.`),
+      text,
       meta: {
         type: 'document',
         extension: ext,
+        extractionStatus: readable ? 'browser_extracted' : 'limited_browser_extraction',
+        extractedCharCount: text.length,
         sheetCount: 1,
-        sheets: [{ sheetName: file.name, rowCount: extracted ? extracted.split(/\r?\n/).length : 0 }]
+        sheets: [{ sheetName: file.name, rowCount: text ? text.split(/\r?\n/).length : 0 }]
       }
     };
   }
@@ -9146,10 +9174,15 @@ async function loadContextSupportSource(fileInputId, helpId) {
   }
   const parsed = await parseRegisterFile(file);
   const ext = getFileExtension(file.name);
+  if (isLimitedDocumentExtraction(parsed, ext)) {
+    const message = documentExtractionFailureMessage(file.name);
+    if (helpEl) helpEl.textContent = message;
+    throw new Error(message);
+  }
   if (looksLikeBinaryRegister(parsed.text) && !['xlsx', 'xls', 'pdf', 'doc', 'docx'].includes(ext)) {
     throw new Error('The uploaded file appears unreadable. Use PDF, DOC, DOCX, Excel, TXT, CSV, TSV, JSON, or Markdown.');
   }
-  if (helpEl) helpEl.textContent = `Loaded ${file.name}. The AI will use it to build and refine this context.`;
+  if (helpEl) helpEl.textContent = `Loaded ${file.name}. The AI will use the extracted text; the raw file stays in this browser.`;
   return { text: parsed.text || '', name: file.name };
 }
 

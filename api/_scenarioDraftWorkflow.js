@@ -2598,7 +2598,7 @@ function buildAiAlignment(input = {}, result = {}, {
   };
 }
 
-function buildServerFallbackResult(input = {}, { aiUnavailable = false, feedbackProfile = null, traceLabel = 'Step 1 guided draft' } = {}) {
+function buildServerFallbackResult(input = {}, { aiUnavailable = false, feedbackProfile = null, traceLabel = 'Step 2 guided draft' } = {}) {
   const seedNarrative = cleanUserFacingText(cleanScenarioSeed(input.riskStatement || ''), { maxSentences: 5 });
   const classification = classifyScenario(seedNarrative, {
     guidedInput: input.guidedInput,
@@ -2643,7 +2643,7 @@ function buildServerFallbackResult(input = {}, { aiUnavailable = false, feedback
         'Keep only the risks that clearly belong in the same event path and business consequence chain.',
         'Challenge any assumption that does not fit the business context or known incident history.'
       ],
-      benchmarkBasis: 'This Step 1 draft is in deterministic server fallback mode. Treat it as a bounded working draft until live AI is available again.',
+      benchmarkBasis: 'This Step 2 draft is in deterministic server fallback mode. Treat it as a bounded working draft until live AI is available again.',
       scenarioLens: buildScenarioLens(classification),
       structuredScenario: buildStructuredScenario(input, classification),
       risks: shortlistCoherence.risks,
@@ -2652,7 +2652,7 @@ function buildServerFallbackResult(input = {}, { aiUnavailable = false, feedback
     },
     aiUnavailable,
     traceLabel,
-    promptSummary: 'Server deterministic fallback used for Step 1 guided draft.',
+    promptSummary: 'Server deterministic fallback used for Step 2 guided draft.',
     response: fallbackScenarioExpansion.scenarioExpansion,
     sources: input.citations || [],
     evidenceMeta,
@@ -2791,7 +2791,7 @@ function hasMeaningfulScenarioDraftInput(input = {}) {
   return !!text && ((text.length >= 10 && tokens >= 2) || tokens >= 3);
 }
 
-function buildManualScenarioDraftResult(input = {}, { traceLabel = 'Step 1 guided draft' } = {}) {
+function buildManualScenarioDraftResult(input = {}, { traceLabel = 'Step 2 guided draft' } = {}) {
   const seedNarrative = buildScenarioDraftValidationText(input);
   const classification = classifyScenario(seedNarrative, {
     guidedInput: input.guidedInput,
@@ -2835,7 +2835,7 @@ function buildManualScenarioDraftResult(input = {}, { traceLabel = 'Step 1 guide
       message: missingDetailPlan.reasonMessage
     },
     traceLabel,
-    promptSummary: 'Server manual mode used for Step 1 guided draft because the input was too short or incomplete.',
+    promptSummary: 'Server manual mode used for Step 2 guided draft because the input was too short or incomplete.',
     response: 'The guided draft stayed in manual mode because the scenario input was incomplete.',
     sources: input.citations || [],
     evidenceMeta,
@@ -2874,7 +2874,7 @@ const SCENARIO_DRAFT_TIMEOUTS = buildWorkflowTimeoutProfile({
 
 async function buildGuidedScenarioDraftWorkflow(input = {}) {
   input = normaliseGuidedScenarioDraftInput(input);
-  const traceLabel = sanitizeAiText(input.traceLabel || 'Step 1 guided draft', { maxChars: 120 }) || 'Step 1 guided draft';
+  const traceLabel = sanitizeAiText(input.traceLabel || 'Step 2 guided draft', { maxChars: 120 }) || 'Step 2 guided draft';
   if (!hasMeaningfulScenarioDraftInput(input)) {
     return buildManualScenarioDraftResult(input, { traceLabel });
   }

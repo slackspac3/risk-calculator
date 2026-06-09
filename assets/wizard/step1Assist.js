@@ -3,11 +3,11 @@
 
   const draftScenarioState = global.DraftScenarioState;
   const STEP1_TRACE_LABELS = {
-    guidedDraft: 'Step 1 guided draft',
-    promptIdeas: 'Step 1 prompt ideas',
-    intakeAssist: 'Step 1 intake assist',
-    narrativeRefinement: 'Step 1 narrative refinement',
-    registerAnalysis: 'Step 1 register analysis'
+    guidedDraft: 'Step 2 guided draft',
+    promptIdeas: 'Step 2 prompt ideas',
+    intakeAssist: 'Step 2 intake assist',
+    narrativeRefinement: 'Step 2 narrative refinement',
+    registerAnalysis: 'Step 2 register analysis'
   };
   const STEP1_AI_ACTION_COOLDOWN_MS = 4000;
   const _step1AiActionCooldowns = typeof AiWorkflowClient !== 'undefined' && AiWorkflowClient && typeof AiWorkflowClient.createActionCooldownStore === 'function'
@@ -502,7 +502,7 @@
     const localDraft = String(input?.riskStatement || '').trim()
       || composeStep1GuidedNarrative(guidedInput, getEffectiveSettings(), AppState.draft);
     if (!localDraft) return null;
-    // Guided preview is intentionally local-only. The authoritative Step 1 intelligence
+    // Guided preview is intentionally local-only. The authoritative Step 2 intelligence
     // comes from the explicit "Build scenario draft" server workflow, not background preview traffic.
     return {
       preview: localDraft,
@@ -739,7 +739,7 @@
       aiContext,
       preferredLens,
       citations: Array.isArray(AppState.draft.citations) ? AppState.draft.citations : [],
-      traceLabel: 'Step 1 manual shortlist'
+      traceLabel: 'Step 2 manual shortlist'
     });
     if (_guardStep1AiActionCooldown({
       button,

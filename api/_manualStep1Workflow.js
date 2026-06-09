@@ -65,12 +65,12 @@ const MANUAL_SHORTLIST_SCHEMA = `{
 const MANUAL_STEP1_PERSONALITIES = {
   refinement: {
     key: 'refinement',
-    traceLabelDefault: 'Step 1 narrative refinement',
+    traceLabelDefault: 'Step 2 narrative refinement',
     allowRegisterFallbackSeed: true,
     allowRegisterSynthesis: false,
     strictPrimaryFamily: true,
     allowSecondaryFamilies: true,
-    manualPromptSummary: 'Server manual mode used for Step 1 narrative refinement because the draft text was too weak.',
+    manualPromptSummary: 'Server manual mode used for Step 2 narrative refinement because the draft text was too weak.',
     manualResponse: 'Manual refinement stayed in manual mode because the current draft was too short or ambiguous.',
     manualSummary: 'The current draft is too limited for the server to refine it safely.',
     manualLinkAnalysis: 'Add the event, affected asset or service, and main impact before asking the server to refine the narrative.',
@@ -89,7 +89,7 @@ const MANUAL_STEP1_PERSONALITIES = {
       'Remove adjacent-domain wording that only reflects downstream consequences.',
       'Keep only the risks that share the same event tree and management briefing focus.'
     ],
-    benchmarkBasis: 'This Step 1 refinement should stay close to the user-authored draft and only tighten structure, clarity, and event-path coherence.',
+    benchmarkBasis: 'This Step 2 refinement should stay close to the user-authored draft and only tighten structure, clarity, and event-path coherence.',
     systemPrompt: `You are a senior enterprise risk analyst refining a user-authored Step 1 scenario draft.
 
 Return JSON only with this schema:
@@ -149,12 +149,12 @@ ${feedbackPromptBlock}`;
   },
   intakeAssist: {
     key: 'intakeAssist',
-    traceLabelDefault: 'Step 1 intake assist',
+    traceLabelDefault: 'Step 2 intake assist',
     allowRegisterFallbackSeed: true,
     allowRegisterSynthesis: true,
     strictPrimaryFamily: false,
     allowSecondaryFamilies: true,
-    manualPromptSummary: 'Server manual mode used for Step 1 intake assist because the current notes were too weak.',
+    manualPromptSummary: 'Server manual mode used for Step 2 intake assist because the current notes were too weak.',
     manualResponse: 'Manual intake assist stayed in manual mode because the current notes were too limited.',
     manualSummary: 'The current intake notes are too limited for the server to produce a reliable assisted draft.',
     manualLinkAnalysis: 'Add a clearer event, affected asset or service, or main impact before asking the server to shape the intake draft.',
@@ -173,7 +173,7 @@ ${feedbackPromptBlock}`;
       'Do not generalise the draft into an adjacent domain unless the notes explicitly support it.',
       'Keep only the risks that belong in the same event chain as the resulting draft.'
     ],
-    benchmarkBasis: 'This Step 1 intake assist should convert raw notes into a clearer scenario draft without changing the underlying event path or scenario ownership.',
+    benchmarkBasis: 'This Step 2 intake assist should convert raw notes into a clearer scenario draft without changing the underlying event path or scenario ownership.',
     systemPrompt: `You are a senior enterprise risk analyst helping turn raw Step 1 notes into a usable scenario draft.
 
 Return JSON only with this schema:
@@ -229,12 +229,12 @@ ${feedbackPromptBlock}`;
   },
   shortlist: {
     key: 'shortlist',
-    traceLabelDefault: 'Step 1 manual shortlist',
+    traceLabelDefault: 'Step 2 manual shortlist',
     allowRegisterFallbackSeed: false,
     allowRegisterSynthesis: false,
     strictPrimaryFamily: true,
     allowSecondaryFamilies: true,
-    manualPromptSummary: 'Server manual mode used for Step 1 shortlist generation because the accepted draft was too weak.',
+    manualPromptSummary: 'Server manual mode used for Step 2 shortlist generation because the accepted draft was too weak.',
     manualResponse: 'Manual shortlist generation stayed in manual mode because the current draft was too weak to classify reliably.',
     manualSummary: 'The current draft is too weak or ambiguous for the server to build a reliable shortlist.',
     manualLinkAnalysis: 'Tighten the accepted draft so it clearly states the event path, affected asset or service, and main impact before generating a shortlist.',
@@ -253,8 +253,8 @@ ${feedbackPromptBlock}`;
       'Do not let consequence-only wording become the main shortlist lane.',
       'Remove adjacent-domain cards unless the narrative explicitly supports them.'
     ],
-    benchmarkBasis: 'This Step 1 shortlist should remain tightly coupled to the accepted narrative and taxonomy classification, rather than inventing a new scenario.',
-    systemPrompt: `You are a senior enterprise risk analyst building a Step 1 shortlist from an accepted scenario draft.
+    benchmarkBasis: 'This Step 2 shortlist should remain tightly coupled to the accepted narrative and taxonomy classification, rather than inventing a new scenario.',
+    systemPrompt: `You are a senior enterprise risk analyst building a Step 2 shortlist from an accepted scenario draft.
 
 Return JSON only with this schema:
 ${MANUAL_SHORTLIST_SCHEMA}

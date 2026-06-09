@@ -28,7 +28,7 @@ test('analyseRiskRegister uses the server register-analysis endpoint and stores 
             }
           ],
           trace: {
-            label: 'Step 1 register analysis',
+            label: 'Step 2 register analysis',
             promptSummary: 'Server prompt summary',
             response: 'Server returned register shortlist'
           }
@@ -56,7 +56,7 @@ test('analyseRiskRegister uses the server register-analysis endpoint and stores 
     },
     citations: [{ title: ' Identity policy ', note: '  Review access quarterly. ' }],
     priorMessages: [{ role: ' user ', content: '  shortlist identity items  ' }],
-    traceLabel: ' Step 1 register analysis '
+    traceLabel: ' Step 2 register analysis '
   });
 
   assert.equal(fetchCalls.length, 1);
@@ -83,10 +83,10 @@ test('analyseRiskRegister uses the server register-analysis endpoint and stores 
     excerpt: 'Review access quarterly.'
   }]);
   assert.deepEqual(requestBody.priorMessages, [{ role: 'user', content: 'shortlist identity items' }]);
-  assert.equal(requestBody.traceLabel, 'Step 1 register analysis');
+  assert.equal(requestBody.traceLabel, 'Step 2 register analysis');
   assert.equal(result.mode, 'live');
   assert.equal(Array.isArray(result.risks), true);
-  assert.equal(service.getLatestTrace('Step 1 register analysis')?.response, 'Server returned register shortlist');
+  assert.equal(service.getLatestTrace('Step 2 register analysis')?.response, 'Server returned register shortlist');
 });
 
 test('analyseRiskRegister still uses the server register-analysis endpoint even when local-dev direct Compass config is enabled', async () => {

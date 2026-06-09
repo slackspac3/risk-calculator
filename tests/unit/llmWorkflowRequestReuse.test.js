@@ -21,7 +21,7 @@ test('same guided-draft request stays single-flight while the first request is p
             mode: 'live',
             draftNarrative: 'Server guided draft',
             trace: {
-              label: 'Step 1 guided draft',
+              label: 'Step 2 guided draft',
               promptSummary: 'Prompt',
               response: 'Response'
             }
@@ -63,7 +63,7 @@ test('same-input guided-draft reruns reuse the recent result for a short window'
           mode: 'live',
           draftNarrative: 'Server guided draft',
           trace: {
-            label: 'Step 1 guided draft',
+            label: 'Step 2 guided draft',
             promptSummary: 'Prompt',
             response: 'Response'
           }

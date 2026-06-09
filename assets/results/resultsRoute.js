@@ -197,12 +197,12 @@ function renderExecutiveSignalCard(results) {
     title: 'Risk signal at a glance',
     body: `<div class="results-signal-stack">
       <div class="results-signal-metric">
-        <div class="results-driver-label">Tolerance breach likelihood</div>
+        <div class="results-driver-label">Tolerance exceedance likelihood</div>
         ${breach == null
           ? `<div class="results-signal-label">Not assessed</div>
-             <div class="form-help">Run the simulation to see breach probability.</div>`
+             <div class="form-help">Run the simulation to see probability of exceeding tolerance.</div>`
           : `<div class="results-signal-bar"><span style="width:${breach}%"></span></div>
-             <div class="results-comparison-foot">${breach.toFixed(1)}% chance of breaching tolerance in the model</div>`}
+             <div class="results-comparison-foot">${breach.toFixed(1)}% chance of exceeding tolerance in the model; this is not incident likelihood.</div>`}
       </div>
       <div class="results-signal-metric">
         <div class="results-driver-label">Annual stress versus review trigger</div>
@@ -1105,8 +1105,8 @@ function renderResultsExecutiveCockpit({
           <div class="results-signal-ring-inner">${statusIcon}</div>
         </div>
         <div>
-          <strong>${exceedancePct == null ? 'Not assessed' : `${exceedancePct}% breach likelihood`}</strong>
-          <span>${escapeHtml(readinessLabel)}</span>
+          <strong>${exceedancePct == null ? 'Not assessed' : `${exceedancePct}% tolerance exceedance`}</strong>
+          <span>${escapeHtml(readinessLabel)} · model limit test, not incident likelihood</span>
         </div>
       </div>
       <div class="results-cockpit-metrics">
