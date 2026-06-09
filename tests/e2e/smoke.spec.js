@@ -667,7 +667,8 @@ test('wizard intake dry-run examples prefill the scenario and shortlist', async 
     await expect(page.getByText(/dry-run example loaded/i)).toBeVisible();
     await expect(page.locator('#intake-risk-statement').last()).toContainText('critical supplier');
     await expect(page.locator('.risk-select-checkbox:checked')).toHaveCount(3);
-    await expect(page.getByRole('button', { name: /continue to scenario review/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /choose business context first/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /continue to scenario review/i })).toHaveCount(0);
   });
 });
 
@@ -961,14 +962,14 @@ test('wizard step 2 basic mode keeps the intake simple and hides expert panels',
     await expect(page.locator('#guided-event')).toBeVisible();
     await expect(page.locator('#guided-impact')).toBeVisible();
     await expect(page.locator('#btn-build-guided-narrative')).toBeVisible();
-    await expect(page.locator('#step1-basic-workflow-ribbon')).toBeVisible();
-    await expect(page.locator('#step1-basic-workflow-ribbon')).toContainText(/No draft yet/i);
+    await expect(page.locator('.wizard-step-bar__headline')).toHaveText(/quick assessment/i);
+    await expect(page.locator('#step1-basic-workflow-ribbon')).toHaveCount(0);
+    await expect(page.locator('.assessment-manager-panel')).toHaveCount(0);
+    await expect(page.locator('.step1-live-canvas')).toHaveCount(0);
     await expect(page.locator('.step1-command-deck')).toHaveCount(0);
     await expect(page.locator('.step1-guided-scout')).toHaveCount(0);
     await page.locator('#guided-event').fill('A critical supplier has a prolonged platform outage during a peak customer period.');
     await page.locator('#guided-impact').fill('Customer disruption, operational backlog, and reputational damage.');
-    await expect(page.locator('#step1-basic-workflow-ribbon')).toContainText(/Live AI first/i);
-    await expect(page.locator('#step1-basic-workflow-ribbon')).toContainText(/Ready to build/i);
     await expect(page.locator('.step1-basic-intake__head .badge')).toContainText(/Build the draft/i);
     await expect(page.locator('#btn-build-guided-narrative')).toHaveText(/Build draft/i);
     await expect(page.locator('.step1-basic-intake__draft')).toContainText(/Ready for AI build/i);
@@ -1030,8 +1031,8 @@ test('wizard step 2 basic mode shows an existing built draft preview before step
     await expect(page.locator('.step1-basic-intake')).toBeVisible();
     await expect(page.locator('#guided-preview-title')).toHaveText(/First draft ready/i);
     await expect(page.locator('#guided-preview')).toContainText(/critical supplier/i);
-    await expect(page.locator('#step1-basic-workflow-ribbon')).toContainText(/Live AI draft/i);
-    await expect(page.locator('#step1-basic-workflow-ribbon')).toContainText(/Preview visible/i);
+    await expect(page.locator('#step1-basic-workflow-ribbon')).toHaveCount(0);
+    await expect(page.locator('.assessment-manager-panel')).toHaveCount(0);
     await expect(page.locator('.step1-basic-intake__action')).toContainText(/Draft is ready/i);
     await expect(page.locator('#btn-next-1')).toBeEnabled();
   });

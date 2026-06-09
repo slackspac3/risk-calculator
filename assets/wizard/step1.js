@@ -3186,17 +3186,6 @@ function renderStep1BasicGuidedBuilderCard(draft, recommendation, promptIdeaMode
   const draftPreviewPlaceholder = hasEventSignal && hasImpactSignal
     ? 'Click Build draft once. If live AI is unavailable, a fallback draft will be loaded automatically.'
     : 'Answer the two prompts, then build the first AI draft.';
-  const agentStripTitle = hasStagedDraft
-    ? 'Draft staged by the assessment run'
-    : hasEventSignal && hasImpactSignal
-      ? 'AI build is ready'
-      : 'Assessment Manager is waiting';
-  const agentStripCopy = hasStagedDraft
-    ? 'Review the draft, then continue when the scenario still matches your intent.'
-    : hasEventSignal && hasImpactSignal
-      ? 'One click sends your answers to the live AI path first; fallback is automatic if unavailable.'
-      : 'Add the event and impact. The manager will frame, build, challenge, and prepare the draft.';
-
   return `<div class="card card--primary wizard-primary-card anim-fade-in step1-basic-intake step1-basic-intake--conversation">
     <div class="step1-basic-intake__head">
       <div>
@@ -3222,10 +3211,8 @@ function renderStep1BasicGuidedBuilderCard(draft, recommendation, promptIdeaMode
       </div>
     </div>
 
-    <div class="step1-conversation-workbench">
-      <section class="step1-conversation-thread" aria-label="Conversational risk intake">
-        ${renderStep1BasicConversationAgent(conversationModel)}
-
+    <div class="step1-conversation-workbench step1-conversation-workbench--single">
+      <section class="step1-conversation-thread step1-conversation-thread--simple" aria-label="Conversational risk intake">
         <div class="step1-conversation-compose">
           <div class="step1-conversation-compose__head">
             <div>
@@ -3272,20 +3259,7 @@ function renderStep1BasicGuidedBuilderCard(draft, recommendation, promptIdeaMode
           </div>
         </details>
 
-        <div class="step1-basic-intake__agent-strip" aria-live="polite">
-          <div class="step1-basic-intake__agent-viz" aria-hidden="true">
-            <span class="${hasEventSignal ? 'is-lit' : ''}"></span>
-            <span class="${hasImpactSignal ? 'is-lit' : ''}"></span>
-            <span class="${hasStagedDraft ? 'is-lit' : hasEventSignal && hasImpactSignal ? 'is-armed' : ''}"></span>
-          </div>
-          <div>
-            <strong>${escapeHtml(agentStripTitle)}</strong>
-            <span>${escapeHtml(agentStripCopy)}</span>
-          </div>
-        </div>
       </section>
-
-      ${renderStep1BasicLiveCanvas(conversationModel)}
     </div>
 
     <div class="step1-basic-intake__action">
@@ -6216,7 +6190,7 @@ function renderWizard1() {
             </div>
           </details>`
     : riskReviewMarkup;
-  const basicWorkflowRibbon = isBasicExperience ? renderStep1BasicWorkflowRibbon(draft) : '';
+  const basicWorkflowRibbon = '';
   const intakeValidation = {
     errors: needsContextSetup ? ['Select business context before AI drafting.'] : [],
     warnings: []
@@ -6271,7 +6245,7 @@ function renderWizard1() {
         ${basicWorkflowRibbon}
         <div class="wizard-body">
           ${requiredContextSection}
-          ${managerModel && typeof renderAssessmentManagerPanel === 'function'
+          ${!isBasicExperience && managerModel && typeof renderAssessmentManagerPanel === 'function'
             ? renderAssessmentManagerPanel(managerModel, { compact: true, title: 'Assessment Manager' })
             : ''}
           <section class="step1-primary-zone">
