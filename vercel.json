@@ -46,6 +46,14 @@
     "api/audit-log.js": {
       "memory": 256,
       "maxDuration": 15
+    },
+    "api/evidence/index.js": {
+      "memory": 512,
+      "maxDuration": 60
+    },
+    "api/evidence/search.js": {
+      "memory": 256,
+      "maxDuration": 30
     }
   }
 }

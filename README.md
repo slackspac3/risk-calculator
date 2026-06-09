@@ -183,6 +183,11 @@ Current AI behavior:
 - the Assessment Manager narrative is now the visible wrapper for scenario, evidence, challenge, and output review; specialist labels remain only as trace detail
 - provenance labels are explicit across the main AI/result surfaces so fallback or local-preview output does not look like live AI
 - retrieval uses a stronger local hybrid scorer with lens-aware and concept-aware matching, but browser-local learning weights no longer authoritatively shape inference quality
+- server-side evidence RAG is now available behind Vercel API routes for droplet-hosted Qdrant:
+  - `/api/evidence/index` embeds extracted evidence text server-side and writes chunks to the configured Qdrant collection
+  - `/api/evidence/search` embeds the search query server-side and returns sanitized snippets/citations only
+  - embeddings, Qdrant credentials, full chunk text, and vectors stay out of the browser
+  - every index/search is scoped to the authenticated session actor and audited as an `evidence_rag` event
 - domain guardrails now explicitly keep common continuity, counterparty-credit, ESG/human-rights, and geopolitical scenarios from drifting into adjacent cyber, fraud, or procurement lanes unless the user input actually supports that crossover
 - remaining browser-side helper AI stays assistive-only for bounded UX features such as company-context drafting and scenario memory; it is not part of the trusted assessment or review path
 - BU and function-context AI assist now inherits richer organisation context, parent-layer context, and saved regulations, then shows an inline grounding state:
@@ -583,6 +588,7 @@ That file covers the expected configuration for:
 - frontend origin
 - frontend origin allowlists
 - Compass API access
+- optional server-side evidence RAG using Compass embeddings and droplet-hosted Qdrant
 - eval-harness Compass overrides
 - session signing
 - audit retention
@@ -592,6 +598,7 @@ That file covers the expected configuration for:
 
 AI environment notes:
 - server-side pilot environments should provide real `COMPASS_API_KEY`, `COMPASS_API_URL`, and `COMPASS_MODEL` values
+- server-side evidence RAG additionally needs `RISK_RAG_QDRANT_URL`, `RISK_RAG_QDRANT_API_KEY`, and `RISK_RAG_QDRANT_COLLECTION`; it reuses `COMPASS_API_KEY` for embeddings unless `RISK_RAG_EMBEDDINGS_API_KEY` is set
 - the frontend defaults to the hosted proxy path and should normally run keyless in the browser
 - local browser testing that needs real hosted AI should use the fixed localhost origin above so the hosted API CORS allowlist can stay narrow and explicit
 - local serverless API testing also needs `SESSION_SIGNING_SECRET` or `ADMIN_API_SECRET`; otherwise login can render locally but authenticated API workflows cannot mint or validate server session tokens

@@ -4,6 +4,7 @@ const { requireSession } = require('../_apiAuth');
 const { applyCorsHeaders, isAllowedOrigin } = require('../_request');
 const { checkRateLimit } = require('../_rateLimit');
 const { evaluateAiRuntimeStatus } = require('../_aiRuntime');
+const { evidenceRagHealth } = require('../_evidenceRag');
 
 function getRateLimitKey(req, session) {
   return `ai-status::${String(session?.username || 'anonymous').trim().toLowerCase()}::${String(req.socket?.remoteAddress || 'unknown')}`;
@@ -51,5 +52,8 @@ module.exports = async function handler(req, res) {
 
   const probe = String(req.query?.probe || '1').trim() !== '0';
   const status = await evaluateAiRuntimeStatus({ probe });
-  res.status(200).json(status);
+  res.status(200).json({
+    ...status,
+    evidenceRag: evidenceRagHealth()
+  });
 };
