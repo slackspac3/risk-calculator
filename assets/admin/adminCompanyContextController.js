@@ -156,8 +156,8 @@
             currentRegulations: regsInput?.getTags ? regsInput.getTags() : [],
             history: [],
             userPrompt: 'Incorporate the uploaded strategy, policy, procedure, and operating-model material into this company context draft while keeping it concise and grounded.',
-            uploadedText: '',
-            uploadedDocumentName: ''
+            uploadedText: uploaded.text,
+            uploadedDocumentName: uploaded.name
           });
           ({ sections, profileText } = applyResult(result));
         }
@@ -192,8 +192,9 @@
           5000
         );
       } catch (error) {
-        UI.toast('Company context build failed. Try again or shorten the source material.', 'danger', 6000);
-        if (statusEl) statusEl.textContent = 'Company context build failed. Try again or shorten the source material.';
+        const message = error?.message || 'Company context build failed. Try again or shorten the source material.';
+        UI.toast(message, 'danger', 6000);
+        if (statusEl) statusEl.textContent = message;
       } finally {
         button.disabled = false;
         button.textContent = 'Build from Website';
@@ -259,8 +260,9 @@
           5000
         );
       } catch (error) {
-        UI.toast('Company context refinement failed. Try again or shorten the prompt.', 'danger', 6000);
-        if (statusEl) statusEl.textContent = 'Company context refinement failed. Try again or shorten the prompt.';
+        const message = error?.message || 'Company context refinement failed. Try again or shorten the prompt.';
+        UI.toast(message, 'danger', 6000);
+        if (statusEl) statusEl.textContent = message;
       } finally {
         button.disabled = false;
         button.textContent = 'Apply Follow-Up Now';

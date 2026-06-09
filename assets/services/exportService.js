@@ -716,7 +716,7 @@ const ExportService = (() => {
         </div>
         <div class="signal">
           <div class="signal-ring ${statusClass}"><div class="signal-inner">${r.toleranceBreached ? '!' : r.nearTolerance ? '!' : '✓'}</div></div>
-          <div class="signal-copy">${exceedancePct}% chance of breaching tolerance in the modelled distribution</div>
+          <div class="signal-copy">${exceedancePct}% chance of exceeding tolerance in the modelled distribution; this is not incident likelihood</div>
         </div>
       </div>
 
@@ -774,9 +774,9 @@ const ExportService = (() => {
           <div class="section-label">Risk signal at a glance</div>
           <div class="signal-stack">
             <div>
-              <div class="section-label">Tolerance breach likelihood</div>
+              <div class="section-label">Tolerance exceedance likelihood</div>
               <div class="signal-bar"><span style="width:${_clampNumber((Number(r.toleranceDetail?.lmExceedProb || 0) * 100))}%"></span></div>
-              <div class="small">${exceedancePct}% chance of breaching tolerance in the model</div>
+              <div class="small">${exceedancePct}% chance of exceeding tolerance in the model; this is not incident likelihood</div>
             </div>
             <div>
               <div class="section-label">Annual stress versus review trigger</div>
@@ -1432,7 +1432,7 @@ const ExportService = (() => {
             { label: 'Per-Event P90', value: fmt(r.lm.p90) },
             { label: 'Annual P90', value: fmt(r.ale.p90) },
             { label: 'Tolerance Threshold', value: fmt(r.threshold) },
-            { label: 'Breach Probability', value: (r.toleranceDetail.lmExceedProb * 100).toFixed(1) + '%' }
+            { label: 'Tolerance Exceedance', value: (r.toleranceDetail.lmExceedProb * 100).toFixed(1) + '%' }
           ],
           confidence: confidenceFrame.label,
           confidenceImplication: confidenceFrame.implication

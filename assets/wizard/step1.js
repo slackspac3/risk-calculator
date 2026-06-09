@@ -250,6 +250,185 @@ function renderStep1BasicWorkflowRibbon(draft = AppState.draft || {}) {
   </section>`;
 }
 
+function getStep1ConversationSummary(value = '', fallback = '', limit = 118) {
+  const text = String(value || '').replace(/\s+/g, ' ').trim();
+  if (!text) return fallback;
+  if (text.length <= limit) return text;
+  return `${text.slice(0, Math.max(0, limit - 1)).trim()}…`;
+}
+
+function buildStep1BasicConversationModel(draft = AppState.draft || {}) {
+  const input = draft.guidedInput || {};
+  const eventText = String(input.event || '').trim();
+  const impactText = String(input.impact || '').trim();
+  const assetText = String(input.asset || '').trim();
+  const causeText = String(input.cause || '').trim();
+  const urgencyText = String(input.urgency || 'medium').trim() || 'medium';
+  const hasBusinessContext = !!String(draft.buId || '').trim();
+  const hasEventSignal = !!eventText;
+  const hasImpactSignal = !!impactText;
+  const hasStagedDraft = hasStep1StagedGuidedDraft(draft);
+  const sourceKey = getStep1DraftSourceKey(draft);
+  const sequence = buildStep1IntakeSequenceModel(draft);
+  const nextAction = hasBusinessContext
+    ? sequence.nextAction
+    : {
+        title: 'Choose business context',
+        copy: 'Select the business unit above so the AI can apply the right appetite, geography, and regulations.',
+        kicker: 'Context required'
+      };
+  const lensLabel = String(draft.scenarioLens?.label || draft.scenarioLens?.key || '').trim();
+  const riskCandidates = typeof getRiskCandidates === 'function' ? getRiskCandidates() : [];
+  const riskCount = Array.isArray(riskCandidates) ? riskCandidates.length : 0;
+  const businessUnit = String(draft.buName || draft.buId || 'Business context').trim();
+  const settings = typeof getEffectiveSettings === 'function' ? getEffectiveSettings() : {};
+  const formattedGeography = typeof formatScenarioGeographies === 'function'
+    ? formatScenarioGeographies(draft.geographies || [], settings.geography)
+    : '';
+  const geoLabel = String(draft.geography || formattedGeography || '').trim();
+  const sourceLabel = !hasBusinessContext
+    ? 'Context required'
+    : hasStagedDraft
+    ? sourceKey === 'ai'
+      ? 'Live AI draft'
+      : sourceKey === 'fallback'
+        ? 'Fallback draft'
+        : sourceKey === 'manual'
+          ? 'Manual draft'
+          : 'Assisted draft'
+    : hasEventSignal && hasImpactSignal
+      ? 'Live AI next'
+      : 'Not sent yet';
+  let agentTitle = 'Tell me what happened.';
+  let agentCopy = 'Write the situation once, in plain English. I will pull out the risk signal as you type.';
+  if (!hasBusinessContext) {
+    agentTitle = 'Choose the business context first.';
+    agentCopy = 'The AI draft needs the right business unit and geography before it can use the correct appetite and regulation context.';
+  } else if (hasEventSignal && !hasImpactSignal) {
+    agentTitle = 'Now name the business impact.';
+    agentCopy = 'One short phrase is enough: customer harm, regulatory complaint, service outage, financial loss, or operational backlog.';
+  } else if (hasEventSignal && hasImpactSignal && !hasStagedDraft) {
+    agentTitle = 'Ready to send to AI.';
+    agentCopy = 'Build once. The hosted AI path runs first, and a fallback draft is staged if the service is unavailable.';
+  } else if (hasStagedDraft) {
+    agentTitle = 'Draft is staged.';
+    agentCopy = 'Review the draft below. Rebuild only if you changed the event, impact, or optional context.';
+  }
+
+  const runway = [
+    { key: 'listen', label: 'Listen', state: hasEventSignal ? 'complete' : 'active' },
+    { key: 'shape', label: 'Shape', state: hasImpactSignal ? 'complete' : hasEventSignal ? 'active' : 'pending' },
+    { key: 'build', label: 'Build', state: hasStagedDraft ? 'complete' : hasBusinessContext && hasEventSignal && hasImpactSignal ? 'active' : 'pending' },
+    { key: 'review', label: 'Review', state: hasStagedDraft ? 'active' : 'pending' }
+  ];
+
+  return {
+    agentTitle,
+    agentCopy,
+    businessUnit,
+    geoLabel,
+    eventText,
+    impactText,
+    assetText,
+    causeText,
+    urgencyText,
+    hasBusinessContext,
+    hasEventSignal,
+    hasImpactSignal,
+    hasStagedDraft,
+    lensLabel,
+    riskCount,
+    sourceLabel,
+    sequence,
+    nextAction,
+    runway
+  };
+}
+
+function renderStep1BasicConversationAgent(model) {
+  return `<div class="step1-conversation-agent" id="step1-conversation-agent-panel" aria-live="polite">
+    <div class="step1-conversation-agent__avatar" aria-hidden="true">
+      <span></span>
+    </div>
+    <div class="step1-conversation-agent__body">
+      <div class="wizard-summary-band__label">Risk analyst</div>
+      <strong id="step1-conversation-agent-title">${escapeHtml(model.agentTitle)}</strong>
+      <p id="step1-conversation-agent-copy">${escapeHtml(model.agentCopy)}</p>
+    </div>
+  </div>`;
+}
+
+function renderStep1ConversationMemoryTile({ label, value, state = 'waiting', meta = '' }) {
+  return `<div class="step1-memory-tile step1-memory-tile--${escapeHtml(state)}">
+    <span>${escapeHtml(label)}</span>
+    <strong>${escapeHtml(value)}</strong>
+    ${meta ? `<em>${escapeHtml(meta)}</em>` : ''}
+  </div>`;
+}
+
+function renderStep1BasicLiveCanvas(model) {
+  const eventState = model.hasEventSignal ? 'captured' : 'waiting';
+  const impactState = model.hasImpactSignal ? 'captured' : model.hasEventSignal ? 'active' : 'waiting';
+  const buildState = model.hasStagedDraft ? 'captured' : model.hasBusinessContext && model.hasEventSignal && model.hasImpactSignal ? 'active' : 'waiting';
+  return `<aside class="step1-live-canvas" id="step1-live-canvas" aria-label="Live risk understanding">
+    <div class="step1-live-canvas__head">
+      <div>
+        <div class="wizard-summary-band__label">Live risk memory</div>
+        <h4>What the platform understands</h4>
+      </div>
+      <span class="badge badge--neutral">${escapeHtml(model.sourceLabel)}</span>
+    </div>
+    <div class="step1-agent-runway" aria-label="Agent workflow">
+      ${model.runway.map(item => `<div class="step1-agent-runway__node step1-agent-runway__node--${escapeHtml(item.state)}">
+        <span aria-hidden="true"></span>
+        <strong>${escapeHtml(item.label)}</strong>
+      </div>`).join('')}
+    </div>
+    <div class="step1-live-canvas__grid">
+      ${renderStep1ConversationMemoryTile({
+        label: 'Event',
+        value: getStep1ConversationSummary(model.eventText, 'Waiting for the situation'),
+        state: eventState,
+        meta: model.hasEventSignal ? 'Captured from your message' : 'Required'
+      })}
+      ${renderStep1ConversationMemoryTile({
+        label: 'Impact',
+        value: getStep1ConversationSummary(model.impactText, model.hasEventSignal ? 'Impact still needed' : 'Waiting'),
+        state: impactState,
+        meta: model.hasImpactSignal ? 'Business effect named' : 'Required'
+      })}
+      ${renderStep1ConversationMemoryTile({
+        label: 'Context',
+        value: model.hasBusinessContext ? model.businessUnit : 'Business unit missing',
+        state: model.hasBusinessContext ? 'captured' : 'active',
+        meta: model.geoLabel || 'Uses saved geography'
+      })}
+      ${renderStep1ConversationMemoryTile({
+        label: 'Lens',
+        value: model.lensLabel || (model.hasEventSignal ? 'Classifying signal' : 'Pending signal'),
+        state: model.lensLabel ? 'captured' : model.hasEventSignal ? 'active' : 'waiting',
+        meta: model.riskCount ? `${model.riskCount} risk candidate${model.riskCount === 1 ? '' : 's'}` : 'Generated after build'
+      })}
+    </div>
+    <div class="step1-live-canvas__next step1-live-canvas__next--${escapeHtml(buildState)}">
+      <span aria-hidden="true"></span>
+      <div>
+        <strong>${escapeHtml(model.nextAction.title.replace(/^\d+\.\s*/, ''))}</strong>
+        <p>${escapeHtml(model.nextAction.copy)}</p>
+      </div>
+    </div>
+  </aside>`;
+}
+
+function refreshStep1BasicConversationWorkbench(draft = AppState.draft || {}) {
+  if (typeof document === 'undefined' || typeof document.getElementById !== 'function') return;
+  const model = buildStep1BasicConversationModel(draft);
+  const agent = document.getElementById('step1-conversation-agent-panel');
+  if (agent) agent.outerHTML = renderStep1BasicConversationAgent(model);
+  const canvas = document.getElementById('step1-live-canvas');
+  if (canvas) canvas.outerHTML = renderStep1BasicLiveCanvas(model);
+}
+
 function refreshStep1BasicWorkflowRibbon(draft = AppState.draft || {}) {
   const ribbon = document.getElementById('step1-basic-workflow-ribbon');
   if (!ribbon) return;
@@ -321,7 +500,7 @@ function updateStep1CommandDeckState() {
     }
     buildButton.textContent = hasStagedDraft
       ? (isBasicIntake ? 'Rebuild draft' : 'Rebuild first draft')
-      : (isBasicIntake ? 'Build draft' : 'Build first draft');
+      : (isBasicIntake ? 'Build draft with AI' : 'Build first draft');
   }
 
   const scoutHost = document.getElementById('step1-guided-scout-host');
@@ -332,6 +511,7 @@ function updateStep1CommandDeckState() {
       getStep1DisplayedPromptIdeaModel(draft)
     );
   }
+  refreshStep1BasicConversationWorkbench(draft);
   refreshStep1BasicWorkflowRibbon(draft);
 }
 
@@ -2958,6 +3138,7 @@ function renderStep1GuidedScoutPanel(draft = AppState.draft || {}, previewModel 
 }
 
 function renderStep1BasicGuidedBuilderCard(draft, recommendation, promptIdeaModel = null) {
+  const conversationModel = buildStep1BasicConversationModel(draft);
   const previewModel = getStep1DisplayedGuidedPreviewModel(draft);
   const draftPreview = String(previewModel.preview || '').trim();
   const draftPreviewStatus = String(previewModel.status || '').trim();
@@ -3016,84 +3197,102 @@ function renderStep1BasicGuidedBuilderCard(draft, recommendation, promptIdeaMode
       ? 'One click sends your answers to the live AI path first; fallback is automatic if unavailable.'
       : 'Add the event and impact. The manager will frame, build, challenge, and prepare the draft.';
 
-  return `<div class="card card--primary wizard-primary-card anim-fade-in step1-basic-intake">
+  return `<div class="card card--primary wizard-primary-card anim-fade-in step1-basic-intake step1-basic-intake--conversation">
     <div class="step1-basic-intake__head">
       <div>
-        <div class="wizard-summary-band__label">Basic intake</div>
+        <div class="wizard-summary-band__label">Basic conversational intake</div>
         <h3>Tell us two things</h3>
-        <p>Keep it simple. Describe the event, name the impact, then build the first draft.</p>
+        <p>Talk to the risk analyst in plain language. The platform extracts the signal, checks context, then builds the first AI draft.</p>
       </div>
       <span class="badge badge--gold" id="step1-basic-next-label">${escapeHtml(nextLabel)}</span>
     </div>
 
-    <div class="step1-basic-intake__steps" aria-label="Basic intake steps">
+    <div class="step1-basic-intake__steps step1-basic-intake__steps--compact" aria-label="Basic intake steps">
       <div class="step1-basic-intake__step ${hasEventSignal ? 'is-complete' : 'is-active'}">
         <span>1</span>
-        <strong>What happened?</strong>
+        <strong>Tell us two things</strong>
       </div>
       <div class="step1-basic-intake__step ${hasImpactSignal ? 'is-complete' : hasEventSignal ? 'is-active' : ''}">
         <span>2</span>
-        <strong>Why does it matter?</strong>
+        <strong>AI builds the draft</strong>
       </div>
       <div class="step1-basic-intake__step ${hasStagedDraft ? 'is-complete' : hasEventSignal && hasImpactSignal ? 'is-active' : ''}">
         <span>3</span>
-        <strong>Build draft</strong>
+        <strong>Review and continue</strong>
       </div>
     </div>
 
-    <div class="step1-basic-intake__agent-strip" aria-live="polite">
-      <div class="step1-basic-intake__agent-viz" aria-hidden="true">
-        <span class="${hasEventSignal ? 'is-lit' : ''}"></span>
-        <span class="${hasImpactSignal ? 'is-lit' : ''}"></span>
-        <span class="${hasStagedDraft ? 'is-lit' : hasEventSignal && hasImpactSignal ? 'is-armed' : ''}"></span>
-      </div>
-      <div>
-        <strong>${escapeHtml(agentStripTitle)}</strong>
-        <span>${escapeHtml(agentStripCopy)}</span>
-      </div>
-    </div>
+    <div class="step1-conversation-workbench">
+      <section class="step1-conversation-thread" aria-label="Conversational risk intake">
+        ${renderStep1BasicConversationAgent(conversationModel)}
 
-    <div class="step1-basic-intake__form">
-      <div class="form-group">
-        <label class="form-label" for="guided-event">What happened or what could happen?</label>
-        <textarea class="form-textarea step1-basic-intake__event" id="guided-event" rows="4" placeholder="Example: ${escapeHtml(primaryPrompt)}">${escapeHtml(String(draft.guidedInput?.event || ''))}</textarea>
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="guided-impact">What is the main impact?</label>
-        <input class="form-input" id="guided-impact" type="text" placeholder="Example: service outage, regulatory issue, customer harm, financial loss" value="${escapeHtml(String(draft.guidedInput?.impact || ''))}">
-      </div>
-    </div>
-
-    <details class="wizard-disclosure wizard-disclosure--compact step1-basic-intake__optional" data-disclosure-state-key="${escapeHtml(optionalContextDisclosureKey)}" data-disclosure-default-open="false" ${getDisclosureOpenState(optionalContextDisclosureKey, false) ? 'open' : ''}>
-      <summary>Add affected system or cause <span class="badge badge--neutral">Optional</span></summary>
-      <div class="wizard-disclosure-body">
-        <div class="grid-2">
-          <div class="form-group">
-            <label class="form-label" for="guided-asset">What is affected?</label>
-            <input class="form-input" id="guided-asset" type="text" placeholder="Example: payment platform, shared identity service, cloud data store" value="${escapeHtml(String(draft.guidedInput?.asset || ''))}">
+        <div class="step1-conversation-compose">
+          <div class="step1-conversation-compose__head">
+            <div>
+              <div class="wizard-summary-band__label">Your message</div>
+              <strong>Describe the situation once</strong>
+            </div>
+            <span class="badge badge--neutral">Plain English</span>
           </div>
-          <div class="form-group">
-            <label class="form-label" for="guided-cause">Likely cause or trigger</label>
-            <input class="form-input" id="guided-cause" type="text" placeholder="Example: supplier breach, phishing, weak recovery process" value="${escapeHtml(String(draft.guidedInput?.cause || ''))}">
+          <label class="sr-only" for="guided-event">What happened or what could happen?</label>
+          <textarea class="form-textarea step1-basic-intake__event step1-conversation-compose__message" id="guided-event" rows="5" placeholder="Example: ${escapeHtml(primaryPrompt)}">${escapeHtml(String(draft.guidedInput?.event || ''))}</textarea>
+          <div class="step1-conversation-impact-row">
+            <div class="form-group">
+              <label class="form-label" for="guided-impact">Main impact</label>
+              <input class="form-input" id="guided-impact" type="text" placeholder="Example: customer disruption, regulatory complaints, operational backlog" value="${escapeHtml(String(draft.guidedInput?.impact || ''))}">
+            </div>
+            <div class="step1-impact-suggestions" aria-label="Common impact examples">
+              ${['Customer disruption', 'Regulatory complaints', 'Operational backlog', 'Financial loss'].map(item => `<button type="button" class="step1-impact-chip" data-guided-impact-chip="${escapeHtml(item)}">${escapeHtml(item)}</button>`).join('')}
+            </div>
           </div>
         </div>
-        <div class="form-group">
-          <label class="form-label" for="guided-urgency">How urgent does it feel?</label>
-          <select class="form-select" id="guided-urgency">
-            <option value="low" ${draft.guidedInput?.urgency === 'low' ? 'selected' : ''}>Low</option>
-            <option value="medium" ${!draft.guidedInput?.urgency || draft.guidedInput?.urgency === 'medium' ? 'selected' : ''}>Medium</option>
-            <option value="high" ${draft.guidedInput?.urgency === 'high' ? 'selected' : ''}>High</option>
-            <option value="critical" ${draft.guidedInput?.urgency === 'critical' ? 'selected' : ''}>Critical</option>
-          </select>
+
+        <details class="wizard-disclosure wizard-disclosure--compact step1-basic-intake__optional" data-disclosure-state-key="${escapeHtml(optionalContextDisclosureKey)}" data-disclosure-default-open="false" ${getDisclosureOpenState(optionalContextDisclosureKey, false) ? 'open' : ''}>
+          <summary>Add affected system or cause <span class="badge badge--neutral">Optional</span></summary>
+          <div class="wizard-disclosure-body">
+            <div class="grid-2">
+              <div class="form-group">
+                <label class="form-label" for="guided-asset">What is affected?</label>
+                <input class="form-input" id="guided-asset" type="text" placeholder="Example: payment platform, shared identity service, cloud data store" value="${escapeHtml(String(draft.guidedInput?.asset || ''))}">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="guided-cause">Likely cause or trigger</label>
+                <input class="form-input" id="guided-cause" type="text" placeholder="Example: supplier breach, phishing, weak recovery process" value="${escapeHtml(String(draft.guidedInput?.cause || ''))}">
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="guided-urgency">How urgent does it feel?</label>
+              <select class="form-select" id="guided-urgency">
+                <option value="low" ${draft.guidedInput?.urgency === 'low' ? 'selected' : ''}>Low</option>
+                <option value="medium" ${!draft.guidedInput?.urgency || draft.guidedInput?.urgency === 'medium' ? 'selected' : ''}>Medium</option>
+                <option value="high" ${draft.guidedInput?.urgency === 'high' ? 'selected' : ''}>High</option>
+                <option value="critical" ${draft.guidedInput?.urgency === 'critical' ? 'selected' : ''}>Critical</option>
+              </select>
+            </div>
+          </div>
+        </details>
+
+        <div class="step1-basic-intake__agent-strip" aria-live="polite">
+          <div class="step1-basic-intake__agent-viz" aria-hidden="true">
+            <span class="${hasEventSignal ? 'is-lit' : ''}"></span>
+            <span class="${hasImpactSignal ? 'is-lit' : ''}"></span>
+            <span class="${hasStagedDraft ? 'is-lit' : hasEventSignal && hasImpactSignal ? 'is-armed' : ''}"></span>
+          </div>
+          <div>
+            <strong>${escapeHtml(agentStripTitle)}</strong>
+            <span>${escapeHtml(agentStripCopy)}</span>
+          </div>
         </div>
-      </div>
-    </details>
+      </section>
+
+      ${renderStep1BasicLiveCanvas(conversationModel)}
+    </div>
 
     <div class="step1-basic-intake__action">
-      <button class="btn btn--primary btn--lg step1-guided-cta" id="btn-build-guided-narrative" type="button" ${hasBusinessContext ? '' : 'disabled aria-disabled="true"'}>${hasStagedDraft ? 'Rebuild draft' : 'Build draft'}</button>
+      <button class="btn btn--primary btn--lg step1-guided-cta" id="btn-build-guided-narrative" type="button" ${hasBusinessContext ? '' : 'disabled aria-disabled="true"'}>${hasStagedDraft ? 'Rebuild draft' : 'Build draft with AI'}</button>
       <div>
         <strong>${!hasBusinessContext ? 'Select business context first.' : hasStagedDraft ? 'Draft is ready.' : hasEventSignal && hasImpactSignal ? 'Ready to build.' : 'Complete the two fields first.'}</strong>
-        <span>${!hasBusinessContext ? 'Choose the business unit above so the AI uses the right context and regulations.' : hasStagedDraft ? 'Review the preview below, rebuild only if you changed the intake, or continue to Step 3.' : hasEventSignal && hasImpactSignal ? 'The platform will turn this into a scenario draft you can review.' : 'No modelling knowledge needed. One event and one impact is enough to start.'}</span>
+        <span>${!hasBusinessContext ? 'Choose the business unit above so the AI uses the right context and regulations.' : hasStagedDraft ? 'Review the preview below, rebuild only if you changed the intake, or continue to Step 3.' : hasEventSignal && hasImpactSignal ? 'Live AI runs first. If it fails, the fallback draft appears automatically with a clear label.' : 'No modelling knowledge needed. One event and one impact is enough to start.'}</span>
       </div>
     </div>
 
@@ -5526,6 +5725,19 @@ function bindStep1PrimaryInputs({ buList, wizardGeographyInput }) {
       updateStep1GuidedPreview();
       markDraftDirty();
       scheduleDraftAutosave();
+    });
+  });
+
+  document.querySelectorAll('[data-guided-impact-chip]').forEach(button => {
+    if (button.dataset.bound === '1') return;
+    button.dataset.bound = '1';
+    button.addEventListener('click', () => {
+      const input = document.getElementById('guided-impact');
+      if (!input) return;
+      const nextValue = String(button.dataset.guidedImpactChip || '').trim();
+      input.value = nextValue;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.focus();
     });
   });
 

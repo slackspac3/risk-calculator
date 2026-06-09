@@ -191,6 +191,13 @@ const AdminDocumentLibrarySection = (() => {
         const text = await file.text();
         return text.slice(0, maxChars).trim();
       }
+      if (['pdf', 'doc', 'docx', 'xlsx', 'xls'].includes(ext) && typeof parseRegisterFile === 'function') {
+        const parsed = await parseRegisterFile(file);
+        if (typeof isLimitedDocumentExtraction === 'function' && isLimitedDocumentExtraction(parsed, ext)) {
+          return '';
+        }
+        return String(parsed.text || '').slice(0, maxChars).trim();
+      }
       if (ext === 'pdf') {
         const buffer = await file.arrayBuffer();
         const bytes = new Uint8Array(buffer);
@@ -236,6 +243,12 @@ const AdminDocumentLibrarySection = (() => {
       const buList = typeof getBUList === 'function' ? getBUList() : [];
       const adminSettings = typeof getAdminSettings === 'function'
         ? getAdminSettings() : {};
+      const docList = typeof getDocList === 'function' ? getDocList() : [];
+      const sourceDoc = docList.find(doc => doc.id === docId) || {};
+      const sourceText = [
+        sourceDoc.contentFull,
+        sourceDoc.contentExcerpt
+      ].map(value => String(value || '').trim()).filter(Boolean).join('\n\n');
       const entityLayers = Array.isArray(adminSettings.entityContextLayers)
         ? adminSettings.entityContextLayers : [];
 
@@ -263,8 +276,8 @@ const AdminDocumentLibrarySection = (() => {
             existingLayer,
             parentLayer,
             adminSettings,
-            uploadedText: '',
-            uploadedDocumentName: ''
+            uploadedText: sourceText,
+            uploadedDocumentName: sourceDoc.title || sourceDoc.id || ''
           });
           updatedEntityLayers = updatedEntityLayers.filter(l => l.entityId !== buId);
           updatedEntityLayers.push({

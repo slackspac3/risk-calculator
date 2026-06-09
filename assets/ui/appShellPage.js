@@ -1,7 +1,16 @@
 (function(global) {
   'use strict';
 
-  const PLATFORM_VERSION_LABEL = 'Risk Intelligence Engine v0.8';
+  function buildPlatformVersionLabel() {
+    const release = global.__RISK_CALCULATOR_RELEASE__ || {};
+    const rawVersion = String(release.version || '0.10.0-pilot.1').trim();
+    const channel = String(release.channel || 'pilot').trim();
+    const versionMatch = rawVersion.match(/^(\d+\.\d+)/);
+    const versionLabel = versionMatch ? versionMatch[1] : rawVersion.replace(/-.+$/, '') || '0.10';
+    return `Risk Intelligence Engine v${versionLabel}${channel ? ` ${channel}` : ''}`;
+  }
+
+  const PLATFORM_VERSION_LABEL = buildPlatformVersionLabel();
   const pageCleanupHandlers = new Set();
   const STAGE_TRANSITION_MS = 560;
   let stageTransitionTimer = 0;

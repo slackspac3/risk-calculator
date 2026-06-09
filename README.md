@@ -64,7 +64,7 @@ Current desktop-first UX behavior:
 - the selected-route explanation and the single `Continue to Step 2 intake` action stay visible in the hero
 - Step 1 now includes a compact live route runway so users can see the selected route, signal state, and Step 2 handoff without opening another panel
 - switching between guided, draft, and import/example keeps the user on Step 1 and keeps all options visible
-- Step 2 in Basic mode stays intentionally simple: two plain-language prompts, one build action, and a draft preview, with setup/context/risk-review controls behind support disclosures
+- Step 2 in Basic mode now presents those two plain-language prompts as a conversational intake workbench: a user message, main impact, live risk memory, agent runway, one build action, and draft preview, with setup/context/risk-review controls behind support disclosures
 - Step 2 Basic now includes a compact Parallax-inspired workflow ribbon for source, workflow state, draft state, and next action, so users can see live-AI-first/fallback status without opening expert panels
 - after Step 2 builds a draft, the preview is shown immediately on the same screen and restored from saved assisted-draft state before the user continues to Step 3
 - Step 2 now shows a compact `Assessment Manager` timeline so users understand the journey without opening expert panels; optional setup uses a tabbed support drawer instead of one long dense stack
@@ -75,6 +75,7 @@ Current desktop-first UX behavior:
 - Step 5 and Results share the same decision-readiness model: readiness score, blocking gaps, review gaps, required controls, human approvers, Challenge Agent findings, and an Assessment Manager replay trace
 - Results now lead with a `Decision Stack`: recommendation, readiness, top blocker, next action, owner, and source in one management scan
 - Results now surface a compact top value strip before the tabs: estimated value created, estimated analyst time saved, and expected annual loss stay near the result title instead of being buried in the lower report
+- Results cockpit and export probability labels now use `tolerance exceedance` instead of breach likelihood, so users do not confuse appetite-threshold probability with incident likelihood
 - Results metric explainers open in a dark, high-contrast drawer so `Explain this number` remains readable inside the executive results surface
 - Opened support panels now avoid light-over-light rendering by using explicit dark-surface treatments for FAIR assumption explainers, reviewer meeting-room context, and mediation output cards
 - Challenge Agent output now includes a short `Decision changed because...` story so users can see why the posture moved from draft output to proceed, review, or hold
@@ -155,7 +156,7 @@ Current AI behavior:
 - server routes own prompt construction, structured-output repair, quality gates, readiness evaluation, and fallback policy for the main guided, register, treatment, and reviewer/challenge flows
 - browser-side admin context drafting and refinement currently use a temporary `28000`-character prompt ceiling for the PoC so long inherited context blocks are less likely to clip before send
 - the longer-term fix is prompt shaping rather than prompt growth alone; that backlog is tracked in [docs/future-fixes.md](./docs/future-fixes.md)
-- `Build scenario draft` remains the single authoritative Step 1 intelligence call; guided prompt ideas and pre-build preview are now deterministic/local so they do not add extra hosted backend traffic
+- `Build scenario draft` remains the single authoritative Step 2 intelligence call; guided prompt ideas and pre-build preview are now deterministic/local so they do not add extra hosted backend traffic
 - Step 1 pre-draft hinting is now projection-first:
   - the browser ranks competing taxonomy families, lenses, confidence, and separation before showing prompt ideas or a preferred local lens
   - ambiguous close-call wording stays soft instead of forcing a hard lane from a single generic token such as `payment`, `breach`, `outage`, or `supplier`
@@ -183,6 +184,13 @@ Current AI behavior:
 - the Assessment Manager narrative is now the visible wrapper for scenario, evidence, challenge, and output review; specialist labels remain only as trace detail
 - provenance labels are explicit across the main AI/result surfaces so fallback or local-preview output does not look like live AI
 - retrieval uses a stronger local hybrid scorer with lens-aware and concept-aware matching, but browser-local learning weights no longer authoritatively shape inference quality
+- file uploads are local-text-first: Step 2 register upload accepts TXT/CSV/TSV/JSON/Markdown/Excel, while PDF/Word supporting-context uploads proceed only when readable text can be extracted in-browser
+- supporting-context uploads now fail visibly when extraction is too weak, instead of sending metadata-only placeholders to AI and claiming the file grounded the response
+- server-side evidence RAG is now available behind Vercel API routes for droplet-hosted Qdrant:
+  - `/api/evidence/index` embeds extracted evidence text server-side and writes chunks to the configured Qdrant collection
+  - `/api/evidence/search` embeds the search query server-side and returns sanitized snippets/citations only
+  - embeddings, Qdrant credentials, full chunk text, and vectors stay out of the browser
+  - every index/search is scoped to the authenticated session actor and audited as an `evidence_rag` event
 - domain guardrails now explicitly keep common continuity, counterparty-credit, ESG/human-rights, and geopolitical scenarios from drifting into adjacent cyber, fraud, or procurement lanes unless the user input actually supports that crossover
 - remaining browser-side helper AI stays assistive-only for bounded UX features such as company-context drafting and scenario memory; it is not part of the trusted assessment or review path
 - BU and function-context AI assist now inherits richer organisation context, parent-layer context, and saved regulations, then shows an inline grounding state:
@@ -565,6 +573,8 @@ Do not use `file://`.
 
 The static server only serves the browser app. It does not execute the Vercel serverless API routes under `api/`. With the current release bootstrap, `http://localhost:8080` is intended to test the local UI against the hosted pilot API. If you need to test the API routes themselves locally, run them through Vercel dev with a complete `.env.local`.
 
+When testing a fresh UI build, confirm the asset stamp is consistent across `index.html`, `assets/app.js`, and `assets/releaseBootstrap.js`; the local browser can otherwise keep loading stale cached bundles.
+
 For local testing against the hosted pilot API, prefer the fixed `8080` origin above instead of an arbitrary port. The hosted Vercel API allowlist is expected to include:
 - `https://slackspac3.github.io`
 - `http://localhost:8080`
@@ -583,6 +593,7 @@ That file covers the expected configuration for:
 - frontend origin
 - frontend origin allowlists
 - Compass API access
+- optional server-side evidence RAG using Compass embeddings and droplet-hosted Qdrant
 - eval-harness Compass overrides
 - session signing
 - audit retention
@@ -592,6 +603,7 @@ That file covers the expected configuration for:
 
 AI environment notes:
 - server-side pilot environments should provide real `COMPASS_API_KEY`, `COMPASS_API_URL`, and `COMPASS_MODEL` values
+- server-side evidence RAG additionally needs `RISK_RAG_QDRANT_URL`, `RISK_RAG_QDRANT_API_KEY`, and `RISK_RAG_QDRANT_COLLECTION`; it reuses `COMPASS_API_KEY` for embeddings unless `RISK_RAG_EMBEDDINGS_API_KEY` is set
 - the frontend defaults to the hosted proxy path and should normally run keyless in the browser
 - local browser testing that needs real hosted AI should use the fixed localhost origin above so the hosted API CORS allowlist can stay narrow and explicit
 - local serverless API testing also needs `SESSION_SIGNING_SECRET` or `ADMIN_API_SECRET`; otherwise login can render locally but authenticated API workflows cannot mint or validate server session tokens
