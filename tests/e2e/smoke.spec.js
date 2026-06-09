@@ -1076,6 +1076,13 @@ test('wizard step 2 basic mode surfaces required business context before intake'
         - Array.from(contextNode.parentElement.children).indexOf(intakeNode.closest('.step1-primary-zone'));
     });
     expect(order).toBeLessThan(0);
+    await page.locator('#step1-required-context #wizard-bu').selectOption({ index: 1 });
+    await expect(page).toHaveURL(/#\/wizard\/2$/);
+    await expect(page.locator('#step1-required-context')).toBeVisible();
+    await expect(page.locator('#step1-required-context')).toContainText(/Context selected/i);
+    await expect(page.locator('#step1-required-context')).toContainText(/Ready/i);
+    await expect(page.locator('#wizard-bu')).toHaveCount(1);
+    await expect(page.locator('.app-stage-shell.is-current .step1-basic-intake')).toBeVisible();
   });
 });
 
