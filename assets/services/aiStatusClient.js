@@ -18,7 +18,10 @@ const AiStatusClient = (() => {
         model: String(value?.model || defaultModel).trim() || defaultModel,
         proxyConfigured: value?.proxyConfigured !== false,
         checkedAt: Number(value?.checkedAt || Date.now()),
-        message: String(value?.message || '').trim()
+        message: String(value?.message || '').trim(),
+        evidenceRag: value?.evidenceRag && typeof value.evidenceRag === 'object'
+          ? JSON.parse(JSON.stringify(value.evidenceRag))
+          : null
       };
     }
 
@@ -26,7 +29,7 @@ const AiStatusClient = (() => {
       return cachedStatus ? { ...cachedStatus } : null;
     }
 
-    async function fetchStatus({ force = false, probe = true } = {}) {
+    async function fetchStatus({ force = false, probe = true, ragProbe = false } = {}) {
       const cached = getCachedStatus();
       if (!force && cached && (Date.now() - Number(cached.checkedAt || 0)) < cacheTtlMs) {
         return cached;
@@ -41,6 +44,7 @@ const AiStatusClient = (() => {
       const sessionToken = typeof getSessionToken === 'function' ? String(getSessionToken() || '') : '';
       const url = new URL(endpoint);
       if (probe) url.searchParams.set('probe', '1');
+      if (ragProbe) url.searchParams.set('ragProbe', '1');
       inflightStatusPromise = (async () => {
         const response = await fetch(url.toString(), {
           method: 'GET',

@@ -131,6 +131,80 @@ const AdminSystemAccessSection = (() => {
         </div>
       </div>
       ${readiness.detail ? `<div class="form-help" style="margin-top:var(--sp-4)">${escape(readiness.detail)}</div>` : ''}
+      ${renderEvidenceRagOpsStrip(serverStatus)}
+    </div>`;
+  }
+
+  function renderEvidenceRagOpsStrip(serverStatus = null) {
+    const rag = serverStatus?.evidenceRag && typeof serverStatus.evidenceRag === 'object'
+      ? serverStatus.evidenceRag
+      : null;
+    if (!rag) return '';
+    const smoke = rag.lastSmokeStatus && typeof rag.lastSmokeStatus === 'object'
+      ? rag.lastSmokeStatus
+      : null;
+    const smokeTone = smoke?.ok
+      ? 'success'
+      : smoke?.skipped
+        ? 'warning'
+        : smoke
+          ? 'danger'
+          : 'neutral';
+    const smokeLabel = smoke?.ok
+      ? 'Passed'
+      : smoke?.skipped
+        ? 'Skipped'
+        : smoke
+          ? 'Failed'
+          : 'Not run';
+    const smokeCheckedAt = smoke?.checkedAt ? Date.parse(smoke.checkedAt) : 0;
+    const smokeCheckedLabel = smokeCheckedAt && typeof formatRelativePilotTime === 'function'
+      ? formatRelativePilotTime(smokeCheckedAt, 'recently')
+      : (smokeCheckedAt ? 'Recently checked' : 'No smoke recorded');
+    const configuredLabel = rag.configured ? 'Ready' : 'Incomplete';
+    const configuredTone = rag.configured ? 'success' : 'warning';
+    const scopedLabel = rag.actorScoped === false ? 'Shared scope' : 'Actor-scoped';
+    return `<div class="rag-ops-strip" style="margin-top:var(--sp-5);padding-top:var(--sp-4);border-top:1px solid var(--border-subtle)">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);flex-wrap:wrap">
+        <div>
+          <div class="context-panel-title">Server evidence RAG</div>
+          <div class="form-help">Qdrant and embedding readiness for evidence indexing and citation search.</div>
+        </div>
+        <span class="badge badge--${escape(configuredTone)}">${escape(configuredLabel)}</span>
+      </div>
+      <div class="grid-4" style="margin-top:var(--sp-4)">
+        <div style="background:var(--bg-elevated);padding:var(--sp-4);border-radius:var(--radius-lg)">
+          <div class="form-help">Qdrant</div>
+          <div style="font-weight:700;color:var(--text-primary);margin-top:4px">${escape(rag.qdrantConfigured ? 'Configured' : 'Missing')}</div>
+        </div>
+        <div style="background:var(--bg-elevated);padding:var(--sp-4);border-radius:var(--radius-lg)">
+          <div class="form-help">Collection</div>
+          <div style="font-weight:700;color:var(--text-primary);margin-top:4px">${escape(rag.collection || 'Not configured')}</div>
+        </div>
+        <div style="background:var(--bg-elevated);padding:var(--sp-4);border-radius:var(--radius-lg)">
+          <div class="form-help">Embeddings</div>
+          <div style="font-weight:700;color:var(--text-primary);margin-top:4px">${escape(rag.embeddingsConfigured ? (rag.embeddingsModel || 'Configured') : 'Missing')}</div>
+        </div>
+        <div style="background:var(--bg-elevated);padding:var(--sp-4);border-radius:var(--radius-lg)">
+          <div class="form-help">Scope</div>
+          <div style="font-weight:700;color:var(--text-primary);margin-top:4px">${escape(scopedLabel)}</div>
+        </div>
+      </div>
+      <div class="grid-2" style="margin-top:var(--sp-4)">
+        <div style="background:var(--bg-elevated);padding:var(--sp-4);border-radius:var(--radius-lg)">
+          <div class="form-help">Last Qdrant smoke</div>
+          <div style="display:flex;align-items:center;gap:var(--sp-2);margin-top:4px;flex-wrap:wrap">
+            <span class="badge badge--${escape(smokeTone)}">${escape(smokeLabel)}</span>
+            <strong style="color:var(--text-primary)">${escape(smokeCheckedLabel)}</strong>
+          </div>
+          ${smoke?.reason ? `<div class="form-help" style="margin-top:var(--sp-2)">${escape(smoke.reason)}</div>` : ''}
+        </div>
+        <div style="background:var(--bg-elevated);padding:var(--sp-4);border-radius:var(--radius-lg)">
+          <div class="form-help">Chunk policy</div>
+          <div style="font-weight:700;color:var(--text-primary);margin-top:4px">${escape(`${rag.chunking?.maxChunks || 'Default'} chunks max`)}</div>
+          <div class="form-help" style="margin-top:var(--sp-2)">Vectors and full chunk text stay server-side.</div>
+        </div>
+      </div>
     </div>`;
   }
 
@@ -351,7 +425,7 @@ const AdminSystemAccessSection = (() => {
         btn.textContent = 'Refreshing…';
       }
       try {
-        const status = await LLMService.fetchServerAiStatus({ force, probe: true });
+        const status = await LLMService.fetchServerAiStatus({ force, probe: true, ragProbe: true });
         refreshPilotAiReadinessPanel(status);
         bindRefreshButton();
         if (!silent) {

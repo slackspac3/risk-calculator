@@ -189,6 +189,7 @@ Current AI behavior:
 - server-side evidence RAG is now available behind Vercel API routes for droplet-hosted Qdrant:
   - `/api/evidence/index` embeds extracted evidence text server-side and writes chunks to the configured Qdrant collection
   - `/api/evidence/search` embeds the search query server-side and returns sanitized snippets/citations only
+  - `npm run qdrant:smoke` checks the configured Qdrant collection without exposing credentials, then records a sanitized last-smoke result for admin status
   - embeddings, Qdrant credentials, full chunk text, and vectors stay out of the browser
   - every index/search is scoped to the authenticated session actor and audited as an `evidence_rag` event
 - domain guardrails now explicitly keep common continuity, counterparty-credit, ESG/human-rights, and geopolitical scenarios from drifting into adjacent cyber, fraud, or procurement lanes unless the user input actually supports that crossover
@@ -604,6 +605,7 @@ That file covers the expected configuration for:
 AI environment notes:
 - server-side pilot environments should provide real `COMPASS_API_KEY`, `COMPASS_API_URL`, and `COMPASS_MODEL` values
 - server-side evidence RAG additionally needs `RISK_RAG_QDRANT_URL`, `RISK_RAG_QDRANT_API_KEY`, and `RISK_RAG_QDRANT_COLLECTION`; it reuses `COMPASS_API_KEY` for embeddings unless `RISK_RAG_EMBEDDINGS_API_KEY` is set
+- run `npm run qdrant:smoke` after configuring RAG to verify Qdrant reachability and collection shape; set `RISK_RAG_SMOKE_STATUS_DIR` only if you want the sanitized last-smoke JSON written somewhere other than the default temp/log directory
 - the frontend defaults to the hosted proxy path and should normally run keyless in the browser
 - local browser testing that needs real hosted AI should use the fixed localhost origin above so the hosted API CORS allowlist can stay narrow and explicit
 - local serverless API testing also needs `SESSION_SIGNING_SECRET` or `ADMIN_API_SECRET`; otherwise login can render locally but authenticated API workflows cannot mint or validate server session tokens
