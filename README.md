@@ -64,11 +64,11 @@ Current desktop-first UX behavior:
 - the selected-route explanation and the single `Continue to Step 2 intake` action stay visible in the hero
 - Step 1 now includes a compact live route runway so users can see the selected route, signal state, and Step 2 handoff without opening another panel
 - switching between guided, draft, and import/example keeps the user on Step 1 and keeps all options visible
-- Step 2 in Basic mode now presents those two plain-language prompts as a conversational intake workbench: a user message, main impact, live risk memory, agent runway, one build action, and draft preview, with setup/context/risk-review controls behind support disclosures
-- Step 2 Basic now includes a compact Parallax-inspired workflow ribbon for source, workflow state, draft state, and next action, so users can see live-AI-first/fallback status without opening expert panels
+- Step 2 in Basic mode now opens as a simplified Quick Assessment: required business context when missing, two plain-language prompts, one build action, and draft preview, with setup/risk-review controls behind support disclosures
+- Step 2 Basic intentionally hides the dense workflow ribbon, Assessment Manager timeline, and live memory sidecar on first load so a non-expert user is not asked to interpret agent telemetry before typing the event and impact
 - after Step 2 builds a draft, the preview is shown immediately on the same screen and restored from saved assisted-draft state before the user continues to Step 3
-- Step 2 now shows a compact `Assessment Manager` timeline so users understand the journey without opening expert panels; optional setup uses a tabbed support drawer instead of one long dense stack
-- the Assessment Manager surfaces now use a Parallax-inspired signal runway, animated agent packets, and a conic readiness gauge so the AI workflow feels active without adding more controls
+- Assessment Manager surfaces remain visible where they help review and decision readiness: Step 5 Review & Run and Results replay, not the Basic Step 2 opening screen
+- the Assessment Manager surfaces use a Parallax-inspired signal runway, animated agent packets, resilient mission cards, and a conic readiness gauge so the AI workflow feels active without adding more controls
 - if Step 2 is missing required business context, the business-unit/geography picker is promoted above the intake and the draft build stays locked until it is selected
 - Advanced mode restores the denser command deck, live scout, prompt ideas, context dock, and full shortlist controls
 - Step 3, Step 5, and Results now share a compact workflow/status strip that keeps source, readiness, challenge posture, and next action visible without reopening expert panels
@@ -178,10 +178,10 @@ Current AI behavior:
 - explicit fallback and unavailable states are surfaced instead of silently masquerading as live AI
 - Basic Step 2 does not show a full local draft before the user asks to build; the first build click tries live AI, then automatically stages an explicit fallback draft from the typed answers if live AI is unavailable
 - once an assisted or fallback Step 2 draft exists, saved draft state preserves the preview provenance so Basic mode cannot show an empty draft placeholder while Step 3 is available
-- the browser now also builds a deterministic Assessment Manager view around trusted workflows: context loaded, scenario framed, evidence mission, Challenge Agent, and output review
+- the browser builds a deterministic Assessment Manager view around trusted review workflows: context loaded, scenario framed, evidence mission, Challenge Agent, and output review
 - decision readiness is separate from AI prose and Monte Carlo output; it records blockers, open gaps, required controls, and human-review owners so final results are easier to challenge
 - the Challenge Agent pass is visible before simulation and persisted into saved results as a replayable review point
-- the Assessment Manager narrative is now the visible wrapper for scenario, evidence, challenge, and output review; specialist labels remain only as trace detail
+- the Assessment Manager narrative is the visible wrapper for Step 5 review and saved-result replay; specialist labels remain only as trace detail
 - provenance labels are explicit across the main AI/result surfaces so fallback or local-preview output does not look like live AI
 - retrieval uses a stronger local hybrid scorer with lens-aware and concept-aware matching, but browser-local learning weights no longer authoritatively shape inference quality
 - file uploads are local-text-first: Step 2 register upload accepts TXT/CSV/TSV/JSON/Markdown/Excel, while PDF/Word supporting-context uploads proceed only when readable text can be extracted in-browser
@@ -431,8 +431,10 @@ Current productization work now includes:
 - Basic Step 2 now sends the user from two plain-language answers straight to the build action, with graceful fallback draft staging if the live AI call fails
 - Basic Step 2 now restores built draft previews from saved assisted narrative/provenance state before Step 3, avoiding a false empty-preview state after build
 - Basic Step 2 now promotes missing required business context above the intake instead of burying it inside setup support
-- Step 2, Step 5, and Results now share an Assessment Manager / Challenge Agent / decision-readiness layer inspired by the Parallax42 decision-council pattern
-- Assessment Manager visuals now include an agentic signal runway, packet motion, hover polish, and a live readiness gauge for Step 2, Step 5, and Results, with reduced-motion coverage
+- Basic Step 2 now keeps the opening screen focused: no workflow ribbon, no manager timeline, no live-memory sidecar, and no disabled sticky footer overlay before the user can act
+- Step 5 and Results share an Assessment Manager / Challenge Agent / decision-readiness layer inspired by the Parallax42 decision-council pattern
+- Assessment Manager visuals now include an agentic signal runway, packet motion, hover polish, text-overflow guards, and a live readiness gauge for Step 5 and Results, with reduced-motion coverage
+- Step 4 estimate cards now keep conditional cost areas visually separated from the core cost rows, and Step 5 keeps the Monte Carlo run action on one line at desktop widths
 - a golden journey unit test now checks readiness, challenge, and replay-trace behavior for a supplier outage scenario
 - tighter Step 1 domain hardening for continuity, finance, ESG, and geopolitical scenarios so shortlist and narrative drift is reduced even in deterministic fallback mode
 - scenario memory and overlap checks in Step 1 without letting browser-local precedent silently steer inference quality

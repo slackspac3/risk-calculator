@@ -8142,7 +8142,7 @@ canvas { display: block; width: 100%; }
 }
 .wizard-run-band {
   display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(300px, .9fr);
+  grid-template-columns: minmax(0, 0.95fr) minmax(440px, 1.05fr);
   gap: var(--sp-5);
   align-items: stretch;
   padding: var(--sp-5);
@@ -8176,10 +8176,15 @@ canvas { display: block; width: 100%; }
   flex-direction: column;
   justify-content: center;
   gap: var(--sp-3);
+  min-width: 0;
   padding: var(--sp-4);
   border-radius: 22px;
   border: 1px solid rgba(246,243,242,.08);
   background: linear-gradient(180deg, rgba(35,43,37,.78), rgba(24,31,26,.74));
+}
+.wizard-run-band__actions .btn {
+  min-width: 0;
+  white-space: nowrap;
 }
 .wizard-run-band__footnote {
   text-align: center;
@@ -8574,6 +8579,9 @@ canvas { display: block; width: 100%; }
   background:
     radial-gradient(circle at top right, rgba(3,209,168,0.06), transparent 24%),
     linear-gradient(180deg, rgba(246,243,242,0.03), rgba(246,243,242,0.012));
+}
+.wizard-cost-stack > .wizard-disclosure {
+  margin-top: var(--sp-5);
 }
 .estimate-stage-title-kicker {
   display: block;
@@ -12972,6 +12980,8 @@ html[data-experience-mode="basic"] .wizard-layout--step1 .wizard-summary-stack {
   margin: 4px 0 0;
   color: rgba(246, 251, 244, 0.66);
   line-height: 1.55;
+  overflow-wrap: anywhere;
+  word-break: normal;
 }
 
 .assessment-manager-panel__score {
@@ -13011,6 +13021,7 @@ html[data-experience-mode="basic"] .wizard-layout--step1 .wizard-summary-stack {
 
 .assessment-manager-panel__step {
   position: relative;
+  min-width: 0;
   min-height: 116px;
   padding: var(--sp-4);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -13019,6 +13030,10 @@ html[data-experience-mode="basic"] .wizard-layout--step1 .wizard-summary-stack {
     linear-gradient(150deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.025)),
     rgba(255, 255, 255, 0.025);
   transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+}
+
+.assessment-manager-panel__step > div {
+  min-width: 0;
 }
 
 .assessment-manager-panel__step:hover {
@@ -13057,6 +13072,7 @@ html[data-experience-mode="basic"] .wizard-layout--step1 .wizard-summary-stack {
   display: block;
   color: var(--text-primary);
   font-size: 0.84rem;
+  overflow-wrap: anywhere;
 }
 
 .assessment-manager-panel__step small {
@@ -13201,6 +13217,10 @@ html[data-experience-mode="basic"] .wizard-layout--step1 .wizard-summary-stack {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--sp-3);
+}
+
+.assessment-manager-panel__missions > div {
+  min-width: 0;
 }
 
 .assessment-manager-panel__missions span {
