@@ -51,6 +51,7 @@ function extractFunctionBody(source, functionName) {
 }
 
 const step1Js = read('assets/wizard/step1.js');
+const appJs = read('assets/app.js');
 const assessmentStateJs = read('assets/state/assessmentState.js');
 const e2eSmokeSpecJs = read('tests/e2e/smoke.spec.js');
 
@@ -93,6 +94,19 @@ expect(
   saveDraftBody.includes("window.dispatchEvent(new CustomEvent('rq:draft-saved'")
     && saveDraftBody.indexOf('sessionStorage.setItem') < saveDraftBody.indexOf("window.dispatchEvent(new CustomEvent('rq:draft-saved'"),
   'saveDraft must emit rq:draft-saved only after the browser storage write is attempted.'
+);
+expect(
+  appJs.includes('function getCurrentWorkspaceUsername')
+    && appJs.includes('AppState.currentUser?.username')
+    && appJs.includes('AppState.userStateCache?.username')
+    && appJs.includes('function buildUserStorageKey(prefix, username = \'\')')
+    && appJs.includes('getCurrentWorkspaceUsername() || getCurrentUserOrThrow().username'),
+  'Scoped browser storage keys must fall back to stable AppState workspace identity when the auth session read is transiently unavailable.'
+);
+expect(
+  appJs.includes('function ensureUserStateCache(username = getCurrentWorkspaceUsername())')
+    && appJs.includes('function queueSharedUserStateSync(patch = {}, username = getCurrentWorkspaceUsername(), options = {})'),
+  'Draft cache and shared sync defaults must use the stable workspace username resolver.'
 );
 
 if (failures.length) {

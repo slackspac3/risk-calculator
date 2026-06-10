@@ -1549,7 +1549,7 @@ function getSafeRetryAfterMs(error) {
   return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : 800;
 }
 
-function clearDraftRecoverySnapshot(username = AuthService.getCurrentUser()?.username || '') {
+function clearDraftRecoverySnapshot(username = getCurrentWorkspaceUsername()) {
   const safeUsername = String(username || '').trim().toLowerCase();
   if (!safeUsername) return;
   try {
@@ -1557,7 +1557,7 @@ function clearDraftRecoverySnapshot(username = AuthService.getCurrentUser()?.use
   } catch {}
 }
 
-function persistDraftRecoverySnapshot(draft = AppState.draft, username = AuthService.getCurrentUser()?.username || '') {
+function persistDraftRecoverySnapshot(draft = AppState.draft, username = getCurrentWorkspaceUsername()) {
   const safeUsername = String(username || '').trim().toLowerCase();
   if (!safeUsername) return;
   try {
@@ -2719,7 +2719,7 @@ function getRelevantScenarioPatterns(buId, limit = 3) {
 
 // Scenario patterns are persisted from the shared assessment completion seam in assets/state/assessmentState.js.
 
-function readDraftRecoverySnapshot(username = AuthService.getCurrentUser()?.username || '') {
+function readDraftRecoverySnapshot(username = getCurrentWorkspaceUsername()) {
   const safeUsername = String(username || '').trim().toLowerCase();
   if (!safeUsername) return null;
   try {
@@ -3484,7 +3484,7 @@ async function handleUserStateConflict(error, retry) {
   });
 }
 
-function queueSharedUserStateSync(patch = {}, username = AuthService.getCurrentUser()?.username || '', options = {}) {
+function queueSharedUserStateSync(patch = {}, username = getCurrentWorkspaceUsername(), options = {}) {
   const safeUsername = String(username || '').trim().toLowerCase();
   if (!safeUsername) return;
   // Queue a cloned patch so later draft/settings mutations cannot rewrite the pending sync payload in place.
@@ -3541,7 +3541,7 @@ function queueSharedUserStateSync(patch = {}, username = AuthService.getCurrentU
   }, 250)));
 }
 
-function ensureUserStateCache(username = AuthService.getCurrentUser()?.username || '') {
+function ensureUserStateCache(username = getCurrentWorkspaceUsername()) {
   const safeUsername = String(username || '').trim().toLowerCase();
   if (!safeUsername) {
     return createEmptyUserStateCache('');
@@ -3767,16 +3767,34 @@ function deriveGeographyRegulations(geographies = []) {
   return Array.from(new Set(normaliseScenarioGeographies(geographies).flatMap(geo => GEOGRAPHY_REGULATION_MAP[geo] || [])));
 }
 
+function getCurrentWorkspaceUsername(fallback = '') {
+  const authUsername = typeof AuthService !== 'undefined' && AuthService && typeof AuthService.getCurrentUser === 'function'
+    ? AuthService.getCurrentUser()?.username
+    : '';
+  const stateUsername = typeof AppState !== 'undefined' && AppState
+    ? (AppState.currentUser?.username || AppState.userStateCache?.username)
+    : '';
+  return String(authUsername || stateUsername || fallback || '').trim().toLowerCase();
+}
+
 function getCurrentUserOrThrow() {
   const user = AuthService.getCurrentUser();
   if (!user?.username) {
+    const fallbackUsername = getCurrentWorkspaceUsername();
+    if (fallbackUsername) {
+      return {
+        ...(AppState.currentUser && typeof AppState.currentUser === 'object' ? AppState.currentUser : {}),
+        username: fallbackUsername
+      };
+    }
     throw new Error('No authenticated user session found.');
   }
   return user;
 }
 
-function buildUserStorageKey(prefix, username = getCurrentUserOrThrow().username) {
-  return `${prefix}__${username}`;
+function buildUserStorageKey(prefix, username = '') {
+  const safeUsername = String(username || getCurrentWorkspaceUsername() || getCurrentUserOrThrow().username).trim().toLowerCase();
+  return `${prefix}__${safeUsername}`;
 }
 
 async function clearUserPersistentState(username) {
