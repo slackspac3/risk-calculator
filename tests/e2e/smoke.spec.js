@@ -615,8 +615,10 @@ test('wizard assessment type router stores selection before intake', async ({ pa
     await expect(page.locator('.app-stage-shell.is-current [data-assessment-type-dock]')).toContainText(/Project risk/i);
     await expect(page.locator('.app-stage-shell.is-current [data-assessment-type-dock]')).toContainText(/buyer/i);
     const savedDraft = await page.evaluate(() => {
-      const raw = sessionStorage.getItem('rq_draft__alex.trafton');
-      return raw ? JSON.parse(raw).draft : null;
+      const key = Object.keys(sessionStorage).find(item => item.startsWith('rq_draft__'));
+      const raw = key ? sessionStorage.getItem(key) : '';
+      const parsed = raw ? JSON.parse(raw) : null;
+      return parsed?.draft || parsed || null;
     });
     expect(savedDraft?.assessmentType).toBe('project_buyer');
     expect(savedDraft?.projectContext?.projectRole).toBe('buyer');
