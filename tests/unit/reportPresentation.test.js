@@ -40,6 +40,46 @@ test('buildExecutiveDecisionSupport uses uncertainty-aware business wording', ()
   assert.match(decision.managementFocus, /Business interruption range/i);
 });
 
+test('buildExecutiveDecisionSupport gates privileged credential exposure independent of tolerance', () => {
+  const assessment = {
+    buName: 'G42',
+    geography: 'United Arab Emirates',
+    scenarioTitle: 'Azure admin credentials found for sale on the darkweb',
+    narrative: 'Azure admin credentials for the tenant were found for sale on the darkweb. It is not yet confirmed whether the credentials are still valid.',
+    selectedRisks: [
+      { title: 'Privileged tenant takeover through leaked administrator credentials', category: 'Cyber' }
+    ]
+  };
+  const critical = ReportPresentation.detectCriticalCondition(assessment);
+  const decision = ReportPresentation.buildExecutiveDecisionSupport(
+    assessment,
+    {
+      toleranceBreached: false,
+      nearTolerance: false,
+      annualReviewTriggered: false,
+      eventLoss: { p90: 250000 },
+      threshold: 1000000
+    },
+    { confidence: { label: 'Moderate confidence' }, drivers: { upward: [], stabilisers: [] } }
+  );
+
+  assert.equal(critical.key, 'privileged-access-exposure');
+  assert.equal(decision.decision, 'Critical response required');
+  assert.match(decision.rationale, /below tolerance/i);
+  assert.match(decision.priority, /Revoke exposed access/i);
+  assert.match(decision.criticalCondition.blockingGap, /revoked|disabled/i);
+});
+
+test('detectCriticalCondition keeps customer data exposure out of privileged credential gate', () => {
+  const critical = ReportPresentation.detectCriticalCondition({
+    scenarioTitle: 'Customer account records exposed in cloud storage',
+    narrative: 'Customer records and personal data were exposed through a cloud storage configuration issue.'
+  });
+
+  assert.equal(critical.key, 'regulated-data-exposure');
+  assert.doesNotMatch(critical.title, /credential/i);
+});
+
 test('buildExecutiveConfidenceFrame explains decision implications and evidence state', () => {
   const frame = ReportPresentation.buildExecutiveConfidenceFrame(
     { label: 'Low confidence', summary: 'Broad assumptions are still in play.' },

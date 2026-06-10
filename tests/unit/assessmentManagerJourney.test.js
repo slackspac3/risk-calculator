@@ -19,6 +19,7 @@ function loadAssessmentManagerHelpers() {
     normaliseCitations(value = []) {
       return Array.isArray(value) ? value.filter(Boolean) : [];
     },
+    ReportPresentation: require('../../assets/services/reportPresentation.js'),
     escapeHtml(value = '') {
       return String(value || '');
     }
@@ -151,4 +152,64 @@ test('assessment manager blocks decision readiness when context and scope are mi
   assert.match(readiness.blockingGaps.join(' '), /scenario narrative/i);
   assert.match(readiness.blockingGaps.join(' '), /at least one risk/i);
   assert.equal(challenge.status, 'Challenge required');
+});
+
+test('assessment manager blocks decision readiness for critical control gates even below tolerance', () => {
+  const helpers = loadAssessmentManagerHelpers();
+  const draft = {
+    buId: 'g42',
+    buName: 'G42',
+    geography: 'United Arab Emirates',
+    narrative: 'Azure admin credentials for the tenant were found for sale on the darkweb. It is not confirmed whether the credentials are still valid.',
+    citations: [{ title: 'SOC dark-web alert' }],
+    inputProvenance: [{ origin: 'SOC alert', label: 'Credential exposure' }],
+    fairParams: {
+      tefLikely: 1,
+      threatCapLikely: 0.5,
+      controlStrLikely: 0.7,
+      irLikely: 60000,
+      biLikely: 120000,
+      dbLikely: 10000
+    }
+  };
+  const selectedRisks = [
+    { title: 'Privileged tenant takeover through leaked administrator credentials', category: 'Cyber' }
+  ];
+  const readiness = helpers.buildDecisionReadinessModel({
+    draft,
+    selectedRisks,
+    scenarioGeographies: ['United Arab Emirates'],
+    validation: { errors: [], warnings: [] },
+    safeIterations: 10000,
+    results: {
+      toleranceBreached: false,
+      nearTolerance: false,
+      annualReviewTriggered: false,
+      eventLoss: { p90: 250000 },
+      threshold: 1000000
+    }
+  });
+  const challenge = helpers.buildAssessmentChallengePass({
+    draft,
+    selectedRisks,
+    validation: { errors: [], warnings: [] },
+    readiness
+  });
+  const manager = helpers.buildAssessmentManagerRunModel({
+    stage: 'results',
+    draft,
+    selectedRisks,
+    validation: { errors: [], warnings: [] },
+    readiness,
+    challenge,
+    safeIterations: 10000,
+    results: { toleranceBreached: false, nearTolerance: false }
+  });
+
+  assert.equal(readiness.status, 'Needs gating');
+  assert.equal(readiness.tone, 'danger');
+  assert.match(readiness.blockingGaps.join(' '), /credentials are revoked|tokens/i);
+  assert.equal(challenge.status, 'Challenge required');
+  assert.match(challenge.findings[0].title, /Privileged credential exposure/i);
+  assert.equal(manager.status, 'Needs gating');
 });

@@ -3,6 +3,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
+global.ReportPresentation = require('../../assets/services/reportPresentation.js');
+
 const {
   ASSESSMENT_LIFECYCLE_STATUS,
   normaliseAssessmentRecord,
@@ -35,6 +37,21 @@ test('normaliseAssessmentRecord derives review and treatment statuses from legac
     results: { nearTolerance: false }
   });
   assert.equal(treatmentCase.lifecycleStatus, ASSESSMENT_LIFECYCLE_STATUS.TREATMENT_VARIANT);
+});
+
+test('normaliseAssessmentRecord sends critical control gates to review even below tolerance', () => {
+  const reviewCase = normaliseAssessmentRecord({
+    id: 'a-critical',
+    scenarioTitle: 'Azure admin credentials found for sale on the darkweb',
+    narrative: 'Azure admin credentials for the tenant were found for sale on the darkweb and may still be valid.',
+    results: {
+      toleranceBreached: false,
+      nearTolerance: false,
+      annualReviewTriggered: false
+    }
+  });
+
+  assert.equal(reviewCase.lifecycleStatus, ASSESSMENT_LIFECYCLE_STATUS.READY_FOR_REVIEW);
 });
 
 test('transitionAssessmentLifecycle archives and restores the prior active status', () => {

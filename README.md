@@ -74,6 +74,7 @@ Current desktop-first UX behavior:
 - Step 3, Step 5, and Results now share a compact workflow/status strip that keeps source, readiness, challenge posture, and next action visible without reopening expert panels
 - Step 5 and Results share the same decision-readiness model: readiness score, blocking gaps, review gaps, required controls, human approvers, Challenge Agent findings, and an Assessment Manager replay trace
 - Results now lead with a `Decision Stack`: recommendation, readiness, top blocker, next action, owner, and source in one management scan
+- Results now apply critical-condition gates alongside the financial model: hard triggers such as potentially valid privileged credentials, active compromise, regulated data exposure, legal/compliance triggers, and safety-critical conditions require review even when expected loss remains below tolerance
 - Results now surface a compact top value strip before the tabs: estimated value created, estimated analyst time saved, and expected annual loss stay near the result title instead of being buried in the lower report
 - Results cockpit and export probability labels now use `tolerance exceedance` instead of breach likelihood, so users do not confuse appetite-threshold probability with incident likelihood
 - Results metric explainers open in a dark, high-contrast drawer so `Explain this number` remains readable inside the executive results surface
@@ -180,6 +181,7 @@ Current AI behavior:
 - once an assisted or fallback Step 2 draft exists, saved draft state preserves the preview provenance so Basic mode cannot show an empty draft placeholder while Step 3 is available
 - the browser builds a deterministic Assessment Manager view around trusted review workflows: context loaded, scenario framed, evidence mission, Challenge Agent, and output review
 - decision readiness is separate from AI prose and Monte Carlo output; it records blockers, open gaps, required controls, and human-review owners so final results are easier to challenge
+- decision readiness now includes a hard-trigger catalogue for critical control conditions; these gates do not change Monte Carlo values, but they block `Decision-ready` posture until containment, legal/regulatory, safety, or closure evidence is recorded
 - the Challenge Agent pass is visible before simulation and persisted into saved results as a replayable review point
 - the Assessment Manager narrative is the visible wrapper for Step 5 review and saved-result replay; specialist labels remain only as trace detail
 - provenance labels are explicit across the main AI/result surfaces so fallback or local-preview output does not look like live AI

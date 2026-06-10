@@ -6,7 +6,7 @@ If this file conflicts with the code, git history, or GitHub workflow files, tru
 
 ## Last Updated
 
-- Date: 2026-05-15
+- Date: 2026-06-09
 - Updated by: Codex session in local repo `/Users/bhavuk.arora/risk-calculator`
 
 ## Read First
@@ -57,6 +57,14 @@ If this file conflicts with the code, git history, or GitHub workflow files, tru
 - Do not force-push or rewrite shared branch history unless explicitly approved.
 
 ## Verified Baseline Through 2026-04-25
+
+Latest active-context update on 2026-06-09 in `/Users/bhavuk.arora/risk-calculator`:
+
+- Results now distinguish financial appetite status from critical control or incident-response gates.
+- Hard-trigger scenarios such as potentially valid privileged credentials, active compromise, regulated data exposure, legal/compliance triggers, and safety-critical conditions should block `Decision-ready` even when Monte Carlo expected loss is below tolerance.
+- The critical gate is implemented as presentation/readiness logic, not as a change to the Monte Carlo simulation values.
+- Older saved results can receive a critical-gate overlay when opened, so stale `Challenge passed` replay objects do not hide unresolved hard triggers.
+- New changes in this area should keep `ReportPresentation.detectCriticalCondition()`, `buildDecisionReadinessModel()`, results replay, lifecycle review routing, exports, and docs aligned.
 
 Latest validation on 2026-05-15 in `/Users/bhavuk.arora/risk-calculator`:
 

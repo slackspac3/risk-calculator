@@ -149,6 +149,7 @@
 - The Challenge Agent story should explain the decision change in one short line: why the posture moved to proceed, proceed with review points, or hold for owner review.
 - The Challenge Agent pass should be visible before simulation and persisted with the saved assessment as `assessmentChallengePass`.
 - Decision readiness should remain separate from Monte Carlo loss outputs: use it for blockers, open gaps, required controls, and human-review owners.
+- Critical-condition gates are part of decision readiness, not the Monte Carlo calculation. Do not inflate loss values to force urgency. Instead, hard triggers such as potentially valid privileged credentials, active compromise, regulated data exposure, legal/compliance triggers, or safety-critical conditions should block `Decision-ready`, add required controls, and route the saved result to review even when the financial threshold is below tolerance.
 - The Monte Carlo run action is the primary decision on this screen. Keep the action box wide enough for the full label on desktop and avoid button text wrapping inside the card.
 - Changes here can easily affect the results lifecycle. Treat this as a hotspot.
 
@@ -172,10 +173,12 @@
   - per-user tab persistence
   - per-assessment boardroom mode persistence
 - Results should reuse persisted `assessmentManagerTrace`, `decisionReadiness`, and `assessmentChallengePass` when present, and only reconstruct them for older saved assessments.
+- Results may overlay critical-condition gates on top of persisted replay objects when an older saved assessment lacks the newer gate metadata. This is intentional so old results do not keep showing `Challenge passed` for unresolved hard triggers.
 - Results should lead with a management-readable Decision Stack: recommendation, readiness, top blocker, next action, owner, and source. Do not bury the action behind the technical result grid.
 - Results should show business value signals in the first scan. Keep estimated value created, estimated analyst time saved, and the main exposure metric near the result title or executive cockpit before deeper workflow/replay panels.
 - Results metric explainers must stay readable on the dark executive surface. Do not reuse light assumption-panel styling for the `Explain this number` drawer unless the text tokens are also switched for contrast.
 - Results tolerance-exceedance metrics must not be labelled as breach or incident likelihood. They describe modelled probability of exceeding the appetite/tolerance threshold, not whether the underlying event has occurred or will occur.
+- A result can be financially below tolerance and still require critical review. Keep the copy explicit: the quantitative result remains useful, but the hard-trigger gate must be closed before sign-off.
 - Results source labels must distinguish `Saved result`, `Live AI`, `Fallback`, `Local preview`, and `Imported source` where applicable.
 
 ### Compare / export / revisit

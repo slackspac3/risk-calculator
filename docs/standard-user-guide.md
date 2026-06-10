@@ -163,7 +163,10 @@ Then open:
 Use results well:
 - read the management story first
 - check confidence and caveats before escalating
+- do not assume `below tolerance` means `safe`; some scenarios have a critical response gate because the issue itself must be closed first
 - use treatment comparison only when you want to test whether a better outcome materially changes the decision
+
+Critical response gates can appear when the scenario suggests potentially valid privileged credentials, active compromise, regulated data exposure, legal or compliance triggers, or safety-critical conditions. In those cases, the number still matters, but the first action is to confirm containment, owner review, and closure evidence.
 
 ## Submit for review
 
@@ -171,6 +174,7 @@ If the platform prompts you to submit for review:
 - choose the correct reviewer
 - make sure the scenario is coherent first
 - check confidence, evidence, and assumptions before handing it off
+- if a critical response gate is shown, confirm the required owner and closure evidence rather than treating the assessment as ordinary monitoring
 
 Do not submit a scenario just because the number looks large. Make sure the story and the evidence posture are defendable.
 
