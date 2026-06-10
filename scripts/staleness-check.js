@@ -67,10 +67,9 @@ expect(
 expect(
   e2eSmokeSpecJs.includes('wizard assessment type router stores selection before intake')
     && e2eSmokeSpecJs.includes('page.waitForFunction')
-    && e2eSmokeSpecJs.includes('store.key(index)')
-    && e2eSmokeSpecJs.includes("key.startsWith('rq_draft__')")
-    && e2eSmokeSpecJs.includes("draft?.assessmentType === 'project_buyer'"),
-  'Assessment type router e2e coverage must wait for the persisted draft using deterministic Web Storage enumeration.'
+    && e2eSmokeSpecJs.includes("liveDraft?.assessmentType === 'project_buyer'")
+    && e2eSmokeSpecJs.includes("savedDraftValue?.projectContext?.projectRole).toBe('buyer')"),
+  'Assessment type router e2e coverage must wait for the live draft state to carry the selected type and project role.'
 );
 
 const selectAssessmentTypeBody = extractFunctionBody(step1Js, 'selectStep1AssessmentType');
@@ -107,6 +106,12 @@ expect(
   appJs.includes('function ensureUserStateCache(username = getCurrentWorkspaceUsername())')
     && appJs.includes('function queueSharedUserStateSync(patch = {}, username = getCurrentWorkspaceUsername(), options = {})'),
   'Draft cache and shared sync defaults must use the stable workspace username resolver.'
+);
+expect(
+  fs.existsSync(path.join(root, 'tests/unit/assessmentState.test.js'))
+    && read('tests/unit/assessmentState.test.js').includes('saveDraft persists the scoped session draft and detached cache snapshot')
+    && read('tests/unit/assessmentState.test.js').includes("sessionStorage.getItem('rq_draft__alex.trafton')"),
+  'Unit coverage must verify saveDraft writes the scoped browser-session payload.'
 );
 
 if (failures.length) {

@@ -356,3 +356,21 @@ test('loadDraft promotes recovery draft into session storage and clears the reco
   assert.equal(toasts.length, 1);
   assert.match(toasts[0].message, /recovered your latest draft from this browser/i);
 });
+
+test('saveDraft persists the scoped session draft and detached cache snapshot', () => {
+  const { api, cache, appState, sessionStorage } = loadAssessmentStateRuntime();
+  appState.draft = {
+    id: 'draft-save-test',
+    scenarioTitle: 'Assessment type selection persistence',
+    assessmentType: 'project_buyer',
+    projectContext: { projectRole: 'buyer' }
+  };
+
+  api.saveDraft();
+
+  const stored = JSON.parse(sessionStorage.getItem('rq_draft__alex.trafton'));
+  assert.equal(stored.draft.assessmentType, 'project_buyer');
+  assert.equal(stored.draft.projectContext.projectRole, 'buyer');
+  assert.equal(cache.draft.assessmentType, 'project_buyer');
+  assert.notEqual(cache.draft, appState.draft);
+});
