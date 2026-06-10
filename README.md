@@ -693,6 +693,7 @@ Core checks:
 npm run check:syntax
 npm run test:unit
 npm run check:smoke
+npm run check:staleness
 npm run test:e2e
 npm run test:eval:fixture
 npm run eval:local
@@ -718,12 +719,13 @@ npm run qa:release
 ```
 
 What the split gates mean for this application:
-- `qa:app` is the blocking engineering gate: syntax, taxonomy sync, smoke guardrails, unit coverage, eval fixture contract, docs consistency, and full Playwright
+- `qa:app` is the blocking engineering gate: syntax, taxonomy sync, smoke and state-staleness guardrails, unit coverage, eval fixture contract, docs consistency, and full Playwright
 - `qa:ai` is the model-quality gate: deterministic local eval plus explicit threshold enforcement
 - `qa:release` is the strict local promotion gate and runs both
 
 What `qa:app` covers for this application:
 - static syntax and smoke guardrails
+- state-staleness guardrails for draft persistence, assessment-type routing, and deterministic browser storage reads
 - taxonomy projection consistency
 - full unit coverage
 - deterministic eval-fixture coverage for AI/RAG contract stability

@@ -98,6 +98,7 @@ expect(String(packageJson.engines?.node || '').trim() === '>=24 <25', 'package.j
 expect(typeof packageJson.scripts?.['qa:app'] === 'string', 'package.json is missing qa:app');
 expect(typeof packageJson.scripts?.['qa:ai'] === 'string', 'package.json is missing qa:ai');
 expect(typeof packageJson.scripts?.['qa:release'] === 'string', 'package.json is missing qa:release');
+expect(typeof packageJson.scripts?.['check:staleness'] === 'string', 'package.json is missing check:staleness');
 expect(String(packageJson.scripts?.['release:pilot'] || '').trim() === 'npm run qa:release', 'release:pilot must defer to qa:release so CI and humans use one release gate');
 expect(String(packageJson.scripts?.['test:e2e'] || '').trim().includes('run-playwright-static.js'), 'test:e2e must use the managed static-server Playwright runner');
 expect(String(packageJson.scripts?.['test:e2e:smoke'] || '').trim().includes('run-playwright-static.js'), 'test:e2e:smoke must use the managed static-server Playwright runner');
@@ -192,6 +193,7 @@ expect(qaReleaseJs.includes('AI_QUALITY_STEPS'), 'qa-release script is missing t
 expect(qaSharedJs.includes('check:syntax'), 'qa-shared script is missing syntax checks');
 expect(qaSharedJs.includes('check:taxonomy-projection'), 'qa-shared script is missing taxonomy projection checks');
 expect(qaSharedJs.includes('check:smoke'), 'qa-shared script is missing smoke checks');
+expect(qaSharedJs.includes('check:staleness'), 'qa-shared script is missing state staleness guardrails');
 expect(qaSharedJs.includes('test:unit'), 'qa-shared script is missing unit tests');
 expect(qaSharedJs.includes('test:eval:fixture'), 'qa-shared script is missing eval fixture checks');
 expect(qaSharedJs.includes('test:e2e'), 'qa-shared script is missing full Playwright coverage');

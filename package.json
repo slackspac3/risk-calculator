@@ -8,6 +8,7 @@
   "scripts": {
     "check:syntax": "node scripts/syntax-check.js",
     "check:smoke": "node scripts/smoke-check.js",
+    "check:staleness": "node scripts/staleness-check.js",
     "check:taxonomy-projection": "node scripts/sync-scenario-taxonomy-projection.js --check",
     "sync:taxonomy-projection": "node scripts/sync-scenario-taxonomy-projection.js --write",
     "qa:app": "node scripts/qa-app.js",

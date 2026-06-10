@@ -617,7 +617,8 @@ test('wizard assessment type router stores selection before intake', async ({ pa
     const savedDraft = await page.waitForFunction(() => {
       const stores = [sessionStorage, localStorage];
       for (const store of stores) {
-        for (const key of Object.keys(store)) {
+        for (let index = 0; index < store.length; index += 1) {
+          const key = store.key(index) || '';
           if (!key.startsWith('rq_draft__')) continue;
           try {
             const parsed = JSON.parse(store.getItem(key) || '');

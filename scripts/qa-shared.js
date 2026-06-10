@@ -25,6 +25,11 @@ const APP_INTEGRITY_STEPS = [
     args: ['run', 'check:smoke']
   },
   {
+    label: 'State staleness guardrails',
+    command: npmCommand,
+    args: ['run', 'check:staleness']
+  },
+  {
     label: 'Unit tests',
     command: npmCommand,
     args: ['run', 'test:unit']
