@@ -622,6 +622,12 @@ test('wizard assessment type router stores selection before intake', async ({ pa
     const savedDraftValue = await savedDraft.jsonValue();
     expect(savedDraftValue?.assessmentType).toBe('project_buyer');
     expect(savedDraftValue?.projectContext?.projectRole).toBe('buyer');
+    await expect(page.locator('.app-stage-shell.is-current .step1-route-inputs--buyer')).toBeVisible();
+    await page.locator('#guided-event').fill('The delivery partner may miss the implementation date for a customer onboarding platform.');
+    await expect(page.getByRole('button', { name: /continue to scenario review/i })).toBeEnabled();
+    await page.getByRole('button', { name: /continue to scenario review/i }).click();
+    await expect(page).toHaveURL(/#\/wizard\/3$/);
+    await expect(page.getByRole('heading', { name: /refine the scenario/i })).toBeVisible();
   });
 });
 
@@ -671,7 +677,7 @@ test('wizard intake dry-run examples prefill the scenario and shortlist', async 
     await expect(page.locator('#intake-risk-statement').last()).toContainText('critical supplier');
     await expect(page.locator('.risk-select-checkbox:checked')).toHaveCount(3);
     await expect(page.getByRole('heading', { name: /choose business context first/i })).toBeVisible();
-    await expect(page.getByRole('button', { name: /continue to scenario review/i })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /continue to scenario review/i })).toBeEnabled();
   });
 });
 

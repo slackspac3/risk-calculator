@@ -601,6 +601,35 @@ function resetDraft() {
       criticalMilestoneDate: '',
       strategicImportance: 'unknown'
     },
+    enterpriseRiskContext: {
+      affectedArea: '',
+      likelyCause: '',
+      mainBusinessImpact: '',
+      existingControls: '',
+      evidenceNotes: '',
+      obligationNotes: ''
+    },
+    projectRouteDetails: {
+      supplierName: '',
+      customerName: '',
+      mainConsequence: ''
+    },
+    buyerProxyQuestions: {
+      mainImpact: 'unknown',
+      likelyDelay: 'unknown',
+      supplierReplacementDifficulty: 'unknown',
+      contractualRecoveries: 'unknown',
+      moneyPaidCommitted: 'unknown',
+      criticalPath: 'unknown'
+    },
+    sellerProxyQuestions: {
+      mainImpact: 'unknown',
+      expectedMargin: 'unknown',
+      penaltiesOrCredits: 'unknown',
+      terminationRight: 'unknown',
+      extraDeliveryCost: 'unknown',
+      commercialModel: 'unknown'
+    },
     buyerEconomics: {
       expectedSpend: null,
       approvedBudget: null,
@@ -608,13 +637,17 @@ function resetDraft() {
       amountCommitted: null,
       amountPaid: null,
       delayCostPerDay: null,
+      delayCostPerWeek: null,
       expectedBenefitPerDay: null,
+      expectedBenefitPerWeek: null,
       reprocurementPremiumPct: null,
       supplierCredits: null,
       insuranceRecoveries: null,
       liquidatedDamagesRecoverable: null,
-      contractualRecoveryCap: null
+      contractualRecoveryCap: null,
+      legalDisputeEstimate: null
     },
+    buyerEconomicsMeta: {},
     sellerEconomics: {
       contractValue: null,
       expectedRevenue: null,
@@ -629,8 +662,12 @@ function resetDraft() {
       liabilityCap: null,
       terminationExposure: null,
       renewalValueAtRisk: null,
-      costToCure: null
+      costToCure: null,
+      warrantyExposure: null,
+      insuranceRecoveries: null,
+      probabilityOfAward: null
     },
+    sellerEconomicsMeta: {},
     projectExposure: {
       valuationMode: 'benchmark_led',
       projectExposureSummary: '',

@@ -13,8 +13,10 @@ const {
   normaliseAssessmentType,
   normaliseAssessmentTypeState,
   normaliseBuyerEconomics,
+  normaliseBuyerEconomicsMeta,
   normaliseProjectExposure,
   normaliseSellerEconomics,
+  normaliseSellerEconomicsMeta,
   normaliseValuationMode
 } = require('../../assets/state/assessmentTypeModel.js');
 
@@ -34,7 +36,12 @@ test('assessment type model returns the default enterprise shape for empty input
     strategicImportance: 'unknown'
   });
   assert.equal(state.buyerEconomics.expectedSpend, null);
+  assert.equal(state.buyerEconomicsMeta.expectedSpend.status, 'unknown');
+  assert.equal(state.buyerEconomicsMeta.expectedSpend.source, 'not_provided');
   assert.equal(state.sellerEconomics.contractValue, null);
+  assert.equal(state.sellerEconomicsMeta.contractValue.status, 'unknown');
+  assert.equal(state.buyerProxyQuestions.mainImpact, 'unknown');
+  assert.equal(state.sellerProxyQuestions.mainImpact, 'unknown');
   assert.deepEqual(state.projectExposure.financialDrivers, []);
   assert.deepEqual(state.projectExposure.mapsToRiskParameters, {});
 });
@@ -100,6 +107,18 @@ test('buyer assessment normalises project context and buyer economics without de
       remainingSpend: '450000',
       reprocurementPremiumPct: '0.35'
     },
+    buyerEconomicsMeta: {
+      expectedSpend: { status: 'known', confidence: 'high', source: 'user', note: 'approved business case' },
+      remainingSpend: { status: 'estimated', confidence: 'medium', source: 'user' }
+    },
+    buyerProxyQuestions: {
+      mainImpact: 'supplier_replacement',
+      likelyDelay: 'weeks',
+      supplierReplacementDifficulty: 'hard',
+      contractualRecoveries: 'some',
+      moneyPaidCommitted: 'most',
+      criticalPath: 'yes'
+    },
     projectExposure: {
       valuationMode: 'project_linked',
       projectExposureSummary: '  Linked to approved project budget ',
@@ -117,6 +136,10 @@ test('buyer assessment normalises project context and buyer economics without de
   assert.equal(state.buyerEconomics.expectedSpend, 0);
   assert.equal(state.buyerEconomics.approvedBudget, 1200000);
   assert.equal(state.buyerEconomics.reprocurementPremiumPct, 0.35);
+  assert.equal(state.buyerEconomicsMeta.expectedSpend.status, 'known');
+  assert.equal(state.buyerEconomicsMeta.remainingSpend.status, 'estimated');
+  assert.equal(state.buyerProxyQuestions.mainImpact, 'supplier_replacement');
+  assert.equal(state.buyerProxyQuestions.criticalPath, 'yes');
   assert.equal(state.projectExposure.valuationMode, 'project_linked');
   assert.equal(state.projectExposure.projectExposureSummary, 'Linked to approved project budget');
   assert.deepEqual(state.projectExposure.financialDrivers[0], 'reprocurement premium');
@@ -139,6 +162,14 @@ test('seller assessment normalises project context and seller economics', () => 
       grossMarginPct: '0.42',
       contributionMargin: '750000',
       costToCure: '0'
+    },
+    sellerProxyQuestions: {
+      mainImpact: 'margin_erosion',
+      expectedMargin: 'medium',
+      penaltiesOrCredits: 'yes',
+      terminationRight: 'unknown',
+      extraDeliveryCost: 'high',
+      commercialModel: 'fixed_price'
     }
   });
 
@@ -150,6 +181,9 @@ test('seller assessment normalises project context and seller economics', () => 
   assert.equal(state.sellerEconomics.expectedRevenue, 1800000);
   assert.equal(state.sellerEconomics.grossMarginPct, 0.42);
   assert.equal(state.sellerEconomics.costToCure, 0);
+  assert.equal(state.sellerEconomicsMeta.costToCure.status, 'known');
+  assert.equal(state.sellerProxyQuestions.mainImpact, 'margin_erosion');
+  assert.equal(state.sellerProxyQuestions.commercialModel, 'fixed_price');
 });
 
 test('invalid assessment type and valuation mode fall back to enterprise defaults', () => {
@@ -210,7 +244,65 @@ test('assessment type changes clear incompatible economics only when necessary',
   const genericType = buildAssessmentTypeChangePatch(buyerDraft, ASSESSMENT_TYPE_GENERIC);
   assert.equal(genericType.projectContext.projectRole, 'none');
   assert.equal(genericType.buyerEconomics.expectedSpend, null);
+  assert.equal(genericType.buyerEconomicsMeta.expectedSpend.status, 'unknown');
   assert.equal(genericType.sellerEconomics.contractValue, null);
+});
+
+test('financial metadata distinguishes blank, zero, estimated, unknown, and not applicable values', () => {
+  const buyerMeta = normaliseBuyerEconomicsMeta({
+    delayCostPerDay: '',
+    amountPaid: '0',
+    remainingSpend: '500'
+  }, {
+    delayCostPerDay: { status: 'known', confidence: 'high', source: 'user' },
+    amountPaid: { status: 'known', confidence: 'high', source: 'user' },
+    remainingSpend: { status: 'estimated', confidence: 'medium', source: 'user', note: 'rough budget view' },
+    supplierCredits: { status: 'not_applicable', confidence: 'unknown', source: 'not_provided' }
+  });
+
+  assert.equal(buyerMeta.delayCostPerDay.status, 'unknown');
+  assert.equal(buyerMeta.delayCostPerDay.source, 'not_provided');
+  assert.equal(buyerMeta.amountPaid.status, 'known');
+  assert.equal(buyerMeta.remainingSpend.status, 'estimated');
+  assert.equal(buyerMeta.remainingSpend.note, 'rough budget view');
+  assert.equal(buyerMeta.supplierCredits.status, 'not_applicable');
+
+  const state = normaliseAssessmentTypeState({
+    assessmentType: ASSESSMENT_TYPE_PROJECT_BUYER,
+    buyerEconomics: {
+      delayCostPerDay: '',
+      amountPaid: '0'
+    },
+    buyerEconomicsMeta: {
+      delayCostPerDay: { status: 'unknown' },
+      amountPaid: { status: 'known' }
+    }
+  });
+
+  assert.equal(state.buyerEconomics.delayCostPerDay, null);
+  assert.equal(state.buyerEconomics.amountPaid, 0);
+  assert.equal(state.buyerEconomicsMeta.delayCostPerDay.status, 'unknown');
+  assert.equal(state.buyerEconomicsMeta.amountPaid.status, 'known');
+});
+
+test('seller financial metadata preserves not applicable and estimated optional fields', () => {
+  const sellerEconomics = normaliseSellerEconomics({
+    liabilityCap: '',
+    costToCure: '0',
+    probabilityOfAward: '1.4'
+  });
+  const sellerMeta = normaliseSellerEconomicsMeta(sellerEconomics, {
+    liabilityCap: { status: 'not_applicable' },
+    costToCure: { status: 'estimated', confidence: 'low', source: 'user' },
+    probabilityOfAward: { status: 'estimated', source: 'user' }
+  });
+
+  assert.equal(sellerEconomics.liabilityCap, null);
+  assert.equal(sellerEconomics.costToCure, 0);
+  assert.equal(sellerEconomics.probabilityOfAward, 1);
+  assert.equal(sellerMeta.liabilityCap.status, 'not_applicable');
+  assert.equal(sellerMeta.costToCure.status, 'estimated');
+  assert.equal(sellerMeta.probabilityOfAward.status, 'estimated');
 });
 
 test('percentage normalization preserves zero and bounds values between zero and one', () => {
@@ -224,11 +316,14 @@ test('percentage normalization preserves zero and bounds values between zero and
     amountCommitted: null,
     amountPaid: null,
     delayCostPerDay: null,
+    delayCostPerWeek: null,
     expectedBenefitPerDay: null,
+    expectedBenefitPerWeek: null,
     supplierCredits: null,
     insuranceRecoveries: null,
     liquidatedDamagesRecoverable: null,
     contractualRecoveryCap: null,
+    legalDisputeEstimate: null,
     reprocurementPremiumPct: 1
   });
   assert.equal(normaliseSellerEconomics({ grossMarginPct: '-0.2' }).grossMarginPct, 0);
