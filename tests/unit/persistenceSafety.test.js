@@ -94,7 +94,7 @@ test('patchUserState updates only the requested section and increments revision'
   assert.equal(patched.ok, true);
   assert.equal(patched.state._meta.revision, 2);
   assert.deepEqual(patched.state.userSettings, { geography: 'UAE' });
-  assert.deepEqual(patched.state.assessments, [{ id: 'a-1', scenarioTitle: 'Initial' }]);
+  assert.deepEqual(patched.state.assessments, initial.state.assessments);
   assert.equal(patched.state.draft.id, 'draft-2');
 });
 

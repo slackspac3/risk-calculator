@@ -24,6 +24,29 @@ test('normaliseAssessmentRecord migrates legacy draft assessments', () => {
   assert.equal(assessment.lifecycleFlags.baselineLocked, false);
 });
 
+test('normaliseAssessmentRecord preserves normalized project assessment fields', () => {
+  const assessment = normaliseAssessmentRecord({
+    id: 'a-project',
+    assessmentType: 'project_buyer',
+    projectContext: {
+      projectName: ' Cloud implementation ',
+      projectRole: 'seller',
+      currency: ' usd '
+    },
+    buyerEconomics: {
+      expectedSpend: '0',
+      reprocurementPremiumPct: '2'
+    }
+  });
+
+  assert.equal(assessment.assessmentType, 'project_buyer');
+  assert.equal(assessment.projectContext.projectName, 'Cloud implementation');
+  assert.equal(assessment.projectContext.projectRole, 'buyer');
+  assert.equal(assessment.projectContext.currency, 'USD');
+  assert.equal(assessment.buyerEconomics.expectedSpend, 0);
+  assert.equal(assessment.buyerEconomics.reprocurementPremiumPct, 1);
+});
+
 test('normaliseAssessmentRecord derives review and treatment statuses from legacy fields', () => {
   const reviewCase = normaliseAssessmentRecord({
     id: 'a-2',

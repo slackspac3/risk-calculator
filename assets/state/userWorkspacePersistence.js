@@ -2,6 +2,24 @@
 
 (function attachUserWorkspacePersistence(globalScope) {
   const USER_WORKSPACE_SCHEMA_VERSION = 2;
+  const assessmentTypeApi = typeof require === 'function'
+    ? (() => {
+        try {
+          return require('./assessmentTypeModel.js');
+        } catch {
+          return null;
+        }
+      })()
+    : null;
+
+  function getAssessmentTypeStateNormaliser() {
+    return assessmentTypeApi?.normaliseAssessmentTypeState
+      || assessmentTypeApi?.normalizeAssessmentTypeState
+      || globalScope.normaliseAssessmentTypeState
+      || globalScope.normalizeAssessmentTypeState
+      || globalScope.AssessmentTypeModel?.normaliseAssessmentTypeState
+      || null;
+  }
 
   function cloneValue(value, fallback) {
     if (value === null || value === undefined) return fallback;
@@ -10,6 +28,16 @@
     } catch {
       return fallback;
     }
+  }
+
+  function normaliseAssessmentTypeDraftFields(draft) {
+    if (!draft || typeof draft !== 'object') return draft || null;
+    const normalise = getAssessmentTypeStateNormaliser();
+    if (typeof normalise !== 'function') return cloneValue(draft, null);
+    return {
+      ...cloneValue(draft, {}),
+      ...normalise(draft)
+    };
   }
 
   function buildDefaultLearningStore() {
@@ -78,9 +106,9 @@
   function normaliseDraftWorkspaceSection(draftWorkspace = {}, legacyDraft = null) {
     const source = draftWorkspace && typeof draftWorkspace === 'object' ? draftWorkspace : {};
     const draft = source.draft && typeof source.draft === 'object'
-      ? cloneValue(source.draft, null)
+      ? normaliseAssessmentTypeDraftFields(source.draft)
       : legacyDraft && typeof legacyDraft === 'object'
-        ? cloneValue(legacyDraft, null)
+        ? normaliseAssessmentTypeDraftFields(legacyDraft)
         : null;
     return {
       schemaVersion: USER_WORKSPACE_SCHEMA_VERSION,
@@ -126,12 +154,12 @@
         if (!item || typeof item !== 'object') return;
         const safeId = String(item.id || id || '').trim();
         if (!safeId) return;
-        records[safeId] = cloneValue({ ...item, id: safeId }, null);
+        records[safeId] = normaliseAssessmentTypeDraftFields({ ...item, id: safeId });
       });
     } else {
       (Array.isArray(savedAssessments) ? savedAssessments : legacyAssessments).forEach(item => {
         if (!item || typeof item !== 'object' || !item.id) return;
-        records[String(item.id).trim()] = cloneValue(item, null);
+        records[String(item.id).trim()] = normaliseAssessmentTypeDraftFields(item);
       });
     }
 
@@ -203,7 +231,7 @@
       if (!item || typeof item !== 'object') return;
       const safeId = String(item.id || id || '').trim();
       if (!safeId) return;
-      upsertsById[safeId] = cloneValue({ ...item, id: safeId }, null);
+      upsertsById[safeId] = normaliseAssessmentTypeDraftFields({ ...item, id: safeId });
     });
     const removedIds = Array.from(new Set(
       (Array.isArray(source.removedIds) ? source.removedIds : [])

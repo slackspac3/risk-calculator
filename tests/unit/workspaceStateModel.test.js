@@ -23,16 +23,14 @@ test('workspace sync queue merges patches without dropping the prior queue', () 
   }, {
     userSettings: { geography: 'UAE' }
   });
-  assert.deepEqual(next.userStateSyncPending, {
-    draftWorkspace: {
-      schemaVersion: 2,
-      draft: { scenarioTitle: 'Existing' },
-      status: 'active',
-      lastSavedAt: 0,
-      recoverySnapshotAt: 0
-    },
-    userSettings: { geography: 'UAE' }
-  });
+  assert.deepEqual(next.userStateSyncPending.userSettings, { geography: 'UAE' });
+  assert.equal(next.userStateSyncPending.draftWorkspace.schemaVersion, 2);
+  assert.equal(next.userStateSyncPending.draftWorkspace.status, 'active');
+  assert.equal(next.userStateSyncPending.draftWorkspace.lastSavedAt, 0);
+  assert.equal(next.userStateSyncPending.draftWorkspace.recoverySnapshotAt, 0);
+  assert.equal(next.userStateSyncPending.draftWorkspace.draft.scenarioTitle, 'Existing');
+  assert.equal(next.userStateSyncPending.draftWorkspace.draft.assessmentType, 'enterprise_generic');
+  assert.equal(next.userStateSyncPending.draftWorkspace.draft.projectContext.projectRole, 'none');
 });
 
 test('workspace sync queue normalises legacy draft and saved assessment patch slices without overwriting untouched slices', () => {

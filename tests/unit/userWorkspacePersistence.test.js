@@ -40,6 +40,60 @@ test('serializeUserWorkspaceState keeps the canonical bounded sections without d
   assert.equal(Object.prototype.hasOwnProperty.call(serialized, 'assessments'), false);
 });
 
+test('workspace persistence keeps the project assessment shape compatible across draft and saved records', () => {
+  const serialized = serializeUserWorkspaceState({
+    draftWorkspace: buildDraftWorkspaceSection({
+      id: 'draft-project',
+      assessmentType: 'project_buyer',
+      projectContext: {
+        projectName: '  Data platform migration ',
+        projectRole: 'seller',
+        currency: ' aed ',
+        projectDurationMonths: '12'
+      },
+      buyerEconomics: {
+        expectedSpend: '1000000',
+        reprocurementPremiumPct: '1.5'
+      },
+      projectExposure: {
+        valuationMode: 'project_linked',
+        financialDrivers: ['  budget overrun ']
+      }
+    }),
+    savedAssessments: buildSavedAssessmentsSection([{
+      id: 'saved-project',
+      assessmentType: 'project_seller',
+      scenarioTitle: 'Seller delivery risk',
+      projectContext: {
+        projectName: ' Managed services renewal ',
+        projectRole: 'buyer'
+      },
+      sellerEconomics: {
+        contractValue: '250000',
+        grossMarginPct: '-0.2'
+      }
+    }])
+  });
+
+  const draft = serialized.draftWorkspace.draft;
+  const saved = serialized.savedAssessments.itemsById['saved-project'];
+  assert.equal(draft.assessmentType, 'project_buyer');
+  assert.equal(draft.projectContext.projectName, 'Data platform migration');
+  assert.equal(draft.projectContext.projectRole, 'buyer');
+  assert.equal(draft.projectContext.currency, 'AED');
+  assert.equal(draft.projectContext.projectDurationMonths, 12);
+  assert.equal(draft.buyerEconomics.expectedSpend, 1000000);
+  assert.equal(draft.buyerEconomics.reprocurementPremiumPct, 1);
+  assert.equal(draft.projectExposure.valuationMode, 'project_linked');
+  assert.deepEqual(draft.projectExposure.financialDrivers, ['budget overrun']);
+
+  assert.equal(saved.assessmentType, 'project_seller');
+  assert.equal(saved.projectContext.projectName, 'Managed services renewal');
+  assert.equal(saved.projectContext.projectRole, 'seller');
+  assert.equal(saved.sellerEconomics.contractValue, 250000);
+  assert.equal(saved.sellerEconomics.grossMarginPct, 0);
+});
+
 test('saved assessment delta patches preserve unrelated records while carrying upserts and removals', () => {
   const previous = buildSavedAssessmentsSection([
     { id: 'a-1', scenarioTitle: 'Assessment one', createdAt: 1 },

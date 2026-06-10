@@ -4061,8 +4061,17 @@ function ensureDraftShape() {
             ...AppState.draft.resolvedObligationContext,
             allResolved: Array.isArray(AppState.draft.resolvedObligations) ? AppState.draft.resolvedObligations : AppState.draft.resolvedObligationContext.allResolved,
             summary: AppState.draft.resolvedObligationSummary || AppState.draft.resolvedObligationContext.summary || ''
-          }
+        }
         : null);
+  const assessmentTypeState = typeof normaliseAssessmentTypeState === 'function'
+    ? normaliseAssessmentTypeState(AppState.draft)
+    : {
+        assessmentType: AppState.draft.assessmentType || 'enterprise_generic',
+        projectContext: AppState.draft.projectContext && typeof AppState.draft.projectContext === 'object' ? AppState.draft.projectContext : {},
+        buyerEconomics: AppState.draft.buyerEconomics && typeof AppState.draft.buyerEconomics === 'object' ? AppState.draft.buyerEconomics : {},
+        sellerEconomics: AppState.draft.sellerEconomics && typeof AppState.draft.sellerEconomics === 'object' ? AppState.draft.sellerEconomics : {},
+        projectExposure: AppState.draft.projectExposure && typeof AppState.draft.projectExposure === 'object' ? AppState.draft.projectExposure : {}
+      };
   AppState.draft = {
     id: AppState.draft.id || 'a_' + Date.now(),
     startedAt: draftStartedAt,
@@ -4071,6 +4080,11 @@ function ensureDraftShape() {
     step1Path: ['guided', 'draft', 'import'].includes(String(AppState.draft.step1Path || '').trim())
       ? String(AppState.draft.step1Path || '').trim()
       : 'guided',
+    assessmentType: assessmentTypeState.assessmentType,
+    projectContext: assessmentTypeState.projectContext,
+    buyerEconomics: assessmentTypeState.buyerEconomics,
+    sellerEconomics: assessmentTypeState.sellerEconomics,
+    projectExposure: assessmentTypeState.projectExposure,
     buId: AppState.draft.buId || null,
     buName: AppState.draft.buName || null,
     contextNotes: AppState.draft.contextNotes || '',
