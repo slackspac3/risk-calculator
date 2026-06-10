@@ -268,6 +268,26 @@
     return output;
   }
 
+  function normaliseProjectInputQuality(value = {}) {
+    const source = isPlainObject(value) ? value : {};
+    const score = normaliseFiniteNumber(readField(source, 'score'));
+    const recommended = isPlainObject(readField(source, 'recommendedNextInput')) ? readField(source, 'recommendedNextInput') : {};
+    return {
+      score: score === null ? 0 : Math.max(0, Math.min(100, Math.round(score))),
+      label: normaliseText(readField(source, 'label')),
+      knownHighImpactInputs: normaliseCappedArray(readField(source, 'knownHighImpactInputs')),
+      estimatedHighImpactInputs: normaliseCappedArray(readField(source, 'estimatedHighImpactInputs')),
+      unknownHighImpactInputs: normaliseCappedArray(readField(source, 'unknownHighImpactInputs')),
+      canProceed: readField(source, 'canProceed') === false ? false : true,
+      recommendedNextInput: {
+        field: normaliseText(readField(recommended, 'field')),
+        why: normaliseText(readField(recommended, 'why') || readField(recommended, 'whyItMatters')),
+        whoMightKnow: normaliseText(readField(recommended, 'whoMightKnow')),
+        suggestedQuestion: normaliseText(readField(recommended, 'suggestedQuestion'))
+      }
+    };
+  }
+
   function normaliseProjectContext(projectContext = {}, assessmentType = ASSESSMENT_TYPE_GENERIC) {
     const source = isPlainObject(projectContext) ? projectContext : {};
     const nextAssessmentType = normaliseAssessmentType(assessmentType);
@@ -416,11 +436,17 @@
     return {
       valuationMode: normaliseValuationMode(readField(source, 'valuationMode')),
       projectExposureSummary: normaliseText(readField(source, 'projectExposureSummary')),
+      projectInputQuality: normaliseProjectInputQuality(readField(source, 'projectInputQuality')),
       financialDrivers: normaliseCappedArray(readField(source, 'financialDrivers')),
       capsAndOffsets: normaliseCappedArray(readField(source, 'capsAndOffsets')),
       doubleCountingWarnings: normaliseCappedArray(readField(source, 'doubleCountingWarnings')),
       missingInputs: normaliseCappedArray(readField(source, 'missingInputs')),
-      mapsToRiskParameters: normaliseRiskParameterMap(readField(source, 'mapsToRiskParameters'))
+      mapsToRiskParameters: normaliseRiskParameterMap(readField(source, 'mapsToRiskParameters')),
+      sourceMode: normaliseText(readField(source, 'sourceMode')),
+      inputFingerprint: normaliseText(readField(source, 'inputFingerprint')),
+      generatedAt: normaliseText(readField(source, 'generatedAt')),
+      usedFallback: readField(source, 'usedFallback') === true,
+      aiUnavailable: readField(source, 'aiUnavailable') === true
     };
   }
 

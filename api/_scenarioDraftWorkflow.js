@@ -282,12 +282,88 @@ function normaliseGuidedInput(value = {}) {
   });
 }
 
+function normaliseOptionalProjectNumber(value) {
+  if (value === null || value === undefined) return undefined;
+  if (typeof value === 'string' && !value.trim()) return undefined;
+  return normaliseNumericInput(value);
+}
+
+function normaliseProjectScenarioContext(value = {}) {
+  if (!isPlainObject(value)) return undefined;
+  return compactInputValue({
+    projectName: normaliseInlineInputText(value.projectName || ''),
+    projectDescription: normaliseBlockInputText(value.projectDescription || ''),
+    projectRole: normaliseInlineInputText(value.projectRole || ''),
+    projectStage: normaliseInlineInputText(value.projectStage || ''),
+    contractType: normaliseInlineInputText(value.contractType || ''),
+    currency: normaliseInlineInputText(value.currency || ''),
+    projectDurationMonths: normaliseOptionalProjectNumber(value.projectDurationMonths),
+    criticalMilestoneDate: normaliseInlineInputText(value.criticalMilestoneDate || ''),
+    strategicImportance: normaliseInlineInputText(value.strategicImportance || '')
+  });
+}
+
+function normaliseProjectExposureForScenario(value = {}) {
+  if (!isPlainObject(value)) return undefined;
+  const quality = isPlainObject(value.projectInputQuality) ? value.projectInputQuality : {};
+  return compactInputValue({
+    valuationMode: normaliseInlineInputText(value.valuationMode || ''),
+    projectExposureSummary: normaliseBlockInputText(value.projectExposureSummary || ''),
+    sourceMode: normaliseInlineInputText(value.sourceMode || ''),
+    usedFallback: value.usedFallback === true ? true : undefined,
+    aiUnavailable: value.aiUnavailable === true ? true : undefined,
+    projectInputQuality: compactInputValue({
+      score: normaliseOptionalProjectNumber(quality.score),
+      label: normaliseInlineInputText(quality.label || ''),
+      knownHighImpactInputs: normaliseStringListInput(quality.knownHighImpactInputs, { maxItems: 8 }),
+      estimatedHighImpactInputs: normaliseStringListInput(quality.estimatedHighImpactInputs, { maxItems: 8 }),
+      unknownHighImpactInputs: normaliseStringListInput(quality.unknownHighImpactInputs, { maxItems: 8 })
+    }),
+    financialDrivers: (Array.isArray(value.financialDrivers) ? value.financialDrivers : []).slice(0, 8).map((driver) => {
+      if (!isPlainObject(driver)) return null;
+      return compactInputValue({
+        label: normaliseInlineInputText(driver.label || ''),
+        driverType: normaliseInlineInputText(driver.driverType || ''),
+        driverStatus: normaliseInlineInputText(driver.driverStatus || ''),
+        likely: normaliseOptionalProjectNumber(driver.likely),
+        confidence: normaliseInlineInputText(driver.confidence || ''),
+        source: normaliseInlineInputText(driver.source || ''),
+        missingInputs: normaliseStringListInput(driver.missingInputs, { maxItems: 5 })
+      });
+    }).filter(Boolean),
+    capsAndOffsets: (Array.isArray(value.capsAndOffsets) ? value.capsAndOffsets : []).slice(0, 6).map((item) => {
+      if (!isPlainObject(item)) return null;
+      return compactInputValue({
+        type: normaliseInlineInputText(item.type || item.label || ''),
+        effect: normaliseInlineInputText(item.effect || item.offsetStatus || ''),
+        likely: normaliseOptionalProjectNumber(item.likely ?? item.amount),
+        confidence: normaliseInlineInputText(item.confidence || '')
+      });
+    }).filter(Boolean),
+    missingInputs: (Array.isArray(value.missingInputs) ? value.missingInputs : []).slice(0, 8).map((item) => {
+      if (!isPlainObject(item)) return null;
+      return compactInputValue({
+        field: normaliseInlineInputText(item.field || ''),
+        label: normaliseInlineInputText(item.label || ''),
+        importance: normaliseInlineInputText(item.importance || ''),
+        suggestedQuestion: normaliseBlockInputText(item.suggestedQuestion || '')
+      });
+    }).filter(Boolean),
+    doubleCountingWarnings: normaliseStringListInput(value.doubleCountingWarnings, { maxItems: 8 })
+  });
+}
+
 function normaliseGuidedScenarioDraftInput(input = {}) {
+  const assessmentType = normaliseInlineInputText(input.assessmentType || '').toLowerCase();
+  const isProjectAssessment = assessmentType === 'project_buyer' || assessmentType === 'project_seller';
   return compactInputValue({
     session: input.session,
+    assessmentType: isProjectAssessment ? assessmentType : '',
     riskStatement: normaliseBlockInputText(input.riskStatement || ''),
     guidedInput: normaliseGuidedInput(input.guidedInput),
     scenarioLensHint: normaliseInlineInputText(input.scenarioLensHint || ''),
+    projectContext: isProjectAssessment ? normaliseProjectScenarioContext(input.projectContext) : undefined,
+    projectExposure: isProjectAssessment ? normaliseProjectExposureForScenario(input.projectExposure) : undefined,
     businessUnit: normaliseBusinessUnitInput(input.businessUnit),
     geography: normaliseInlineInputText(input.geography || ''),
     applicableRegulations: normaliseStringListInput(input.applicableRegulations, { maxItems: 12 }),
@@ -999,6 +1075,28 @@ function buildGuidedScenarioPriorityPromptBlock(input = {}, {
       : '',
     `Accepted taxonomy anchor:\n${JSON.stringify(buildClassificationAnchor(classification), null, 2)}`
   ].filter(Boolean).join('\n');
+}
+
+function buildProjectExposurePromptBlock(input = {}) {
+  const assessmentType = String(input.assessmentType || '').trim();
+  if (assessmentType !== 'project_buyer' && assessmentType !== 'project_seller') return '';
+  const exposure = isPlainObject(input.projectExposure) ? input.projectExposure : null;
+  if (!exposure) return '';
+  const roleLabel = assessmentType === 'project_seller' ? 'seller project risk' : 'buyer project risk';
+  return `Project financial exposure context (${roleLabel}):
+${truncateText(JSON.stringify({
+    projectContext: input.projectContext || {},
+    valuationMode: exposure.valuationMode || '',
+    sourceMode: exposure.sourceMode || '',
+    projectExposureSummary: exposure.projectExposureSummary || '',
+    projectInputQuality: exposure.projectInputQuality || {},
+    financialDrivers: exposure.financialDrivers || [],
+    capsAndOffsets: exposure.capsAndOffsets || [],
+    missingInputs: exposure.missingInputs || [],
+    doubleCountingWarnings: exposure.doubleCountingWarnings || []
+  }, null, 2), 2800)}
+
+Use this only as financial exposure context. Do not convert unknown project economics into precise amounts, and do not treat total project spend or total contract value as automatic loss.`;
 }
 
 function buildFallbackRiskCards(classification = {}, input = {}) {
@@ -2970,6 +3068,7 @@ Rules:
   });
   const scopedContextPromptBlock = buildGuidedScenarioContextPromptBlock(input.adminSettings || {}, input.businessUnit || null);
   const evidencePromptBlock = buildGuidedScenarioEvidencePromptBlock(evidenceMeta);
+  const projectExposurePromptBlock = buildProjectExposurePromptBlock(input);
   const rerankedCitationPromptBlock = buildGuidedCitationPromptBlock(promptCitations, {
     seedNarrative,
     input,
@@ -2996,6 +3095,8 @@ ${sanitizeAiText(input.geography || '', { maxChars: 200 }) || '(none)'}
 
 Applicable regulations:
 ${Array.isArray(input.applicableRegulations) && input.applicableRegulations.length ? input.applicableRegulations.map((item) => `- ${item}`).join('\n') : '(none)'}
+
+${projectExposurePromptBlock ? `${projectExposurePromptBlock}\n` : ''}
 
 Live scoped context:
 ${scopedContextPromptBlock}

@@ -326,6 +326,10 @@ const LLMService = (() => {
     return _workflowClient ? _workflowClient.getScenarioDraftUrl() : '';
   }
 
+  function _getProjectExposureMapUrl() {
+    return _workflowClient ? _workflowClient.getProjectExposureMapUrl() : '';
+  }
+
   function _getManualIntakeAssistUrl() {
     return _workflowClient ? _workflowClient.getManualIntakeAssistUrl() : '';
   }
@@ -4133,9 +4137,12 @@ ${businessUnit.selectedDepartmentContext}` : ''
 
   async function buildGuidedScenarioDraft(input = {}) {
     return _postServerAiWorkflow(_getScenarioDraftUrl(), {
+      assessmentType: typeof input.assessmentType === 'string' ? input.assessmentType : '',
       riskStatement: typeof input.riskStatement === 'string' ? input.riskStatement : '',
       guidedInput: input?.guidedInput && typeof input.guidedInput === 'object' ? input.guidedInput : {},
       scenarioLensHint: input.scenarioLensHint,
+      projectContext: input?.projectContext && typeof input.projectContext === 'object' ? input.projectContext : null,
+      projectExposure: input?.projectExposure && typeof input.projectExposure === 'object' ? input.projectExposure : null,
       businessUnit: input?.businessUnit && typeof input.businessUnit === 'object' ? input.businessUnit : null,
       geography: typeof input.geography === 'string' ? input.geography : '',
       applicableRegulations: Array.isArray(input.applicableRegulations) ? input.applicableRegulations : [],
@@ -4144,6 +4151,31 @@ ${businessUnit.selectedDepartmentContext}` : ''
       traceLabel: typeof input.traceLabel === 'string' ? input.traceLabel : '',
       priorMessages: Array.isArray(input.priorMessages) ? input.priorMessages : []
     });
+  }
+
+  async function generateProjectExposureMap(input = {}) {
+    const payload = {
+      assessmentType: typeof input.assessmentType === 'string' ? input.assessmentType : '',
+      riskStatement: typeof input.riskStatement === 'string' ? input.riskStatement : '',
+      projectContext: input?.projectContext && typeof input.projectContext === 'object' ? input.projectContext : {},
+      buyerEconomics: input?.buyerEconomics && typeof input.buyerEconomics === 'object' ? input.buyerEconomics : {},
+      buyerEconomicsMeta: input?.buyerEconomicsMeta && typeof input.buyerEconomicsMeta === 'object' ? input.buyerEconomicsMeta : {},
+      sellerEconomics: input?.sellerEconomics && typeof input.sellerEconomics === 'object' ? input.sellerEconomics : {},
+      sellerEconomicsMeta: input?.sellerEconomicsMeta && typeof input.sellerEconomicsMeta === 'object' ? input.sellerEconomicsMeta : {},
+      buyerProxyAnswers: input?.buyerProxyAnswers && typeof input.buyerProxyAnswers === 'object' ? input.buyerProxyAnswers : {},
+      sellerProxyAnswers: input?.sellerProxyAnswers && typeof input.sellerProxyAnswers === 'object' ? input.sellerProxyAnswers : {},
+      businessUnit: input?.businessUnit && typeof input.businessUnit === 'object' ? input.businessUnit : null,
+      geography: typeof input.geography === 'string' ? input.geography : '',
+      applicableRegulations: Array.isArray(input.applicableRegulations) ? input.applicableRegulations : [],
+      citations: Array.isArray(input.citations) ? input.citations : [],
+      adminSettings: input?.adminSettings && typeof input.adminSettings === 'object' ? input.adminSettings : {},
+      traceLabel: typeof input.traceLabel === 'string' ? input.traceLabel : '',
+      priorMessages: Array.isArray(input.priorMessages) ? input.priorMessages : []
+    };
+    if (_workflowClient && typeof _workflowClient.generateProjectExposureMap === 'function') {
+      return _workflowClient.generateProjectExposureMap(payload);
+    }
+    return _postServerAiWorkflow(_getProjectExposureMapUrl(), payload);
   }
 
   function _buildManualStep1Payload(input = {}) {
@@ -6771,6 +6803,7 @@ Keep the numbers realistic, internally ordered, and anchored to the user's own h
 
   return {
     buildGuidedScenarioDraft,
+    generateProjectExposureMap,
     buildManualIntakeAssist,
     buildManualDraftRefinement,
     buildManualShortlist,

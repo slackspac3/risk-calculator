@@ -9,9 +9,12 @@ const { recordAiRouteReuse, withAiRouteMetrics } = require('../_aiRouteMetrics')
 const { withWorkflowReuse } = require('../_workflowReuse');
 
 const ALLOWED_FIELDS = [
+  'assessmentType',
   'riskStatement',
   'guidedInput',
   'scenarioLensHint',
+  'projectContext',
+  'projectExposure',
   'businessUnit',
   'geography',
   'applicableRegulations',
@@ -77,11 +80,14 @@ module.exports = async function handler(req, res) {
   }
 
   const { errors: validationErrors } = validateBody(body, {
+    assessmentType:        { type: 'string', maxLength: 80 },
     riskStatement:         { type: 'string', maxLength: 5000 },
     scenarioLensHint:      { type: 'string', maxLength: 200 },
     geography:             { type: 'string', maxLength: 500 },
     traceLabel:            { type: 'string', maxLength: 200 },
     guidedInput:           { type: 'object' },
+    projectContext:        { type: 'object' },
+    projectExposure:       { type: 'object' },
     businessUnit:          { type: 'object' },
     adminSettings:         { type: 'object' },
     applicableRegulations: { type: 'array', maxItems: 100, itemType: 'string', itemMaxLength: 200 },
@@ -94,9 +100,12 @@ module.exports = async function handler(req, res) {
   }
 
   const normalisedInput = normaliseGuidedScenarioDraftInput({
+    assessmentType: typeof body.assessmentType === 'string' ? body.assessmentType : '',
     riskStatement: typeof body.riskStatement === 'string' ? body.riskStatement : '',
     guidedInput: isPlainObject(body.guidedInput) ? body.guidedInput : {},
     scenarioLensHint: body.scenarioLensHint,
+    projectContext: isPlainObject(body.projectContext) ? body.projectContext : null,
+    projectExposure: isPlainObject(body.projectExposure) ? body.projectExposure : null,
     businessUnit: isPlainObject(body.businessUnit) ? body.businessUnit : null,
     geography: typeof body.geography === 'string' ? body.geography : '',
     applicableRegulations: Array.isArray(body.applicableRegulations) ? body.applicableRegulations : [],

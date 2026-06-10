@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-function loadAiWorkflowClient() {
+function loadAiWorkflowClient(options = {}) {
   const filePath = path.resolve(__dirname, '../../assets/services/aiWorkflowClient.js');
   const source = `${fs.readFileSync(filePath, 'utf8')}
 ;globalThis.__aiWorkflowClientTest = AiWorkflowClient;`;
@@ -17,7 +17,8 @@ function loadAiWorkflowClient() {
     Math,
     URL,
     setTimeout,
-    clearTimeout
+    clearTimeout,
+    fetch: options.fetchImpl
   };
   vm.createContext(context);
   vm.runInContext(source, context, { filename: 'aiWorkflowClient.js' });
@@ -106,4 +107,61 @@ test('action cooldown store blocks only the same normalised payload within the c
     store.getRemainingMs('/api/ai/treatment-suggestion', basePayload, { scope: 'step3' }) > 0,
     false
   );
+});
+
+test('generateProjectExposureMap posts the normalized project exposure request shape', async () => {
+  let captured = null;
+  const clientApi = loadAiWorkflowClient({
+    fetchImpl: async (url, options) => {
+      captured = { url, options, body: JSON.parse(options.body) };
+      return {
+        ok: true,
+        json: async () => ({
+          mode: 'deterministic_fallback',
+          projectExposure: { financialDrivers: [] },
+          generatedAt: '2026-06-10T00:00:00.000Z'
+        })
+      };
+    }
+  });
+  const client = clientApi.createClient({
+    defaultBaseUrl: 'https://risk-calculator.example',
+    getSessionToken: () => 'session-token'
+  });
+
+  await client.generateProjectExposureMap({
+    assessmentType: 'project_buyer',
+    riskStatement: 'Supplier may miss go-live.',
+    projectContext: {
+      projectName: '  ERP rollout  ',
+      projectRole: 'buyer',
+      projectDurationMonths: null
+    },
+    buyerEconomics: {
+      delayCostPerDay: null,
+      remainingSpend: 0,
+      reprocurementPremiumPct: 0.2
+    },
+    buyerEconomicsMeta: {
+      delayCostPerDay: { status: 'unknown', confidence: 'unknown', source: 'not_provided' },
+      remainingSpend: { status: 'known', confidence: 'high', source: 'user' }
+    },
+    buyerProxyAnswers: {
+      mainImpact: 'delay'
+    },
+    unexpectedLocalOnly: 'drop me'
+  });
+
+  assert.equal(captured.url, 'https://risk-calculator.example/api/ai/project-exposure-map');
+  assert.equal(captured.options.method, 'POST');
+  assert.equal(captured.options.headers['x-session-token'], 'session-token');
+  assert.equal(captured.body.assessmentType, 'project_buyer');
+  assert.equal(captured.body.projectContext.projectName, 'ERP rollout');
+  assert.equal(Object.prototype.hasOwnProperty.call(captured.body.projectContext, 'projectDurationMonths'), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(captured.body.buyerEconomics, 'delayCostPerDay'), false);
+  assert.equal(captured.body.buyerEconomics.remainingSpend, 0);
+  assert.equal(captured.body.buyerEconomics.reprocurementPremiumPct, 0.2);
+  assert.equal(captured.body.buyerEconomicsMeta.delayCostPerDay.status, 'unknown');
+  assert.equal(captured.body.buyerProxyAnswers.mainImpact, 'delay');
+  assert.equal(Object.prototype.hasOwnProperty.call(captured.body, 'unexpectedLocalOnly'), false);
 });
