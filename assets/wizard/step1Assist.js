@@ -395,6 +395,24 @@
       requestPayload.projectContext = AppState.draft.projectContext && typeof AppState.draft.projectContext === 'object'
         ? { ...AppState.draft.projectContext }
         : {};
+      requestPayload.buyerEconomics = AppState.draft.buyerEconomics && typeof AppState.draft.buyerEconomics === 'object'
+        ? { ...AppState.draft.buyerEconomics }
+        : {};
+      requestPayload.buyerEconomicsMeta = AppState.draft.buyerEconomicsMeta && typeof AppState.draft.buyerEconomicsMeta === 'object'
+        ? { ...AppState.draft.buyerEconomicsMeta }
+        : {};
+      requestPayload.sellerEconomics = AppState.draft.sellerEconomics && typeof AppState.draft.sellerEconomics === 'object'
+        ? { ...AppState.draft.sellerEconomics }
+        : {};
+      requestPayload.sellerEconomicsMeta = AppState.draft.sellerEconomicsMeta && typeof AppState.draft.sellerEconomicsMeta === 'object'
+        ? { ...AppState.draft.sellerEconomicsMeta }
+        : {};
+      requestPayload.buyerProxyAnswers = AppState.draft.buyerProxyQuestions && typeof AppState.draft.buyerProxyQuestions === 'object'
+        ? { ...AppState.draft.buyerProxyQuestions }
+        : {};
+      requestPayload.sellerProxyAnswers = AppState.draft.sellerProxyQuestions && typeof AppState.draft.sellerProxyQuestions === 'object'
+        ? { ...AppState.draft.sellerProxyQuestions }
+        : {};
       requestPayload.projectExposure = AppState.draft.projectExposure && typeof AppState.draft.projectExposure === 'object'
         ? { ...AppState.draft.projectExposure }
         : {};

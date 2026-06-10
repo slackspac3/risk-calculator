@@ -696,6 +696,7 @@ function resetDraft() {
       usedFallback: false,
       aiUnavailable: false
     },
+    projectFraming: null,
     buId: null, buName: null, contextNotes: '',
     narrative: '', structuredScenario: null,
     scenarioLens: null,

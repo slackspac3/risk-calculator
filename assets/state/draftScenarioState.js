@@ -384,6 +384,7 @@
     AppState.draft.inferredAssumptions = [];
     AppState.draft.missingInformation = [];
     AppState.draft.aiAlignment = null;
+    AppState.draft.projectFraming = null;
     AppState.draft.citations = [];
     if (!clearGeneratedRisks) return;
     const preservedCandidates = getRiskCandidates().filter((risk) => !isRefreshableSuggestedRiskSource(risk?.source));
@@ -480,6 +481,9 @@
     AppState.draft.aiAlignment = result?.aiAlignment && typeof result.aiAlignment === 'object'
       ? { ...result.aiAlignment }
       : (AppState.draft.aiAlignment || null);
+    AppState.draft.projectFraming = result?.projectFraming && typeof result.projectFraming === 'object'
+      ? { ...result.projectFraming }
+      : (AppState.draft.projectFraming || null);
     // Keep one canonical structured-scenario object on the draft so later steps stop reading mixed legacy keys.
     AppState.draft.structuredScenario = normaliseStructuredScenario(result?.structuredScenario || AppState.draft.structuredScenario, {
       preserveUnknown: true
@@ -534,6 +538,9 @@
     AppState.draft.aiAlignment = result?.aiAlignment && typeof result.aiAlignment === 'object'
       ? { ...result.aiAlignment }
       : (AppState.draft.aiAlignment || null);
+    AppState.draft.projectFraming = result?.projectFraming && typeof result.projectFraming === 'object'
+      ? { ...result.projectFraming }
+      : (AppState.draft.projectFraming || null);
     AppState.draft.structuredScenario = normaliseStructuredScenario(result?.structuredScenario || AppState.draft.structuredScenario, {
       preserveUnknown: true
     });
@@ -583,6 +590,9 @@
     AppState.draft.aiAlignment = result?.aiAlignment && typeof result.aiAlignment === 'object'
       ? { ...result.aiAlignment }
       : (AppState.draft.aiAlignment || null);
+    AppState.draft.projectFraming = result?.projectFraming && typeof result.projectFraming === 'object'
+      ? { ...result.projectFraming }
+      : (AppState.draft.projectFraming || null);
     AppState.draft.aiQualityState = result.usedFallback ? 'fallback' : 'ai';
     AppState.draft.confidenceLabel = result.confidenceLabel || AppState.draft.confidenceLabel || '';
     AppState.draft.evidenceQuality = result.evidenceQuality || AppState.draft.evidenceQuality || '';

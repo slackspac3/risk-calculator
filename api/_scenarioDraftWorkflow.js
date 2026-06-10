@@ -6,6 +6,8 @@ const { buildDeterministicFallbackResult, buildFallbackFromError, buildManualMod
 const { buildFeedbackLearningPromptBlock, resolveHierarchicalFeedbackProfile, rerankRiskCardsWithFeedback } = require('./_learningAuthority');
 const { calibrateCoherenceConfidence } = require('./_confidenceCalibration');
 const { rerankWithEmbeddings } = require('./_embeddingReranker');
+const AssessmentTypeModel = require('../assets/state/assessmentTypeModel.js');
+const ProjectExposureService = require('../assets/services/projectExposureService.js');
 const ScenarioClassification = require('./_scenarioClassification');
 const {
   SCENARIO_TAXONOMY_FAMILY_BY_KEY,
@@ -303,6 +305,73 @@ function normaliseProjectScenarioContext(value = {}) {
   });
 }
 
+function normaliseProjectAssessmentType(value = '') {
+  return AssessmentTypeModel.normaliseAssessmentType(value);
+}
+
+function isProjectAssessmentType(value = '') {
+  const next = normaliseProjectAssessmentType(value);
+  return next === AssessmentTypeModel.ASSESSMENT_TYPE_PROJECT_BUYER
+    || next === AssessmentTypeModel.ASSESSMENT_TYPE_PROJECT_SELLER;
+}
+
+function normaliseProjectAssessmentStateForScenario(input = {}, assessmentType = '') {
+  const buyerProxyQuestions = isPlainObject(input.buyerProxyAnswers)
+    ? input.buyerProxyAnswers
+    : input.buyerProxyQuestions;
+  const sellerProxyQuestions = isPlainObject(input.sellerProxyAnswers)
+    ? input.sellerProxyAnswers
+    : input.sellerProxyQuestions;
+  return AssessmentTypeModel.normaliseAssessmentTypeState({
+    assessmentType,
+    projectContext: input.projectContext,
+    buyerEconomics: input.buyerEconomics,
+    buyerEconomicsMeta: input.buyerEconomicsMeta,
+    sellerEconomics: input.sellerEconomics,
+    sellerEconomicsMeta: input.sellerEconomicsMeta,
+    buyerProxyQuestions,
+    sellerProxyQuestions,
+    projectExposure: input.projectExposure
+  });
+}
+
+function projectInputDisplayLabel(item = {}) {
+  if (isPlainObject(item)) {
+    return normaliseInlineInputText(item.label || item.field || item.title || item.name || '');
+  }
+  return normaliseInlineInputText(item || '');
+}
+
+function normaliseProjectInputList(items = [], { maxItems = 8, objects = false } = {}) {
+  const source = Array.isArray(items) ? items : [];
+  const seen = new Set();
+  const output = [];
+  source.forEach((item) => {
+    if (output.length >= maxItems) return;
+    if (objects && isPlainObject(item)) {
+      const next = compactInputValue({
+        field: normaliseInlineInputText(item.field || ''),
+        label: normaliseInlineInputText(item.label || item.field || ''),
+        status: normaliseInlineInputText(item.status || ''),
+        confidence: normaliseInlineInputText(item.confidence || ''),
+        source: normaliseInlineInputText(item.source || ''),
+        suggestedQuestion: normaliseBlockInputText(item.suggestedQuestion || '')
+      });
+      const key = normaliseInlineInputText(next?.label || next?.field || '').toLowerCase();
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      output.push(next);
+      return;
+    }
+    const label = projectInputDisplayLabel(item);
+    const key = label.toLowerCase();
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    output.push(label);
+  });
+  return output;
+}
+
 function normaliseProjectExposureForScenario(value = {}) {
   if (!isPlainObject(value)) return undefined;
   const quality = isPlainObject(value.projectInputQuality) ? value.projectInputQuality : {};
@@ -315,9 +384,9 @@ function normaliseProjectExposureForScenario(value = {}) {
     projectInputQuality: compactInputValue({
       score: normaliseOptionalProjectNumber(quality.score),
       label: normaliseInlineInputText(quality.label || ''),
-      knownHighImpactInputs: normaliseStringListInput(quality.knownHighImpactInputs, { maxItems: 8 }),
-      estimatedHighImpactInputs: normaliseStringListInput(quality.estimatedHighImpactInputs, { maxItems: 8 }),
-      unknownHighImpactInputs: normaliseStringListInput(quality.unknownHighImpactInputs, { maxItems: 8 })
+      knownHighImpactInputs: normaliseProjectInputList(quality.knownHighImpactInputs, { maxItems: 8, objects: true }),
+      estimatedHighImpactInputs: normaliseProjectInputList(quality.estimatedHighImpactInputs, { maxItems: 8, objects: true }),
+      unknownHighImpactInputs: normaliseProjectInputList(quality.unknownHighImpactInputs, { maxItems: 8, objects: true })
     }),
     financialDrivers: (Array.isArray(value.financialDrivers) ? value.financialDrivers : []).slice(0, 8).map((driver) => {
       if (!isPlainObject(driver)) return null;
@@ -354,16 +423,25 @@ function normaliseProjectExposureForScenario(value = {}) {
 }
 
 function normaliseGuidedScenarioDraftInput(input = {}) {
-  const assessmentType = normaliseInlineInputText(input.assessmentType || '').toLowerCase();
-  const isProjectAssessment = assessmentType === 'project_buyer' || assessmentType === 'project_seller';
+  const assessmentType = normaliseProjectAssessmentType(input.assessmentType || '');
+  const isProjectAssessment = isProjectAssessmentType(assessmentType);
+  const projectState = isProjectAssessment
+    ? normaliseProjectAssessmentStateForScenario(input, assessmentType)
+    : null;
   return compactInputValue({
     session: input.session,
-    assessmentType: isProjectAssessment ? assessmentType : '',
+    assessmentType,
     riskStatement: normaliseBlockInputText(input.riskStatement || ''),
     guidedInput: normaliseGuidedInput(input.guidedInput),
     scenarioLensHint: normaliseInlineInputText(input.scenarioLensHint || ''),
-    projectContext: isProjectAssessment ? normaliseProjectScenarioContext(input.projectContext) : undefined,
-    projectExposure: isProjectAssessment ? normaliseProjectExposureForScenario(input.projectExposure) : undefined,
+    projectContext: isProjectAssessment ? normaliseProjectScenarioContext(projectState.projectContext) : undefined,
+    buyerEconomics: isProjectAssessment ? projectState.buyerEconomics : undefined,
+    buyerEconomicsMeta: isProjectAssessment ? projectState.buyerEconomicsMeta : undefined,
+    sellerEconomics: isProjectAssessment ? projectState.sellerEconomics : undefined,
+    sellerEconomicsMeta: isProjectAssessment ? projectState.sellerEconomicsMeta : undefined,
+    buyerProxyAnswers: isProjectAssessment ? projectState.buyerProxyQuestions : undefined,
+    sellerProxyAnswers: isProjectAssessment ? projectState.sellerProxyQuestions : undefined,
+    projectExposure: isProjectAssessment ? normaliseProjectExposureForScenario(projectState.projectExposure) : undefined,
     businessUnit: normaliseBusinessUnitInput(input.businessUnit),
     geography: normaliseInlineInputText(input.geography || ''),
     applicableRegulations: normaliseStringListInput(input.applicableRegulations, { maxItems: 12 }),
@@ -1077,26 +1155,196 @@ function buildGuidedScenarioPriorityPromptBlock(input = {}, {
   ].filter(Boolean).join('\n');
 }
 
-function buildProjectExposurePromptBlock(input = {}) {
-  const assessmentType = String(input.assessmentType || '').trim();
-  if (assessmentType !== 'project_buyer' && assessmentType !== 'project_seller') return '';
-  const exposure = isPlainObject(input.projectExposure) ? input.projectExposure : null;
-  if (!exposure) return '';
-  const roleLabel = assessmentType === 'project_seller' ? 'seller project risk' : 'buyer project risk';
-  return `Project financial exposure context (${roleLabel}):
-${truncateText(JSON.stringify({
-    projectContext: input.projectContext || {},
-    valuationMode: exposure.valuationMode || '',
-    sourceMode: exposure.sourceMode || '',
-    projectExposureSummary: exposure.projectExposureSummary || '',
-    projectInputQuality: exposure.projectInputQuality || {},
-    financialDrivers: exposure.financialDrivers || [],
-    capsAndOffsets: exposure.capsAndOffsets || [],
-    missingInputs: exposure.missingInputs || [],
-    doubleCountingWarnings: exposure.doubleCountingWarnings || []
-  }, null, 2), 2800)}
+function hasProjectExposureSignal(exposure = {}) {
+  if (!isPlainObject(exposure)) return false;
+  const quality = isPlainObject(exposure.projectInputQuality) ? exposure.projectInputQuality : {};
+  return !!String(exposure.projectExposureSummary || '').trim()
+    || (Array.isArray(exposure.financialDrivers) && exposure.financialDrivers.length > 0)
+    || (Array.isArray(exposure.capsAndOffsets) && exposure.capsAndOffsets.length > 0)
+    || (Array.isArray(exposure.missingInputs) && exposure.missingInputs.length > 0)
+    || (Array.isArray(quality.knownHighImpactInputs) && quality.knownHighImpactInputs.length > 0)
+    || (Array.isArray(quality.estimatedHighImpactInputs) && quality.estimatedHighImpactInputs.length > 0)
+    || (Array.isArray(quality.unknownHighImpactInputs) && quality.unknownHighImpactInputs.length > 0);
+}
 
-Use this only as financial exposure context. Do not convert unknown project economics into precise amounts, and do not treat total project spend or total contract value as automatic loss.`;
+function buildDeterministicProjectExposureForScenario(input = {}) {
+  if (!isProjectAssessmentType(input.assessmentType)) return {};
+  try {
+    return ProjectExposureService.buildProjectExposure({
+      assessmentType: input.assessmentType,
+      riskStatement: input.riskStatement,
+      projectContext: input.projectContext || {},
+      buyerEconomics: input.buyerEconomics || {},
+      buyerEconomicsMeta: input.buyerEconomicsMeta || {},
+      sellerEconomics: input.sellerEconomics || {},
+      sellerEconomicsMeta: input.sellerEconomicsMeta || {},
+      buyerProxyQuestions: input.buyerProxyAnswers || {},
+      sellerProxyQuestions: input.sellerProxyAnswers || {},
+      projectExposure: input.projectExposure || {}
+    });
+  } catch {
+    return {};
+  }
+}
+
+function resolveProjectExposureForScenario(input = {}) {
+  const existing = normaliseProjectExposureForScenario(input.projectExposure || {});
+  if (hasProjectExposureSignal(existing)) return existing;
+  return normaliseProjectExposureForScenario(buildDeterministicProjectExposureForScenario(input)) || {};
+}
+
+function projectRoleLabel(assessmentType = '') {
+  return assessmentType === AssessmentTypeModel.ASSESSMENT_TYPE_PROJECT_SELLER
+    ? 'seller project risk'
+    : assessmentType === AssessmentTypeModel.ASSESSMENT_TYPE_PROJECT_BUYER
+      ? 'buyer project risk'
+      : 'generic enterprise risk';
+}
+
+function buildProjectExposurePromptBlock(input = {}) {
+  const assessmentType = normaliseProjectAssessmentType(input.assessmentType || '');
+  if (!isProjectAssessmentType(assessmentType)) return '';
+  const exposure = resolveProjectExposureForScenario(input);
+  const roleLabel = projectRoleLabel(assessmentType);
+  const roleRule = assessmentType === AssessmentTypeModel.ASSESSMENT_TYPE_PROJECT_SELLER
+    ? 'For seller project risks, preserve seller-side economics: margin at risk, revenue at risk, delivery cost, LD/SLA exposure, termination, recoveries, and unknown high-impact values.'
+    : 'For buyer project risks, preserve buyer-side economics: incremental project impact, delay, reprocurement, sunk cost, recoveries, delayed benefit, and unknown high-impact values.';
+  const routePayload = assessmentType === AssessmentTypeModel.ASSESSMENT_TYPE_PROJECT_SELLER
+    ? {
+        assessmentType,
+        projectContext: input.projectContext || {},
+        sellerEconomics: input.sellerEconomics || {},
+        sellerEconomicsMeta: input.sellerEconomicsMeta || {},
+        sellerProxyAnswers: input.sellerProxyAnswers || {},
+        projectExposure: exposure
+      }
+    : {
+        assessmentType,
+        projectContext: input.projectContext || {},
+        buyerEconomics: input.buyerEconomics || {},
+        buyerEconomicsMeta: input.buyerEconomicsMeta || {},
+        buyerProxyAnswers: input.buyerProxyAnswers || {},
+        projectExposure: exposure
+      };
+  return `Project financial exposure context (${roleLabel}):
+${truncateText(JSON.stringify(routePayload, null, 2), 4200)}
+
+Rules for this context:
+- Use assessmentType only as the economic route; do not let project type override the risk taxonomy or domain classification.
+- Project-buyer and project-seller risks can still be cyber, operational, legal, third-party, compliance, financial, or another taxonomy lens.
+- ${roleRule}
+- If project economics are sparse, use cautious phrasing such as "The main exposure appears to be..." and "The value is not yet quantified...".
+- Do not say "The loss is $X" unless X is provided, derived, estimated, or benchmark-proxied and clearly labelled.
+- Do not convert unknown project economics into precise amounts.
+- Do not treat total project spend or total contract value as automatic loss.
+- Do not treat unknown recoveries, LD caps, SLA caps, or liability caps as zero or absent.`;
+}
+
+function normaliseProjectFramingStringList(items = [], { maxItems = 8 } = {}) {
+  const source = Array.isArray(items) ? items : [];
+  const seen = new Set();
+  const output = [];
+  source.forEach((item) => {
+    if (output.length >= maxItems) return;
+    const label = projectInputDisplayLabel(item);
+    const key = label.toLowerCase();
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    output.push(label);
+  });
+  return output;
+}
+
+function normaliseProjectConfidence(value = '') {
+  const next = normaliseInlineInputText(value || '').toLowerCase();
+  return ['high', 'medium', 'low', 'unknown'].includes(next) ? next : 'unknown';
+}
+
+function normaliseProjectFramingValuationMode(value = '') {
+  const next = normaliseInlineInputText(value || '').toLowerCase();
+  return ['project_linked', 'hybrid', 'benchmark_led'].includes(next) ? next : 'benchmark_led';
+}
+
+function driverHasBenchmarkProxy(driver = {}) {
+  if (!isPlainObject(driver)) return false;
+  return String(driver.driverStatus || '').trim() === 'benchmark_proxy_driver'
+    || /benchmark/i.test(String(driver.source || ''));
+}
+
+function buildGenericProjectFraming(assessmentType = AssessmentTypeModel.ASSESSMENT_TYPE_GENERIC, parsed = {}) {
+  const parsedSource = isPlainObject(parsed) ? parsed : {};
+  return {
+    assessmentType: AssessmentTypeModel.ASSESSMENT_TYPE_GENERIC,
+    economicLens: cleanUserFacingText(parsedSource.economicLens || 'Generic enterprise risk - benchmark-led enterprise exposure.', { maxSentences: 1 }),
+    valuationMode: normaliseProjectFramingValuationMode(parsedSource.valuationMode || 'benchmark_led'),
+    primaryFinancialExposure: cleanUserFacingText(parsedSource.primaryFinancialExposure || '', { maxSentences: 1 }),
+    knownProjectInputs: normaliseProjectFramingStringList(parsedSource.knownProjectInputs),
+    unknownHighImpactInputs: normaliseProjectFramingStringList(parsedSource.unknownHighImpactInputs),
+    benchmarkProxyUsed: parsedSource.benchmarkProxyUsed === true,
+    confidence: normaliseProjectConfidence(parsedSource.confidence || 'unknown')
+  };
+}
+
+function buildProjectFraming(input = {}, parsedFraming = {}) {
+  const assessmentType = normaliseProjectAssessmentType(input.assessmentType || '');
+  const parsed = isPlainObject(parsedFraming) ? parsedFraming : {};
+  if (!isProjectAssessmentType(assessmentType)) {
+    return buildGenericProjectFraming(assessmentType, parsed);
+  }
+
+  const exposure = resolveProjectExposureForScenario(input);
+  const quality = isPlainObject(exposure.projectInputQuality) ? exposure.projectInputQuality : {};
+  const drivers = Array.isArray(exposure.financialDrivers) ? exposure.financialDrivers.filter(isPlainObject) : [];
+  const quantifiedDriver = drivers.find((driver) => {
+    const status = String(driver.driverStatus || '').trim();
+    return driver.label && status && !['unquantified_driver', 'not_applicable_driver'].includes(status);
+  });
+  const relevantDriver = quantifiedDriver || drivers.find((driver) => driver.label && String(driver.driverStatus || '').trim() !== 'not_applicable_driver');
+  const exposureSummary = cleanUserFacingText(exposure.projectExposureSummary || '', { maxSentences: 1 });
+  const role = assessmentType === AssessmentTypeModel.ASSESSMENT_TYPE_PROJECT_SELLER ? 'seller' : 'buyer';
+  const defaultLens = role === 'seller'
+    ? 'Seller project risk - separates revenue, margin, delivery cost, penalties, termination, and recoveries.'
+    : 'Buyer project risk - separates delay, reprocurement, sunk cost, recoveries, and delayed benefit.';
+  const knownFromQuality = [
+    ...(Array.isArray(quality.knownHighImpactInputs) ? quality.knownHighImpactInputs : []),
+    ...(Array.isArray(quality.estimatedHighImpactInputs) ? quality.estimatedHighImpactInputs : [])
+  ];
+  const unknownFromQuality = Array.isArray(quality.unknownHighImpactInputs) && quality.unknownHighImpactInputs.length
+    ? quality.unknownHighImpactInputs
+    : (Array.isArray(exposure.missingInputs) ? exposure.missingInputs : []);
+  const knownProjectInputs = normaliseProjectFramingStringList(
+    Array.isArray(parsed.knownProjectInputs) && parsed.knownProjectInputs.length ? parsed.knownProjectInputs : knownFromQuality,
+    { maxItems: 8 }
+  );
+  const unknownHighImpactInputs = normaliseProjectFramingStringList(
+    Array.isArray(parsed.unknownHighImpactInputs) && parsed.unknownHighImpactInputs.length ? parsed.unknownHighImpactInputs : unknownFromQuality,
+    { maxItems: 8 }
+  );
+  const benchmarkProxyUsed = parsed.benchmarkProxyUsed === true || drivers.some(driverHasBenchmarkProxy);
+  const derivedConfidence = unknownHighImpactInputs.length || benchmarkProxyUsed
+    ? 'low'
+    : knownProjectInputs.length
+      ? (Array.isArray(quality.estimatedHighImpactInputs) && quality.estimatedHighImpactInputs.length ? 'medium' : 'high')
+      : 'unknown';
+
+  return {
+    assessmentType,
+    economicLens: cleanUserFacingText(parsed.economicLens || defaultLens, { maxSentences: 1 }),
+    valuationMode: normaliseProjectFramingValuationMode(parsed.valuationMode || exposure.valuationMode || 'benchmark_led'),
+    primaryFinancialExposure: cleanUserFacingText(
+      parsed.primaryFinancialExposure
+        || relevantDriver?.label
+        || exposureSummary
+        || (role === 'seller'
+          ? 'Seller-side project exposure is not yet quantified.'
+          : 'Buyer-side project exposure is not yet quantified.'),
+      { maxSentences: 1 }
+    ),
+    knownProjectInputs,
+    unknownHighImpactInputs,
+    benchmarkProxyUsed,
+    confidence: normaliseProjectConfidence(parsed.confidence || derivedConfidence)
+  };
 }
 
 function buildFallbackRiskCards(classification = {}, input = {}) {
@@ -2744,6 +2992,7 @@ function buildServerFallbackResult(input = {}, { aiUnavailable = false, feedback
       benchmarkBasis: 'This Step 2 draft is in deterministic server fallback mode. Treat it as a bounded working draft until live AI is available again.',
       scenarioLens: buildScenarioLens(classification),
       structuredScenario: buildStructuredScenario(input, classification),
+      projectFraming: buildProjectFraming(input),
       risks: shortlistCoherence.risks,
       regulations: Array.from(new Set([...(Array.isArray(input.applicableRegulations) ? input.applicableRegulations : []), ...shortlistCoherence.risks.flatMap((risk) => risk.regulations || [])].map(String).filter(Boolean))),
       citations: Array.isArray(input.citations) ? input.citations : []
@@ -2923,6 +3172,7 @@ function buildManualScenarioDraftResult(input = {}, { traceLabel = 'Step 2 guide
       benchmarkBasis: 'This step stayed in manual mode because the current scenario text is too limited for a reliable server draft.',
       scenarioLens: buildScenarioLens(classification),
       structuredScenario: buildStructuredScenario({ ...input, riskStatement: seedNarrative }, classification),
+      projectFraming: buildProjectFraming(input),
       risks: [],
       regulations: Array.from(new Set((Array.isArray(input.applicableRegulations) ? input.applicableRegulations : []).map(String).filter(Boolean))),
       citations: Array.isArray(input.citations) ? input.citations : []
@@ -2958,6 +3208,7 @@ function normaliseScenarioDraftCandidate(parsed = {}, fallback = {}, input = {},
       eventPath: cleanUserFacingText(parsed?.structuredScenario?.eventPath || fallback.structuredScenario?.eventPath || '', { maxSentences: 1, stripTrailingPeriod: true }),
       effect: cleanUserFacingText(parsed?.structuredScenario?.effect || fallback.structuredScenario?.effect || '', { maxSentences: 2 })
     },
+    projectFraming: buildProjectFraming(input, parsed?.projectFraming || fallback.projectFraming),
     risks,
     citations: Array.isArray(input.citations) ? input.citations : []
   };
@@ -3039,6 +3290,16 @@ async function buildGuidedScenarioDraftWorkflow(input = {}) {
     "eventPath": "string",
     "effect": "string"
   },
+  "projectFraming": {
+    "assessmentType": "enterprise_generic|project_buyer|project_seller",
+    "economicLens": "string",
+    "valuationMode": "project_linked|hybrid|benchmark_led",
+    "primaryFinancialExposure": "string",
+    "knownProjectInputs": ["string"],
+    "unknownHighImpactInputs": ["string"],
+    "benchmarkProxyUsed": boolean,
+    "confidence": "high|medium|low|unknown"
+  },
   "risks": [
     {
       "title": "string",
@@ -3060,6 +3321,11 @@ Rules:
 - technical assets like cloud, Azure, systems, infrastructure, admin accounts, or email do not by themselves justify changing the scenario domain
 - if the user describes identity compromise, account takeover, mailbox compromise, leaked credentials, or dark-web credential discovery, stay in that lane
 - if the user describes outage, aging infrastructure, supplier delivery slippage, human error, or service instability without explicit compromise signals, do not force cyber
+- assessmentType is the economic route only; it must not override scenarioLens, taxonomy, or domain classification
+- for generic enterprise risks, use the current benchmark-led enterprise risk workflow
+- for buyer project risks, frame project economics as incremental delay, reprocurement, sunk cost, recoveries, delayed benefit, and unknown high-impact values
+- for seller project risks, frame project economics as margin at risk, revenue at risk, delivery cost, LD/SLA exposure, termination, recoveries, and unknown high-impact values
+- project economics that are blank or unknown must stay unknown; do not create precise numeric claims from sparse inputs
 - write the draft like a concise management briefing
 - keep risk titles short, card-friendly, and aligned to the same event path`;
   const priorityPromptBlock = buildGuidedScenarioPriorityPromptBlock(input, {
@@ -3150,6 +3416,7 @@ ${feedbackPromptBlock}`;
           `Business unit: ${input.businessUnit?.name || 'Unknown'}`,
           `Geography: ${input.geography || 'Unknown'}`,
           `Applicable regulations: ${(Array.isArray(input.applicableRegulations) ? input.applicableRegulations : []).join(', ') || '(none)'}`,
+          `Project financial exposure context: ${truncateText(projectExposurePromptBlock, 2200) || '(none)'}`,
           `Live context: ${truncateText(scopedContextPromptBlock, 1800)}`,
           `Evidence quality context: ${truncateText(evidencePromptBlock, 600)}`,
           `Retrieved references: ${truncateText(rerankedCitationPromptBlock, 1200)}`
@@ -3159,6 +3426,8 @@ ${feedbackPromptBlock}`;
           'Preserve the explicit event anchor before consequence, regulatory, or technology context.',
           'Do not accept impact-only or consequence-heavy rewrites if they drop the user event, cause, or affected asset.',
           'Do not drift into compliance, operational, financial, or cyber framing unless the event clearly supports it.',
+          'Keep assessmentType as the economic route only; do not use it to override the scenario taxonomy or domain.',
+          'Do not turn unknown project economics into precise loss, margin, recovery, LD, SLA, or liability claims.',
           'Use the strongest directly matched grounding sources first and avoid decorative citations.',
           'Keep the risk shortlist tightly aligned to the same event tree.',
           'Keep the structured scenario populated enough for downstream quantification.'
@@ -3235,6 +3504,7 @@ ${feedbackPromptBlock}`;
         ...defaultStructuredScenario,
         ...(candidate.structuredScenario || {})
       },
+      projectFraming: buildProjectFraming(input, candidate.projectFraming),
       risks: finalRisks,
       regulations: Array.from(new Set([...(Array.isArray(input.applicableRegulations) ? input.applicableRegulations : []), ...finalRisks.flatMap((risk) => risk.regulations || [])].map(String).filter(Boolean))),
       citations: Array.isArray(input.citations) ? input.citations : [],

@@ -4176,6 +4176,7 @@ function ensureDraftShape() {
     inferredAssumptions: Array.isArray(AppState.draft.inferredAssumptions) ? AppState.draft.inferredAssumptions : [],
     missingInformation: Array.isArray(AppState.draft.missingInformation) ? AppState.draft.missingInformation : [],
     aiAlignment: AppState.draft.aiAlignment && typeof AppState.draft.aiAlignment === 'object' ? AppState.draft.aiAlignment : null,
+    projectFraming: AppState.draft.projectFraming && typeof AppState.draft.projectFraming === 'object' ? AppState.draft.projectFraming : null,
     decisionReadiness: AppState.draft.decisionReadiness && typeof AppState.draft.decisionReadiness === 'object' ? AppState.draft.decisionReadiness : null,
     assessmentChallengePass: AppState.draft.assessmentChallengePass && typeof AppState.draft.assessmentChallengePass === 'object' ? AppState.draft.assessmentChallengePass : null,
     assessmentManagerTrace: AppState.draft.assessmentManagerTrace && typeof AppState.draft.assessmentManagerTrace === 'object' ? AppState.draft.assessmentManagerTrace : null,
