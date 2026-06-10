@@ -860,6 +860,41 @@ function renderWizard2AiReadyBand(result) {
   </div>`;
 }
 
+function renderWizard2ProjectFraming(draft, result) {
+  const framing = result?.projectFraming && typeof result.projectFraming === 'object'
+    ? result.projectFraming
+    : (draft.projectFraming && typeof draft.projectFraming === 'object' ? draft.projectFraming : null);
+  const assessmentType = String(framing?.assessmentType || draft.assessmentType || '').trim();
+  if (assessmentType !== 'project_buyer' && assessmentType !== 'project_seller') return '';
+  const knownInputs = Array.isArray(framing.knownProjectInputs) ? framing.knownProjectInputs.slice(0, 5).filter(Boolean) : [];
+  const unknownInputs = Array.isArray(framing.unknownHighImpactInputs) ? framing.unknownHighImpactInputs.slice(0, 5).filter(Boolean) : [];
+  const roleLabel = assessmentType === 'project_seller' ? 'Seller project lens' : 'Buyer project lens';
+  const confidence = String(framing.confidence || 'unknown').trim();
+  const confidenceTone = /high/i.test(confidence) ? 'gold' : /low|unknown/i.test(confidence) ? 'danger' : 'neutral';
+  return `<div class="wizard-summary-band wizard-summary-band--quiet mt-4">
+    <div>
+      <div class="wizard-summary-band__label">Project framing</div>
+      <strong>${escapeHtml(framing.primaryFinancialExposure || 'Project exposure is not yet quantified.')}</strong>
+      <div class="wizard-summary-band__copy">${escapeHtml(framing.economicLens || roleLabel)} ${framing.benchmarkProxyUsed ? 'Benchmark proxy context is labelled and should stay low-confidence until confirmed.' : 'Unknown project values stay as uncertainty and are not treated as zero.'}</div>
+    </div>
+    <div class="wizard-summary-band__meta">
+      <span class="badge badge--neutral">${escapeHtml(roleLabel)}</span>
+      <span class="badge badge--neutral">${escapeHtml(framing.valuationMode || 'benchmark_led')}</span>
+      <span class="badge badge--${confidenceTone}">${escapeHtml(confidence || 'unknown')} confidence</span>
+    </div>
+  </div>
+  <div class="context-chip-grid mt-4">
+    <div class="context-chip-panel">
+      <span class="context-chip-panel__label">Known so far</span>
+      <strong>${escapeHtml(knownInputs.length ? knownInputs.join(', ') : 'No high-impact project values confirmed yet')}</strong>
+    </div>
+    <div class="context-chip-panel">
+      <span class="context-chip-panel__label">Unknown high-impact inputs</span>
+      <strong>${escapeHtml(unknownInputs.length ? unknownInputs.join(', ') : 'No high-impact unknowns flagged')}</strong>
+    </div>
+  </div>`;
+}
+
 function renderWizard2AiReviewWorkbench(draft, result) {
   return UI.disclosureSection({
     title: 'Review AI structure and evidence only if needed',
@@ -867,7 +902,7 @@ function renderWizard2AiReviewWorkbench(draft, result) {
     badgeTone: 'neutral',
     open: false,
     className: 'wizard-disclosure card card--elevated wizard-secondary-workbench mt-4 anim-fade-in',
-    body: `${renderWizard2AnalystReasoning(draft, result)}${renderScenarioAssistSummaryBlock({
+    body: `${renderWizard2ProjectFraming(draft, result)}${renderWizard2AnalystReasoning(draft, result)}${renderScenarioAssistSummaryBlock({
       workflowGuidance: draft.workflowGuidance,
       confidenceLabel: draft.confidenceLabel,
       evidenceQuality: draft.evidenceQuality,
@@ -970,7 +1005,18 @@ async function runLLMAssist() {
         companyContextProfile: aiContext.adminSettings.companyContextProfile,
         companyStructureContext: aiContext.adminSettings.companyStructureContext,
         userProfileSummary: aiContext.adminSettings.userProfileSummary,
-        selectedDepartmentContext: aiContext.adminSettings.departmentContext
+        selectedDepartmentContext: aiContext.adminSettings.departmentContext,
+        projectAssessment: {
+          assessmentType: AppState.draft.assessmentType || 'enterprise_generic',
+          projectContext: AppState.draft.projectContext && typeof AppState.draft.projectContext === 'object' ? AppState.draft.projectContext : {},
+          buyerEconomics: AppState.draft.buyerEconomics && typeof AppState.draft.buyerEconomics === 'object' ? AppState.draft.buyerEconomics : {},
+          buyerEconomicsMeta: AppState.draft.buyerEconomicsMeta && typeof AppState.draft.buyerEconomicsMeta === 'object' ? AppState.draft.buyerEconomicsMeta : {},
+          sellerEconomics: AppState.draft.sellerEconomics && typeof AppState.draft.sellerEconomics === 'object' ? AppState.draft.sellerEconomics : {},
+          sellerEconomicsMeta: AppState.draft.sellerEconomicsMeta && typeof AppState.draft.sellerEconomicsMeta === 'object' ? AppState.draft.sellerEconomicsMeta : {},
+          buyerProxyAnswers: AppState.draft.buyerProxyQuestions && typeof AppState.draft.buyerProxyQuestions === 'object' ? AppState.draft.buyerProxyQuestions : {},
+          sellerProxyAnswers: AppState.draft.sellerProxyQuestions && typeof AppState.draft.sellerProxyQuestions === 'object' ? AppState.draft.sellerProxyQuestions : {},
+          projectExposure: AppState.draft.projectExposure && typeof AppState.draft.projectExposure === 'object' ? AppState.draft.projectExposure : {}
+        }
       },
       retrievedDocs: citations,
       benchmarkCandidates
@@ -998,6 +1044,9 @@ async function runLLMAssist() {
     AppState.draft.structuredScenario = normaliseStructuredScenario(result.structuredScenario, { preserveUnknown: true });
     AppState.draft.llmAssisted = true;
     AppState.draft.aiQualityState = result.usedFallback ? 'fallback' : 'ai';
+    AppState.draft.projectFraming = result?.projectFraming && typeof result.projectFraming === 'object'
+      ? { ...result.projectFraming }
+      : (AppState.draft.projectFraming || null);
     AppState.draft.enhancedNarrative = narrative;
     AppState.draft.citations = normaliseCitations(mergeCitationMetadata(result.citations || citations, citations));
     AppState.draft.recommendations = result.recommendations || [];
