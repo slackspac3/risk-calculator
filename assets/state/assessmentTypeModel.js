@@ -18,6 +18,66 @@
   const MAX_NESTED_ARRAY_ITEMS = 8;
   const MAX_NESTED_OBJECT_KEYS = 12;
 
+  const FINANCIAL_VALUE_STATUSES = new Set([
+    'known',
+    'estimated',
+    'unknown',
+    'not_applicable',
+    'derived',
+    'benchmark_proxy',
+    'evidence_supported'
+  ]);
+
+  const FINANCIAL_VALUE_CONFIDENCES = new Set(['high', 'medium', 'low', 'unknown']);
+
+  const FINANCIAL_VALUE_SOURCES = new Set([
+    'user',
+    'document',
+    'ai_inferred',
+    'project_exposure_mapper',
+    'benchmark',
+    'admin_default',
+    'not_provided'
+  ]);
+
+  const BUYER_ECONOMICS_FIELDS = [
+    'expectedSpend',
+    'approvedBudget',
+    'remainingSpend',
+    'amountCommitted',
+    'amountPaid',
+    'delayCostPerDay',
+    'delayCostPerWeek',
+    'expectedBenefitPerDay',
+    'expectedBenefitPerWeek',
+    'reprocurementPremiumPct',
+    'supplierCredits',
+    'insuranceRecoveries',
+    'liquidatedDamagesRecoverable',
+    'contractualRecoveryCap',
+    'legalDisputeEstimate'
+  ];
+
+  const SELLER_ECONOMICS_FIELDS = [
+    'contractValue',
+    'expectedRevenue',
+    'grossMarginPct',
+    'contributionMargin',
+    'deliveryCostBudget',
+    'costIncurredToDate',
+    'remainingDeliveryCost',
+    'revenueRecognitionAtRisk',
+    'liquidatedDamagesCap',
+    'slaCreditsCap',
+    'liabilityCap',
+    'terminationExposure',
+    'renewalValueAtRisk',
+    'costToCure',
+    'warrantyExposure',
+    'insuranceRecoveries',
+    'probabilityOfAward'
+  ];
+
   const VALID_ASSESSMENT_TYPES = new Set([
     ASSESSMENT_TYPE_GENERIC,
     ASSESSMENT_TYPE_PROJECT_BUYER,
@@ -32,6 +92,15 @@
 
   const VALID_PROJECT_ROLES = new Set(['buyer', 'seller', 'none']);
   const VALID_STRATEGIC_IMPORTANCE = new Set(['low', 'medium', 'high', 'unknown']);
+  const BUYER_DELAY_OPTIONS = new Set(['days', 'weeks', 'months', 'unknown']);
+  const BUYER_IMPACT_OPTIONS = new Set(['delay', 'cost_increase', 'supplier_replacement', 'wasted_spend', 'delayed_benefit', 'legal_dispute', 'operational_disruption', 'unknown']);
+  const BUYER_REPLACEMENT_OPTIONS = new Set(['easy', 'moderate', 'hard', 'unknown']);
+  const BUYER_RECOVERY_OPTIONS = new Set(['yes', 'no', 'some', 'unknown']);
+  const BUYER_PAID_OPTIONS = new Set(['none', 'some', 'most', 'unknown']);
+  const YES_NO_UNKNOWN_OPTIONS = new Set(['yes', 'no', 'unknown']);
+  const SELLER_IMPACT_OPTIONS = new Set(['margin_erosion', 'delivery_cost_overrun', 'delayed_revenue', 'ld_sla_credits', 'termination', 'warranty_cost_to_cure', 'renewal_impact', 'non_payment', 'unknown']);
+  const LOW_MEDIUM_HIGH_UNKNOWN_OPTIONS = new Set(['low', 'medium', 'high', 'unknown']);
+  const SELLER_COMMERCIAL_MODEL_OPTIONS = new Set(['fixed_price', 'time_and_materials', 'milestone_based', 'recurring_service', 'unknown']);
 
   const ASSESSMENT_TYPE_CARD_COPY = Object.freeze({
     [ASSESSMENT_TYPE_GENERIC]: {
@@ -86,6 +155,11 @@
     const next = normaliseFiniteNumber(value);
     if (next === null) return null;
     return Math.min(1, Math.max(0, next));
+  }
+
+  function normaliseEnum(value, validValues, fallback = 'unknown') {
+    const next = normaliseText(value).toLowerCase();
+    return validValues.has(next) ? next : fallback;
   }
 
   function normaliseAssessmentType(value) {
@@ -210,6 +284,57 @@
     };
   }
 
+  function normaliseEnterpriseRiskContext(enterpriseRiskContext = {}) {
+    const source = isPlainObject(enterpriseRiskContext) ? enterpriseRiskContext : {};
+    return {
+      affectedArea: normaliseText(readField(source, 'affectedArea')),
+      likelyCause: normaliseText(readField(source, 'likelyCause')),
+      mainBusinessImpact: normaliseText(readField(source, 'mainBusinessImpact')),
+      existingControls: normaliseText(readField(source, 'existingControls')),
+      evidenceNotes: normaliseText(readField(source, 'evidenceNotes')),
+      obligationNotes: normaliseText(readField(source, 'obligationNotes'))
+    };
+  }
+
+  function normaliseProjectRouteDetails(projectRouteDetails = {}) {
+    const source = isPlainObject(projectRouteDetails) ? projectRouteDetails : {};
+    return {
+      supplierName: normaliseText(readField(source, 'supplierName')),
+      customerName: normaliseText(readField(source, 'customerName')),
+      mainConsequence: normaliseText(readField(source, 'mainConsequence'))
+    };
+  }
+
+  function inferFinancialMetaStatus(value, rawMeta = {}) {
+    const status = normaliseEnum(readField(rawMeta, 'status'), FINANCIAL_VALUE_STATUSES, '');
+    if (value === null) return status === 'not_applicable' ? 'not_applicable' : 'unknown';
+    if (['known', 'estimated', 'derived', 'benchmark_proxy', 'evidence_supported'].includes(status)) return status;
+    return 'known';
+  }
+
+  function normaliseFinancialFieldMeta(value, rawMeta = {}) {
+    const source = isPlainObject(rawMeta) ? rawMeta : {};
+    const status = inferFinancialMetaStatus(value, source);
+    const defaultSource = value === null ? 'not_provided' : 'user';
+    return {
+      status,
+      confidence: normaliseEnum(readField(source, 'confidence'), FINANCIAL_VALUE_CONFIDENCES, 'unknown'),
+      source: status === 'unknown' || status === 'not_applicable'
+        ? 'not_provided'
+        : normaliseEnum(readField(source, 'source'), FINANCIAL_VALUE_SOURCES, defaultSource),
+      note: normaliseText(readField(source, 'note'))
+    };
+  }
+
+  function normaliseEconomicsMeta(economics = {}, economicsMeta = {}, fields = []) {
+    const safeEconomics = isPlainObject(economics) ? economics : {};
+    const safeMeta = isPlainObject(economicsMeta) ? economicsMeta : {};
+    return fields.reduce((output, field) => {
+      output[field] = normaliseFinancialFieldMeta(readField(safeEconomics, field), readField(safeMeta, field));
+      return output;
+    }, {});
+  }
+
   function normaliseBuyerEconomics(buyerEconomics = {}) {
     const source = isPlainObject(buyerEconomics) ? buyerEconomics : {};
     return {
@@ -219,12 +344,15 @@
       amountCommitted: normaliseFiniteNumber(readField(source, 'amountCommitted')),
       amountPaid: normaliseFiniteNumber(readField(source, 'amountPaid')),
       delayCostPerDay: normaliseFiniteNumber(readField(source, 'delayCostPerDay')),
+      delayCostPerWeek: normaliseFiniteNumber(readField(source, 'delayCostPerWeek')),
       expectedBenefitPerDay: normaliseFiniteNumber(readField(source, 'expectedBenefitPerDay')),
+      expectedBenefitPerWeek: normaliseFiniteNumber(readField(source, 'expectedBenefitPerWeek')),
       reprocurementPremiumPct: normalisePercentage(readField(source, 'reprocurementPremiumPct')),
       supplierCredits: normaliseFiniteNumber(readField(source, 'supplierCredits')),
       insuranceRecoveries: normaliseFiniteNumber(readField(source, 'insuranceRecoveries')),
       liquidatedDamagesRecoverable: normaliseFiniteNumber(readField(source, 'liquidatedDamagesRecoverable')),
-      contractualRecoveryCap: normaliseFiniteNumber(readField(source, 'contractualRecoveryCap'))
+      contractualRecoveryCap: normaliseFiniteNumber(readField(source, 'contractualRecoveryCap')),
+      legalDisputeEstimate: normaliseFiniteNumber(readField(source, 'legalDisputeEstimate'))
     };
   }
 
@@ -244,7 +372,42 @@
       liabilityCap: normaliseFiniteNumber(readField(source, 'liabilityCap')),
       terminationExposure: normaliseFiniteNumber(readField(source, 'terminationExposure')),
       renewalValueAtRisk: normaliseFiniteNumber(readField(source, 'renewalValueAtRisk')),
-      costToCure: normaliseFiniteNumber(readField(source, 'costToCure'))
+      costToCure: normaliseFiniteNumber(readField(source, 'costToCure')),
+      warrantyExposure: normaliseFiniteNumber(readField(source, 'warrantyExposure')),
+      insuranceRecoveries: normaliseFiniteNumber(readField(source, 'insuranceRecoveries')),
+      probabilityOfAward: normalisePercentage(readField(source, 'probabilityOfAward'))
+    };
+  }
+
+  function normaliseBuyerEconomicsMeta(buyerEconomics = {}, buyerEconomicsMeta = {}) {
+    return normaliseEconomicsMeta(normaliseBuyerEconomics(buyerEconomics), buyerEconomicsMeta, BUYER_ECONOMICS_FIELDS);
+  }
+
+  function normaliseSellerEconomicsMeta(sellerEconomics = {}, sellerEconomicsMeta = {}) {
+    return normaliseEconomicsMeta(normaliseSellerEconomics(sellerEconomics), sellerEconomicsMeta, SELLER_ECONOMICS_FIELDS);
+  }
+
+  function normaliseBuyerProxyQuestions(buyerProxyQuestions = {}) {
+    const source = isPlainObject(buyerProxyQuestions) ? buyerProxyQuestions : {};
+    return {
+      mainImpact: normaliseEnum(readField(source, 'mainImpact'), BUYER_IMPACT_OPTIONS, 'unknown'),
+      likelyDelay: normaliseEnum(readField(source, 'likelyDelay'), BUYER_DELAY_OPTIONS, 'unknown'),
+      supplierReplacementDifficulty: normaliseEnum(readField(source, 'supplierReplacementDifficulty'), BUYER_REPLACEMENT_OPTIONS, 'unknown'),
+      contractualRecoveries: normaliseEnum(readField(source, 'contractualRecoveries'), BUYER_RECOVERY_OPTIONS, 'unknown'),
+      moneyPaidCommitted: normaliseEnum(readField(source, 'moneyPaidCommitted'), BUYER_PAID_OPTIONS, 'unknown'),
+      criticalPath: normaliseEnum(readField(source, 'criticalPath'), YES_NO_UNKNOWN_OPTIONS, 'unknown')
+    };
+  }
+
+  function normaliseSellerProxyQuestions(sellerProxyQuestions = {}) {
+    const source = isPlainObject(sellerProxyQuestions) ? sellerProxyQuestions : {};
+    return {
+      mainImpact: normaliseEnum(readField(source, 'mainImpact'), SELLER_IMPACT_OPTIONS, 'unknown'),
+      expectedMargin: normaliseEnum(readField(source, 'expectedMargin'), LOW_MEDIUM_HIGH_UNKNOWN_OPTIONS, 'unknown'),
+      penaltiesOrCredits: normaliseEnum(readField(source, 'penaltiesOrCredits'), YES_NO_UNKNOWN_OPTIONS, 'unknown'),
+      terminationRight: normaliseEnum(readField(source, 'terminationRight'), YES_NO_UNKNOWN_OPTIONS, 'unknown'),
+      extraDeliveryCost: normaliseEnum(readField(source, 'extraDeliveryCost'), LOW_MEDIUM_HIGH_UNKNOWN_OPTIONS, 'unknown'),
+      commercialModel: normaliseEnum(readField(source, 'commercialModel'), SELLER_COMMERCIAL_MODEL_OPTIONS, 'unknown')
     };
   }
 
@@ -264,11 +427,19 @@
   function normaliseAssessmentTypeState(value = {}) {
     const source = isPlainObject(value) ? value : {};
     const assessmentType = normaliseAssessmentType(readField(source, 'assessmentType'));
+    const buyerEconomics = normaliseBuyerEconomics(readField(source, 'buyerEconomics'));
+    const sellerEconomics = normaliseSellerEconomics(readField(source, 'sellerEconomics'));
     return {
       assessmentType,
       projectContext: normaliseProjectContext(readField(source, 'projectContext'), assessmentType),
-      buyerEconomics: normaliseBuyerEconomics(readField(source, 'buyerEconomics')),
-      sellerEconomics: normaliseSellerEconomics(readField(source, 'sellerEconomics')),
+      enterpriseRiskContext: normaliseEnterpriseRiskContext(readField(source, 'enterpriseRiskContext')),
+      projectRouteDetails: normaliseProjectRouteDetails(readField(source, 'projectRouteDetails')),
+      buyerProxyQuestions: normaliseBuyerProxyQuestions(readField(source, 'buyerProxyQuestions')),
+      sellerProxyQuestions: normaliseSellerProxyQuestions(readField(source, 'sellerProxyQuestions')),
+      buyerEconomics,
+      buyerEconomicsMeta: normaliseEconomicsMeta(buyerEconomics, readField(source, 'buyerEconomicsMeta'), BUYER_ECONOMICS_FIELDS),
+      sellerEconomics,
+      sellerEconomicsMeta: normaliseEconomicsMeta(sellerEconomics, readField(source, 'sellerEconomicsMeta'), SELLER_ECONOMICS_FIELDS),
       projectExposure: normaliseProjectExposure(readField(source, 'projectExposure'))
     };
   }
@@ -293,12 +464,26 @@
         ...current.projectContext,
         projectRole: projectRoleForAssessmentType(targetType)
       }, targetType),
+      enterpriseRiskContext: current.enterpriseRiskContext,
+      projectRouteDetails: current.projectRouteDetails,
+      buyerProxyQuestions: targetType === ASSESSMENT_TYPE_PROJECT_BUYER
+        ? current.buyerProxyQuestions
+        : defaults.buyerProxyQuestions,
+      sellerProxyQuestions: targetType === ASSESSMENT_TYPE_PROJECT_SELLER
+        ? current.sellerProxyQuestions
+        : defaults.sellerProxyQuestions,
       buyerEconomics: targetType === ASSESSMENT_TYPE_PROJECT_BUYER
         ? current.buyerEconomics
         : defaults.buyerEconomics,
+      buyerEconomicsMeta: targetType === ASSESSMENT_TYPE_PROJECT_BUYER
+        ? current.buyerEconomicsMeta
+        : defaults.buyerEconomicsMeta,
       sellerEconomics: targetType === ASSESSMENT_TYPE_PROJECT_SELLER
         ? current.sellerEconomics
         : defaults.sellerEconomics,
+      sellerEconomicsMeta: targetType === ASSESSMENT_TYPE_PROJECT_SELLER
+        ? current.sellerEconomicsMeta
+        : defaults.sellerEconomicsMeta,
       projectExposure: current.projectExposure
     };
   }
@@ -321,6 +506,8 @@
     ASSESSMENT_SCREEN_PROJECT_BUYER_INPUTS,
     ASSESSMENT_SCREEN_PROJECT_SELLER_INPUTS,
     MAX_PROJECT_EXPOSURE_ARRAY_ITEMS,
+    BUYER_ECONOMICS_FIELDS,
+    SELLER_ECONOMICS_FIELDS,
     normaliseAssessmentType,
     normalizeAssessmentType: normaliseAssessmentType,
     normaliseValuationMode,
@@ -332,10 +519,22 @@
     normalizeProjectRole: normaliseProjectRole,
     normaliseProjectContext,
     normalizeProjectContext: normaliseProjectContext,
+    normaliseEnterpriseRiskContext,
+    normalizeEnterpriseRiskContext: normaliseEnterpriseRiskContext,
+    normaliseProjectRouteDetails,
+    normalizeProjectRouteDetails: normaliseProjectRouteDetails,
     normaliseBuyerEconomics,
     normalizeBuyerEconomics: normaliseBuyerEconomics,
+    normaliseBuyerEconomicsMeta,
+    normalizeBuyerEconomicsMeta: normaliseBuyerEconomicsMeta,
+    normaliseBuyerProxyQuestions,
+    normalizeBuyerProxyQuestions: normaliseBuyerProxyQuestions,
     normaliseSellerEconomics,
     normalizeSellerEconomics: normaliseSellerEconomics,
+    normaliseSellerEconomicsMeta,
+    normalizeSellerEconomicsMeta: normaliseSellerEconomicsMeta,
+    normaliseSellerProxyQuestions,
+    normalizeSellerProxyQuestions: normaliseSellerProxyQuestions,
     normaliseProjectExposure,
     normalizeProjectExposure: normaliseProjectExposure,
     normaliseAssessmentTypeState,

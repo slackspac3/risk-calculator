@@ -4038,6 +4038,492 @@ function renderStep1AssessmentTypeDock(draft = AppState.draft || {}) {
   </details>`;
 }
 
+const STEP1_FINANCIAL_STATUS_OPTIONS = [
+  { value: 'known', label: 'I know this' },
+  { value: 'estimated', label: 'This is an estimate' },
+  { value: 'unknown', label: "I don't know" },
+  { value: 'not_applicable', label: 'Not applicable' }
+];
+
+const STEP1_BUYER_LEVEL1_FINANCIAL_FIELDS = [
+  { field: 'expectedSpend', label: 'Rough expected spend', placeholder: 'e.g. 1200000', highImpact: true },
+  { field: 'approvedBudget', label: 'Approved budget', placeholder: 'e.g. 1000000', highImpact: true }
+];
+
+const STEP1_BUYER_ADVANCED_FINANCIAL_FIELDS = [
+  { field: 'delayCostPerDay', label: 'Delay cost per day', placeholder: 'e.g. 5000', highImpact: true },
+  { field: 'delayCostPerWeek', label: 'Delay cost per week', placeholder: 'e.g. 35000', highImpact: true },
+  { field: 'expectedBenefitPerDay', label: 'Expected benefit per day', placeholder: 'e.g. 8000', highImpact: true },
+  { field: 'expectedBenefitPerWeek', label: 'Expected benefit per week', placeholder: 'e.g. 56000', highImpact: true },
+  { field: 'reprocurementPremiumPct', label: 'Reprocurement premium %', placeholder: '0.2 for 20%', highImpact: true, percent: true },
+  { field: 'amountPaid', label: 'Amount already paid', placeholder: 'e.g. 250000' },
+  { field: 'amountCommitted', label: 'Amount committed', placeholder: 'e.g. 500000' },
+  { field: 'remainingSpend', label: 'Remaining spend', placeholder: 'e.g. 750000' },
+  { field: 'supplierCredits', label: 'Supplier credits / recoveries', placeholder: 'e.g. 50000' },
+  { field: 'insuranceRecoveries', label: 'Insurance recoveries', placeholder: 'e.g. 100000' },
+  { field: 'liquidatedDamagesRecoverable', label: 'Liquidated damages recoverable', placeholder: 'e.g. 150000' },
+  { field: 'contractualRecoveryCap', label: 'Contractual recovery cap', placeholder: 'e.g. 300000', highImpact: true },
+  { field: 'legalDisputeEstimate', label: 'Legal / dispute estimate', placeholder: 'e.g. 200000' }
+];
+
+const STEP1_SELLER_LEVEL1_FINANCIAL_FIELDS = [
+  { field: 'contractValue', label: 'Rough contract value', placeholder: 'e.g. 2500000', highImpact: true },
+  { field: 'expectedRevenue', label: 'Expected revenue', placeholder: 'e.g. 1800000', highImpact: true }
+];
+
+const STEP1_SELLER_ADVANCED_FINANCIAL_FIELDS = [
+  { field: 'grossMarginPct', label: 'Gross margin %', placeholder: '0.35 for 35%', highImpact: true, percent: true },
+  { field: 'contributionMargin', label: 'Contribution margin', placeholder: 'e.g. 650000' },
+  { field: 'deliveryCostBudget', label: 'Delivery cost budget', placeholder: 'e.g. 1400000', highImpact: true },
+  { field: 'costIncurredToDate', label: 'Cost incurred to date', placeholder: 'e.g. 450000' },
+  { field: 'remainingDeliveryCost', label: 'Remaining delivery cost', placeholder: 'e.g. 900000' },
+  { field: 'revenueRecognitionAtRisk', label: 'Revenue recognition at risk', placeholder: 'e.g. 500000', highImpact: true },
+  { field: 'liquidatedDamagesCap', label: 'Liquidated damages cap', placeholder: 'e.g. 250000' },
+  { field: 'slaCreditsCap', label: 'SLA credits cap', placeholder: 'e.g. 100000' },
+  { field: 'liabilityCap', label: 'Liability cap', placeholder: 'e.g. 500000', highImpact: true },
+  { field: 'terminationExposure', label: 'Termination exposure', placeholder: 'e.g. 750000', highImpact: true },
+  { field: 'renewalValueAtRisk', label: 'Renewal / future pipeline exposure', placeholder: 'e.g. 1500000' },
+  { field: 'costToCure', label: 'Cost to cure', placeholder: 'e.g. 125000' },
+  { field: 'warrantyExposure', label: 'Warranty exposure', placeholder: 'e.g. 100000' },
+  { field: 'insuranceRecoveries', label: 'Insurance / recoveries', placeholder: 'e.g. 200000' },
+  { field: 'probabilityOfAward', label: 'Probability of award, if bid-stage', placeholder: '0.4 for 40%', percent: true }
+];
+
+const STEP1_BUYER_PROXY_FIELDS = [
+  {
+    field: 'mainImpact',
+    label: 'Main impact',
+    options: [
+      ['delay', 'Delay'],
+      ['cost_increase', 'Cost increase'],
+      ['supplier_replacement', 'Supplier replacement'],
+      ['wasted_spend', 'Wasted spend'],
+      ['delayed_benefit', 'Delayed benefit'],
+      ['legal_dispute', 'Legal dispute'],
+      ['operational_disruption', 'Operational disruption'],
+      ['unknown', 'Unknown']
+    ]
+  },
+  { field: 'likelyDelay', label: 'Likely delay', options: [['days', 'Days'], ['weeks', 'Weeks'], ['months', 'Months'], ['unknown', 'Unknown']] },
+  { field: 'supplierReplacementDifficulty', label: 'Supplier replacement difficulty', options: [['easy', 'Easy'], ['moderate', 'Moderate'], ['hard', 'Hard'], ['unknown', 'Unknown']] },
+  { field: 'contractualRecoveries', label: 'Contractual recoveries likely', options: [['yes', 'Yes'], ['no', 'No'], ['some', 'Some'], ['unknown', 'Unknown']] },
+  { field: 'moneyPaidCommitted', label: 'Money already paid or committed', options: [['none', 'None'], ['some', 'Some'], ['most', 'Most'], ['unknown', 'Unknown']] },
+  { field: 'criticalPath', label: 'On the critical path', options: [['yes', 'Yes'], ['no', 'No'], ['unknown', 'Unknown']] }
+];
+
+const STEP1_SELLER_PROXY_FIELDS = [
+  {
+    field: 'mainImpact',
+    label: 'Main impact',
+    options: [
+      ['margin_erosion', 'Margin erosion'],
+      ['delivery_cost_overrun', 'Delivery cost overrun'],
+      ['delayed_revenue', 'Delayed revenue'],
+      ['ld_sla_credits', 'LD / SLA credits'],
+      ['termination', 'Termination'],
+      ['warranty_cost_to_cure', 'Warranty / cost to cure'],
+      ['renewal_impact', 'Renewal impact'],
+      ['non_payment', 'Non-payment'],
+      ['unknown', 'Unknown']
+    ]
+  },
+  { field: 'expectedMargin', label: 'Expected margin', options: [['low', 'Low'], ['medium', 'Medium'], ['high', 'High'], ['unknown', 'Unknown']] },
+  { field: 'penaltiesOrCredits', label: 'Could the customer claim penalties or credits', options: [['yes', 'Yes'], ['no', 'No'], ['unknown', 'Unknown']] },
+  { field: 'terminationRight', label: 'Could the customer terminate', options: [['yes', 'Yes'], ['no', 'No'], ['unknown', 'Unknown']] },
+  { field: 'extraDeliveryCost', label: 'Extra delivery cost to recover', options: [['low', 'Low'], ['medium', 'Medium'], ['high', 'High'], ['unknown', 'Unknown']] },
+  {
+    field: 'commercialModel',
+    label: 'Commercial model',
+    options: [
+      ['fixed_price', 'Fixed-price'],
+      ['time_and_materials', 'Time-and-materials'],
+      ['milestone_based', 'Milestone-based'],
+      ['recurring_service', 'Recurring service'],
+      ['unknown', 'Unknown']
+    ]
+  }
+];
+
+function getStep1EconomicsConfig(scope = 'buyer') {
+  return scope === 'seller'
+    ? {
+        economicsKey: 'sellerEconomics',
+        metaKey: 'sellerEconomicsMeta',
+        level1Fields: STEP1_SELLER_LEVEL1_FINANCIAL_FIELDS,
+        advancedFields: STEP1_SELLER_ADVANCED_FINANCIAL_FIELDS
+      }
+    : {
+        economicsKey: 'buyerEconomics',
+        metaKey: 'buyerEconomicsMeta',
+        level1Fields: STEP1_BUYER_LEVEL1_FINANCIAL_FIELDS,
+        advancedFields: STEP1_BUYER_ADVANCED_FINANCIAL_FIELDS
+      };
+}
+
+function formatStep1EconomicsInputValue(value) {
+  return value === null || value === undefined ? '' : String(value);
+}
+
+function normaliseStep1FinancialStatus(value = 'unknown') {
+  const next = String(value || '').trim();
+  return STEP1_FINANCIAL_STATUS_OPTIONS.some(option => option.value === next) ? next : 'unknown';
+}
+
+function getStep1FinancialMeta(scope, field, draft = AppState.draft || {}) {
+  const { metaKey } = getStep1EconomicsConfig(scope);
+  const meta = draft?.[metaKey]?.[field];
+  if (meta && typeof meta === 'object') {
+    return {
+      status: normaliseStep1FinancialStatus(meta.status),
+      confidence: String(meta.confidence || 'unknown').trim() || 'unknown',
+      source: String(meta.source || 'not_provided').trim() || 'not_provided',
+      note: String(meta.note || '').trim()
+    };
+  }
+  const { economicsKey } = getStep1EconomicsConfig(scope);
+  const value = draft?.[economicsKey]?.[field];
+  return {
+    status: value === null || value === undefined || value === '' ? 'unknown' : 'known',
+    confidence: 'unknown',
+    source: value === null || value === undefined || value === '' ? 'not_provided' : 'user',
+    note: ''
+  };
+}
+
+function getStep1FinancialFieldConfig(scope, field) {
+  const config = getStep1EconomicsConfig(scope);
+  return [...config.level1Fields, ...config.advancedFields].find(item => item.field === field) || { field, label: field };
+}
+
+function renderStep1FinancialStatusControls(scope, field, meta) {
+  return `<div class="step1-financial-status" role="radiogroup" aria-label="${escapeHtml(field)} knowledge status">
+    ${STEP1_FINANCIAL_STATUS_OPTIONS.map(option => {
+      const id = `step1-${scope}-${field}-${option.value}`;
+      return `<label class="step1-financial-status__option" for="${escapeHtml(id)}">
+        <input id="${escapeHtml(id)}" type="radio" name="step1-${escapeHtml(scope)}-${escapeHtml(field)}-status" data-economics-scope="${escapeHtml(scope)}" data-economics-status-field="${escapeHtml(field)}" value="${escapeHtml(option.value)}" ${meta.status === option.value ? 'checked' : ''}>
+        <span>${escapeHtml(option.label)}</span>
+      </label>`;
+    }).join('')}
+  </div>`;
+}
+
+function renderStep1FinancialField(scope, config, draft = AppState.draft || {}) {
+  const { economicsKey } = getStep1EconomicsConfig(scope);
+  const value = draft?.[economicsKey]?.[config.field];
+  const meta = getStep1FinancialMeta(scope, config.field, draft);
+  const id = `step1-${scope}-${config.field}`;
+  const help = config.percent
+    ? 'Use a decimal if known, for example 0.2 for 20%. Leave blank when unknown.'
+    : 'Leave blank when unknown. Blank is saved as unknown, not zero.';
+  return `<div class="step1-financial-field" data-financial-field-row="${escapeHtml(scope)}:${escapeHtml(config.field)}">
+    <div class="step1-financial-field__head">
+      <label class="form-label" for="${escapeHtml(id)}">${escapeHtml(config.label)}</label>
+      <span class="badge badge--neutral">${escapeHtml(meta.status.replace(/_/g, ' '))}</span>
+    </div>
+    <input class="form-input" id="${escapeHtml(id)}" data-economics-scope="${escapeHtml(scope)}" data-economics-field="${escapeHtml(config.field)}" inputmode="decimal" placeholder="${escapeHtml(config.placeholder || '')}" value="${escapeHtml(formatStep1EconomicsInputValue(value))}">
+    <div class="form-help">${escapeHtml(help)}</div>
+    ${renderStep1FinancialStatusControls(scope, config.field, meta)}
+    <input class="form-input step1-financial-field__note" data-economics-scope="${escapeHtml(scope)}" data-economics-note-field="${escapeHtml(config.field)}" type="text" placeholder="Optional note or source" value="${escapeHtml(meta.note)}">
+  </div>`;
+}
+
+function renderStep1SelectField({ id, label, value, options, dataAttrs = '' }) {
+  return `<div class="form-group">
+    <label class="form-label" for="${escapeHtml(id)}">${escapeHtml(label)}</label>
+    <select class="form-select" id="${escapeHtml(id)}" ${dataAttrs}>
+      ${options.map(([optionValue, optionLabel]) => `<option value="${escapeHtml(optionValue)}" ${String(value || 'unknown') === optionValue ? 'selected' : ''}>${escapeHtml(optionLabel)}</option>`).join('')}
+    </select>
+  </div>`;
+}
+
+function renderStep1TextField({ id, label, value = '', placeholder = '', dataAttrs = '', type = 'text' }) {
+  return `<div class="form-group">
+    <label class="form-label" for="${escapeHtml(id)}">${escapeHtml(label)}</label>
+    <input class="form-input" id="${escapeHtml(id)}" type="${escapeHtml(type)}" ${dataAttrs} placeholder="${escapeHtml(placeholder)}" value="${escapeHtml(value)}">
+  </div>`;
+}
+
+function renderStep1TextareaField({ id, label, value = '', placeholder = '', dataAttrs = '', rows = 3 }) {
+  return `<div class="form-group">
+    <label class="form-label" for="${escapeHtml(id)}">${escapeHtml(label)}</label>
+    <textarea class="form-textarea" id="${escapeHtml(id)}" rows="${rows}" ${dataAttrs} placeholder="${escapeHtml(placeholder)}">${escapeHtml(value)}</textarea>
+  </div>`;
+}
+
+function buildStep1KnownSoFarModel(scope, draft = AppState.draft || {}) {
+  const config = getStep1EconomicsConfig(scope);
+  const fields = [...config.level1Fields, ...config.advancedFields];
+  const economics = draft?.[config.economicsKey] || {};
+  const known = [];
+  const estimated = [];
+  const unknownHighImpact = [];
+  const notApplicable = [];
+  fields.forEach(fieldConfig => {
+    const meta = getStep1FinancialMeta(scope, fieldConfig.field, draft);
+    const value = economics[fieldConfig.field];
+    const label = fieldConfig.label;
+    if (meta.status === 'not_applicable') {
+      notApplicable.push(label);
+    } else if (meta.status === 'estimated' && value !== null && value !== undefined) {
+      estimated.push(label);
+    } else if (['known', 'derived', 'benchmark_proxy', 'evidence_supported'].includes(meta.status) && value !== null && value !== undefined) {
+      known.push(label);
+    } else if (fieldConfig.highImpact) {
+      unknownHighImpact.push(label);
+    }
+  });
+  return { known, estimated, unknownHighImpact, notApplicable };
+}
+
+function renderStep1KnownSoFarSummary(scope, draft = AppState.draft || {}) {
+  const model = buildStep1KnownSoFarModel(scope, draft);
+  const renderList = (label, items, emptyText) => `<div class="step1-known-summary__group">
+    <span>${escapeHtml(label)}</span>
+    <strong>${items.length ? escapeHtml(items.slice(0, 4).join(', ')) : escapeHtml(emptyText)}</strong>
+  </div>`;
+  return `<section class="step1-known-summary" data-route-summary-host="${escapeHtml(scope)}">
+    <div class="step1-known-summary__grid">
+      ${renderList('Known values', model.known, 'None yet')}
+      ${renderList('Estimated values', model.estimated, 'None yet')}
+      ${renderList('Unknown high-impact values', model.unknownHighImpact, 'None')}
+      ${renderList('Not applicable', model.notApplicable, 'None marked')}
+    </div>
+    <div class="step1-missing-preview">
+      <strong>Missing high-impact inputs</strong>
+      <span>${model.unknownHighImpact.length ? escapeHtml(model.unknownHighImpact.slice(0, 3).join(', ')) : 'No high-impact unknowns marked yet.'}</span>
+      <p>You can continue. The next step will estimate with uncertainty and flag what matters most.</p>
+    </div>
+  </section>`;
+}
+
+function renderStep1ProxyQuestions(scope, draft = AppState.draft || {}) {
+  const fields = scope === 'seller' ? STEP1_SELLER_PROXY_FIELDS : STEP1_BUYER_PROXY_FIELDS;
+  const key = scope === 'seller' ? 'sellerProxyQuestions' : 'buyerProxyQuestions';
+  const proxy = draft?.[key] || {};
+  return `<div class="step1-proxy-grid">
+    ${fields.map(field => renderStep1SelectField({
+      id: `step1-${scope}-proxy-${field.field}`,
+      label: field.label,
+      value: proxy[field.field] || 'unknown',
+      options: field.options,
+      dataAttrs: `data-proxy-scope="${escapeHtml(scope)}" data-proxy-field="${escapeHtml(field.field)}"`
+    })).join('')}
+  </div>`;
+}
+
+function renderStep1EnterpriseInputs(draft = AppState.draft || {}) {
+  const enterprise = draft.enterpriseRiskContext || {};
+  return `<section class="card card--primary step1-route-inputs step1-route-inputs--generic anim-fade-in">
+    <div class="step1-route-inputs__head">
+      <div>
+        <div class="wizard-summary-band__label">Generic enterprise risk inputs</div>
+        <h3>Use the standard enterprise path</h3>
+        <p>Describe the scenario below. These optional facts help when the risk affects a process, function, system, supplier, obligation, business unit, control, or operation.</p>
+      </div>
+      <span class="badge badge--neutral">Generic</span>
+    </div>
+    <section class="step1-route-level">
+      <div class="step1-route-level__head">
+        <span>Level 1</span>
+        <strong>Risk statement or equivalent scenario text</strong>
+      </div>
+      <p class="form-help">Use the scenario text area below. Business unit, function, geography, controls, evidence, and obligations can stay blank when unknown.</p>
+    </section>
+    <details class="wizard-disclosure wizard-disclosure--compact step1-route-level" open>
+      <summary>Level 2 optional context <span class="badge badge--neutral">Optional</span></summary>
+      <div class="wizard-disclosure-body step1-route-grid">
+        ${renderStep1TextField({ id: 'enterprise-affected-area', label: 'Affected process, system, supplier, obligation, or asset', value: enterprise.affectedArea, placeholder: 'Example: payments platform, supplier onboarding, regulatory reporting', dataAttrs: 'data-enterprise-context-field="affectedArea"' })}
+        ${renderStep1TextField({ id: 'enterprise-likely-cause', label: 'Likely trigger or cause', value: enterprise.likelyCause, placeholder: 'Example: control gap, outage, supplier failure', dataAttrs: 'data-enterprise-context-field="likelyCause"' })}
+        ${renderStep1TextField({ id: 'enterprise-main-impact', label: 'Main business impact', value: enterprise.mainBusinessImpact, placeholder: 'Example: operational backlog, customer disruption', dataAttrs: 'data-enterprise-context-field="mainBusinessImpact"' })}
+        ${renderStep1TextareaField({ id: 'enterprise-controls', label: 'Existing controls', value: enterprise.existingControls, placeholder: 'Known controls, mitigations, or monitoring', dataAttrs: 'data-enterprise-context-field="existingControls"' })}
+      </div>
+    </details>
+    <details class="wizard-disclosure wizard-disclosure--compact step1-route-level">
+      <summary>Level 3 evidence, documents, and obligations <span class="badge badge--neutral">Optional</span></summary>
+      <div class="wizard-disclosure-body step1-route-grid">
+        ${renderStep1TextareaField({ id: 'enterprise-evidence', label: 'Relevant evidence or documents', value: enterprise.evidenceNotes, placeholder: 'Evidence, document names, tickets, or notes', dataAttrs: 'data-enterprise-context-field="evidenceNotes"' })}
+        ${renderStep1TextareaField({ id: 'enterprise-obligations', label: 'Applicable regulations or obligations', value: enterprise.obligationNotes, placeholder: 'Relevant obligations if known', dataAttrs: 'data-enterprise-context-field="obligationNotes"' })}
+      </div>
+    </details>
+  </section>`;
+}
+
+function renderStep1ProjectInputs(scope, draft = AppState.draft || {}) {
+  const isSeller = scope === 'seller';
+  const context = draft.projectContext || {};
+  const details = draft.projectRouteDetails || {};
+  const config = getStep1EconomicsConfig(scope);
+  const title = isSeller ? 'Project risk - we are the seller' : 'Project risk - we are the buyer';
+  const helper = isSeller
+    ? 'The loss is not automatically total contract value. Unknown values will become assumptions, benchmark proxies, stress cases, or follow-up questions later.'
+    : "The loss is not automatically total project spend. Unknown values will become assumptions, benchmark proxies, stress cases, or follow-up questions later.";
+  return `<section class="card card--primary step1-route-inputs step1-route-inputs--project step1-route-inputs--${escapeHtml(scope)} anim-fade-in">
+    <div class="step1-route-inputs__head">
+      <div>
+        <div class="wizard-summary-band__label">Tailored project intake</div>
+        <h3>${escapeHtml(title)}</h3>
+        <p>${escapeHtml(helper)}</p>
+      </div>
+      <span class="badge badge--gold">Unknowns allowed</span>
+    </div>
+
+    <section class="step1-route-level">
+      <div class="step1-route-level__head">
+        <span>Level 1</span>
+        <strong>Simple facts most users know</strong>
+      </div>
+      <div class="step1-route-grid">
+        ${renderStep1TextField({ id: 'project-name', label: isSeller ? 'Project / contract name' : 'Project name', value: context.projectName, placeholder: 'Example: ERP migration', dataAttrs: 'data-project-context-field="projectName"' })}
+        ${renderStep1TextField({ id: isSeller ? 'project-customer' : 'project-supplier', label: isSeller ? 'Customer' : 'Supplier, vendor, or contractor', value: isSeller ? details.customerName : details.supplierName, placeholder: isSeller ? 'Example: Acme Bank' : 'Example: implementation partner', dataAttrs: `data-project-detail-field="${isSeller ? 'customerName' : 'supplierName'}"` })}
+        ${renderStep1TextField({ id: 'project-stage', label: 'Project stage', value: context.projectStage, placeholder: 'Example: procurement, delivery, go-live, renewal', dataAttrs: 'data-project-context-field="projectStage"' })}
+        ${isSeller ? renderStep1TextField({ id: 'project-contract-type', label: 'Contract type, if known', value: context.contractType, placeholder: 'Example: fixed-price, T&M, milestone, recurring', dataAttrs: 'data-project-context-field="contractType"' }) : ''}
+        ${renderStep1TextareaField({ id: 'project-description', label: 'Project description', value: context.projectDescription, placeholder: 'Short plain-English description', dataAttrs: 'data-project-context-field="projectDescription"', rows: 3 })}
+        ${renderStep1TextareaField({ id: 'project-main-consequence', label: 'Main consequence if the risk happens', value: details.mainConsequence, placeholder: 'Example: delayed go-live, replacement supplier, margin erosion, customer penalties', dataAttrs: 'data-project-detail-field="mainConsequence"', rows: 3 })}
+        ${config.level1Fields.map(field => renderStep1FinancialField(scope, field, draft)).join('')}
+        ${!isSeller ? renderStep1TextField({ id: 'project-milestone-date', label: 'Critical milestone / go-live date, if known', value: context.criticalMilestoneDate, placeholder: 'YYYY-MM-DD or plain text date', dataAttrs: 'data-project-context-field="criticalMilestoneDate"' }) : ''}
+        ${!isSeller ? renderStep1TextField({ id: 'project-duration', label: 'Project duration in months, if known', value: formatStep1EconomicsInputValue(context.projectDurationMonths), placeholder: 'e.g. 12', dataAttrs: 'data-project-context-field="projectDurationMonths"', type: 'number' }) : ''}
+      </div>
+    </section>
+
+    <details class="wizard-disclosure wizard-disclosure--compact step1-route-level" open>
+      <summary>Level 2 proxy questions <span class="badge badge--neutral">Useful when values are unknown</span></summary>
+      <div class="wizard-disclosure-body">
+        ${renderStep1ProxyQuestions(scope, draft)}
+      </div>
+    </details>
+
+    <details class="wizard-disclosure wizard-disclosure--compact step1-route-level">
+      <summary>Level 3 optional advanced financial values <span class="badge badge--neutral">Optional</span></summary>
+      <div class="wizard-disclosure-body step1-financial-grid">
+        ${config.advancedFields.map(field => renderStep1FinancialField(scope, field, draft)).join('')}
+      </div>
+    </details>
+
+    ${renderStep1KnownSoFarSummary(scope, draft)}
+  </section>`;
+}
+
+function renderStep1RouteSpecificInputs(draft = AppState.draft || {}) {
+  const assessmentType = normaliseStep1AssessmentType(draft.assessmentType);
+  if (assessmentType === 'project_buyer') return renderStep1ProjectInputs('buyer', draft);
+  if (assessmentType === 'project_seller') return renderStep1ProjectInputs('seller', draft);
+  return renderStep1EnterpriseInputs(draft);
+}
+
+function parseStep1FiniteInputValue(value) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return null;
+  const next = Number(raw.replace(/,/g, ''));
+  return Number.isFinite(next) ? next : null;
+}
+
+function getStep1FinancialStatusForValue(value, selectedStatus) {
+  const status = normaliseStep1FinancialStatus(selectedStatus);
+  if (status === 'not_applicable') return 'not_applicable';
+  if (value === null) return 'unknown';
+  return status === 'estimated' ? 'estimated' : 'known';
+}
+
+function updateStep1FinancialField(scope, field, { forceStatus = '' } = {}) {
+  const config = getStep1EconomicsConfig(scope);
+  AppState.draft[config.economicsKey] = AppState.draft[config.economicsKey] && typeof AppState.draft[config.economicsKey] === 'object'
+    ? AppState.draft[config.economicsKey]
+    : {};
+  AppState.draft[config.metaKey] = AppState.draft[config.metaKey] && typeof AppState.draft[config.metaKey] === 'object'
+    ? AppState.draft[config.metaKey]
+    : {};
+  const input = document.querySelector(`[data-economics-scope="${scope}"][data-economics-field="${field}"]`);
+  const checked = document.querySelector(`[data-economics-scope="${scope}"][data-economics-status-field="${field}"]:checked`);
+  const hasForcedStatus = !!String(forceStatus || '').trim();
+  let selectedStatus = normaliseStep1FinancialStatus(forceStatus || checked?.value || AppState.draft[config.metaKey]?.[field]?.status || 'unknown');
+  let value = parseStep1FiniteInputValue(input?.value || '');
+  if (!hasForcedStatus && value !== null && (selectedStatus === 'unknown' || selectedStatus === 'not_applicable')) {
+    selectedStatus = 'known';
+    const knownRadio = document.querySelector(`[data-economics-scope="${scope}"][data-economics-status-field="${field}"][value="known"]`);
+    if (knownRadio) knownRadio.checked = true;
+  }
+  if (selectedStatus === 'unknown' || selectedStatus === 'not_applicable') {
+    value = null;
+    if (input) input.value = '';
+  }
+  const status = getStep1FinancialStatusForValue(value, selectedStatus);
+  const previous = AppState.draft[config.metaKey]?.[field] || {};
+  AppState.draft[config.economicsKey][field] = value;
+  AppState.draft[config.metaKey][field] = {
+    status,
+    confidence: status === 'known' ? 'high' : status === 'estimated' ? 'medium' : 'unknown',
+    source: status === 'known' || status === 'estimated' ? 'user' : 'not_provided',
+    note: String(previous.note || '').trim()
+  };
+  refreshStep1RouteKnownSummary(scope);
+  markDraftDirty();
+  scheduleDraftAutosave();
+}
+
+function refreshStep1RouteKnownSummary(scope) {
+  const host = document.querySelector(`[data-route-summary-host="${scope}"]`);
+  if (!host) return;
+  host.outerHTML = renderStep1KnownSoFarSummary(scope, AppState.draft);
+}
+
+function bindStep1RouteSpecificInputs() {
+  document.querySelectorAll('[data-enterprise-context-field]').forEach(input => {
+    input.addEventListener('input', () => {
+      AppState.draft.enterpriseRiskContext = AppState.draft.enterpriseRiskContext && typeof AppState.draft.enterpriseRiskContext === 'object' ? AppState.draft.enterpriseRiskContext : {};
+      AppState.draft.enterpriseRiskContext[input.dataset.enterpriseContextField] = input.value;
+      markDraftDirty();
+      scheduleDraftAutosave();
+    });
+  });
+  document.querySelectorAll('[data-project-context-field]').forEach(input => {
+    input.addEventListener('input', () => {
+      AppState.draft.projectContext = AppState.draft.projectContext && typeof AppState.draft.projectContext === 'object' ? AppState.draft.projectContext : {};
+      const field = input.dataset.projectContextField;
+      AppState.draft.projectContext[field] = field === 'projectDurationMonths' ? parseStep1FiniteInputValue(input.value) : input.value;
+      markDraftDirty();
+      scheduleDraftAutosave();
+    });
+  });
+  document.querySelectorAll('[data-project-detail-field]').forEach(input => {
+    input.addEventListener('input', () => {
+      AppState.draft.projectRouteDetails = AppState.draft.projectRouteDetails && typeof AppState.draft.projectRouteDetails === 'object' ? AppState.draft.projectRouteDetails : {};
+      AppState.draft.projectRouteDetails[input.dataset.projectDetailField] = input.value;
+      markDraftDirty();
+      scheduleDraftAutosave();
+    });
+  });
+  document.querySelectorAll('[data-proxy-scope][data-proxy-field]').forEach(select => {
+    select.addEventListener('change', () => {
+      const scope = String(select.dataset.proxyScope || '').trim() === 'seller' ? 'seller' : 'buyer';
+      const key = scope === 'seller' ? 'sellerProxyQuestions' : 'buyerProxyQuestions';
+      AppState.draft[key] = AppState.draft[key] && typeof AppState.draft[key] === 'object' ? AppState.draft[key] : {};
+      AppState.draft[key][select.dataset.proxyField] = select.value || 'unknown';
+      markDraftDirty();
+      scheduleDraftAutosave();
+    });
+  });
+  document.querySelectorAll('[data-economics-scope][data-economics-field]').forEach(input => {
+    input.addEventListener('input', () => updateStep1FinancialField(input.dataset.economicsScope, input.dataset.economicsField));
+  });
+  document.querySelectorAll('[data-economics-scope][data-economics-status-field]').forEach(radio => {
+    radio.addEventListener('change', () => updateStep1FinancialField(radio.dataset.economicsScope, radio.dataset.economicsStatusField, { forceStatus: radio.value }));
+  });
+  document.querySelectorAll('[data-economics-scope][data-economics-note-field]').forEach(input => {
+    input.addEventListener('input', () => {
+      const scope = String(input.dataset.economicsScope || '').trim() === 'seller' ? 'seller' : 'buyer';
+      const field = String(input.dataset.economicsNoteField || '').trim();
+      const config = getStep1EconomicsConfig(scope);
+      AppState.draft[config.metaKey] = AppState.draft[config.metaKey] && typeof AppState.draft[config.metaKey] === 'object' ? AppState.draft[config.metaKey] : {};
+      AppState.draft[config.metaKey][field] = {
+        ...getStep1FinancialMeta(scope, field, AppState.draft),
+        note: input.value
+      };
+      markDraftDirty();
+      scheduleDraftAutosave();
+    });
+  });
+}
+
 function renderStep1GuideLaneSwitch(activePath = 'guided') {
   const cards = getStep1PathCards();
   const active = activePath === 'draft' || activePath === 'import' ? activePath : 'guided';
@@ -5905,8 +6391,8 @@ function refreshStep1ContinueReadiness() {
   const button = document.getElementById('btn-next-1');
   if (!button) return;
   const selectedRisks = getSelectedRisks();
-  const narrative = String(AppState.draft?.narrative || '').trim();
-  const canContinue = !!String(AppState.draft?.buId || '').trim() && (!!narrative || selectedRisks.length > 0);
+  const narrative = String(AppState.draft?.narrative || AppState.draft?.sourceNarrative || AppState.draft?.guidedInput?.event || '').trim();
+  const canContinue = !!narrative || selectedRisks.length > 0;
   button.disabled = !canContinue;
   button.setAttribute('aria-disabled', canContinue ? 'false' : 'true');
   const footer = button.closest('.step1-sticky-footer');
@@ -5988,6 +6474,7 @@ function bindStep1PrimaryInputs({ buList, wizardGeographyInput }) {
       AppState.draft.scenarioLens = getStep1PreferredScenarioLens(getEffectiveSettings(), AppState.draft, composed);
       if (hadGuidedAiDraft) AppState.draft.aiQualityState = 'analyst-reshaped';
       updateStep1GuidedPreview();
+      refreshStep1ContinueReadiness();
       markDraftDirty();
       scheduleDraftAutosave();
     });
@@ -6015,6 +6502,7 @@ function bindStep1PrimaryInputs({ buList, wizardGeographyInput }) {
     AppState.draft.scenarioLens = getStep1PreferredScenarioLens(getEffectiveSettings(), AppState.draft, composed);
     if (hadGuidedAiDraft) AppState.draft.aiQualityState = 'analyst-reshaped';
     updateStep1GuidedPreview();
+    refreshStep1ContinueReadiness();
     markDraftDirty();
     scheduleDraftAutosave();
   });
@@ -6028,6 +6516,7 @@ function bindStep1PrimaryInputs({ buList, wizardGeographyInput }) {
     AppState.draft.scenarioLens = getStep1ManualPreferredScenarioLens(getEffectiveSettings(), AppState.draft, this.value);
     if (hadAssistedDraft) AppState.draft.aiQualityState = 'analyst-reshaped';
     clearLoadedDryRunFlag();
+    refreshStep1ContinueReadiness();
     markDraftDirty();
     scheduleDraftAutosave();
   });
@@ -6141,23 +6630,9 @@ function applyStep1FreshDisclosureDefaults(root = document) {
 
 function bindStep1NavigationActions({ buList, settings, wizardGeographyInput }) {
   document.getElementById('btn-next-1').addEventListener('click', async (event) => {
-    const buId = document.getElementById('wizard-bu').value;
+    const buId = document.getElementById('wizard-bu')?.value || AppState.draft.buId || '';
     let narrative = document.getElementById('intake-risk-statement').value.trim();
     let selected = getSelectedRisks();
-    if (!buId) {
-      const requiredContext = document.getElementById('step1-required-context');
-      if (requiredContext) {
-        requiredContext.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-      const setupDisclosure = document.getElementById('step1-basic-setup-support');
-      if (setupDisclosure && !requiredContext) setupDisclosure.open = true;
-      const framingDisclosure = Array.from(document.querySelectorAll('.wizard-support-band details, .step1-basic-support-panel details'))
-        .find(node => /assessment framing and defaults/i.test(node.querySelector('summary')?.textContent || ''));
-      if (framingDisclosure) framingDisclosure.open = true;
-      document.getElementById('wizard-bu')?.focus();
-      UI.toast('Select the business unit before continuing.', 'warning');
-      return;
-    }
     if (!narrative) {
       const composed = composeStep1GuidedNarrative(AppState.draft.guidedInput, settings, AppState.draft);
       if (composed) {
@@ -6167,7 +6642,7 @@ function bindStep1NavigationActions({ buList, settings, wizardGeographyInput }) 
         narrative = composed;
       }
     }
-    if (narrative && !selected.length && !getRiskCandidates().length) {
+    if (narrative && buId && !selected.length && !getRiskCandidates().length) {
       await generateShortlistFromDraftWithAI({
         narrative,
         button: event?.currentTarget || document.getElementById('btn-next-1'),
@@ -6178,7 +6653,7 @@ function bindStep1NavigationActions({ buList, settings, wizardGeographyInput }) 
     }
     if (!narrative && selected.length) {
       const selectedTitles = selected.slice(0, 3).map(item => item.title).filter(Boolean);
-      const buLabel = buList.find(b => b.id === buId)?.name || AppState.draft.buName || 'the selected business unit';
+      const buLabel = buList.find(b => b.id === buId)?.name || AppState.draft.buName || 'the assessment scope';
       const geographyLabel = formatScenarioGeographies(wizardGeographyInput.getTags(), settings.geography);
       // Selected-risk-only starts left the scenario-review step with a blank narrative, so seed a minimal editable scenario before continuing.
       narrative = `Assess the potential impact of ${selectedTitles.join(', ') || 'the selected risks'} affecting ${buLabel}${geographyLabel ? ` in ${geographyLabel}` : ''}.`;
@@ -6187,6 +6662,7 @@ function bindStep1NavigationActions({ buList, settings, wizardGeographyInput }) 
       document.getElementById('intake-risk-statement').value = narrative;
     }
     if (!String(AppState.draft.narrative || narrative || '').trim() && !selected.length) { UI.toast('Please complete the guided questions, enter a risk statement, or select at least one risk.', 'warning'); return; }
+    if (!buId) UI.toast('Continuing without business context. The next step will use uncertainty and flag what matters most.', 'info', 4200);
     AppState.draft.geographies = normaliseScenarioGeographies(wizardGeographyInput.getTags(), settings.geography);
     AppState.draft.geography = formatScenarioGeographies(AppState.draft.geographies, settings.geography);
     AppState.draft.narrative = AppState.draft.narrative.trim();
@@ -6356,7 +6832,7 @@ function renderWizard1() {
   const hasScenarioDraft = !!narrative;
   const hasImportedSource = !!String(draft.uploadedRegisterName || draft.loadedDryRunId || '').trim()
     || (riskCandidates || []).some(risk => risk.source === 'register' || risk.source === 'ai+register' || risk.source === 'manual');
-  const canContinue = !!String(draft.buId || '').trim() && (!!narrative || selectedRisks.length > 0);
+  const canContinue = !!String(narrative || draft.sourceNarrative || draft.guidedInput?.event || '').trim() || selectedRisks.length > 0;
   const promptIdeaModel = getStep1DisplayedPromptIdeaModel(draft, exampleModel);
   const activePath = draft.step1Path === 'draft' || draft.step1Path === 'import' ? draft.step1Path : 'guided';
   const intakeSequence = buildStep1IntakeSequenceModel(draft);
@@ -6462,6 +6938,7 @@ function renderWizard1() {
           ${!isBasicExperience && managerModel && typeof renderAssessmentManagerPanel === 'function'
             ? renderAssessmentManagerPanel(managerModel, { compact: true, title: 'Assessment Manager' })
             : ''}
+          ${renderStep1RouteSpecificInputs(draft)}
           <section class="step1-primary-zone">
             ${renderStep1PathContent(draft.step1Path, {
               draft,
@@ -6498,6 +6975,7 @@ function renderWizard1() {
   const wizardGeographyInput = UI.tagInput('ti-wizard-geographies', scenarioGeographies, syncWizardGeographies);
   updateWizardSaveState();
   bindStep1AssessmentTypeSelector({ navigate: false, rerender: renderWizard1, warn: true });
+  bindStep1RouteSpecificInputs();
   bindStep1PathSelector();
   bindStep1BasicSupportTabs();
   bindStep1PrimaryInputs({ buList, wizardGeographyInput });

@@ -10639,6 +10639,154 @@ canvas { display: block; width: 100%; }
   right: 14px;
   bottom: 12px;
 }
+.step1-route-inputs {
+  display: grid;
+  gap: var(--sp-5);
+  padding: clamp(20px, 2.4vw, 30px);
+  border-color: rgba(115,255,224,0.18);
+  background:
+    radial-gradient(circle at top right, rgba(115,255,224,0.11), transparent 36%),
+    linear-gradient(180deg, rgba(20,28,24,0.9), rgba(10,16,14,0.94));
+}
+.step1-route-inputs__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-4);
+}
+.step1-route-inputs__head h3 {
+  margin: 6px 0 0;
+  color: rgba(248,250,249,0.98);
+  font-family: var(--font-display);
+  font-size: clamp(1.35rem, 2vw, 2rem);
+  line-height: 1.08;
+}
+.step1-route-inputs__head p {
+  max-width: 74ch;
+  margin: 10px 0 0;
+  color: rgba(214,222,218,0.74);
+  line-height: 1.6;
+}
+.step1-route-level {
+  display: grid;
+  gap: var(--sp-4);
+  padding-top: var(--sp-2);
+}
+.step1-route-level__head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.step1-route-level__head span {
+  color: rgba(115,255,224,0.8);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.step1-route-level__head strong {
+  color: rgba(248,250,249,0.92);
+  font-size: 1rem;
+}
+.step1-route-grid,
+.step1-proxy-grid,
+.step1-financial-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-4);
+}
+.step1-financial-field {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 18px;
+  background: rgba(255,255,255,0.028);
+}
+.step1-financial-field__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.step1-financial-status {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+.step1-financial-status__option {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  min-height: 34px;
+  padding: 7px 9px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 999px;
+  color: rgba(226,234,230,0.82);
+  font-size: 0.78rem;
+  line-height: 1.2;
+}
+.step1-financial-status__option input {
+  flex: 0 0 auto;
+}
+.step1-financial-field__note {
+  margin-top: 10px;
+}
+.step1-known-summary {
+  display: grid;
+  gap: var(--sp-4);
+  padding: 16px;
+  border: 1px solid rgba(115,255,224,0.14);
+  border-radius: 20px;
+  background: rgba(115,255,224,0.045);
+}
+.step1-known-summary__grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+.step1-known-summary__group {
+  min-width: 0;
+  padding: 12px;
+  border-radius: 16px;
+  background: rgba(0,0,0,0.16);
+}
+.step1-known-summary__group span,
+.step1-missing-preview strong {
+  display: block;
+  color: rgba(188,197,192,0.64);
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.step1-known-summary__group strong {
+  display: block;
+  margin-top: 7px;
+  color: rgba(248,250,249,0.92);
+  font-size: 0.86rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.step1-missing-preview {
+  display: grid;
+  gap: 6px;
+  padding: 13px 14px;
+  border-radius: 18px;
+  background: rgba(242,251,90,0.07);
+}
+.step1-missing-preview span {
+  color: rgba(248,250,249,0.9);
+  font-weight: 700;
+}
+.step1-missing-preview p {
+  margin: 0;
+  color: rgba(218,226,222,0.72);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
 .step1-guide-route-detail {
   position: relative;
   display: flex;
@@ -11330,8 +11478,18 @@ canvas { display: block; width: 100%; }
   .step1-guide-stage__telemetry,
   .step1-guide-stage__board-metrics,
   .step1-guide-lane-switch__options,
+  .step1-route-grid,
+  .step1-proxy-grid,
+  .step1-financial-grid,
+  .step1-known-summary__grid,
   .step1-guide-checklist,
   .step1-guide-preview-card__stats {
+    grid-template-columns: 1fr;
+  }
+  .step1-route-inputs__head {
+    flex-direction: column;
+  }
+  .step1-financial-status {
     grid-template-columns: 1fr;
   }
   .step1-guided-workbench {

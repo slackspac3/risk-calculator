@@ -4086,8 +4086,14 @@ function ensureDraftShape() {
     : {
         assessmentType: AppState.draft.assessmentType || 'enterprise_generic',
         projectContext: AppState.draft.projectContext && typeof AppState.draft.projectContext === 'object' ? AppState.draft.projectContext : {},
+        enterpriseRiskContext: AppState.draft.enterpriseRiskContext && typeof AppState.draft.enterpriseRiskContext === 'object' ? AppState.draft.enterpriseRiskContext : {},
+        projectRouteDetails: AppState.draft.projectRouteDetails && typeof AppState.draft.projectRouteDetails === 'object' ? AppState.draft.projectRouteDetails : {},
+        buyerProxyQuestions: AppState.draft.buyerProxyQuestions && typeof AppState.draft.buyerProxyQuestions === 'object' ? AppState.draft.buyerProxyQuestions : {},
+        sellerProxyQuestions: AppState.draft.sellerProxyQuestions && typeof AppState.draft.sellerProxyQuestions === 'object' ? AppState.draft.sellerProxyQuestions : {},
         buyerEconomics: AppState.draft.buyerEconomics && typeof AppState.draft.buyerEconomics === 'object' ? AppState.draft.buyerEconomics : {},
+        buyerEconomicsMeta: AppState.draft.buyerEconomicsMeta && typeof AppState.draft.buyerEconomicsMeta === 'object' ? AppState.draft.buyerEconomicsMeta : {},
         sellerEconomics: AppState.draft.sellerEconomics && typeof AppState.draft.sellerEconomics === 'object' ? AppState.draft.sellerEconomics : {},
+        sellerEconomicsMeta: AppState.draft.sellerEconomicsMeta && typeof AppState.draft.sellerEconomicsMeta === 'object' ? AppState.draft.sellerEconomicsMeta : {},
         projectExposure: AppState.draft.projectExposure && typeof AppState.draft.projectExposure === 'object' ? AppState.draft.projectExposure : {}
       };
   AppState.draft = {
@@ -4100,8 +4106,14 @@ function ensureDraftShape() {
       : 'guided',
     assessmentType: assessmentTypeState.assessmentType,
     projectContext: assessmentTypeState.projectContext,
+    enterpriseRiskContext: assessmentTypeState.enterpriseRiskContext,
+    projectRouteDetails: assessmentTypeState.projectRouteDetails,
+    buyerProxyQuestions: assessmentTypeState.buyerProxyQuestions,
+    sellerProxyQuestions: assessmentTypeState.sellerProxyQuestions,
     buyerEconomics: assessmentTypeState.buyerEconomics,
+    buyerEconomicsMeta: assessmentTypeState.buyerEconomicsMeta,
     sellerEconomics: assessmentTypeState.sellerEconomics,
+    sellerEconomicsMeta: assessmentTypeState.sellerEconomicsMeta,
     projectExposure: assessmentTypeState.projectExposure,
     buId: AppState.draft.buId || null,
     buName: AppState.draft.buName || null,
