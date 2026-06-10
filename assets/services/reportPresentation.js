@@ -87,7 +87,213 @@ const ReportPresentation = (() => {
       .trim();
   }
 
+  function appendSignalValue(parts, value, depth = 0) {
+    if (value == null || depth > 3 || parts.length > 80) return;
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+      const text = String(value || '').trim();
+      if (text) parts.push(text);
+      return;
+    }
+    if (Array.isArray(value)) {
+      value.slice(0, 16).forEach(item => appendSignalValue(parts, item, depth + 1));
+      return;
+    }
+    if (typeof value === 'object') {
+      Object.entries(value).slice(0, 24).forEach(([key, item]) => {
+        if (/^(results|fairParams|runMetadata|histogram|lec|chart|vector|embedding)$/i.test(String(key || ''))) return;
+        appendSignalValue(parts, item, depth + 1);
+      });
+    }
+  }
+
+  function buildScenarioSignalText(assessment = {}) {
+    const source = assessment && typeof assessment === 'object' ? assessment : {};
+    const fields = [
+      'scenarioTitle',
+      'title',
+      'narrative',
+      'enhancedNarrative',
+      'scenarioText',
+      'sourceNarrative',
+      'guidedDraftPreview',
+      'intakeSummary',
+      'linkAnalysis',
+      'contextNotes',
+      'benchmarkBasis',
+      'learningNote',
+      'riskStatement'
+    ];
+    const parts = [];
+    fields.forEach(field => appendSignalValue(parts, source[field]));
+    [
+      'guidedInput',
+      'structuredScenario',
+      'scenarioLens',
+      'selectedRisks',
+      'riskCandidates',
+      'recommendations',
+      'missingInformation',
+      'workflowGuidance',
+      'applicableRegulations',
+      'primaryGrounding',
+      'supportingReferences'
+    ].forEach(field => appendSignalValue(parts, source[field]));
+    return parts.join(' ').replace(/\s+/g, ' ').trim().toLowerCase();
+  }
+
+  function createCriticalCondition(key, {
+    title,
+    statusTitle,
+    headline,
+    action,
+    blockingGap,
+    owner,
+    requiredControls = []
+  } = {}) {
+    const cleanTitle = String(title || 'Critical response condition').trim();
+    const cleanAction = String(action || 'Confirm the mandatory response owner and containment evidence before sign-off.').trim();
+    const cleanGap = String(blockingGap || 'Confirm the mandatory response condition is contained before treating this result as decision-ready.').trim();
+    return {
+      present: true,
+      key,
+      severity: 'critical',
+      tone: 'danger',
+      label: 'Critical condition',
+      title: cleanTitle,
+      statusTitle: String(statusTitle || 'Critical response gate open').trim(),
+      headline: String(headline || 'This result has a mandatory response gate even if the financial estimate is below tolerance.').trim(),
+      statusDetail: 'The quantitative result remains useful, but this scenario contains a hard response trigger that must be closed before management treats the position as decision-ready.',
+      decision: 'Critical response required',
+      action: cleanAction,
+      priority: cleanAction,
+      managementFocus: 'Assign the accountable owner, preserve evidence, complete containment or legal review, and rerun the assessment after the control condition is proven closed.',
+      blockingGap: cleanGap,
+      owner: String(owner || 'Risk owner').trim(),
+      requiredControls: Array.from(new Set([
+        ...requiredControls.map(item => String(item || '').trim()).filter(Boolean),
+        cleanGap,
+        'Record the named response owner and evidence of closure before final approval.'
+      ])).slice(0, 5),
+      statusIcon: '!',
+      statusClass: 'above'
+    };
+  }
+
+  function detectCriticalCondition(assessment = {}) {
+    const text = buildScenarioSignalText(assessment);
+    if (!text) return null;
+    const has = pattern => pattern.test(text);
+    const credentialSignal = has(/\b(credential|credentials|password|token|session|secret|api key|access key|login|ssh key|private key)\b/i);
+    const exposureSignal = has(/\b(dark\s*web|darkweb|for sale|sold|marketplace|credential dump|dumped|leaked|stolen|exposed|broker|compromised|posted)\b/i);
+    const privilegedSignal = has(/\b(admin|administrator|global admin|tenant admin|domain admin|root|privileged|superuser|break-glass|service account|azure|entra|azure ad|iam|okta|sso)\b/i);
+    if (credentialSignal && exposureSignal && privilegedSignal) {
+      return createCriticalCondition('privileged-access-exposure', {
+        title: 'Privileged credential exposure',
+        statusTitle: 'Critical access gate open',
+        headline: 'Potentially valid privileged credentials create a critical response gate, even if the loss estimate is below tolerance.',
+        action: 'Revoke exposed access, invalidate sessions and tokens, and verify no privileged tenant activity remains.',
+        blockingGap: 'Confirm exposed privileged credentials are revoked or disabled, sessions and tokens are invalidated, and audit logs show no unauthorised privileged activity.',
+        owner: 'Identity or Security operations owner',
+        requiredControls: [
+          'Disable or rotate the exposed privileged credentials.',
+          'Invalidate active sessions, refresh tokens, and remembered MFA state.',
+          'Review privileged audit logs for tenant changes, persistence, and data access.',
+          'Confirm no attacker-controlled access path remains before sign-off.'
+        ]
+      });
+    }
+
+    const activeCompromiseSignal = has(/\b(active|ongoing|confirmed|currently|being used|used to|logged in|accessed|modified|changed|encrypted|exfiltrat(?:e|ed|ion)|unauthori[sz]ed)\b/i)
+      && has(/\b(compromise|attacker|malware|ransomware|breach|unauthori[sz]ed access|credential|tenant|account takeover|intrusion)\b/i);
+    if (activeCompromiseSignal) {
+      return createCriticalCondition('active-compromise', {
+        title: 'Active compromise indicator',
+        statusTitle: 'Active incident gate open',
+        headline: 'The scenario indicates active or confirmed compromise, so containment must lead the management decision.',
+        action: 'Contain the active access path, preserve evidence, and confirm the incident owner before relying on the loss estimate.',
+        blockingGap: 'Confirm the active compromise indicator is contained, evidence is preserved, and the incident owner has approved the current posture.',
+        owner: 'Incident response owner',
+        requiredControls: [
+          'Record containment status and incident commander.',
+          'Preserve logs and affected-system evidence.',
+          'Confirm detection, eradication, and recovery actions before closure.'
+        ]
+      });
+    }
+
+    const dataBreachSignal = has(/\b(personal data|customer data|customer records|pii|payment card|health records|regulated data|confidential data|sensitive data)\b/i)
+      && has(/\b(exfiltrat(?:e|ed|ion)|stolen|leaked|published|exposed|breach|sold|for sale)\b/i);
+    if (dataBreachSignal) {
+      return createCriticalCondition('regulated-data-exposure', {
+        title: 'Regulated data exposure',
+        statusTitle: 'Data breach review gate open',
+        headline: 'The scenario may trigger legal or regulatory breach duties independent of the financial tolerance result.',
+        action: 'Confirm breach assessment, notification duties, containment, and legal owner before sign-off.',
+        blockingGap: 'Confirm whether regulated or sensitive data was exposed, whether notification duties apply, and which legal owner approved the decision.',
+        owner: 'Privacy, Legal, or Compliance owner',
+        requiredControls: [
+          'Complete breach triage and data-scope confirmation.',
+          'Check notification duties and regulatory deadlines.',
+          'Record legal approval and customer/regulator communication path.'
+        ]
+      });
+    }
+
+    const legalTriggerSignal = has(/\b(sanction|sanctions|blocked party|bribery|bribe|corruption|money laundering|terrorist financing|export control|prohibited party)\b/i)
+      && has(/\b(breach|violation|hit|confirmed|payment|transaction|counterparty|supplier|customer|contract)\b/i);
+    if (legalTriggerSignal) {
+      return createCriticalCondition('legal-compliance-hard-trigger', {
+        title: 'Legal or compliance hard trigger',
+        statusTitle: 'Legal review gate open',
+        headline: 'The scenario contains a legal or compliance trigger that needs owner review regardless of expected loss.',
+        action: 'Hold the decision for Legal or Compliance review and document the required regulatory response.',
+        blockingGap: 'Confirm Legal or Compliance has reviewed the hard-trigger condition and recorded the required response path.',
+        owner: 'Legal or Compliance owner',
+        requiredControls: [
+          'Stop or hold the implicated transaction or activity where required.',
+          'Complete legal/compliance review and record the decision basis.',
+          'Preserve evidence for audit and regulatory follow-up.'
+        ]
+      });
+    }
+
+    const safetySignal = has(/\b(fatalit(?:y|ies)|serious injury|life safety|worker safety|public safety|patient safety|safety incident|critical infrastructure|emergency service)\b/i)
+      && has(/\b(active|ongoing|confirmed|incident|uncontrolled|outage|failure|exposure|harm)\b/i);
+    if (safetySignal) {
+      return createCriticalCondition('safety-critical-condition', {
+        title: 'Safety-critical condition',
+        statusTitle: 'Safety response gate open',
+        headline: 'The scenario includes a safety-critical condition, so operational escalation takes priority over appetite status.',
+        action: 'Confirm the safety owner, immediate controls, and escalation path before using the result for sign-off.',
+        blockingGap: 'Confirm the safety condition is controlled, the accountable safety owner has reviewed it, and immediate escalation duties are complete.',
+        owner: 'Safety or operational resilience owner',
+        requiredControls: [
+          'Confirm immediate safety controls and accountable owner.',
+          'Record escalation, regulatory, and operational response duties.',
+          'Do not close the result until the safety condition is controlled.'
+        ]
+      });
+    }
+
+    return null;
+  }
+
   function buildExecutiveDecisionSupport(assessment, results, intelligence) {
+    const criticalCondition = detectCriticalCondition(assessment);
+    if (criticalCondition) {
+      const quantitativeContext = results?.toleranceBreached
+        ? 'The financial model is also above tolerance, so both the appetite result and the hard trigger support escalation.'
+        : results?.nearTolerance
+          ? 'The financial model is close to tolerance, but the hard trigger is the reason this cannot wait for ordinary review cadence.'
+          : 'The financial model may be below tolerance, but the hard trigger still requires containment, owner review, and closure evidence.';
+      return {
+        decision: criticalCondition.decision,
+        rationale: `${quantitativeContext} ${criticalCondition.statusDetail}`,
+        priority: criticalCondition.priority,
+        managementFocus: criticalCondition.managementFocus,
+        criticalCondition
+      };
+    }
     const confidence = intelligence?.confidence || null;
     const drivers = intelligence?.drivers || { upward: [], stabilisers: [] };
     const strongestUpward = drivers.upward?.[0] || '';
@@ -145,6 +351,26 @@ const ReportPresentation = (() => {
   }
 
   function buildLifecycleNextStepPlan({ lifecycle, results, executiveDecision, comparison, confidenceFrame, missingInformation = [] } = {}) {
+    const criticalCondition = executiveDecision?.criticalCondition || null;
+    if (criticalCondition) {
+      return [
+        {
+          label: 'Decision now',
+          title: criticalCondition.action || 'Close the critical response gate',
+          copy: criticalCondition.statusDetail || 'The hard-trigger condition must be controlled before the result is treated as decision-ready.'
+        },
+        {
+          label: 'Validate next',
+          title: criticalCondition.blockingGap || 'Confirm closure evidence',
+          copy: 'Collect the evidence that proves the mandatory response condition is contained or no longer valid.'
+        },
+        {
+          label: 'Lifecycle move',
+          title: 'Rerun after containment evidence lands',
+          copy: 'Keep the saved result as the current view, then rerun or update the assessment once closure evidence changes the scenario assumptions.'
+        }
+      ];
+    }
     const lifecycleStatus = String(lifecycle?.status || '').trim().toLowerCase();
     const topGap = Array.isArray(missingInformation) && missingInformation.length ? missingInformation[0] : confidenceFrame?.topGap;
     const isAboveTolerance = !!results?.toleranceBreached;
@@ -358,7 +584,10 @@ const ReportPresentation = (() => {
   function buildAnalystAdvisorySummary({ assessment, results, executiveDecision, confidenceFrame, comparison, missingInformation = [], lifecycle } = {}) {
     const severeEvent = Number(results?.eventLoss?.p90 || results?.lm?.p90 || 0);
     const annualExposure = Number(results?.annualLoss?.mean || results?.ale?.mean || 0);
-    const posture = results?.toleranceBreached
+    const criticalCondition = executiveDecision?.criticalCondition || detectCriticalCondition(assessment);
+    const posture = criticalCondition
+      ? 'has a critical response gate'
+      : results?.toleranceBreached
       ? 'is above tolerance'
       : results?.nearTolerance
         ? 'is close to tolerance'
@@ -439,6 +668,7 @@ const ReportPresentation = (() => {
     assessmentIntelligence = null
   } = {}) {
     const scenarioSummary = buildExecutiveScenarioSummary(assessment || {});
+    const criticalCondition = executiveDecision?.criticalCondition || detectCriticalCondition(assessment || {});
     const topAssumption = Array.isArray(assessmentIntelligence?.assumptions)
       ? assessmentIntelligence.assumptions.find(Boolean)
       : null;
@@ -457,6 +687,7 @@ const ReportPresentation = (() => {
       `Executive headline: ${String(executiveHeadline || statusTitle || 'Management review needed').trim()}`,
       `Current posture: ${String(statusDetail || '').trim()}`,
       `Tolerance status: ${toleranceStatus}`,
+      criticalCondition ? `Critical condition: ${criticalCondition.title}. Required action: ${criticalCondition.action}` : '',
       `Severe single-event loss (P90): ${Number(results?.eventLoss?.p90 || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })}`,
       `Expected annualized loss: ${Number(results?.annualLoss?.mean || results?.ale?.mean || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })}`,
       `Severe annualized loss (P90): ${Number(results?.annualLoss?.p90 || results?.ale?.p90 || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })}`,
@@ -508,6 +739,7 @@ const ReportPresentation = (() => {
     clampNumber,
     cleanExecutiveNarrativeText,
     buildExecutiveScenarioSummary,
+    detectCriticalCondition,
     buildExecutiveDecisionSupport,
     buildExecutiveConfidenceFrame,
     buildLifecycleNextStepPlan,

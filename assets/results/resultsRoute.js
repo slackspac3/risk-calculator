@@ -1018,6 +1018,7 @@ function renderResultsExecutiveCockpit({
   exceedancePct,
   completedLabel,
   assessmentValue,
+  decisionReadiness = null,
   rolePresentation,
   boardroomMode
 }) {
@@ -1029,7 +1030,7 @@ function renderResultsExecutiveCockpit({
   );
   const valueLabel = valueUsd > 0 ? fmtCurrency(valueUsd) : 'Not estimated';
   const hoursSaved = String(assessmentValue?.directional?.internalHoursAvoidedLabel || '').trim() || 'Not estimated';
-  const readinessScore = assessment?.decisionReadiness?.score ?? assessment?.assessmentManagerTrace?.readiness?.score ?? null;
+  const readinessScore = decisionReadiness?.score ?? assessment?.decisionReadiness?.score ?? assessment?.assessmentManagerTrace?.readiness?.score ?? null;
   const readinessLabel = Number.isFinite(Number(readinessScore))
     ? `${Math.round(Number(readinessScore))}/100 readiness`
     : String(lifecycle?.label || 'Review readiness');
@@ -1040,7 +1041,7 @@ function renderResultsExecutiveCockpit({
     assessment?.geography || 'No geography',
     completedLabel
   ].filter(Boolean);
-  const cockpitTone = r?.toleranceBreached ? 'danger' : r?.nearTolerance ? 'warning' : 'success';
+  const cockpitTone = r?.criticalCondition ? 'danger' : r?.toleranceBreached ? 'danger' : r?.nearTolerance ? 'warning' : 'success';
   const eventFoot = r?.toleranceBreached
     ? 'Above the current event tolerance.'
     : r?.nearTolerance
@@ -1087,7 +1088,7 @@ function renderResultsExecutiveCockpit({
     <div class="results-executive-cockpit__main">
       <div class="results-executive-cockpit__eyebrow">
         <span>${boardroomMode ? 'Boardroom decision cockpit' : 'Executive decision cockpit'}</span>
-        <span class="badge ${r?.toleranceBreached ? 'badge--danger' : r?.nearTolerance ? 'badge--warning' : 'badge--success'}">${escapeHtml(String(statusTitle || 'Review'))}</span>
+        <span class="badge ${r?.criticalCondition || r?.toleranceBreached ? 'badge--danger' : r?.nearTolerance ? 'badge--warning' : 'badge--success'}">${escapeHtml(String(statusTitle || 'Review'))}</span>
         <span class="badge badge--${escapeHtml(String(lifecycle?.tone || 'neutral'))}">${escapeHtml(String(lifecycle?.label || 'Ready for review'))}</span>
       </div>
       <h2 class="results-executive-cockpit__title">${executiveHeadline}</h2>
@@ -3219,7 +3220,7 @@ async function patchReviewQueueItem(reviewId, patch = {}, expectedReviewRevision
 
 function renderResultsReviewSubmitBanner(assessment, r) {
   if (!assessment?.id || !assessment?.results) return '';
-  const needsReview = !!(r?.toleranceBreached || r?.nearTolerance || r?.annualReviewTriggered);
+  const needsReview = !!(r?.criticalCondition || r?.toleranceBreached || r?.nearTolerance || r?.annualReviewTriggered);
   if (!needsReview) return '';
   const reviewSubmission = assessment.reviewSubmission || {};
   const reviewStatus = String(reviewSubmission.reviewStatus || '').trim().toLowerCase();
@@ -3283,7 +3284,9 @@ function renderResultsReviewSubmitBanner(assessment, r) {
       </button>
     </div>`;
   }
-  const triggerLabel = r?.toleranceBreached
+  const triggerLabel = r?.criticalCondition
+    ? 'has a critical response gate open'
+    : r?.toleranceBreached
     ? 'exceeds your risk tolerance'
     : r?.nearTolerance
       ? 'is approaching your risk tolerance'
@@ -5196,7 +5199,8 @@ function renderResults(id, isShared) {
   const resultsGeographies = Array.isArray(assessment.geographies) && assessment.geographies.length
     ? assessment.geographies
     : (assessment.geography ? [assessment.geography] : []);
-  const resultsDecisionReadiness = assessment.decisionReadiness && typeof assessment.decisionReadiness === 'object'
+  const resultsCriticalCondition = r?.criticalCondition || null;
+  let resultsDecisionReadiness = assessment.decisionReadiness && typeof assessment.decisionReadiness === 'object'
     ? assessment.decisionReadiness
     : (typeof buildDecisionReadinessModel === 'function'
         ? buildDecisionReadinessModel({
@@ -5208,7 +5212,23 @@ function renderResults(id, isShared) {
             results: r
           })
         : null);
-  const resultsChallengePass = assessment.assessmentChallengePass && typeof assessment.assessmentChallengePass === 'object'
+  if (resultsCriticalCondition && resultsDecisionReadiness && typeof resultsDecisionReadiness === 'object') {
+    const mergeUnique = (...lists) => Array.from(new Set(
+      lists.flat().map(item => String(item || '').trim()).filter(Boolean)
+    ));
+    resultsDecisionReadiness = {
+      ...resultsDecisionReadiness,
+      status: 'Needs gating',
+      tone: 'danger',
+      score: Math.min(Number(resultsDecisionReadiness.score || 0), 64),
+      summary: resultsCriticalCondition.blockingGap || resultsCriticalCondition.statusDetail || resultsDecisionReadiness.summary,
+      blockingGaps: mergeUnique([resultsCriticalCondition.blockingGap], resultsDecisionReadiness.blockingGaps || []).slice(0, 4),
+      requiredControls: mergeUnique(resultsCriticalCondition.requiredControls || [], resultsDecisionReadiness.requiredControls || []).slice(0, 4),
+      humanApprovers: mergeUnique([resultsCriticalCondition.owner], resultsDecisionReadiness.humanApprovers || []).slice(0, 3),
+      criticalCondition: resultsCriticalCondition
+    };
+  }
+  let resultsChallengePass = assessment.assessmentChallengePass && typeof assessment.assessmentChallengePass === 'object'
     ? assessment.assessmentChallengePass
     : (typeof buildAssessmentChallengePass === 'function'
         ? buildAssessmentChallengePass({
@@ -5218,7 +5238,26 @@ function renderResults(id, isShared) {
             readiness: resultsDecisionReadiness
           })
         : null);
-  const resultsManagerTrace = assessment.assessmentManagerTrace && typeof assessment.assessmentManagerTrace === 'object'
+  if (resultsCriticalCondition && resultsChallengePass && typeof resultsChallengePass === 'object') {
+    const existingFindings = Array.isArray(resultsChallengePass.findings) ? resultsChallengePass.findings : [];
+    resultsChallengePass = {
+      ...resultsChallengePass,
+      status: 'Challenge required',
+      tone: 'danger',
+      summary: 'A critical response gate is open before this result can be treated as decision-ready.',
+      findings: [
+        {
+          title: resultsCriticalCondition.title || 'Critical response gate',
+          detail: resultsCriticalCondition.blockingGap || resultsCriticalCondition.statusDetail,
+          severity: 'blocker'
+        },
+        ...existingFindings
+      ].slice(0, 4),
+      changed: 'Run held at review posture until the critical gate is closed.',
+      criticalCondition: resultsCriticalCondition
+    };
+  }
+  let resultsManagerTrace = assessment.assessmentManagerTrace && typeof assessment.assessmentManagerTrace === 'object'
     ? assessment.assessmentManagerTrace
     : (typeof buildAssessmentManagerRunModel === 'function'
         ? buildAssessmentManagerRunModel({
@@ -5232,6 +5271,18 @@ function renderResults(id, isShared) {
             results: r
           })
         : null);
+  if (resultsCriticalCondition && typeof buildAssessmentManagerRunModel === 'function') {
+    resultsManagerTrace = buildAssessmentManagerRunModel({
+      stage: 'results',
+      draft: assessment,
+      selectedRisks: resultsSelectedRisks,
+      validation: { errors: [], warnings: [] },
+      readiness: resultsDecisionReadiness,
+      challenge: resultsChallengePass,
+      safeIterations: r.iterations,
+      results: r
+    });
+  }
   const resultsManagerBlock = [
     resultsManagerTrace && typeof renderAssessmentManagerPanel === 'function'
       ? renderAssessmentManagerPanel(resultsManagerTrace, { title: 'Assessment Manager replay' })
@@ -5345,6 +5396,7 @@ function renderResults(id, isShared) {
     exceedancePct,
     completedLabel,
     assessmentValue,
+    decisionReadiness: resultsDecisionReadiness,
     rolePresentation,
     boardroomMode
   });

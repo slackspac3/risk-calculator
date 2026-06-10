@@ -10669,6 +10669,9 @@ function buildDecisionReadinessModel({
   const missing = Array.isArray(draft.missingInformation) ? draft.missingInformation.filter(Boolean) : [];
   const warnings = Array.isArray(validation?.warnings) ? validation.warnings.filter(Boolean) : [];
   const errors = Array.isArray(validation?.errors) ? validation.errors.filter(Boolean) : [];
+  const criticalCondition = typeof ReportPresentation !== 'undefined' && ReportPresentation?.detectCriticalCondition
+    ? ReportPresentation.detectCriticalCondition(draft)
+    : null;
   const evidenceCount = citations.length + provenance.length
     + (Array.isArray(draft.primaryGrounding) ? draft.primaryGrounding.filter(Boolean).length : 0)
     + (Array.isArray(draft.supportingReferences) ? draft.supportingReferences.filter(Boolean).length : 0);
@@ -10689,6 +10692,7 @@ function buildDecisionReadinessModel({
   };
 
   errors.forEach(item => addUnique(blockingGaps, item));
+  if (criticalCondition) addUnique(blockingGaps, criticalCondition.blockingGap);
   if (!hasBusinessContext) addUnique(blockingGaps, 'Select the business unit so inherited context and regulation scope are available.');
   if (!narrativeReady) addUnique(blockingGaps, 'Build or enter a coherent scenario narrative.');
   if (!selectedRisks.length) addUnique(blockingGaps, 'Confirm at least one risk that belongs in this scenario.');
@@ -10699,7 +10703,7 @@ function buildDecisionReadinessModel({
   warnings.slice(0, 2).forEach(item => addUnique(openGaps, item));
 
   const baseScore = Math.round(((Number(assessment.score || 0) * 0.55) + (Number(quant.totalScore || 0) * 0.45)));
-  const resultPenalty = results?.toleranceBreached ? 8 : results?.nearTolerance ? 4 : 0;
+  const resultPenalty = criticalCondition ? 18 : results?.toleranceBreached ? 8 : results?.nearTolerance ? 4 : 0;
   const blockerPenalty = Math.min(24, blockingGaps.length * 8);
   const score = Math.max(0, Math.min(100, baseScore - blockerPenalty - resultPenalty));
   const status = blockingGaps.length
@@ -10717,11 +10721,13 @@ function buildDecisionReadinessModel({
         ? 'warning'
         : 'neutral';
   const requiredControls = [
+    ...(criticalCondition ? criticalCondition.requiredControls : []),
     selectedRisks.length ? 'Confirm scope owner for the selected risk shortlist.' : 'Nominate a risk owner before sign-off.',
     evidenceCount >= 2 ? 'Keep evidence pack linked to the saved result.' : 'Add a minimum evidence pack for review.',
     results?.toleranceBreached ? 'Document the escalation and response owner before closure.' : 'Record response owner and next review date.'
   ];
   const humanApprovers = [
+    criticalCondition?.owner || '',
     draft.buName || draft.businessUnit || 'Business owner',
     selectedRisks.some(risk => /regulat|compliance|privacy|legal/i.test(`${risk?.title || ''} ${risk?.category || ''}`))
       ? 'Compliance or Legal reviewer'
@@ -10741,11 +10747,13 @@ function buildDecisionReadinessModel({
     requiredControls: requiredControls.slice(0, 4),
     humanApprovers: Array.from(new Set(humanApprovers.map(item => String(item || '').trim()).filter(Boolean))).slice(0, 3),
     metrics: [
+      ...(criticalCondition ? [{ label: 'Control gate', value: 'Critical' }] : []),
       { label: 'Scenario', value: narrativeReady ? 'Defined' : 'Missing' },
       { label: 'Scope', value: selectedRisks.length ? `${selectedRisks.length} risk${selectedRisks.length === 1 ? '' : 's'}` : 'Open' },
       { label: 'Evidence', value: evidenceCount ? `${evidenceCount} item${evidenceCount === 1 ? '' : 's'}` : 'Thin' },
       { label: 'Estimate', value: `${estimateCoverage}/${requiredEstimateFields.length}` }
     ],
+    criticalCondition,
     quant,
     assessment,
     safeIterations: Number(safeIterations || 0)
@@ -10771,11 +10779,17 @@ function buildAssessmentChallengePass({
   const citations = Array.isArray(draft.citations) ? draft.citations.filter(Boolean) : [];
   const provenance = Array.isArray(draft.inputProvenance) ? draft.inputProvenance.filter(Boolean) : [];
   const p = draft?.fairParams || {};
+  const criticalCondition = typeof ReportPresentation !== 'undefined' && ReportPresentation?.detectCriticalCondition
+    ? ReportPresentation.detectCriticalCondition(draft)
+    : null;
   const evidenceCount = citations.length + provenance.length
     + (Array.isArray(draft.primaryGrounding) ? draft.primaryGrounding.filter(Boolean).length : 0)
     + (Array.isArray(draft.supportingReferences) ? draft.supportingReferences.filter(Boolean).length : 0);
 
   errors.slice(0, 2).forEach(item => addFinding('Blocking model issue', item, 'blocker'));
+  if (criticalCondition) {
+    addFinding(criticalCondition.title || 'Critical response gate', criticalCondition.blockingGap || criticalCondition.statusDetail, 'blocker');
+  }
   if (!selectedRisks.length) {
     addFinding('Scope is not locked', 'No risk is selected yet, so the assessment could drift into a generic scenario.', 'blocker');
   }
@@ -10815,6 +10829,7 @@ function buildAssessmentChallengePass({
         ? 'Draft kept; readiness lowered until review points are confirmed.'
         : 'Draft kept; output review can proceed.',
     readinessScore: readiness?.score ?? null,
+    criticalCondition,
     createdAt: Date.now()
   };
 }
@@ -10890,14 +10905,22 @@ function buildAssessmentDecisionStackModel({
     || challengeFindings.find(item => item?.severity === 'review')
     || challengeFindings[0]
     || null;
+  const criticalCondition = executiveDecision?.criticalCondition
+    || readiness?.criticalCondition
+    || challenge?.criticalCondition
+    || (typeof ReportPresentation !== 'undefined' && ReportPresentation?.detectCriticalCondition
+      ? ReportPresentation.detectCriticalCondition(record)
+      : null);
   const recommendedDecision = executiveDecision?.decision
     || statusTitle
     || (results?.toleranceBreached ? 'Escalate treatment' : results?.nearTolerance ? 'Review response' : 'Monitor within appetite');
-  const topBlocker = blockers[0]
+  const topBlocker = criticalCondition?.blockingGap
+    || blockers[0]
     || gaps[0]
     || (topChallenge ? `${topChallenge.title || 'Challenge point'}: ${topChallenge.detail || ''}`.trim() : '')
     || 'No blocking issue recorded.';
-  const nextAction = executiveAction
+  const nextAction = criticalCondition?.action
+    || executiveAction
     || executiveDecision?.priority
     || readiness?.requiredControls?.[0]
     || (results?.toleranceBreached ? 'Assign the treatment owner and escalation path.' : 'Record the decision and next review date.');
@@ -10907,7 +10930,7 @@ function buildAssessmentDecisionStackModel({
   return {
     title: 'Decision Stack',
     subtitle: 'The management answer, the caveat, and the next action in one scan.',
-    tone: results?.toleranceBreached || readiness?.tone === 'danger'
+    tone: criticalCondition || results?.toleranceBreached || readiness?.tone === 'danger'
       ? 'danger'
       : readiness?.tone === 'warning' || challenge?.tone === 'warning'
         ? 'warning'
@@ -10917,7 +10940,7 @@ function buildAssessmentDecisionStackModel({
         label: 'Recommendation',
         value: recommendedDecision,
         detail: executiveDecision?.rationale || statusTitle || 'Assessment Manager recommendation based on the saved result and challenge posture.',
-        tone: results?.toleranceBreached ? 'danger' : 'success'
+        tone: criticalCondition || results?.toleranceBreached ? 'danger' : 'success'
       },
       {
         label: 'Readiness',
@@ -10927,15 +10950,15 @@ function buildAssessmentDecisionStackModel({
       },
       {
         label: 'Top blocker',
-        value: blockers.length ? 'Blocking gap' : topChallenge ? 'Challenge point' : 'No blocker',
+        value: criticalCondition ? 'Critical gate' : blockers.length ? 'Blocking gap' : topChallenge ? 'Challenge point' : 'No blocker',
         detail: topBlocker,
-        tone: blockers.length ? 'danger' : gaps.length || topChallenge ? 'warning' : 'success'
+        tone: criticalCondition || blockers.length ? 'danger' : gaps.length || topChallenge ? 'warning' : 'success'
       },
       {
         label: 'Next action',
         value: nextAction,
         detail: risks.length ? `${risks.length} scoped risk${risks.length === 1 ? '' : 's'} carry into this action.` : 'Scope should be confirmed before committee use.',
-        tone: results?.toleranceBreached ? 'danger' : 'neutral'
+        tone: criticalCondition || results?.toleranceBreached ? 'danger' : 'neutral'
       },
       {
         label: 'Owner',

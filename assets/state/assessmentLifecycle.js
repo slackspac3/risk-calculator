@@ -81,7 +81,14 @@
   }
 
   function needsReview(assessment) {
+    const reportPresentation = typeof ReportPresentation !== 'undefined'
+      ? ReportPresentation
+      : (globalScope && globalScope.ReportPresentation ? globalScope.ReportPresentation : null);
+    const criticalCondition = reportPresentation && typeof reportPresentation.detectCriticalCondition === 'function'
+      ? reportPresentation.detectCriticalCondition(assessment)
+      : null;
     return !!(assessment?.results && (
+      criticalCondition ||
       assessment.results.toleranceBreached ||
       assessment.results.nearTolerance ||
       assessment.results.annualReviewTriggered

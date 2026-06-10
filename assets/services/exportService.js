@@ -173,6 +173,10 @@ const ExportService = (() => {
     const technicalInputs = r.inputs || assessment.fairParams || {};
     const confidenceFrame = _buildExecutiveConfidenceFrame(intelligence.confidence, assessment.evidenceQuality, assessment.missingInformation, citations);
     const executiveDecision = _buildExecutiveDecisionSupport(assessment, r, intelligence);
+    const criticalCondition = executiveDecision?.criticalCondition
+      || (typeof ReportPresentation.detectCriticalCondition === 'function'
+        ? ReportPresentation.detectCriticalCondition(assessment)
+        : null);
     const thresholdModel = _buildExecutiveThresholdModel(r, fmt);
     const impactMix = _buildExecutiveImpactMix(technicalInputs);
     const comparison = _buildDecisionMemoComparison(assessment);
@@ -206,7 +210,9 @@ const ExportService = (() => {
       missingInformation: assessment.missingInformation || [],
       lifecycle
     });
-    const posture = r.toleranceBreached
+    const posture = criticalCondition
+      ? criticalCondition.statusTitle
+      : r.toleranceBreached
       ? 'Above tolerance'
       : r.nearTolerance
         ? 'Near tolerance'
@@ -221,7 +227,7 @@ const ExportService = (() => {
       businessContext: `${assessment.buName || '—'} · ${assessment.geography || '—'}`,
       completedLabel: new Date(assessment.completedAt || assessment.createdAt || Date.now()).toLocaleDateString('en-AE', { year: 'numeric', month: 'long', day: 'numeric' }),
       posture,
-      postureTone: r.toleranceBreached ? 'danger' : r.nearTolerance ? 'warning' : 'success',
+      postureTone: criticalCondition || r.toleranceBreached ? 'danger' : r.nearTolerance ? 'warning' : 'success',
       scenarioSummary: _buildExecutiveScenarioSummary(assessment) || 'No scenario narrative available.',
       executiveDecision,
       confidenceFrame,
@@ -530,19 +536,24 @@ const ExportService = (() => {
     const r = assessment.results;
     const fmt = v => _formatCurrency(v, currency, fxRate);
     const d = new Date().toLocaleDateString('en-AE', { year: 'numeric', month: 'long', day: 'numeric' });
-    const statusClass = r.toleranceBreached ? 'above' : r.nearTolerance ? 'warning' : 'within';
-    const statusTitle = r.toleranceBreached ? 'Needs leadership action' : r.nearTolerance ? 'Needs management attention' : 'Within current tolerance';
-    const executiveHeadline = r.toleranceBreached
+    const criticalCondition = typeof ReportPresentation.detectCriticalCondition === 'function'
+      ? ReportPresentation.detectCriticalCondition(assessment)
+      : null;
+    const statusClass = criticalCondition ? 'above' : r.toleranceBreached ? 'above' : r.nearTolerance ? 'warning' : 'within';
+    const statusTitle = criticalCondition ? criticalCondition.statusTitle : r.toleranceBreached ? 'Needs leadership action' : r.nearTolerance ? 'Needs management attention' : 'Within current tolerance';
+    const executiveHeadline = criticalCondition?.headline || (r.toleranceBreached
       ? 'This scenario is above tolerance and needs leadership attention now.'
       : r.nearTolerance
         ? 'This scenario is close to tolerance and should be actively managed before it escalates.'
-        : 'This scenario is within tolerance today, but should stay under active monitoring.';
-    const executiveAction = r.toleranceBreached
+        : 'This scenario is within tolerance today, but should stay under active monitoring.');
+    const executiveAction = criticalCondition?.action || (r.toleranceBreached
       ? 'Escalate to the accountable executive, confirm an owner, and agree immediate treatment actions.'
       : r.nearTolerance
         ? 'Agree targeted reduction actions and management review before the scenario moves above tolerance.'
-        : 'Maintain controls, monitor change signals, and revisit the scenario if threat, exposure, or scope changes.';
-    const annualView = r.annualReviewTriggered
+        : 'Maintain controls, monitor change signals, and revisit the scenario if threat, exposure, or scope changes.');
+    const annualView = criticalCondition
+      ? 'Review is required because a hard response condition is open, independent of the annual-loss trigger.'
+      : r.annualReviewTriggered
       ? `Annual exposure is material at ${fmt(r.ale.p90)} on a severe-but-plausible basis, so it also merits annual leadership review.`
       : `Annual exposure is ${fmt(r.ale.p90)} on a severe-but-plausible basis, which stays below the annual review trigger.`;
     const exceedancePct = ((r.toleranceDetail?.lmExceedProb || 0) * 100).toFixed(1);
@@ -1493,7 +1504,9 @@ const ExportService = (() => {
     const safe = value => (typeof escapeHtml === 'function'
       ? escapeHtml(String(value ?? ''))
       : String(value ?? ''));
-    const postureBadge = memo.postureTone === 'danger'
+    const postureBadge = memo.executiveDecision?.criticalCondition
+      ? 'Critical gate — review required'
+      : memo.postureTone === 'danger'
       ? 'Above tolerance — escalate'
       : memo.postureTone === 'warning'
         ? 'Near tolerance — actively reduce'

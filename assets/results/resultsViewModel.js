@@ -151,17 +151,25 @@
     const requestedTab = String(AppState.resultsTab || 'executive');
     const activeTab = ['executive', 'technical', 'appendix'].includes(requestedTab) ? requestedTab : 'executive';
     const boardroomMode = !!AppState.resultsBoardroomMode;
-    const statusClass = r.toleranceBreached ? 'above' : r.nearTolerance ? 'warning' : 'within';
-    const statusIcon = r.toleranceBreached ? '🔴' : r.nearTolerance ? '🟠' : '🟢';
-    const statusTitle = r.toleranceBreached ? 'Needs leadership action' : r.nearTolerance ? 'Needs management attention' : 'Within current tolerance';
-    const statusDetail = r.toleranceBreached
-      ? `Conditional event-loss P90 ${fmtCurrency(r.eventLoss.p90)} is above the tolerance threshold of ${fmtCurrency(r.threshold)}.`
-      : r.nearTolerance
-        ? `Conditional event-loss P90 ${fmtCurrency(r.eventLoss.p90)} is above the warning trigger of ${fmtCurrency(r.warningThreshold)} but still below tolerance.`
-        : `Conditional event-loss P90 ${fmtCurrency(r.eventLoss.p90)} remains below the warning trigger of ${fmtCurrency(r.warningThreshold)}.`;
-    const executiveHeadline = rolePresentation.executiveHeadline(r);
-    const executiveAction = rolePresentation.executiveAction(r);
-    const executiveAnnualView = rolePresentation.annualView(r);
+    const criticalCondition = typeof ReportPresentation.detectCriticalCondition === 'function'
+      ? ReportPresentation.detectCriticalCondition(assessment)
+      : null;
+    if (criticalCondition) r.criticalCondition = criticalCondition;
+    const statusClass = criticalCondition ? 'above' : r.toleranceBreached ? 'above' : r.nearTolerance ? 'warning' : 'within';
+    const statusIcon = criticalCondition ? (criticalCondition.statusIcon || '!') : r.toleranceBreached ? '🔴' : r.nearTolerance ? '🟠' : '🟢';
+    const statusTitle = criticalCondition ? criticalCondition.statusTitle : r.toleranceBreached ? 'Needs leadership action' : r.nearTolerance ? 'Needs management attention' : 'Within current tolerance';
+    const statusDetail = criticalCondition
+      ? `${criticalCondition.statusDetail} Conditional event-loss P90 is ${fmtCurrency(r.eventLoss.p90)} against a tolerance threshold of ${fmtCurrency(r.threshold)}.`
+      : r.toleranceBreached
+        ? `Conditional event-loss P90 ${fmtCurrency(r.eventLoss.p90)} is above the tolerance threshold of ${fmtCurrency(r.threshold)}.`
+        : r.nearTolerance
+          ? `Conditional event-loss P90 ${fmtCurrency(r.eventLoss.p90)} is above the warning trigger of ${fmtCurrency(r.warningThreshold)} but still below tolerance.`
+          : `Conditional event-loss P90 ${fmtCurrency(r.eventLoss.p90)} remains below the warning trigger of ${fmtCurrency(r.warningThreshold)}.`;
+    const executiveHeadline = criticalCondition?.headline || rolePresentation.executiveHeadline(r);
+    const executiveAction = criticalCondition?.action || rolePresentation.executiveAction(r);
+    const executiveAnnualView = criticalCondition
+      ? 'Review is required because a hard response condition is open, independent of the annual-loss trigger.'
+      : rolePresentation.annualView(r);
     const scenarioScopeSummary = r.portfolioMeta?.linked
       ? `${r.selectedRiskCount || assessment.selectedRisks?.length || 1} linked risks are being treated as one connected scenario.`
       : `${r.selectedRiskCount || assessment.selectedRisks?.length || 1} risks are being assessed together without linked uplift.`;
