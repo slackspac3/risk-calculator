@@ -4296,6 +4296,273 @@ function renderStep1KnownSoFarSummary(scope, draft = AppState.draft || {}) {
   </section>`;
 }
 
+function step1StableProjectStringify(value) {
+  if (Array.isArray(value)) return `[${value.map(item => step1StableProjectStringify(item)).join(',')}]`;
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${step1StableProjectStringify(value[key])}`).join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function getStep1ProjectExposureAssessmentType(scope = 'buyer') {
+  return scope === 'seller' ? 'project_seller' : 'project_buyer';
+}
+
+function buildStep1ProjectExposurePayload(scope = 'buyer', draft = AppState.draft || {}) {
+  const settings = typeof getEffectiveSettings === 'function' ? getEffectiveSettings() : {};
+  const buList = typeof getBUList === 'function' ? getBUList() : [];
+  const bu = buList.find(item => item.id === draft.buId) || null;
+  const geographies = typeof getScenarioGeographies === 'function' ? getScenarioGeographies() : [];
+  const geography = typeof formatScenarioGeographies === 'function'
+    ? formatScenarioGeographies(geographies, settings.geography)
+    : String(draft.geography || settings.geography || '').trim();
+  const selectedRisks = typeof getSelectedRisks === 'function' ? getSelectedRisks() : [];
+  const applicableRegulations = typeof deriveApplicableRegulations === 'function'
+    ? deriveApplicableRegulations(bu, selectedRisks, geographies)
+    : (Array.isArray(draft.applicableRegulations) ? draft.applicableRegulations : []);
+  const riskStatement = String(
+    draft.enhancedNarrative
+    || draft.narrative
+    || draft.sourceNarrative
+    || (typeof composeStep1GuidedNarrative === 'function' ? composeStep1GuidedNarrative(draft.guidedInput, settings, draft) : '')
+    || draft.guidedInput?.event
+    || ''
+  ).trim();
+  return {
+    assessmentType: getStep1ProjectExposureAssessmentType(scope),
+    riskStatement,
+    projectContext: draft.projectContext && typeof draft.projectContext === 'object' ? { ...draft.projectContext } : {},
+    buyerEconomics: draft.buyerEconomics && typeof draft.buyerEconomics === 'object' ? { ...draft.buyerEconomics } : {},
+    buyerEconomicsMeta: draft.buyerEconomicsMeta && typeof draft.buyerEconomicsMeta === 'object' ? { ...draft.buyerEconomicsMeta } : {},
+    sellerEconomics: draft.sellerEconomics && typeof draft.sellerEconomics === 'object' ? { ...draft.sellerEconomics } : {},
+    sellerEconomicsMeta: draft.sellerEconomicsMeta && typeof draft.sellerEconomicsMeta === 'object' ? { ...draft.sellerEconomicsMeta } : {},
+    buyerProxyAnswers: draft.buyerProxyQuestions && typeof draft.buyerProxyQuestions === 'object' ? { ...draft.buyerProxyQuestions } : {},
+    sellerProxyAnswers: draft.sellerProxyQuestions && typeof draft.sellerProxyQuestions === 'object' ? { ...draft.sellerProxyQuestions } : {},
+    businessUnit: bu || (draft.buId || draft.buName ? {
+      id: draft.buId || '',
+      name: draft.buName || ''
+    } : null),
+    geography,
+    applicableRegulations,
+    citations: Array.isArray(draft.citations) ? draft.citations : [],
+    adminSettings: settings && typeof settings === 'object' ? settings : {},
+    traceLabel: scope === 'seller' ? 'Seller project exposure map' : 'Buyer project exposure map',
+    priorMessages: Array.isArray(draft.step1LlmContext) ? draft.step1LlmContext : []
+  };
+}
+
+function buildStep1ProjectExposureFingerprint(scope = 'buyer', draft = AppState.draft || {}) {
+  const payload = buildStep1ProjectExposurePayload(scope, draft);
+  return step1StableProjectStringify({
+    assessmentType: payload.assessmentType,
+    riskStatement: payload.riskStatement,
+    projectContext: payload.projectContext,
+    buyerEconomics: payload.assessmentType === 'project_buyer' ? payload.buyerEconomics : {},
+    buyerEconomicsMeta: payload.assessmentType === 'project_buyer' ? payload.buyerEconomicsMeta : {},
+    sellerEconomics: payload.assessmentType === 'project_seller' ? payload.sellerEconomics : {},
+    sellerEconomicsMeta: payload.assessmentType === 'project_seller' ? payload.sellerEconomicsMeta : {},
+    buyerProxyAnswers: payload.assessmentType === 'project_buyer' ? payload.buyerProxyAnswers : {},
+    sellerProxyAnswers: payload.assessmentType === 'project_seller' ? payload.sellerProxyAnswers : {},
+    geography: payload.geography,
+    applicableRegulations: payload.applicableRegulations
+  });
+}
+
+function hasStep1ProjectExposureSignal(scope = 'buyer', draft = AppState.draft || {}) {
+  const proxyKey = scope === 'seller' ? 'sellerProxyQuestions' : 'buyerProxyQuestions';
+  const proxy = draft?.[proxyKey] || {};
+  const economicsKey = scope === 'seller' ? 'sellerEconomics' : 'buyerEconomics';
+  const economics = draft?.[economicsKey] || {};
+  return Object.values(proxy).some(value => String(value || '').trim() && String(value || '').trim() !== 'unknown')
+    || Object.values(economics).some(value => value !== null && value !== undefined && value !== '')
+    || !!String(draft?.projectContext?.projectName || draft?.projectContext?.projectStage || draft?.projectRouteDetails?.mainConsequence || '').trim();
+}
+
+function buildStep1DeterministicProjectExposure(scope = 'buyer', draft = AppState.draft || {}) {
+  if (typeof ProjectExposureService === 'undefined' || !ProjectExposureService || typeof ProjectExposureService.buildProjectExposure !== 'function') {
+    return null;
+  }
+  const payload = buildStep1ProjectExposurePayload(scope, draft);
+  const exposure = ProjectExposureService.buildProjectExposure({
+    ...payload,
+    buyerProxyQuestions: payload.buyerProxyAnswers,
+    sellerProxyQuestions: payload.sellerProxyAnswers,
+    projectExposure: draft.projectExposure && typeof draft.projectExposure === 'object' ? draft.projectExposure : {}
+  });
+  return {
+    ...exposure,
+    sourceMode: 'deterministic_preview',
+    inputFingerprint: buildStep1ProjectExposureFingerprint(scope, draft),
+    generatedAt: new Date().toISOString(),
+    usedFallback: true,
+    aiUnavailable: false
+  };
+}
+
+function hasUsefulStep1ProjectExposure(exposure = {}) {
+  if (!exposure || typeof exposure !== 'object') return false;
+  return !!String(exposure.projectExposureSummary || '').trim()
+    || (Array.isArray(exposure.financialDrivers) && exposure.financialDrivers.length > 0)
+    || (Array.isArray(exposure.missingInputs) && exposure.missingInputs.length > 0)
+    || (Array.isArray(exposure.doubleCountingWarnings) && exposure.doubleCountingWarnings.length > 0);
+}
+
+function ensureStep1ProjectExposurePreview(scope = 'buyer', draft = AppState.draft || {}, { persist = false } = {}) {
+  if (!hasStep1ProjectExposureSignal(scope, draft)) return draft.projectExposure || {};
+  const fingerprint = buildStep1ProjectExposureFingerprint(scope, draft);
+  const current = draft.projectExposure && typeof draft.projectExposure === 'object' ? draft.projectExposure : {};
+  if (hasUsefulStep1ProjectExposure(current) && String(current.inputFingerprint || '') === fingerprint) {
+    return current;
+  }
+  const preview = buildStep1DeterministicProjectExposure(scope, draft);
+  if (!preview) return current;
+  if (persist) {
+    AppState.draft.projectExposure = preview;
+  }
+  return preview;
+}
+
+function formatStep1ProjectExposureAmount(value, currency = 'USD') {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return 'Unknown';
+  try {
+    return new Intl.NumberFormat('en', {
+      style: 'currency',
+      currency: String(currency || 'USD').trim() || 'USD',
+      maximumFractionDigits: 0
+    }).format(parsed);
+  } catch {
+    return `${String(currency || 'USD').trim() || 'USD'} ${Math.round(parsed).toLocaleString()}`;
+  }
+}
+
+function formatStep1ProjectExposureStatus(value = '') {
+  return String(value || 'unknown').replace(/_/g, ' ');
+}
+
+function renderStep1ProjectExposureList(title, items = [], emptyText = 'None yet') {
+  const values = (Array.isArray(items) ? items : []).map(item => {
+    if (item && typeof item === 'object') return String(item.label || item.field || item.suggestedQuestion || '').trim();
+    return String(item || '').trim();
+  }).filter(Boolean);
+  return `<div class="step1-project-exposure__mini-list">
+    <span>${escapeHtml(title)}</span>
+    <strong>${values.length ? escapeHtml(values.slice(0, 4).join(', ')) : escapeHtml(emptyText)}</strong>
+  </div>`;
+}
+
+function renderStep1ProjectFinancialDrivers(exposure = {}, currency = 'USD') {
+  const drivers = Array.isArray(exposure.financialDrivers) ? exposure.financialDrivers.slice(0, 6) : [];
+  if (!drivers.length) {
+    return '<div class="step1-project-exposure__empty">No quantified project drivers yet. Unknown mechanisms can still continue as missing inputs or stress cases.</div>';
+  }
+  return `<div class="step1-project-exposure__drivers">
+    ${drivers.map(driver => {
+      const status = String(driver.driverStatus || 'unquantified_driver');
+      const isUnknown = status === 'unquantified_driver' || driver.likely === null || driver.likely === undefined;
+      const label = driver.label || driver.id || 'Project driver';
+      const amount = isUnknown ? 'Unknown' : formatStep1ProjectExposureAmount(driver.likely, currency);
+      return `<div class="step1-project-exposure-driver">
+        <div>
+          <strong>${escapeHtml(label)}</strong>
+          <span>${escapeHtml(formatStep1ProjectExposureStatus(status))} · ${escapeHtml(formatStep1ProjectExposureStatus(driver.confidence || 'unknown'))}</span>
+        </div>
+        <b class="${isUnknown ? 'is-unknown' : ''}">${escapeHtml(amount)}</b>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+function renderStep1ProjectExposureMissingInputs(exposure = {}) {
+  const items = Array.isArray(exposure.missingInputs) ? exposure.missingInputs.slice(0, 6) : [];
+  if (!items.length) {
+    return '<div class="step1-project-exposure__empty">No high-impact missing inputs are currently flagged.</div>';
+  }
+  return `<div class="step1-project-exposure__missing">
+    ${items.map(item => {
+      const field = String(item.field || '').trim();
+      return `<div class="step1-project-exposure-missing">
+        <div>
+          <strong>${escapeHtml(item.label || field || 'Missing input')}</strong>
+          <span>${escapeHtml(item.suggestedQuestion || item.whyItMatters || 'Confirm this value or mark it as not applicable.')}</span>
+        </div>
+        <div class="step1-project-exposure-missing__actions">
+          <button type="button" class="btn btn--ghost btn--sm" data-project-exposure-missing-action="not_applicable" data-project-exposure-field="${escapeHtml(field)}">Not applicable</button>
+          <button type="button" class="btn btn--ghost btn--sm" data-project-exposure-missing-action="estimated" data-project-exposure-field="${escapeHtml(field)}">Estimated</button>
+        </div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+function renderStep1ProjectExposurePanel(scope = 'buyer', draft = AppState.draft || {}) {
+  const exposure = ensureStep1ProjectExposurePreview(scope, draft, { persist: false }) || {};
+  const quality = exposure.projectInputQuality && typeof exposure.projectInputQuality === 'object' ? exposure.projectInputQuality : {};
+  const currency = draft.projectContext?.currency || 'USD';
+  const isSeller = scope === 'seller';
+  const helper = isSeller
+    ? 'This exposure map separates revenue at risk, margin at risk, delivery cost, penalties, termination, and recoveries. Unknown values will be carried forward as assumptions or stress cases.'
+    : 'This exposure map estimates incremental project impact such as delay cost, reprocurement premium, sunk cost, and recoveries. Unknown values will be carried forward as assumptions or stress cases.';
+  const sourceMode = String(exposure.sourceMode || (exposure.usedFallback ? 'deterministic_fallback' : '') || 'deterministic_preview');
+  const sourceLabel = sourceMode === 'live'
+    ? 'Live AI'
+    : sourceMode === 'deterministic_fallback'
+      ? 'Deterministic fallback'
+      : sourceMode === 'benchmark_proxy'
+        ? 'Benchmark proxy'
+        : 'Deterministic preview';
+  const hasAiMap = sourceMode === 'live' || sourceMode === 'deterministic_fallback';
+  return `<section class="step1-project-exposure card" data-project-exposure-panel="${escapeHtml(scope)}">
+    <div class="step1-project-exposure__head">
+      <div>
+        <div class="wizard-summary-band__label">Project financial exposure</div>
+        <h4>Map the project economics without blocking progress</h4>
+        <p>${escapeHtml(helper)}</p>
+      </div>
+      <div class="step1-project-exposure__badges">
+        <span class="badge badge--neutral">${escapeHtml(sourceLabel)}</span>
+        ${exposure.aiUnavailable ? '<span class="badge badge--warning">AI unavailable</span>' : ''}
+      </div>
+    </div>
+    <div class="step1-project-exposure__quality">
+      <div>
+        <span>Input quality</span>
+        <strong>${escapeHtml(quality.label || 'Thin project economics')}</strong>
+      </div>
+      <b>${escapeHtml(String(Number.isFinite(Number(quality.score)) ? Math.round(Number(quality.score)) : 0))}/100</b>
+    </div>
+    <p class="step1-project-exposure__summary">${escapeHtml(exposure.projectExposureSummary || 'Sparse project economics can continue. Unknown values are carried forward as uncertainty, not zero.')}</p>
+    <div class="step1-project-exposure__knowns">
+      ${renderStep1ProjectExposureList('Known values', quality.knownHighImpactInputs, 'None yet')}
+      ${renderStep1ProjectExposureList('Estimated values', quality.estimatedHighImpactInputs, 'None yet')}
+      ${renderStep1ProjectExposureList('Unknown high-impact inputs', quality.unknownHighImpactInputs, 'None flagged')}
+    </div>
+    ${renderStep1ProjectFinancialDrivers(exposure, currency)}
+    <details class="wizard-disclosure wizard-disclosure--compact step1-project-exposure__details">
+      <summary>Caps, offsets, warnings, and risk buckets <span class="badge badge--neutral">Review</span></summary>
+      <div class="wizard-disclosure-body step1-project-exposure__detail-grid">
+        ${renderStep1ProjectExposureList('Caps and offsets', (exposure.capsAndOffsets || []).map(item => item.type || item.label), 'None recorded')}
+        ${renderStep1ProjectExposureList('Double-counting warnings', exposure.doubleCountingWarnings, 'No warnings')}
+        ${renderStep1ProjectExposureList('Risk buckets', Object.keys(exposure.mapsToRiskParameters || {}), 'No quantified bucket mapping yet')}
+      </div>
+    </details>
+    <div class="step1-project-exposure__missing-wrap">
+      <div class="step1-project-exposure__section-title">
+        <strong>Missing high-impact inputs</strong>
+        <span>You can continue. The next step will estimate with uncertainty and flag what matters most.</span>
+      </div>
+      ${renderStep1ProjectExposureMissingInputs(exposure)}
+    </div>
+    <div class="step1-project-exposure__actions">
+      <button type="button" class="btn btn--primary btn--sm" data-project-exposure-action="generate">${hasAiMap ? 'Refresh exposure map' : 'Generate AI exposure map'}</button>
+      <button type="button" class="btn btn--secondary btn--sm" data-project-exposure-action="continue">Continue with uncertainty</button>
+      <button type="button" class="btn btn--ghost btn--sm" data-project-exposure-action="details">Add more details</button>
+      <button type="button" class="btn btn--ghost btn--sm" data-project-exposure-action="benchmarks">Use benchmark proxies where available</button>
+      <button type="button" class="btn btn--ghost btn--sm" data-project-exposure-action="upload">Upload contract/business case/evidence</button>
+    </div>
+  </section>`;
+}
+
 function renderStep1ProxyQuestions(scope, draft = AppState.draft || {}) {
   const fields = scope === 'seller' ? STEP1_SELLER_PROXY_FIELDS : STEP1_BUYER_PROXY_FIELDS;
   const key = scope === 'seller' ? 'sellerProxyQuestions' : 'buyerProxyQuestions';
@@ -4400,6 +4667,7 @@ function renderStep1ProjectInputs(scope, draft = AppState.draft || {}) {
     </details>
 
     ${renderStep1KnownSoFarSummary(scope, draft)}
+    ${renderStep1ProjectExposurePanel(scope, draft)}
   </section>`;
 }
 
@@ -4456,14 +4724,173 @@ function updateStep1FinancialField(scope, field, { forceStatus = '' } = {}) {
     note: String(previous.note || '').trim()
   };
   refreshStep1RouteKnownSummary(scope);
+  updateStep1ProjectExposureAfterInput(scope);
   markDraftDirty();
   scheduleDraftAutosave();
 }
 
 function refreshStep1RouteKnownSummary(scope) {
+  if (typeof document === 'undefined' || typeof document.querySelector !== 'function') return;
   const host = document.querySelector(`[data-route-summary-host="${scope}"]`);
   if (!host) return;
   host.outerHTML = renderStep1KnownSoFarSummary(scope, AppState.draft);
+}
+
+function refreshStep1ProjectExposurePanel(scope) {
+  if (typeof document === 'undefined' || typeof document.querySelector !== 'function') return;
+  const safeScope = String(scope || '').trim() === 'seller' ? 'seller' : 'buyer';
+  const host = document.querySelector(`[data-project-exposure-panel="${safeScope}"]`);
+  if (!host) return;
+  ensureStep1ProjectExposurePreview(safeScope, AppState.draft, { persist: true });
+  host.outerHTML = renderStep1ProjectExposurePanel(safeScope, AppState.draft);
+  bindStep1ProjectExposurePanelActions(document.querySelector(`[data-project-exposure-panel="${safeScope}"]`) || document);
+}
+
+function getStep1ProjectScopeFromDraft(draft = AppState.draft || {}) {
+  const assessmentType = normaliseStep1AssessmentType(draft.assessmentType);
+  if (assessmentType === 'project_seller') return 'seller';
+  if (assessmentType === 'project_buyer') return 'buyer';
+  return '';
+}
+
+function updateStep1ProjectExposureAfterInput(scope = '') {
+  const safeScope = scope || getStep1ProjectScopeFromDraft(AppState.draft);
+  if (!safeScope) return;
+  ensureStep1ProjectExposurePreview(safeScope, AppState.draft, { persist: true });
+  refreshStep1ProjectExposurePanel(safeScope);
+}
+
+function applyStep1ProjectExposureResult(scope = 'buyer', result = {}) {
+  const exposure = result?.projectExposure && typeof result.projectExposure === 'object'
+    ? result.projectExposure
+    : null;
+  if (!exposure) return false;
+  AppState.draft.projectExposure = {
+    ...exposure,
+    sourceMode: String(result.mode || '').trim() === 'live'
+      ? 'live'
+      : String(result.mode || '').trim() === 'deterministic_fallback'
+        ? 'deterministic_fallback'
+        : (exposure.sourceMode || 'live'),
+    inputFingerprint: buildStep1ProjectExposureFingerprint(scope, AppState.draft),
+    generatedAt: result.generatedAt || new Date().toISOString(),
+    usedFallback: result.usedFallback === true,
+    aiUnavailable: result.aiUnavailable === true
+  };
+  markDraftDirty();
+  saveDraft();
+  refreshStep1ProjectExposurePanel(scope);
+  return true;
+}
+
+async function generateStep1ProjectExposureMap(scope = 'buyer', button = null) {
+  const safeScope = String(scope || '').trim() === 'seller' ? 'seller' : 'buyer';
+  if (typeof LLMService === 'undefined' || !LLMService || typeof LLMService.generateProjectExposureMap !== 'function') {
+    UI.toast('Project exposure AI is unavailable. The deterministic preview remains usable.', 'warning');
+    updateStep1ProjectExposureAfterInput(safeScope);
+    return;
+  }
+  const payload = buildStep1ProjectExposurePayload(safeScope, AppState.draft);
+  const resetButton = _setStep1ButtonBusy(button, 'Mapping exposure…');
+  try {
+    const result = await LLMService.generateProjectExposureMap(payload);
+    if (!applyStep1ProjectExposureResult(safeScope, result)) {
+      throw new Error('The exposure map response was empty.');
+    }
+    UI.toast(result?.mode === 'deterministic_fallback' ? 'Deterministic exposure map refreshed.' : 'Project exposure map refreshed.', 'success');
+  } catch (error) {
+    updateStep1ProjectExposureAfterInput(safeScope);
+    UI.toast(`${String(error?.message || 'AI exposure mapping failed.')} The deterministic preview is still available.`, 'warning', 5000);
+  } finally {
+    resetButton();
+  }
+}
+
+function setStep1MissingInputMeta(scope = 'buyer', field = '', status = 'unknown') {
+  const safeScope = String(scope || '').trim() === 'seller' ? 'seller' : 'buyer';
+  const fieldName = String(field || '').trim();
+  if (!fieldName) return;
+  const config = getStep1EconomicsConfig(safeScope);
+  const fieldConfig = getStep1FinancialFieldConfig(safeScope, fieldName);
+  AppState.draft[config.economicsKey] = AppState.draft[config.economicsKey] && typeof AppState.draft[config.economicsKey] === 'object' ? AppState.draft[config.economicsKey] : {};
+  AppState.draft[config.metaKey] = AppState.draft[config.metaKey] && typeof AppState.draft[config.metaKey] === 'object' ? AppState.draft[config.metaKey] : {};
+  if (status === 'not_applicable') {
+    AppState.draft[config.economicsKey][fieldName] = null;
+    AppState.draft[config.metaKey][fieldName] = {
+      status: 'not_applicable',
+      confidence: 'unknown',
+      source: 'not_provided',
+      note: 'Marked not applicable from the project exposure map.'
+    };
+  } else if (status === 'estimated') {
+    AppState.draft[config.metaKey][fieldName] = {
+      ...getStep1FinancialMeta(safeScope, fieldName, AppState.draft),
+      status: 'estimated',
+      confidence: 'low',
+      source: 'user',
+      note: `Marked for estimate from the project exposure map${fieldConfig.label ? `: ${fieldConfig.label}` : ''}.`
+    };
+  }
+  markDraftDirty();
+  saveDraft();
+  refreshStep1RouteKnownSummary(safeScope);
+  refreshStep1ProjectExposurePanel(safeScope);
+}
+
+function bindStep1ProjectExposurePanelActions(root = document) {
+  const panels = [
+    ...(root?.matches?.('[data-project-exposure-panel]') ? [root] : []),
+    ...Array.from(root?.querySelectorAll?.('[data-project-exposure-panel]') || [])
+  ];
+  panels.forEach(panel => {
+    if (panel.dataset.projectExposureBound === '1') return;
+    panel.dataset.projectExposureBound = '1';
+    const scope = String(panel.dataset.projectExposurePanel || '').trim() === 'seller' ? 'seller' : 'buyer';
+    panel.querySelectorAll('[data-project-exposure-action]').forEach(button => {
+      button.addEventListener('click', () => {
+        const action = String(button.dataset.projectExposureAction || '').trim();
+        if (action === 'generate') {
+          generateStep1ProjectExposureMap(scope, button);
+          return;
+        }
+        if (action === 'continue') {
+          ensureStep1ProjectExposurePreview(scope, AppState.draft, { persist: true });
+          saveDraft();
+          UI.toast('Continuing with uncertainty. Unknown values remain assumptions, not zero.', 'info');
+          return;
+        }
+        if (action === 'details') {
+          const advancedSection = panel.closest('.step1-route-inputs')?.querySelector('.step1-financial-grid')?.closest('details');
+          if (advancedSection) advancedSection.open = true;
+          const advanced = panel.closest('.step1-route-inputs')?.querySelector('.step1-financial-grid input, .step1-financial-grid select, .step1-financial-grid textarea');
+          advanced?.focus?.();
+          UI.toast('Add any project economics you know. Blank fields remain unknown.', 'info');
+          return;
+        }
+        if (action === 'benchmarks') {
+          AppState.draft.projectExposure = {
+            ...(AppState.draft.projectExposure || {}),
+            valuationMode: 'benchmark_led',
+            sourceMode: 'benchmark_proxy'
+          };
+          markDraftDirty();
+          saveDraft();
+          refreshStep1ProjectExposurePanel(scope);
+          UI.toast('Benchmark proxies are allowed where the map labels them clearly and with confidence.', 'info');
+          return;
+        }
+        if (action === 'upload') {
+          document.getElementById('risk-register-file')?.focus?.();
+          UI.toast('Upload the contract, business case, or evidence in the intake area when available.', 'info');
+        }
+      });
+    });
+    panel.querySelectorAll('[data-project-exposure-missing-action][data-project-exposure-field]').forEach(button => {
+      button.addEventListener('click', () => {
+        setStep1MissingInputMeta(scope, button.dataset.projectExposureField, button.dataset.projectExposureMissingAction);
+      });
+    });
+  });
 }
 
 function bindStep1RouteSpecificInputs() {
@@ -4481,6 +4908,7 @@ function bindStep1RouteSpecificInputs() {
       const field = input.dataset.projectContextField;
       AppState.draft.projectContext[field] = field === 'projectDurationMonths' ? parseStep1FiniteInputValue(input.value) : input.value;
       markDraftDirty();
+      updateStep1ProjectExposureAfterInput();
       scheduleDraftAutosave();
     });
   });
@@ -4489,6 +4917,7 @@ function bindStep1RouteSpecificInputs() {
       AppState.draft.projectRouteDetails = AppState.draft.projectRouteDetails && typeof AppState.draft.projectRouteDetails === 'object' ? AppState.draft.projectRouteDetails : {};
       AppState.draft.projectRouteDetails[input.dataset.projectDetailField] = input.value;
       markDraftDirty();
+      updateStep1ProjectExposureAfterInput();
       scheduleDraftAutosave();
     });
   });
@@ -4499,6 +4928,7 @@ function bindStep1RouteSpecificInputs() {
       AppState.draft[key] = AppState.draft[key] && typeof AppState.draft[key] === 'object' ? AppState.draft[key] : {};
       AppState.draft[key][select.dataset.proxyField] = select.value || 'unknown';
       markDraftDirty();
+      updateStep1ProjectExposureAfterInput(scope);
       scheduleDraftAutosave();
     });
   });
@@ -4519,9 +4949,11 @@ function bindStep1RouteSpecificInputs() {
         note: input.value
       };
       markDraftDirty();
+      updateStep1ProjectExposureAfterInput(scope);
       scheduleDraftAutosave();
     });
   });
+  bindStep1ProjectExposurePanelActions();
 }
 
 function renderStep1GuideLaneSwitch(activePath = 'guided') {
@@ -6835,6 +7267,16 @@ function renderWizard1() {
   const canContinue = !!String(narrative || draft.sourceNarrative || draft.guidedInput?.event || '').trim() || selectedRisks.length > 0;
   const promptIdeaModel = getStep1DisplayedPromptIdeaModel(draft, exampleModel);
   const activePath = draft.step1Path === 'draft' || draft.step1Path === 'import' ? draft.step1Path : 'guided';
+  const activeAssessmentType = normaliseStep1AssessmentType(draft.assessmentType);
+  const projectExposureScope = activeAssessmentType === 'project_seller'
+    ? 'seller'
+    : activeAssessmentType === 'project_buyer'
+      ? 'buyer'
+      : '';
+  const projectExposureFingerprintBefore = String(draft.projectExposure?.inputFingerprint || '');
+  if (projectExposureScope) {
+    ensureStep1ProjectExposurePreview(projectExposureScope, draft, { persist: true });
+  }
   const intakeSequence = buildStep1IntakeSequenceModel(draft);
   const isBasicExperience = typeof isAdvancedExperienceMode === 'function' ? !isAdvancedExperienceMode() : false;
   const needsContextSetup = !String(draft.buId || '').trim();
@@ -6910,6 +7352,9 @@ function renderWizard1() {
         challenge: challengePass
       })
     : null;
+  if (projectExposureScope && projectExposureFingerprintBefore !== String(draft.projectExposure?.inputFingerprint || '')) {
+    saveDraft();
+  }
 
   setPage(`
     <main class="page" aria-label="Quick Assessment">

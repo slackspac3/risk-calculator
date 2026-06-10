@@ -389,6 +389,16 @@
       scenarioFingerprint,
       traceLabel: STEP1_TRACE_LABELS.guidedDraft
     };
+    const assessmentType = String(AppState.draft?.assessmentType || '').trim();
+    if (assessmentType === 'project_buyer' || assessmentType === 'project_seller') {
+      requestPayload.assessmentType = assessmentType;
+      requestPayload.projectContext = AppState.draft.projectContext && typeof AppState.draft.projectContext === 'object'
+        ? { ...AppState.draft.projectContext }
+        : {};
+      requestPayload.projectExposure = AppState.draft.projectExposure && typeof AppState.draft.projectExposure === 'object'
+        ? { ...AppState.draft.projectExposure }
+        : {};
+    }
     if (_guardStep1AiActionCooldown({
       button,
       endpoint: '/api/ai/scenario-draft',

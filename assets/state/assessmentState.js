@@ -671,11 +671,30 @@ function resetDraft() {
     projectExposure: {
       valuationMode: 'benchmark_led',
       projectExposureSummary: '',
+      projectInputQuality: {
+        score: 0,
+        label: '',
+        knownHighImpactInputs: [],
+        estimatedHighImpactInputs: [],
+        unknownHighImpactInputs: [],
+        canProceed: true,
+        recommendedNextInput: {
+          field: '',
+          why: '',
+          whoMightKnow: '',
+          suggestedQuestion: ''
+        }
+      },
       financialDrivers: [],
       capsAndOffsets: [],
       doubleCountingWarnings: [],
       missingInputs: [],
-      mapsToRiskParameters: {}
+      mapsToRiskParameters: {},
+      sourceMode: '',
+      inputFingerprint: '',
+      generatedAt: '',
+      usedFallback: false,
+      aiUnavailable: false
     },
     buId: null, buName: null, contextNotes: '',
     narrative: '', structuredScenario: null,

@@ -43,6 +43,8 @@ const AiWorkflowClient = (() => {
   }
 
   function normaliseNumber(value) {
+    if (value === null || value === undefined) return undefined;
+    if (typeof value === 'string' && !value.trim()) return undefined;
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : undefined;
   }
@@ -176,6 +178,110 @@ const AiWorkflowClient = (() => {
       })
       .filter((item) => item?.role && item?.content)
       .slice(-maxItems);
+  }
+
+  function normaliseProjectContext(value = {}) {
+    if (!isPlainObject(value)) return undefined;
+    return compactValue({
+      projectName: normaliseInlineText(value.projectName || ''),
+      projectDescription: normaliseBlockText(value.projectDescription || ''),
+      projectRole: normaliseInlineText(value.projectRole || ''),
+      projectStage: normaliseInlineText(value.projectStage || ''),
+      contractType: normaliseInlineText(value.contractType || ''),
+      currency: normaliseInlineText(value.currency || ''),
+      projectDurationMonths: normaliseNumber(value.projectDurationMonths),
+      criticalMilestoneDate: normaliseInlineText(value.criticalMilestoneDate || ''),
+      strategicImportance: normaliseInlineText(value.strategicImportance || '')
+    });
+  }
+
+  function normaliseFinancialMetaMap(value = {}) {
+    if (!isPlainObject(value)) return undefined;
+    const output = {};
+    Object.entries(value).slice(0, 40).forEach(([field, meta]) => {
+      if (!isPlainObject(meta)) return;
+      const key = normaliseInlineText(field);
+      if (!key) return;
+      const next = compactValue({
+        status: normaliseInlineText(meta.status || ''),
+        confidence: normaliseInlineText(meta.confidence || ''),
+        source: normaliseInlineText(meta.source || ''),
+        note: normaliseInlineText(meta.note || '')
+      });
+      if (next) output[key] = next;
+    });
+    return Object.keys(output).length ? output : undefined;
+  }
+
+  function normaliseFinancialMap(value = {}) {
+    if (!isPlainObject(value)) return undefined;
+    const output = {};
+    Object.entries(value).slice(0, 40).forEach(([field, rawValue]) => {
+      const key = normaliseInlineText(field);
+      if (!key) return;
+      const next = normaliseNumber(rawValue);
+      if (next !== undefined) output[key] = next;
+    });
+    return Object.keys(output).length ? output : undefined;
+  }
+
+  function normaliseProxyAnswers(value = {}) {
+    if (!isPlainObject(value)) return undefined;
+    const output = {};
+    Object.entries(value).slice(0, 30).forEach(([field, rawValue]) => {
+      const key = normaliseInlineText(field);
+      const next = normaliseInlineText(rawValue || '');
+      if (key && next) output[key] = next;
+    });
+    return Object.keys(output).length ? output : undefined;
+  }
+
+  function normaliseProjectExposureSummary(value = {}) {
+    if (!isPlainObject(value)) return undefined;
+    return compactValue({
+      valuationMode: normaliseInlineText(value.valuationMode || ''),
+      projectExposureSummary: normaliseBlockText(value.projectExposureSummary || ''),
+      projectInputQuality: isPlainObject(value.projectInputQuality) ? compactValue({
+        score: normaliseNumber(value.projectInputQuality.score),
+        label: normaliseInlineText(value.projectInputQuality.label || ''),
+        knownHighImpactInputs: normaliseStringList(value.projectInputQuality.knownHighImpactInputs, { maxItems: 12 }),
+        estimatedHighImpactInputs: normaliseStringList(value.projectInputQuality.estimatedHighImpactInputs, { maxItems: 12 }),
+        unknownHighImpactInputs: normaliseStringList(value.projectInputQuality.unknownHighImpactInputs, { maxItems: 12 }),
+        canProceed: value.projectInputQuality.canProceed === false ? false : true,
+        recommendedNextInput: isPlainObject(value.projectInputQuality.recommendedNextInput) ? compactValue({
+          field: normaliseInlineText(value.projectInputQuality.recommendedNextInput.field || ''),
+          why: normaliseBlockText(value.projectInputQuality.recommendedNextInput.why || ''),
+          whoMightKnow: normaliseInlineText(value.projectInputQuality.recommendedNextInput.whoMightKnow || ''),
+          suggestedQuestion: normaliseBlockText(value.projectInputQuality.recommendedNextInput.suggestedQuestion || '')
+        }) : undefined
+      }) : undefined,
+      financialDrivers: Array.isArray(value.financialDrivers) ? value.financialDrivers.slice(0, 20).map(compactValue).filter(Boolean) : undefined,
+      capsAndOffsets: Array.isArray(value.capsAndOffsets) ? value.capsAndOffsets.slice(0, 20).map(compactValue).filter(Boolean) : undefined,
+      doubleCountingWarnings: normaliseStringList(value.doubleCountingWarnings, { maxItems: 20, block: true }),
+      missingInputs: Array.isArray(value.missingInputs) ? value.missingInputs.slice(0, 20).map(compactValue).filter(Boolean) : undefined,
+      mapsToRiskParameters: isPlainObject(value.mapsToRiskParameters) ? compactValue(value.mapsToRiskParameters) : undefined
+    });
+  }
+
+  function normaliseProjectExposureWorkflowPayload(source = {}) {
+    return compactValue({
+      assessmentType: normaliseInlineText(source.assessmentType || ''),
+      riskStatement: normaliseBlockText(source.riskStatement || ''),
+      projectContext: normaliseProjectContext(source.projectContext),
+      buyerEconomics: normaliseFinancialMap(source.buyerEconomics),
+      buyerEconomicsMeta: normaliseFinancialMetaMap(source.buyerEconomicsMeta),
+      sellerEconomics: normaliseFinancialMap(source.sellerEconomics),
+      sellerEconomicsMeta: normaliseFinancialMetaMap(source.sellerEconomicsMeta),
+      buyerProxyAnswers: normaliseProxyAnswers(source.buyerProxyAnswers || source.buyerProxyQuestions),
+      sellerProxyAnswers: normaliseProxyAnswers(source.sellerProxyAnswers || source.sellerProxyQuestions),
+      businessUnit: normaliseBusinessUnit(source.businessUnit),
+      geography: normaliseInlineText(source.geography || ''),
+      applicableRegulations: normaliseStringList(source.applicableRegulations, { maxItems: 40 }),
+      citations: normaliseCitations(source.citations, { maxItems: 10 }),
+      adminSettings: normaliseAdminSettings(source.adminSettings),
+      traceLabel: normaliseInlineText(source.traceLabel || ''),
+      priorMessages: normalisePriorMessages(source.priorMessages, { maxItems: 8 })
+    }) || {};
   }
 
   function normaliseGuidedInput(value = {}) {
@@ -403,9 +509,12 @@ const AiWorkflowClient = (() => {
     switch (path) {
       case '/api/ai/scenario-draft':
         return compactValue({
+          assessmentType: normaliseInlineText(source.assessmentType || ''),
           riskStatement: normaliseBlockText(source.riskStatement || ''),
           guidedInput: normaliseGuidedInput(source.guidedInput),
           scenarioLensHint: normaliseInlineText(source.scenarioLensHint || ''),
+          projectContext: normaliseProjectContext(source.projectContext),
+          projectExposure: normaliseProjectExposureSummary(source.projectExposure),
           scenarioFingerprint: normaliseInlineText(source.scenarioFingerprint || ''),
           businessUnit: normaliseBusinessUnit(source.businessUnit),
           geography: normaliseInlineText(source.geography || ''),
@@ -415,6 +524,8 @@ const AiWorkflowClient = (() => {
           traceLabel: normaliseInlineText(source.traceLabel || ''),
           priorMessages: normalisePriorMessages(source.priorMessages)
         }) || {};
+      case '/api/ai/project-exposure-map':
+        return normaliseProjectExposureWorkflowPayload(source);
       case '/api/ai/manual-intake-assist':
       case '/api/ai/manual-draft-refinement':
       case '/api/ai/manual-shortlist':
@@ -747,6 +858,9 @@ const AiWorkflowClient = (() => {
       getScenarioDraftUrl() {
         return buildUrl('/api/ai/scenario-draft');
       },
+      getProjectExposureMapUrl() {
+        return buildUrl('/api/ai/project-exposure-map');
+      },
       getManualIntakeAssistUrl() {
         return buildUrl('/api/ai/manual-intake-assist');
       },
@@ -782,6 +896,9 @@ const AiWorkflowClient = (() => {
       },
       getStatusUrl() {
         return buildUrl('/api/ai/status');
+      },
+      generateProjectExposureMap(payload = {}) {
+        return postWorkflow(buildUrl('/api/ai/project-exposure-map'), payload);
       },
       postWorkflow
     };
