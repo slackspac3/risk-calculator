@@ -10582,6 +10582,63 @@ canvas { display: block; width: 100%; }
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
+.step1-assessment-router__options {
+  align-items: stretch;
+}
+.step1-assessment-type-card {
+  padding-bottom: 58px;
+}
+.step1-assessment-type-card .step1-guide-lane-option__copy {
+  padding-right: 4px;
+}
+.step1-assessment-route-detail .step1-guide-route-detail__context p {
+  max-width: 62ch;
+}
+.step1-assessment-type-dock {
+  border-color: rgba(115,255,224,0.18);
+  background:
+    radial-gradient(circle at top right, rgba(115,255,224,0.09), transparent 34%),
+    linear-gradient(180deg, rgba(20,28,24,0.84), rgba(11,17,15,0.92));
+}
+.step1-assessment-type-dock summary {
+  gap: 12px;
+}
+.step1-assessment-type-dock summary span:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.step1-assessment-type-dock__body {
+  display: grid;
+  gap: var(--sp-4);
+}
+.step1-assessment-router--compact .step1-assessment-router__options {
+  gap: 10px;
+}
+.step1-assessment-router--compact .step1-guide-lane-option {
+  min-height: 168px;
+  padding: 18px 16px 50px;
+  border-radius: 22px;
+}
+.step1-assessment-router--compact .step1-guide-lane-option__index {
+  font-size: 2.35rem;
+  letter-spacing: 0;
+}
+.step1-assessment-router--compact .step1-guide-lane-option__eyebrow {
+  margin-top: 13px;
+}
+.step1-assessment-router--compact .step1-guide-lane-option strong {
+  font-size: 1rem;
+  line-height: 1.16;
+  letter-spacing: 0;
+}
+.step1-assessment-router--compact .step1-guide-lane-option__copy {
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+.step1-assessment-router--compact .step1-guide-lane-option__signal {
+  right: 14px;
+  bottom: 12px;
+}
 .step1-guide-route-detail {
   position: relative;
   display: flex;

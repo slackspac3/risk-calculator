@@ -4610,7 +4610,7 @@ function launchGuidedAssessmentStart() {
     ensureStep1ContextPrefills(AppState.draft, settings, buList);
   }
   saveDraft();
-  Router.navigate('/wizard/2');
+  Router.navigate('/wizard/1');
   OrgIntelligenceService?.refresh?.().catch?.(() => {});
   return null;
 }
@@ -7679,7 +7679,7 @@ function getAgenticShellRouteLabel(routeHash = '') {
   const route = String(routeHash || '').trim().toLowerCase();
   if (route === '/dashboard') return 'Workspace';
   if (route === '/settings') return 'Settings';
-  if (route.startsWith('/wizard/1')) return 'Assessment guide';
+  if (route.startsWith('/wizard/1')) return 'Assessment type';
   if (route.startsWith('/wizard/2')) return 'Scenario intake';
   if (route.startsWith('/wizard/3')) return 'Scenario shaping';
   if (route.startsWith('/wizard/4')) return 'Quant estimate';
@@ -7854,30 +7854,36 @@ function buildAgenticShellModel(routeHash = getRouteMeta().currentHash) {
   };
 
   if (route.startsWith('/wizard/1')) {
-    const lane = String(draft.step1Path || 'guided').trim() || 'guided';
+    const assessmentType = typeof normaliseAssessmentType === 'function'
+      ? normaliseAssessmentType(draft.assessmentType)
+      : String(draft.assessmentType || 'enterprise_generic').trim() || 'enterprise_generic';
+    const assessmentTypeCard = typeof getAssessmentTypeCards === 'function'
+      ? getAssessmentTypeCards().find(item => item.assessmentType === assessmentType)
+      : null;
+    const assessmentTypeLabel = assessmentTypeCard?.label || 'Enterprise';
     const contextValue = String(draft.buName || draft.buId || '').trim() || 'Open';
-    model.eyebrow = 'Assessment Guide';
-    model.statusLabel = activeDraft ? 'Draft ready' : 'Choose the route';
+    model.eyebrow = 'Assessment Type';
+    model.statusLabel = activeDraft ? 'Draft ready' : 'Choose assessment type';
     model.statusTone = activeDraft ? 'success' : 'neutral';
-    model.goal = 'Inspector for the selected lane, draft state, and Step 2 handoff.';
-    model.workingLabel = 'Route state';
+    model.goal = 'Inspector for the selected assessment type, draft state, and intake handoff.';
+    model.workingLabel = 'Assessment type';
     model.workingCopy = activeDraft
-      ? `Draft ready under ${lensLabel}; Step 2 will reopen the intake workspace.`
-      : `Lane ${lane} selected; no event signal staged yet.`;
+      ? `Draft ready under ${lensLabel}; intake will reopen with ${assessmentTypeLabel.toLowerCase()} selected.`
+      : `${assessmentTypeLabel} selected; no event signal staged yet.`;
     model.waitingLabel = 'Decision needed';
     model.waitingCopy = activeDraft
-      ? 'Resume intake unless the start lane is wrong.'
-      : 'Change the lane only if Quick Assessment is not the right start.';
-    model.actionCopy = activeDraft ? 'Resume the intake workspace.' : 'Continue to Step 2 intake.';
+      ? 'Resume intake unless the assessment type is wrong.'
+      : 'Choose by the economic nature of the risk before entering details.';
+    model.actionCopy = activeDraft ? 'Resume the intake workspace.' : 'Continue to detailed inputs.';
     model.metrics = [
-      { label: 'Lane', value: lane },
+      { label: 'Type', value: assessmentTypeLabel },
       { label: 'Draft', value: activeDraft ? 'Ready' : 'Blank' },
       { label: 'Context', value: contextValue }
     ];
     model.telemetryRows = [
-      { label: 'Lane', value: lane },
+      { label: 'Assessment type', value: assessmentTypeLabel },
       { label: 'Draft state', value: activeDraft ? 'Ready' : 'Blank' },
-      { label: 'Handoff', value: activeDraft ? 'Resume Step 2' : 'Open intake' }
+      { label: 'Handoff', value: activeDraft ? 'Resume intake' : 'Open detailed inputs' }
     ];
   } else if (route.startsWith('/wizard/2')) {
     const hasBusinessUnit = !!String(draft.buId || '').trim();

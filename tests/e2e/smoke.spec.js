@@ -580,7 +580,7 @@ test('results route redirects unauthenticated users to login', async ({ page }) 
   });
 });
 
-test('wizard guide path changes keep the start options visible', async ({ page }) => {
+test('wizard assessment type router stores selection before intake', async ({ page }) => {
   const seededUserSettings = buildSeededUserSettings({
     userProfile: {
       fullName: 'Alex Trafton',
@@ -602,23 +602,24 @@ test('wizard guide path changes keep the start options visible', async ({ page }
   });
 
   await expectNoClientCrashOnRoute(page, '/#/wizard/1', async () => {
-    const guideLaneSwitch = () => page.locator('.app-stage-shell.is-current .step1-guide-lane-switch');
-    const guideLaneOption = path => page.locator(`.app-stage-shell.is-current .step1-guide-lane-switch [data-path="${path}"]`);
-    const guideContinue = () => page.locator('.app-stage-shell.is-current [data-guide-next]');
-    await expect(page.getByRole('heading', { name: /advanced start options/i })).toBeVisible();
-    await expect(guideLaneSwitch()).toBeVisible();
-    await expect(guideContinue()).toHaveCount(1);
-    await guideLaneOption('draft').click();
-    await expect(page).toHaveURL(/#\/wizard\/1$/);
-    await expect(guideLaneSwitch()).toBeVisible();
-    await expect(guideLaneOption('draft')).toHaveAttribute('aria-pressed', 'true');
-    await expect(guideContinue()).toHaveCount(1);
-    await guideLaneOption('import').click();
-    await expect(page).toHaveURL(/#\/wizard\/1$/);
-    await expect(guideLaneSwitch()).toBeVisible();
-    await expect(guideLaneOption('import')).toHaveAttribute('aria-pressed', 'true');
-    await expect(guideContinue()).toHaveCount(1);
-    await expect(page.getByRole('heading', { name: /quick assessment/i })).toHaveCount(0);
+    const router = () => page.locator('.app-stage-shell.is-current .step1-assessment-router');
+    const typeCard = type => page.locator(`.app-stage-shell.is-current .step1-assessment-router [data-assessment-type="${type}"]`);
+    await expect(page.getByRole('heading', { name: /what are you assessing/i })).toBeVisible();
+    await expect(router()).toBeVisible();
+    await expect(typeCard('enterprise_generic')).toHaveAttribute('aria-pressed', 'true');
+    await expect(typeCard('project_buyer')).toContainText(/Project risk/i);
+    await expect(typeCard('project_buyer')).toContainText(/buyer/i);
+    await typeCard('project_buyer').click();
+    await expect(page).toHaveURL(/#\/wizard\/2$/);
+    await expect(page.getByRole('heading', { name: /quick assessment|scenario intake/i })).toBeVisible();
+    await expect(page.locator('.app-stage-shell.is-current [data-assessment-type-dock]')).toContainText(/Project risk/i);
+    await expect(page.locator('.app-stage-shell.is-current [data-assessment-type-dock]')).toContainText(/buyer/i);
+    const savedDraft = await page.evaluate(() => {
+      const raw = sessionStorage.getItem('rq_draft__alex.trafton');
+      return raw ? JSON.parse(raw).draft : null;
+    });
+    expect(savedDraft?.assessmentType).toBe('project_buyer');
+    expect(savedDraft?.projectContext?.projectRole).toBe('buyer');
   });
 });
 

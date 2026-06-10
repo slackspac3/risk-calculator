@@ -3820,6 +3820,224 @@ function getStep1GuideRouteModel(activePath = 'guided') {
   return models[route];
 }
 
+function getStep1AssessmentTypeCards() {
+  if (typeof getAssessmentTypeCards === 'function') return getAssessmentTypeCards();
+  return [
+    {
+      assessmentType: 'enterprise_generic',
+      index: 1,
+      title: 'Generic enterprise risk',
+      guidance: 'Use this when the risk affects a process, function, system, supplier, obligation, business unit, control, or operation, but is not tied to a specific project value, spend, revenue opportunity, or contract.',
+      label: 'Enterprise',
+      projectRole: 'none',
+      nextScreen: 'generic_enterprise_inputs',
+      nextRoute: '/wizard/2'
+    },
+    {
+      assessmentType: 'project_buyer',
+      index: 2,
+      title: 'Project risk - we are the buyer',
+      guidance: 'Use this when your organisation is buying, procuring, implementing, investing in, or depending on a project, supplier, contractor, platform, or delivery partner.',
+      label: 'Buyer',
+      projectRole: 'buyer',
+      nextScreen: 'project_buyer_inputs',
+      nextRoute: '/wizard/2'
+    },
+    {
+      assessmentType: 'project_seller',
+      index: 3,
+      title: 'Project risk - we are the seller',
+      guidance: 'Use this when your organisation is delivering a project, service, implementation, contract, bid, or revenue commitment to a customer.',
+      label: 'Seller',
+      projectRole: 'seller',
+      nextScreen: 'project_seller_inputs',
+      nextRoute: '/wizard/2'
+    }
+  ];
+}
+
+function normaliseStep1AssessmentType(value) {
+  const next = String(value || '').trim().toLowerCase();
+  return typeof normaliseAssessmentType === 'function'
+    ? normaliseAssessmentType(value)
+    : (['project_buyer', 'project_seller'].includes(next) ? next : 'enterprise_generic');
+}
+
+function getStep1AssessmentTypeCard(assessmentType = AppState.draft?.assessmentType) {
+  const active = normaliseStep1AssessmentType(assessmentType);
+  return getStep1AssessmentTypeCards().find(card => card.assessmentType === active)
+    || getStep1AssessmentTypeCards()[0];
+}
+
+function renderStep1AssessmentTitleHtml(title = '') {
+  return escapeHtml(title).replace(' - ', ' &mdash; ');
+}
+
+function renderStep1AssessmentTypeRouter(activeType = 'enterprise_generic', { compact = false } = {}) {
+  const cards = getStep1AssessmentTypeCards();
+  const active = normaliseStep1AssessmentType(activeType);
+  const className = compact
+    ? 'step1-guide-lane-switch step1-assessment-router step1-assessment-router--compact'
+    : 'step1-guide-lane-switch step1-assessment-router';
+  return `<section class="${className}" aria-label="Assessment type">
+    <div class="step1-guide-lane-switch__options step1-assessment-router__options" role="list" aria-label="Assessment type">
+      ${cards.map((card) => `<button type="button" class="step1-guide-lane-option step1-assessment-type-card" data-assessment-type="${escapeHtml(card.assessmentType)}" aria-pressed="${active === card.assessmentType ? 'true' : 'false'}">
+        <span class="step1-guide-lane-option__index">${String(card.index || 1).padStart(2, '0')}</span>
+        <span class="step1-guide-lane-option__eyebrow">${escapeHtml(card.label || '')}</span>
+        <strong>${renderStep1AssessmentTitleHtml(card.title)}</strong>
+        <span class="step1-guide-lane-option__copy">${escapeHtml(card.guidance)}</span>
+        <span class="step1-guide-lane-option__signal">${escapeHtml(active === card.assessmentType ? 'Selected' : 'Choose')}</span>
+      </button>`).join('')}
+    </div>
+  </section>`;
+}
+
+function renderStep1AssessmentTypeRunway({
+  assessmentType = AppState.draft?.assessmentType,
+  hasDraftSignal = false
+} = {}) {
+  const card = getStep1AssessmentTypeCard(assessmentType);
+  const nodes = [
+    { label: 'Journey', value: card.label || 'Enterprise', state: 'live' },
+    { label: 'Basis', value: 'Economic nature', state: 'live' },
+    { label: 'Inputs', value: hasDraftSignal ? 'Resume' : 'Next', state: hasDraftSignal ? 'live' : 'next' }
+  ];
+  return `<div class="step1-guide-runway" aria-label="Selected assessment journey">
+    <div class="step1-guide-runway__head">
+      <span>Assessment type</span>
+      <strong>${renderStep1AssessmentTitleHtml(card.title)}</strong>
+    </div>
+    <div class="step1-guide-runway__track" aria-hidden="true">
+      <span class="step1-guide-runway__beam"></span>
+      ${nodes.map((node, index) => `<span class="step1-guide-runway__node step1-guide-runway__node--${escapeHtml(node.state)}" style="--route-node:${index}"></span>`).join('')}
+      <span class="step1-guide-runway__packet step1-guide-runway__packet--one"></span>
+      <span class="step1-guide-runway__packet step1-guide-runway__packet--two"></span>
+    </div>
+    <div class="step1-guide-runway__metrics">
+      ${nodes.map(node => `<div>
+        <span>${escapeHtml(node.label)}</span>
+        <strong>${escapeHtml(node.value)}</strong>
+      </div>`).join('')}
+    </div>
+  </div>`;
+}
+
+function renderStep1AssessmentTypeRouteDetail({
+  assessmentType = AppState.draft?.assessmentType,
+  hasDraftSignal = false,
+  startButtonLabel = 'Continue to inputs'
+} = {}) {
+  const card = getStep1AssessmentTypeCard(assessmentType);
+  const steps = card.assessmentType === 'project_buyer'
+    ? ['Confirm buyer role', 'Describe dependency or delivery risk', 'Add project economics when available']
+    : card.assessmentType === 'project_seller'
+      ? ['Confirm seller role', 'Describe delivery or revenue commitment', 'Add contract economics when available']
+      : ['Use enterprise context', 'Describe event and impact', 'Estimate the risk'];
+  return `<section class="step1-guide-route-detail step1-assessment-route-detail" aria-label="Selected assessment type details">
+    <div class="step1-guide-route-detail__copy">
+      <div class="wizard-summary-band__label">Selected journey</div>
+      <h3>${renderStep1AssessmentTitleHtml(card.title)}</h3>
+      <p>${escapeHtml(card.guidance)}</p>
+    </div>
+    <div class="step1-guide-route-detail__steps" aria-label="What happens next">
+      ${steps.map((step, index) => `<div class="step1-guide-route-detail__step">
+        <span>${index + 1}</span>
+        <strong>${escapeHtml(step)}</strong>
+      </div>`).join('')}
+    </div>
+    <div class="step1-guide-route-detail__footer">
+      <div class="step1-guide-route-detail__context">
+        <span>Route principle</span>
+        <strong>Not department based</strong>
+        <p>The route follows the economic nature of the risk, not Finance, Legal, Procurement, IT, or any other department label.</p>
+      </div>
+      <div class="step1-guide-route-detail__handoff">
+        <span>${hasDraftSignal ? 'Existing signal' : 'Next screen'}</span>
+        <strong>${hasDraftSignal ? 'Resume detailed inputs with this type saved' : 'Detailed inputs open with this type saved'}</strong>
+      </div>
+      <button class="btn btn--primary btn--lg step1-guide-stage__cta" data-guide-next data-assessment-type-next="${escapeHtml(card.assessmentType)}" type="button">${escapeHtml(startButtonLabel)}</button>
+    </div>
+  </section>`;
+}
+
+function hasStep1AssessmentTypeSpecificData(draft = AppState.draft || {}) {
+  const hasEconomicValue = (economics = {}) => Object.values(economics && typeof economics === 'object' ? economics : {})
+    .some(value => value !== null && value !== undefined && String(value).trim() !== '');
+  return Boolean(
+    hasEconomicValue(draft.buyerEconomics)
+    || hasEconomicValue(draft.sellerEconomics)
+    || String(draft.projectContext?.projectName || draft.projectContext?.projectDescription || '').trim()
+  );
+}
+
+function selectStep1AssessmentType(nextType, {
+  navigate = false,
+  rerender = renderWizard1,
+  warn = true
+} = {}) {
+  const targetType = normaliseStep1AssessmentType(nextType);
+  const currentType = normaliseStep1AssessmentType(AppState.draft?.assessmentType);
+  if (targetType !== currentType && warn && (hasStep1Content() || hasStep1AssessmentTypeSpecificData(AppState.draft))) {
+    const confirmed = window.confirm('Change assessment type? Route-specific project fields may be cleared or ignored.');
+    if (!confirmed) return false;
+  }
+  if (typeof applyAssessmentTypeSelectionToDraft === 'function') {
+    applyAssessmentTypeSelectionToDraft(AppState.draft, targetType);
+  } else {
+    AppState.draft.assessmentType = targetType;
+    AppState.draft.projectContext = {
+      ...(AppState.draft.projectContext && typeof AppState.draft.projectContext === 'object' ? AppState.draft.projectContext : {}),
+      projectRole: targetType === 'project_buyer' ? 'buyer' : targetType === 'project_seller' ? 'seller' : 'none'
+    };
+  }
+  saveDraft();
+  if (navigate) {
+    const nextRoute = typeof getAssessmentTypeNextRoute === 'function'
+      ? getAssessmentTypeNextRoute(targetType)
+      : '/wizard/2';
+    Router.navigate(nextRoute);
+  } else if (typeof rerender === 'function') {
+    rerender();
+  }
+  return true;
+}
+
+function bindStep1AssessmentTypeSelector({ navigate = false, rerender = renderWizard1, warn = true } = {}) {
+  document.querySelectorAll('[data-assessment-type]').forEach(button => {
+    if (button.dataset.assessmentTypeBound === '1') return;
+    button.dataset.assessmentTypeBound = '1';
+    button.addEventListener('click', () => {
+      selectStep1AssessmentType(button.dataset.assessmentType, { navigate, rerender, warn });
+    });
+  });
+  document.querySelectorAll('[data-assessment-type-next]').forEach(button => {
+    if (button.dataset.assessmentTypeNextBound === '1') return;
+    button.dataset.assessmentTypeNextBound = '1';
+    button.addEventListener('click', () => {
+      selectStep1AssessmentType(button.dataset.assessmentTypeNext || AppState.draft?.assessmentType, {
+        navigate: true,
+        rerender,
+        warn
+      });
+    });
+  });
+}
+
+function renderStep1AssessmentTypeDock(draft = AppState.draft || {}) {
+  const activeType = normaliseStep1AssessmentType(draft.assessmentType);
+  const card = getStep1AssessmentTypeCard(activeType);
+  return `<details class="wizard-disclosure wizard-disclosure--support step1-assessment-type-dock anim-fade-in" data-assessment-type-dock>
+    <summary>
+      <span>Assessment type: ${renderStep1AssessmentTitleHtml(card.title)}</span>
+      <span class="badge badge--neutral">Change before run</span>
+    </summary>
+    <div class="wizard-disclosure-body step1-assessment-type-dock__body">
+      <p class="form-help">Change this only if the economic nature of the risk is different. Route-specific project fields may be cleared or ignored.</p>
+      ${renderStep1AssessmentTypeRouter(activeType, { compact: true })}
+    </div>
+  </details>`;
+}
+
 function renderStep1GuideLaneSwitch(activePath = 'guided') {
   const cards = getStep1PathCards();
   const active = activePath === 'draft' || activePath === 'import' ? activePath : 'guided';
@@ -6000,52 +6218,47 @@ function renderWizardGuide() {
     || ''
   ).trim() || getRiskCandidates().length > 0;
   const startButtonLabel = hasDraftSignal
-    ? 'Resume assessment workbench'
-    : 'Open assessment workbench';
+    ? 'Resume with this assessment type'
+    : 'Continue with this assessment type';
+  const activeAssessmentType = normaliseStep1AssessmentType(draft.assessmentType);
 
   setPage(`
-    <main class="page" aria-label="Advanced assessment start options">
+    <main class="page" aria-label="Assessment type router">
       <div class="wizard-layout wizard-layout--step1 wizard-layout--guide container">
-        <section class="wizard-header wizard-header--step1 wizard-header--guide step1-guide-stage step1-guide-stage--${escapeHtml(activePath)}">
+        <section class="wizard-header wizard-header--step1 wizard-header--guide step1-guide-stage step1-guide-stage--${escapeHtml(activePath)} step1-guide-stage--assessment-type">
           <div class="step1-guide-stage__topline">
             <div>
-              <div class="wizard-summary-band__label">Advanced start</div>
+              <div class="wizard-summary-band__label">Assessment type</div>
               <span data-draft-save-state>Draft saves automatically</span>
             </div>
             <div class="step1-guide-stage__notice">
-              <span>PoC sandbox</span>
-              <strong>Use dummy data only</strong>
+              <span>Department agnostic</span>
+              <strong>Choose by economic nature</strong>
             </div>
           </div>
 
           <div class="step1-guide-stage__hero">
             <div class="step1-guide-stage__copy">
-              <h2 class="wizard-step-title">Advanced start options.</h2>
-              <p class="wizard-step-desc">Use this screen only when Quick Assessment is not the right start. Pick a lane for an existing draft, register, or worked example.</p>
-              ${renderStep1GuideRunway({ activePath, hasDraftSignal })}
+              <h2 class="wizard-step-title">What are you assessing?</h2>
+              <p class="wizard-step-desc">Choose the journey before entering risk details. This is based on project economics and exposure, not on the user&apos;s department.</p>
+              ${renderStep1AssessmentTypeRunway({ assessmentType: activeAssessmentType, hasDraftSignal })}
             </div>
-            ${renderStep1GuideRouteDetail({
-              activePath,
+            ${renderStep1AssessmentTypeRouteDetail({
+              assessmentType: activeAssessmentType,
               hasDraftSignal,
               startButtonLabel
             })}
           </div>
 
           <div class="step1-guide-stage__decision">
-            ${renderStep1GuideLaneSwitch(activePath)}
+            ${renderStep1AssessmentTypeRouter(activeAssessmentType)}
           </div>
         </section>
       </div>
     </main>`);
 
-  bindStep1PathSelector({ rerender: renderWizardGuide });
+  bindStep1AssessmentTypeSelector({ navigate: true, rerender: renderWizardGuide, warn: true });
   updateWizardSaveState();
-  document.querySelectorAll('[data-guide-next]').forEach(button => {
-    button.addEventListener('click', () => {
-      saveDraft();
-      Router.navigate('/wizard/2');
-    });
-  });
 }
 
 function renderStep1BasicSupportTabs({
@@ -6244,6 +6457,7 @@ function renderWizard1() {
         </div>
         ${basicWorkflowRibbon}
         <div class="wizard-body">
+          ${renderStep1AssessmentTypeDock(draft)}
           ${requiredContextSection}
           ${!isBasicExperience && managerModel && typeof renderAssessmentManagerPanel === 'function'
             ? renderAssessmentManagerPanel(managerModel, { compact: true, title: 'Assessment Manager' })
@@ -6283,6 +6497,7 @@ function renderWizard1() {
   const syncWizardGeographies = createStep1GeographySyncHandler({ buList, settings });
   const wizardGeographyInput = UI.tagInput('ti-wizard-geographies', scenarioGeographies, syncWizardGeographies);
   updateWizardSaveState();
+  bindStep1AssessmentTypeSelector({ navigate: false, rerender: renderWizard1, warn: true });
   bindStep1PathSelector();
   bindStep1BasicSupportTabs();
   bindStep1PrimaryInputs({ buList, wizardGeographyInput });

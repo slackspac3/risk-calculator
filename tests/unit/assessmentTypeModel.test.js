@@ -7,6 +7,9 @@ const {
   ASSESSMENT_TYPE_GENERIC,
   ASSESSMENT_TYPE_PROJECT_BUYER,
   ASSESSMENT_TYPE_PROJECT_SELLER,
+  applyAssessmentTypeSelectionToDraft,
+  buildAssessmentTypeChangePatch,
+  getAssessmentTypeNextScreen,
   normaliseAssessmentType,
   normaliseAssessmentTypeState,
   normaliseBuyerEconomics,
@@ -160,6 +163,54 @@ test('invalid assessment type and valuation mode fall back to enterprise default
   assert.equal(state.assessmentType, ASSESSMENT_TYPE_GENERIC);
   assert.equal(state.projectContext.projectRole, 'none');
   assert.equal(state.projectExposure.valuationMode, 'benchmark_led');
+});
+
+test('assessment type route helper returns the correct next screen', () => {
+  assert.equal(getAssessmentTypeNextScreen(ASSESSMENT_TYPE_GENERIC), 'generic_enterprise_inputs');
+  assert.equal(getAssessmentTypeNextScreen(ASSESSMENT_TYPE_PROJECT_BUYER), 'project_buyer_inputs');
+  assert.equal(getAssessmentTypeNextScreen(ASSESSMENT_TYPE_PROJECT_SELLER), 'project_seller_inputs');
+  assert.equal(getAssessmentTypeNextScreen('unknown'), 'generic_enterprise_inputs');
+});
+
+test('assessment type selection stores the selected type and project role in draft state', () => {
+  const draft = normaliseAssessmentTypeState({});
+  applyAssessmentTypeSelectionToDraft(draft, ASSESSMENT_TYPE_PROJECT_BUYER);
+
+  assert.equal(draft.assessmentType, ASSESSMENT_TYPE_PROJECT_BUYER);
+  assert.equal(draft.projectContext.projectRole, 'buyer');
+
+  applyAssessmentTypeSelectionToDraft(draft, ASSESSMENT_TYPE_PROJECT_SELLER);
+  assert.equal(draft.assessmentType, ASSESSMENT_TYPE_PROJECT_SELLER);
+  assert.equal(draft.projectContext.projectRole, 'seller');
+});
+
+test('assessment type changes clear incompatible economics only when necessary', () => {
+  const buyerDraft = normaliseAssessmentTypeState({
+    assessmentType: ASSESSMENT_TYPE_PROJECT_BUYER,
+    buyerEconomics: {
+      expectedSpend: 100,
+      reprocurementPremiumPct: 0.2
+    },
+    sellerEconomics: {
+      contractValue: 500,
+      grossMarginPct: 0.4
+    }
+  });
+  const sameType = buildAssessmentTypeChangePatch(buyerDraft, ASSESSMENT_TYPE_PROJECT_BUYER);
+  assert.equal(sameType.buyerEconomics.expectedSpend, 100);
+  assert.equal(sameType.sellerEconomics.contractValue, 500);
+
+  const sellerType = buildAssessmentTypeChangePatch(buyerDraft, ASSESSMENT_TYPE_PROJECT_SELLER);
+  assert.equal(sellerType.projectContext.projectRole, 'seller');
+  assert.equal(sellerType.buyerEconomics.expectedSpend, null);
+  assert.equal(sellerType.buyerEconomics.reprocurementPremiumPct, null);
+  assert.equal(sellerType.sellerEconomics.contractValue, 500);
+  assert.equal(sellerType.sellerEconomics.grossMarginPct, 0.4);
+
+  const genericType = buildAssessmentTypeChangePatch(buyerDraft, ASSESSMENT_TYPE_GENERIC);
+  assert.equal(genericType.projectContext.projectRole, 'none');
+  assert.equal(genericType.buyerEconomics.expectedSpend, null);
+  assert.equal(genericType.sellerEconomics.contractValue, null);
 });
 
 test('percentage normalization preserves zero and bounds values between zero and one', () => {
