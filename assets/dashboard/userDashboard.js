@@ -1576,20 +1576,20 @@ function renderUserDashboard() {
     <div class="dashboard-start-module">
       <div class="dashboard-start-head">
         <div class="context-panel-title">Start a risk scenario</div>
-        <p class="dashboard-start-copy">Quick Assessment is recommended for most users. Describe the concern once, then review the AI-built first draft.</p>
+        <p class="dashboard-start-copy">Choose the assessment type first, then describe the concern once and review the AI-built first draft.</p>
       </div>
       <div class="dashboard-start-stack">
         <div class="dashboard-start-primary">
           <div class="dashboard-start-primary__content">
             <div class="dashboard-start-kicker">Recommended</div>
             <h3>Quick Assessment</h3>
-            <p>Answer two prompts, build the first scenario draft, and keep setup behind the scenes unless context is missing.</p>
+            <p>Select the economic nature of the risk, answer two prompts, and keep setup behind the scenes unless context is missing.</p>
             <div class="dashboard-start-primary__foot">Best for most new scenarios and first-pass decisions.</div>
           </div>
           <div class="dashboard-start-primary__actions">
             <button class="btn btn--primary btn--lg" id="btn-dashboard-new-assessment" aria-label="Start Quick Assessment">Start Quick Assessment</button>
-            <a class="btn btn--ghost btn--sm" href="#/wizard/1">Advanced start</a>
-            <span class="dashboard-start-inline-note">One-screen intake</span>
+            <a class="btn btn--ghost btn--sm" href="#/wizard/1">Choose type</a>
+            <span class="dashboard-start-inline-note">Assessment type first</span>
           </div>
         </div>
         <details class="dashboard-disclosure dashboard-start-advanced">

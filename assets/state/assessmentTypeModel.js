@@ -9,6 +9,10 @@
   const VALUATION_MODE_PROJECT_LINKED = 'project_linked';
   const VALUATION_MODE_HYBRID = 'hybrid';
 
+  const ASSESSMENT_SCREEN_GENERIC_INPUTS = 'generic_enterprise_inputs';
+  const ASSESSMENT_SCREEN_PROJECT_BUYER_INPUTS = 'project_buyer_inputs';
+  const ASSESSMENT_SCREEN_PROJECT_SELLER_INPUTS = 'project_seller_inputs';
+
   const MAX_PROJECT_EXPOSURE_ARRAY_ITEMS = 20;
   const MAX_PROJECT_EXPOSURE_MAP_KEYS = 30;
   const MAX_NESTED_ARRAY_ITEMS = 8;
@@ -28,6 +32,27 @@
 
   const VALID_PROJECT_ROLES = new Set(['buyer', 'seller', 'none']);
   const VALID_STRATEGIC_IMPORTANCE = new Set(['low', 'medium', 'high', 'unknown']);
+
+  const ASSESSMENT_TYPE_CARD_COPY = Object.freeze({
+    [ASSESSMENT_TYPE_GENERIC]: {
+      title: 'Generic enterprise risk',
+      guidance: 'Use this when the risk affects a process, function, system, supplier, obligation, business unit, control, or operation, but is not tied to a specific project value, spend, revenue opportunity, or contract.',
+      label: 'Enterprise',
+      nextScreen: ASSESSMENT_SCREEN_GENERIC_INPUTS
+    },
+    [ASSESSMENT_TYPE_PROJECT_BUYER]: {
+      title: 'Project risk - we are the buyer',
+      guidance: 'Use this when your organisation is buying, procuring, implementing, investing in, or depending on a project, supplier, contractor, platform, or delivery partner.',
+      label: 'Buyer',
+      nextScreen: ASSESSMENT_SCREEN_PROJECT_BUYER_INPUTS
+    },
+    [ASSESSMENT_TYPE_PROJECT_SELLER]: {
+      title: 'Project risk - we are the seller',
+      guidance: 'Use this when your organisation is delivering a project, service, implementation, contract, bid, or revenue commitment to a customer.',
+      label: 'Seller',
+      nextScreen: ASSESSMENT_SCREEN_PROJECT_SELLER_INPUTS
+    }
+  });
 
   function isPlainObject(value) {
     return !!value && typeof value === 'object' && !Array.isArray(value);
@@ -66,6 +91,30 @@
   function normaliseAssessmentType(value) {
     const next = normaliseText(value).toLowerCase();
     return VALID_ASSESSMENT_TYPES.has(next) ? next : ASSESSMENT_TYPE_GENERIC;
+  }
+
+  function getAssessmentTypeNextScreen(value) {
+    const assessmentType = normaliseAssessmentType(value);
+    return ASSESSMENT_TYPE_CARD_COPY[assessmentType]?.nextScreen || ASSESSMENT_SCREEN_GENERIC_INPUTS;
+  }
+
+  function getAssessmentTypeNextRoute(value) {
+    normaliseAssessmentType(value);
+    return '/wizard/2';
+  }
+
+  function getAssessmentTypeCards() {
+    return [
+      ASSESSMENT_TYPE_GENERIC,
+      ASSESSMENT_TYPE_PROJECT_BUYER,
+      ASSESSMENT_TYPE_PROJECT_SELLER
+    ].map((assessmentType, index) => ({
+      assessmentType,
+      index: index + 1,
+      ...ASSESSMENT_TYPE_CARD_COPY[assessmentType],
+      projectRole: projectRoleForAssessmentType(assessmentType),
+      nextRoute: getAssessmentTypeNextRoute(assessmentType)
+    }));
   }
 
   function normaliseValuationMode(value) {
@@ -232,6 +281,35 @@
     return normaliseAssessmentTypeState({ assessmentType });
   }
 
+  function buildAssessmentTypeChangePatch(currentDraft = {}, nextAssessmentType = ASSESSMENT_TYPE_GENERIC) {
+    const current = normaliseAssessmentTypeState(currentDraft);
+    const targetType = normaliseAssessmentType(nextAssessmentType);
+    if (current.assessmentType === targetType) return current;
+
+    const defaults = buildDefaultAssessmentTypeState(targetType);
+    return {
+      assessmentType: targetType,
+      projectContext: normaliseProjectContext({
+        ...current.projectContext,
+        projectRole: projectRoleForAssessmentType(targetType)
+      }, targetType),
+      buyerEconomics: targetType === ASSESSMENT_TYPE_PROJECT_BUYER
+        ? current.buyerEconomics
+        : defaults.buyerEconomics,
+      sellerEconomics: targetType === ASSESSMENT_TYPE_PROJECT_SELLER
+        ? current.sellerEconomics
+        : defaults.sellerEconomics,
+      projectExposure: current.projectExposure
+    };
+  }
+
+  function applyAssessmentTypeSelectionToDraft(draft = {}, nextAssessmentType = ASSESSMENT_TYPE_GENERIC) {
+    const target = draft && typeof draft === 'object' ? draft : {};
+    const patch = buildAssessmentTypeChangePatch(target, nextAssessmentType);
+    Object.assign(target, patch);
+    return target;
+  }
+
   const exported = {
     ASSESSMENT_TYPE_GENERIC,
     ASSESSMENT_TYPE_PROJECT_BUYER,
@@ -239,11 +317,17 @@
     VALUATION_MODE_BENCHMARK_LED,
     VALUATION_MODE_PROJECT_LINKED,
     VALUATION_MODE_HYBRID,
+    ASSESSMENT_SCREEN_GENERIC_INPUTS,
+    ASSESSMENT_SCREEN_PROJECT_BUYER_INPUTS,
+    ASSESSMENT_SCREEN_PROJECT_SELLER_INPUTS,
     MAX_PROJECT_EXPOSURE_ARRAY_ITEMS,
     normaliseAssessmentType,
     normalizeAssessmentType: normaliseAssessmentType,
     normaliseValuationMode,
     normalizeValuationMode: normaliseValuationMode,
+    getAssessmentTypeNextScreen,
+    getAssessmentTypeNextRoute,
+    getAssessmentTypeCards,
     normaliseProjectRole,
     normalizeProjectRole: normaliseProjectRole,
     normaliseProjectContext,
@@ -257,7 +341,9 @@
     normaliseAssessmentTypeState,
     normalizeAssessmentTypeState: normaliseAssessmentTypeState,
     buildAssessmentTypeState,
-    buildDefaultAssessmentTypeState
+    buildDefaultAssessmentTypeState,
+    buildAssessmentTypeChangePatch,
+    applyAssessmentTypeSelectionToDraft
   };
 
   Object.assign(globalScope, exported, {
