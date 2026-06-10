@@ -2,6 +2,15 @@
 
 (function attachAppStateStore(globalScope) {
   const STATE_TRANSITION_LOG_LIMIT = 40;
+  const assessmentTypeApi = typeof require === 'function'
+    ? (() => {
+        try {
+          return require('./assessmentTypeModel.js');
+        } catch {
+          return null;
+        }
+      })()
+    : null;
 
   function createEmptyUserStateCache(username = '') {
     return {
@@ -144,6 +153,20 @@
       .slice(-20);
   }
 
+  function getAssessmentTypeStateNormaliser() {
+    return assessmentTypeApi?.normaliseAssessmentTypeState
+      || assessmentTypeApi?.normalizeAssessmentTypeState
+      || globalScope.normaliseAssessmentTypeState
+      || globalScope.normalizeAssessmentTypeState
+      || globalScope.AssessmentTypeModel?.normaliseAssessmentTypeState
+      || null;
+  }
+
+  function normaliseDraftAssessmentTypeState(source = {}) {
+    const normalise = getAssessmentTypeStateNormaliser();
+    return typeof normalise === 'function' ? normalise(source) : {};
+  }
+
   const DRAFT_LLM_CONTEXT_KEYS = new Set([
     'llmContext',
     'step1LlmContext',
@@ -159,8 +182,10 @@
   function normaliseDraftState(draft) {
     const source = draft && typeof draft === 'object' ? draft : {};
     const legacyContext = normaliseLlmContext(source.llmContext);
+    const assessmentTypeState = normaliseDraftAssessmentTypeState(source);
     return {
       ...source,
+      ...assessmentTypeState,
       llmContext: legacyContext,
       step1LlmContext: normaliseLlmContext(
         Array.isArray(source.step1LlmContext) ? source.step1LlmContext : legacyContext

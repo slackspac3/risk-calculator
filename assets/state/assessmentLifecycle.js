@@ -1,6 +1,16 @@
 'use strict';
 
 (function attachAssessmentLifecycle(globalScope) {
+  const assessmentTypeApi = typeof require === 'function'
+    ? (() => {
+        try {
+          return require('./assessmentTypeModel.js');
+        } catch {
+          return null;
+        }
+      })()
+    : null;
+
   const ASSESSMENT_LIFECYCLE_STATUS = Object.freeze({
     DRAFT: 'draft',
     READY_FOR_REVIEW: 'ready_for_review',
@@ -67,6 +77,21 @@
       // Lifecycle transitions should still proceed if one field is not perfectly serializable.
       return { ...value };
     }
+  }
+
+  function getAssessmentTypeStateNormaliser() {
+    return assessmentTypeApi?.normaliseAssessmentTypeState
+      || assessmentTypeApi?.normalizeAssessmentTypeState
+      || globalScope.normaliseAssessmentTypeState
+      || globalScope.normalizeAssessmentTypeState
+      || globalScope.AssessmentTypeModel?.normaliseAssessmentTypeState
+      || null;
+  }
+
+  function normaliseAssessmentTypeFields(assessment) {
+    const normalise = getAssessmentTypeStateNormaliser();
+    if (typeof normalise !== 'function') return {};
+    return normalise(assessment);
   }
 
   function buildAssessmentId() {
@@ -138,6 +163,7 @@
 
   function normaliseAssessmentRecord(assessment) {
     const next = cloneAssessment(assessment);
+    Object.assign(next, normaliseAssessmentTypeFields(next));
     next.structuredScenario = typeof normaliseStructuredScenario === 'function'
       ? normaliseStructuredScenario(next.structuredScenario, { preserveUnknown: true })
       : next.structuredScenario;
