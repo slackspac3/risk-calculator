@@ -1040,7 +1040,7 @@ function renderWizard2AiReviewWorkbench(draft, result) {
     badgeTone: 'neutral',
     open: false,
     className: 'wizard-disclosure card card--elevated wizard-secondary-workbench mt-4 anim-fade-in',
-    body: `${renderWizard2ProjectFraming(draft, result)}${renderWizard2AnalystReasoning(draft, result)}${renderScenarioAssistSummaryBlock({
+    body: `${renderWizard2AnalystReasoning(draft, result)}${renderScenarioAssistSummaryBlock({
       workflowGuidance: draft.workflowGuidance,
       confidenceLabel: draft.confidenceLabel,
       evidenceQuality: draft.evidenceQuality,
@@ -1223,7 +1223,7 @@ async function runLLMAssist() {
     saveDraft();
     const aiStatusBanner = typeof renderAIStatusBanner === 'function' ? renderAIStatusBanner() : '';
     const wizard2Trace = getWizard2LatestTrace();
-    output.innerHTML = `${aiStatusBanner}${renderWizard2AiChangeSummary(result, previousNarrative)}${renderWizard2AiReadyBand(result)}${wizard2Trace ? `<div class="form-help" style="margin-top:var(--sp-3)"><button type="button" class="link-btn" id="btn-why-this-wizard2" style="appearance:none;background:none;border:0;padding:0;color:inherit;text-decoration:underline;cursor:pointer;font:inherit">Why this?</button></div>` : ''}<div class="flex items-center gap-3 mt-4" style="flex-wrap:wrap"><button class="btn btn--primary" id="btn-wizard2-ai-continue" type="button">Continue to estimation</button><button class="btn btn--ghost" id="btn-wizard2-ai-retry" type="button">Run AI again</button></div>${renderWizard2AiReviewWorkbench(AppState.draft, result)}`;
+    output.innerHTML = `${aiStatusBanner}${renderWizard2AiChangeSummary(result, previousNarrative)}${renderWizard2AiReadyBand(result)}${renderWizard2ProjectFraming(AppState.draft, result)}${wizard2Trace ? `<div class="form-help" style="margin-top:var(--sp-3)"><button type="button" class="link-btn" id="btn-why-this-wizard2" style="appearance:none;background:none;border:0;padding:0;color:inherit;text-decoration:underline;cursor:pointer;font:inherit">Why this?</button></div>` : ''}<div class="flex items-center gap-3 mt-4" style="flex-wrap:wrap"><button class="btn btn--primary" id="btn-wizard2-ai-continue" type="button">Continue to estimation</button><button class="btn btn--ghost" id="btn-wizard2-ai-retry" type="button">Run AI again</button></div>${renderWizard2AiReviewWorkbench(AppState.draft, result)}`;
     if (status) status.textContent = result.usedFallback
       ? 'A fallback suggested draft is ready. Review the changes, assumptions, and source basis before continuing.'
       : 'A suggested draft is ready. Review the changes, assumptions, and source basis before continuing.';

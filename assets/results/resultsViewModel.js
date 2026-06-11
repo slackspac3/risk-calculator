@@ -248,7 +248,87 @@
       : { label: 'No assumptions', tone: 'warning' };
   }
 
-  function buildCockpitAiMode(assessment = {}) {
+  function buildCockpitCurrentFingerprints(assessment = {}, r = {}) {
+    const service = global.AiProductStateService;
+    if (!service || typeof service.buildFingerprint !== 'function') return {};
+    const scenario = {
+      assessmentType: assessment?.assessmentType || 'enterprise_generic',
+      scenario: assessment?.enhancedNarrative || assessment?.narrative || assessment?.scenarioTitle || '',
+      structuredScenario: assessment?.structuredScenario || {},
+      scenarioLens: assessment?.scenarioLens || {}
+    };
+    const project = {
+      assessmentType: assessment?.assessmentType || 'enterprise_generic',
+      projectContext: assessment?.projectContext || {},
+      buyerEconomics: assessment?.buyerEconomics || {},
+      buyerEconomicsMeta: assessment?.buyerEconomicsMeta || {},
+      sellerEconomics: assessment?.sellerEconomics || {},
+      sellerEconomicsMeta: assessment?.sellerEconomicsMeta || {},
+      buyerProxyQuestions: assessment?.buyerProxyQuestions || {},
+      sellerProxyQuestions: assessment?.sellerProxyQuestions || {}
+    };
+    const parameters = assessment?.fairParams || r?.inputs || {};
+    const simulation = {
+      eventLoss: r?.eventLoss || r?.lm || {},
+      annualLoss: r?.annualLoss || r?.ale || {},
+      projectHorizon: r?.projectHorizon || {}
+    };
+    return {
+      projectExposure: service.buildFingerprint(project),
+      assumptionRegister: service.buildFingerprint({
+        ...scenario,
+        projectExposure: assessment?.projectExposure || {},
+        parameters,
+        results: simulation,
+        citations: assessment?.citations || []
+      }),
+      parameterCoach: service.buildFingerprint({
+        ...scenario,
+        projectExposure: assessment?.projectExposure || {},
+        parameters,
+        evidenceMap: assessment?.evidenceMap || {},
+        citations: assessment?.citations || []
+      }),
+      evidenceMap: service.buildFingerprint({
+        ...scenario,
+        projectExposure: assessment?.projectExposure || {},
+        citations: assessment?.citations || [],
+        primaryGrounding: assessment?.primaryGrounding || [],
+        supportingReferences: assessment?.supportingReferences || []
+      }),
+      decisionChallenge: service.buildFingerprint({
+        ...scenario,
+        projectExposure: assessment?.projectExposure || {},
+        parameters,
+        simulation,
+        assumptionRegister: assessment?.assumptionRegister || {},
+        parameterCoach: assessment?.parameterCoach || {},
+        evidenceMap: assessment?.evidenceMap || {}
+      }),
+      decisionBrief: service.buildFingerprint({
+        ...scenario,
+        projectExposure: assessment?.projectExposure || {},
+        simulation,
+        assumptionRegister: assessment?.assumptionRegister || {},
+        parameterCoach: assessment?.parameterCoach || {},
+        evidenceMap: assessment?.evidenceMap || {},
+        decisionChallenge: assessment?.decisionChallenge || {}
+      })
+    };
+  }
+
+  function buildCockpitAiJourney(assessment = {}, r = {}) {
+    const service = global.AiProductStateService;
+    if (!service || typeof service.buildAssessmentAiState !== 'function') return null;
+    return service.buildAssessmentAiState(assessment, {
+      currentFingerprints: buildCockpitCurrentFingerprints(assessment, r)
+    });
+  }
+
+  function buildCockpitAiMode(assessment = {}, aiJourney = null) {
+    if (aiJourney && typeof aiJourney === 'object') {
+      return { label: aiJourney.modeLabel || 'No AI outputs', tone: aiJourney.tone || 'neutral' };
+    }
     const metaCandidates = [
       assessment?.decisionBriefMeta,
       assessment?.decisionChallengeMeta,
@@ -332,6 +412,7 @@
     const postureLabel = humanizeCockpitToken(posture, 'Review');
     const postureTone = resolveCockpitPostureTone(`${posture} ${statusTitle}`);
     const challenge = buildCockpitChallengeSummary(assessment);
+    const aiJourney = buildCockpitAiJourney(assessment, r);
     const knownValues = normalizeCockpitValueItems(projectResultsModel?.knownValues, 6);
     const estimatedValues = normalizeCockpitValueItems(projectResultsModel?.estimatedValues, 6);
     const proxyDriverValues = (Array.isArray(projectResultsModel?.driverGroups?.proxyEstimated) ? projectResultsModel.driverGroups.proxyEstimated : [])
@@ -407,7 +488,7 @@
         ];
     const evidenceConfidence = buildCockpitEvidenceConfidence(assessment);
     const assumptionConfidence = buildCockpitAssumptionConfidence(assessment, assessmentIntelligence);
-    const aiMode = buildCockpitAiMode(assessment);
+    const aiMode = buildCockpitAiMode(assessment, aiJourney);
     const inputQualityLabel = isProject
       ? cleanCockpitText(projectResultsModel?.inputQuality?.label || 'Thin project economics')
       : 'Enterprise input set';
@@ -448,6 +529,7 @@
       evidenceConfidence,
       assumptionConfidence,
       aiMode,
+      aiJourney,
       inputQualityLabel,
       inputQualityScore: Number.isFinite(Number(projectResultsModel?.inputQuality?.score)) ? Number(projectResultsModel.inputQuality.score) : null,
       inputQualityTone,

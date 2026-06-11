@@ -51,7 +51,10 @@ function extractFunctionBody(source, functionName) {
 }
 
 const step1Js = read('assets/wizard/step1.js');
+const step4Js = read('assets/wizard/step4.js');
 const appJs = read('assets/app.js');
+const assetLoaderJs = read('assets/services/assetLoader.js');
+const aiProductStateJs = read('assets/services/aiProductStateService.js');
 const assessmentStateJs = read('assets/state/assessmentState.js');
 const e2eSmokeSpecJs = read('tests/e2e/smoke.spec.js');
 
@@ -112,6 +115,30 @@ expect(
     && read('tests/unit/assessmentState.test.js').includes('saveDraft persists the scoped session draft and detached cache snapshot')
     && read('tests/unit/assessmentState.test.js').includes("sessionStorage.getItem('rq_draft__alex.trafton')"),
   'Unit coverage must verify saveDraft writes the scoped browser-session payload.'
+);
+expect(
+  assetLoaderJs.includes("aiProductState: 'assets/services/aiProductStateService.js'")
+    && assetLoaderJs.includes('LOCAL_ASSETS.aiProductState')
+    && assetLoaderJs.includes('LOCAL_ASSETS.resultsViewModel'),
+  'AI product state helper must be loaded with wizard/results route bundles before freshness-aware UI renders.'
+);
+expect(
+  aiProductStateJs.includes('buildAiOutputState')
+    && aiProductStateJs.includes('currentFingerprint')
+    && aiProductStateJs.includes('freshnessStatus')
+    && aiProductStateJs.includes('stale'),
+  'AI product state helper must expose fingerprint-based stale output detection.'
+);
+expect(
+  step1Js.includes('savedAiState?.freshnessStatus === \'stale\'')
+    && step1Js.includes('Refresh exposure map'),
+  'Step 1 project exposure UI must show a refresh prompt when the saved AI map is stale.'
+);
+expect(
+  step4Js.includes('buildStep4ParameterCoachFingerprint')
+    && step4Js.includes('buildStep4EvidenceMapFingerprint')
+    && step4Js.includes('inputFingerprint'),
+  'Step 4 AI review outputs must persist input fingerprints for stale Parameter Coach and Evidence Map detection.'
 );
 
 if (failures.length) {

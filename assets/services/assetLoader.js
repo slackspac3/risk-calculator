@@ -9,6 +9,7 @@
   const LOCAL_ASSETS = {
     reportPresentation: 'assets/services/reportPresentation.js',
     metricExplainer: 'assets/services/metricExplainerService.js',
+    aiProductState: 'assets/services/aiProductStateService.js',
     exportService: 'assets/services/exportService.js',
     taxonomyData: 'assets/services/scenarioTaxonomyProjectionData.js',
     taxonomyProjection: 'assets/services/scenarioTaxonomyProjection.js',
@@ -72,6 +73,7 @@
       LOCAL_ASSETS.decisionSupportModel,
       LOCAL_ASSETS.reportPresentation,
       LOCAL_ASSETS.metricExplainer,
+      LOCAL_ASSETS.aiProductState,
       LOCAL_ASSETS.exportService,
       LOCAL_ASSETS.resultsViewModel,
       LOCAL_ASSETS.resultsTabs,
@@ -79,6 +81,7 @@
     ],
     wizardStep1: [
       LOCAL_ASSETS.assessmentTypeModel,
+      LOCAL_ASSETS.aiProductState,
       LOCAL_ASSETS.projectExposureService,
       LOCAL_ASSETS.draftScenarioState,
       LOCAL_ASSETS.taxonomyData,
@@ -89,6 +92,7 @@
     wizardStep2: [
       LOCAL_ASSETS.assessmentTypeModel,
       LOCAL_ASSETS.decisionSupportModel,
+      LOCAL_ASSETS.aiProductState,
       LOCAL_ASSETS.projectExposureService,
       LOCAL_ASSETS.draftScenarioState,
       LOCAL_ASSETS.step2
@@ -97,12 +101,14 @@
       LOCAL_ASSETS.assessmentTypeModel,
       LOCAL_ASSETS.projectExposureService,
       LOCAL_ASSETS.projectParameterSuggestionService,
+      LOCAL_ASSETS.aiProductState,
       LOCAL_ASSETS.step4,
       LOCAL_ASSETS.step3
     ],
     wizardStep4: [
       LOCAL_ASSETS.assessmentTypeModel,
       LOCAL_ASSETS.decisionSupportModel,
+      LOCAL_ASSETS.aiProductState,
       LOCAL_ASSETS.projectExposureService,
       LOCAL_ASSETS.projectParameterSuggestionService,
       LOCAL_ASSETS.draftScenarioState,

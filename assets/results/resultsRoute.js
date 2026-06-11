@@ -1679,6 +1679,22 @@ function renderResultsCockpitStringList(title = '', items = [], emptyCopy = '') 
   </article>`;
 }
 
+function renderResultsAiJourneyStrip(aiJourney = {}) {
+  if (!aiJourney || typeof aiJourney !== 'object' || !Array.isArray(aiJourney.outputs)) return '';
+  const outputs = aiJourney.outputs.filter(item => item && (item.hasOutput || item.refreshRecommended)).slice(0, 6);
+  const needsAction = aiJourney.staleCount > 0 || aiJourney.emptyCount > 0;
+  return `<div class="ai-product-state-strip ${needsAction ? 'ai-product-state-strip--warning' : ''} results-decision-cockpit__ai-strip">
+    <div>
+      <strong>${escapeHtml(aiJourney.recommendedAction || 'Review AI support')}</strong>
+      <span>${escapeHtml(aiJourney.recommendedReason || `${aiJourney.modeLabel || 'AI support'} · ${aiJourney.liveCount || 0} live · ${aiJourney.fallbackCount || 0} fallback · ${aiJourney.staleCount || 0} stale`)}</span>
+    </div>
+    <div class="ai-product-state-strip__badges">
+      <span class="badge badge--${normaliseResultsBadgeTone(aiJourney.tone || 'neutral')}">${escapeHtml(aiJourney.modeLabel || 'AI support')}</span>
+      ${outputs.map(item => `<span class="badge badge--${normaliseResultsBadgeTone(item.freshnessTone || 'neutral')}">${escapeHtml(item.label)}: ${escapeHtml(item.freshnessLabel || 'Saved')}</span>`).join('')}
+    </div>
+  </div>`;
+}
+
 function renderResultsDecisionCockpit(model = {}) {
   if (!model || typeof model !== 'object') return '';
   const metrics = Array.isArray(model.economicsMetrics) ? model.economicsMetrics : [];
@@ -1725,6 +1741,7 @@ function renderResultsDecisionCockpit(model = {}) {
     <div class="results-decision-cockpit__quality-strip">
       ${badges.map(renderResultsCockpitBadge).join('')}
     </div>
+    ${renderResultsAiJourneyStrip(model.aiJourney)}
     <div class="results-decision-cockpit__known-grid">
       ${model.isProject
         ? `

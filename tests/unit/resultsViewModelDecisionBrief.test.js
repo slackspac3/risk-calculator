@@ -8,6 +8,7 @@ const vm = require('node:vm');
 
 const ReportPresentation = require('../../assets/services/reportPresentation.js');
 const DecisionSupportModel = require('../../assets/state/decisionSupportModel.js');
+const AiProductStateService = require('../../assets/services/aiProductStateService.js');
 
 function buildResults(overrides = {}) {
   return {
@@ -37,11 +38,12 @@ function buildResults(overrides = {}) {
 function buildViewModel() {
   const source = fs.readFileSync(path.resolve(__dirname, '../../assets/results/resultsViewModel.js'), 'utf8');
   const sandbox = {
-    window: {},
+    window: { AiProductStateService },
     AuthService: { getCurrentUser: () => null },
     AppState: { resultsTab: 'executive', resultsBoardroomMode: false },
     ReportPresentation,
     DecisionSupportModel,
+    AiProductStateService,
     hydrateResultsRuntimeState: assessment => assessment.results,
     getWarningThreshold: () => 750000,
     getToleranceThreshold: () => 1000000,
@@ -139,6 +141,40 @@ test('results cockpit exposes no-AI empty state safely', () => {
   assert.equal(model.decisionCockpitModel.aiMode.label, 'No AI outputs');
   assert.ok(model.decisionCockpitModel.emptyStates.some(item => item.key === 'no_ai'));
   assert.ok(model.decisionCockpitModel.emptyStates.some(item => item.key === 'no_challenge'));
+});
+
+test('results cockpit exposes unified AI journey state and stale prompts', () => {
+  const ResultsViewModel = buildViewModel();
+  const staleFingerprint = AiProductStateService.buildFingerprint({ old: true });
+  const model = ResultsViewModel.buildResultsRenderModel({
+    id: 'a-ai-journey',
+    assessmentType: 'project_buyer',
+    scenarioTitle: 'Supplier delay',
+    buName: 'Technology',
+    geography: 'United Arab Emirates',
+    createdAt: Date.now(),
+    projectContext: { projectRole: 'buyer', projectName: 'ERP rollout' },
+    buyerEconomics: { approvedBudget: 2000000 },
+    buyerEconomicsMeta: { approvedBudget: { status: 'known', confidence: 'high', source: 'user' } },
+    projectExposure: {
+      sourceMode: 'live',
+      inputFingerprint: staleFingerprint,
+      projectExposureSummary: 'Old project map.',
+      projectInputQuality: { score: 50, label: 'Partial project economics' },
+      financialDrivers: []
+    },
+    decisionBrief: {
+      mode: 'deterministic_fallback',
+      recommendation: 'Confirm the project economics.',
+      decisionPosture: 'needs_more_evidence',
+      why: 'Inputs changed after the map was generated.'
+    },
+    results: buildResults()
+  });
+
+  assert.equal(model.decisionCockpitModel.aiJourney.staleCount >= 1, true);
+  assert.equal(model.decisionCockpitModel.aiJourney.recommendedAction, 'Refresh Project exposure map');
+  assert.ok(model.decisionCockpitModel.badges.some(item => item.label === 'AI mode'));
 });
 
 test('results cockpit surfaces buyer sparse economics without zeroing unknowns', () => {

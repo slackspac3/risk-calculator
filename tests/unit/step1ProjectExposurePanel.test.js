@@ -9,6 +9,7 @@ const vm = require('node:vm');
 function loadStep1ProjectExposureHarness(draft) {
   const files = [
     '../../assets/state/assessmentTypeModel.js',
+    '../../assets/services/aiProductStateService.js',
     '../../assets/services/projectExposureService.js',
     '../../assets/services/scenarioTaxonomyProjectionData.js',
     '../../assets/services/scenarioTaxonomyProjection.js',
@@ -92,6 +93,10 @@ function loadStep1ProjectExposureHarness(draft) {
     if (relativePath.includes('assessmentTypeModel.js')) {
       context.AssessmentTypeModel = context.window.AssessmentTypeModel;
       Object.assign(context, context.window.AssessmentTypeModel);
+    }
+    if (relativePath.includes('aiProductStateService.js')) {
+      context.AiProductStateService = context.window.AiProductStateService;
+      Object.assign(context, context.window.AiProductStateService);
     }
     if (relativePath.includes('projectExposureService.js')) {
       context.ProjectExposureService = context.window.ProjectExposureService;
@@ -239,4 +244,26 @@ test('missing input actions update economics metadata without treating blank as 
   assert.equal(context.AppState.draft.buyerEconomics.remainingSpend, null);
   assert.equal(context.AppState.draft.buyerEconomicsMeta.remainingSpend.status, 'estimated');
   assert.equal(context.AppState.draft.buyerEconomicsMeta.remainingSpend.confidence, 'low');
+});
+
+test('project exposure panel shows smart refresh prompt for stale saved AI map', () => {
+  const draft = baseDraft('project_buyer');
+  draft.projectExposure = {
+    sourceMode: 'live',
+    inputFingerprint: 'old-project-fingerprint',
+    projectExposureSummary: 'Previous live map.',
+    financialDrivers: [{ id: 'delay', label: 'Delay cost', driverStatus: 'unquantified_driver', likely: null }],
+    capsAndOffsets: [],
+    doubleCountingWarnings: [],
+    missingInputs: [{ field: 'delayCostPerDay', label: 'Delay cost per day' }],
+    mapsToRiskParameters: {},
+    generatedAt: '2026-06-10T00:00:00.000Z'
+  };
+  const context = loadStep1ProjectExposureHarness(draft);
+
+  const html = context.renderStep1ProjectExposurePanel('buyer', context.AppState.draft);
+
+  assert.match(html, /Refresh Project exposure map/);
+  assert.match(html, /Needs refresh/);
+  assert.match(html, /Smart prompt/);
 });
