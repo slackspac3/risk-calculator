@@ -101,7 +101,8 @@ test('treatment-suggestion route returns manual mode for incomplete baseline inp
     }),
     headers: {
       origin: 'https://slackspac3.github.io',
-      'x-session-token': token
+      'x-session-token': token,
+      'content-type': 'application/json'
     },
     socket: { remoteAddress: '127.0.0.1' }
   }, res);
@@ -158,7 +159,8 @@ test('treatment-suggestion route returns deterministic server fallback when host
     }),
     headers: {
       origin: 'https://slackspac3.github.io',
-      'x-session-token': token
+      'x-session-token': token,
+      'content-type': 'application/json'
     },
     socket: { remoteAddress: '127.0.0.1' }
   }, res);
@@ -241,7 +243,8 @@ test('treatment-suggestion fallback explains buyer project tradeoff without quan
     }),
     headers: {
       origin: 'https://slackspac3.github.io',
-      'x-session-token': token
+      'x-session-token': token,
+      'content-type': 'application/json'
     },
     socket: { remoteAddress: '127.0.0.1' }
   }, res);
@@ -311,7 +314,8 @@ test('treatment-suggestion fallback explains seller project tradeoff without tre
     }),
     headers: {
       origin: 'https://slackspac3.github.io',
-      'x-session-token': token
+      'x-session-token': token,
+      'content-type': 'application/json'
     },
     socket: { remoteAddress: '127.0.0.1' }
   }, res);
@@ -406,7 +410,8 @@ test('treatment-suggestion route orchestrates live generation server-side', asyn
     }),
     headers: {
       origin: 'https://slackspac3.github.io',
-      'x-session-token': token
+      'x-session-token': token,
+      'content-type': 'application/json'
     },
     socket: { remoteAddress: '127.0.0.1' }
   }, res);
@@ -498,7 +503,8 @@ test('treatment-suggestion route does not reuse completed results when the norma
     }),
     headers: {
       origin: 'https://slackspac3.github.io',
-      'x-session-token': token
+      'x-session-token': token,
+      'content-type': 'application/json'
     },
     socket: { remoteAddress: '127.0.0.1' }
   }, firstRes);
@@ -512,7 +518,8 @@ test('treatment-suggestion route does not reuse completed results when the norma
     }),
     headers: {
       origin: 'https://slackspac3.github.io',
-      'x-session-token': token
+      'x-session-token': token,
+      'content-type': 'application/json'
     },
     socket: { remoteAddress: '127.0.0.1' }
   }, secondRes);

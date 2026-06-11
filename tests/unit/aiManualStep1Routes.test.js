@@ -112,7 +112,8 @@ test('manual-draft-refinement route lets explicit identity-led text beat a stale
     }),
     headers: {
       origin: 'https://slackspac3.github.io',
-      'x-session-token': token
+      'x-session-token': token,
+      'content-type': 'application/json'
     },
     socket: { remoteAddress: '127.0.0.1' }
   }, res);
@@ -202,7 +203,8 @@ test('manual-draft-refinement route uses dedicated refinement orchestration and 
     }),
     headers: {
       origin: 'https://slackspac3.github.io',
-      'x-session-token': token
+      'x-session-token': token,
+      'content-type': 'application/json'
     },
     socket: { remoteAddress: '127.0.0.1' }
   }, res);
@@ -287,7 +289,8 @@ test('manual-draft-refinement route keeps supplier slippage refinement in the de
     }),
     headers: {
       origin: 'https://slackspac3.github.io',
-      'x-session-token': token
+      'x-session-token': token,
+      'content-type': 'application/json'
     },
     socket: { remoteAddress: '127.0.0.1' }
   }, res);
@@ -330,7 +333,8 @@ test('manual-shortlist route keeps payment-control failure in the financial lane
     }),
     headers: {
       origin: 'https://slackspac3.github.io',
-      'x-session-token': token
+      'x-session-token': token,
+      'content-type': 'application/json'
     },
     socket: { remoteAddress: '127.0.0.1' }
   }, res);
@@ -376,7 +380,8 @@ test('manual-intake-assist route keeps supplier delivery slippage out of cyber d
     }),
     headers: {
       origin: 'https://slackspac3.github.io',
-      'x-session-token': token
+      'x-session-token': token,
+      'content-type': 'application/json'
     },
     socket: { remoteAddress: '127.0.0.1' }
   }, res);
@@ -450,7 +455,8 @@ test('manual-shortlist route uses dedicated shortlist orchestration and does not
     }),
     headers: {
       origin: 'https://slackspac3.github.io',
-      'x-session-token': token
+      'x-session-token': token,
+      'content-type': 'application/json'
     },
     socket: { remoteAddress: '127.0.0.1' }
   }, res);
@@ -515,7 +521,8 @@ test('manual-shortlist route returns manual mode for ambiguous short text instea
     }),
     headers: {
       origin: 'https://slackspac3.github.io',
-      'x-session-token': token
+      'x-session-token': token,
+      'content-type': 'application/json'
     },
     socket: { remoteAddress: '127.0.0.1' }
   }, res);

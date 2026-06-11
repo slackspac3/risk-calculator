@@ -98,7 +98,8 @@ test('register-analysis route returns manual mode for header-only uploads before
     }),
     headers: {
       origin: 'https://slackspac3.github.io',
-      'x-session-token': token
+      'x-session-token': token,
+      'content-type': 'application/json'
     },
     socket: { remoteAddress: '127.0.0.1' }
   }, res);
@@ -142,7 +143,8 @@ test('register-analysis route returns deterministic server fallback when hosted 
     }),
     headers: {
       origin: 'https://slackspac3.github.io',
-      'x-session-token': token
+      'x-session-token': token,
+      'content-type': 'application/json'
     },
     socket: { remoteAddress: '127.0.0.1' }
   }, res);
@@ -233,7 +235,8 @@ test('register-analysis route orchestrates live extraction and quality-gate serv
     }),
     headers: {
       origin: 'https://slackspac3.github.io',
-      'x-session-token': token
+      'x-session-token': token,
+      'content-type': 'application/json'
     },
     socket: { remoteAddress: '127.0.0.1' }
   }, res);
@@ -321,7 +324,8 @@ test('register-analysis route trims repeated headers, noisy columns, and excess 
     }),
     headers: {
       origin: 'https://slackspac3.github.io',
-      'x-session-token': token
+      'x-session-token': token,
+      'content-type': 'application/json'
     },
     socket: { remoteAddress: '127.0.0.1' }
   }, res);
@@ -406,7 +410,8 @@ test('register-analysis route reuses the recent identical result for the same us
     }),
     headers: {
       origin: 'https://slackspac3.github.io',
-      'x-session-token': token
+      'x-session-token': token,
+      'content-type': 'application/json'
     },
     socket: { remoteAddress: '127.0.0.1' }
   };

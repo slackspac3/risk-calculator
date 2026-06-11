@@ -1,7 +1,7 @@
 'use strict';
 
 const { requireSession } = require('../_apiAuth');
-const { applyCorsHeaders, getUnexpectedFields, isAllowedOrigin, isPlainObject, parseRequestBody } = require('../_request');
+const { applyCorsHeaders, enforceJsonPostBody, getUnexpectedFields, isAllowedOrigin, isPlainObject, parseRequestBody } = require('../_request');
 const { validateBody } = require('../_validation');
 const { checkRateLimit } = require('../_rateLimit');
 const { withAiRouteMetrics } = require('../_aiRouteMetrics');
@@ -19,6 +19,7 @@ module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return void res.status(405).json({ error: 'Method not allowed' });
   const origin = req.headers.origin;
   if (!origin || !isAllowedOrigin(origin)) return void res.status(403).json({ error: 'Origin not allowed' });
+  if (!enforceJsonPostBody(req, res, { maxBodyChars: 120000 })) return;
   const session = await requireSession(req, res);
   if (!session) return;
   const rateLimit = await checkRateLimit(getRateLimitKey(req, session), { maxPerWindow: 30, windowMs: 60000 });

@@ -1,7 +1,7 @@
 'use strict';
 
 const { requireSession } = require('../_apiAuth');
-const { applyCorsHeaders, getUnexpectedFields, isAllowedOrigin, isPlainObject, parseRequestBody } = require('../_request');
+const { applyCorsHeaders, enforceJsonPostBody, getUnexpectedFields, isAllowedOrigin, isPlainObject, parseRequestBody } = require('../_request');
 const { validateBody } = require('../_validation');
 const { checkRateLimit } = require('../_rateLimit');
 const { buildGuidedScenarioDraftWorkflow, normaliseGuidedScenarioDraftInput } = require('../_scenarioDraftWorkflow');
@@ -55,6 +55,7 @@ module.exports = async function handler(req, res) {
     res.status(403).json({ error: 'Origin not allowed' });
     return;
   }
+  if (!enforceJsonPostBody(req, res, { maxBodyChars: 180000 })) return;
 
   const session = await requireSession(req, res);
   if (!session) return;

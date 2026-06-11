@@ -98,7 +98,8 @@ test('scenario-draft route returns manual mode for incomplete scenario input bef
     }),
     headers: {
       origin: 'https://slackspac3.github.io',
-      'x-session-token': token
+      'x-session-token': token,
+      'content-type': 'application/json'
     },
     socket: { remoteAddress: '127.0.0.1' }
   }, res);
@@ -144,7 +145,8 @@ test('scenario-draft route returns deterministic server fallback when hosted AI 
     }),
     headers: {
       origin: 'https://slackspac3.github.io',
-      'x-session-token': token
+      'x-session-token': token,
+      'content-type': 'application/json'
     },
     socket: { remoteAddress: '127.0.0.1' }
   }, res);
@@ -194,7 +196,8 @@ test('scenario-draft route keeps no-DR Outlook continuity scenarios out of cyber
     }),
     headers: {
       origin: 'https://slackspac3.github.io',
-      'x-session-token': token
+      'x-session-token': token,
+      'content-type': 'application/json'
     },
     socket: { remoteAddress: '127.0.0.1' }
   }, res);
@@ -246,7 +249,8 @@ test('scenario-draft route keeps website traffic-flood attacks in a cyber availa
     }),
     headers: {
       origin: 'https://slackspac3.github.io',
-      'x-session-token': token
+      'x-session-token': token,
+      'content-type': 'application/json'
     },
     socket: { remoteAddress: '127.0.0.1' }
   }, res);
@@ -298,7 +302,8 @@ test('scenario-draft route keeps counterparty default fallback in the credit-los
     }),
     headers: {
       origin: 'https://slackspac3.github.io',
-      'x-session-token': token
+      'x-session-token': token,
+      'content-type': 'application/json'
     },
     socket: { remoteAddress: '127.0.0.1' }
   }, res);
@@ -349,7 +354,8 @@ test('scenario-draft route keeps payroll disclosure fallback out of supplier-del
     }),
     headers: {
       origin: 'https://slackspac3.github.io',
-      'x-session-token': token
+      'x-session-token': token,
+      'content-type': 'application/json'
     },
     socket: { remoteAddress: '127.0.0.1' }
   }, res);
@@ -401,7 +407,8 @@ test('scenario-draft route keeps supplier labour fallback in the ESG lane instea
     }),
     headers: {
       origin: 'https://slackspac3.github.io',
-      'x-session-token': token
+      'x-session-token': token,
+      'content-type': 'application/json'
     },
     socket: { remoteAddress: '127.0.0.1' }
   }, res);
@@ -500,7 +507,8 @@ test('scenario-draft route orchestrates live generation and quality-gate server-
     }),
     headers: {
       origin: 'https://slackspac3.github.io',
-      'x-session-token': token
+      'x-session-token': token,
+      'content-type': 'application/json'
     },
     socket: { remoteAddress: '127.0.0.1' }
   }, res);
@@ -628,7 +636,8 @@ test('scenario-draft route sends preserve-details anchors and compact context to
     }),
     headers: {
       origin: 'https://slackspac3.github.io',
-      'x-session-token': token
+      'x-session-token': token,
+      'content-type': 'application/json'
     },
     socket: { remoteAddress: '127.0.0.1' }
   }, res);
@@ -788,7 +797,8 @@ test('scenario-draft route includes buyer project economics and exposure context
     }),
     headers: {
       origin: 'https://slackspac3.github.io',
-      'x-session-token': token
+      'x-session-token': token,
+      'content-type': 'application/json'
     },
     socket: { remoteAddress: '127.0.0.1' }
   }, res);
@@ -935,7 +945,8 @@ test('scenario-draft route includes seller project economics and exposure contex
     }),
     headers: {
       origin: 'https://slackspac3.github.io',
-      'x-session-token': token
+      'x-session-token': token,
+      'content-type': 'application/json'
     },
     socket: { remoteAddress: '127.0.0.1' }
   }, res);
@@ -997,7 +1008,8 @@ test('scenario-draft fallback keeps sparse buyer economics unknown instead of cr
     }),
     headers: {
       origin: 'https://slackspac3.github.io',
-      'x-session-token': token
+      'x-session-token': token,
+      'content-type': 'application/json'
     },
     socket: { remoteAddress: '127.0.0.1' }
   }, res);
@@ -1059,7 +1071,8 @@ test('scenario-draft fallback keeps sparse seller margin unknown instead of inve
     }),
     headers: {
       origin: 'https://slackspac3.github.io',
-      'x-session-token': token
+      'x-session-token': token,
+      'content-type': 'application/json'
     },
     socket: { remoteAddress: '127.0.0.1' }
   }, res);
@@ -1109,7 +1122,8 @@ test('scenario-draft project type does not force the taxonomy away from the even
     }),
     headers: {
       origin: 'https://slackspac3.github.io',
-      'x-session-token': token
+      'x-session-token': token,
+      'content-type': 'application/json'
     },
     socket: { remoteAddress: '127.0.0.1' }
   }, res);
@@ -1225,7 +1239,8 @@ test('scenario-draft route repairs an off-lane live shortlist so it stays aligne
     }),
     headers: {
       origin: 'https://slackspac3.github.io',
-      'x-session-token': token
+      'x-session-token': token,
+      'content-type': 'application/json'
     },
     socket: { remoteAddress: '127.0.0.1' }
   }, res);
@@ -1339,7 +1354,8 @@ test('scenario-draft route rejects a finance-led rewrite when the guided event i
     }),
     headers: {
       origin: 'https://slackspac3.github.io',
-      'x-session-token': token
+      'x-session-token': token,
+      'content-type': 'application/json'
     },
     socket: { remoteAddress: '127.0.0.1' }
   }, res);
@@ -1436,7 +1452,8 @@ test('scenario-draft route reuses identical in-flight work for simultaneous requ
     }),
     headers: {
       origin: 'https://slackspac3.github.io',
-      'x-session-token': token
+      'x-session-token': token,
+      'content-type': 'application/json'
     },
     socket: { remoteAddress: '127.0.0.1' }
   };

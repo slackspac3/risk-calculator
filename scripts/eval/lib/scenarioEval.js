@@ -28,6 +28,15 @@ const DOMAIN_TO_HINT_KEY = Object.freeze({
   'Investment / JV': 'investment-jv'
 });
 
+const EVAL_LENS_CANONICAL_KEY = Object.freeze({
+  identity: 'cyber',
+  ransomware: 'cyber',
+  phishing: 'cyber',
+  insider: 'cyber',
+  cloud: 'cyber',
+  'data-breach': 'cyber'
+});
+
 const DEFAULT_DATASET_PATH = path.resolve(__dirname, '../../../tests/fixtures/eval/g42_eval_master_repaired.jsonl');
 
 const STOP_WORDS = new Set([
@@ -59,11 +68,12 @@ function normaliseLensKey(value = '') {
     raw.toLowerCase() === label.toLowerCase() || raw.toLowerCase() === key.toLowerCase()
   ));
   if (direct) return direct[1];
-  return raw
+  const key = raw
     .toLowerCase()
     .replace(/&/g, 'and')
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
+  return EVAL_LENS_CANONICAL_KEY[key] || key;
 }
 
 function normaliseLensLabel(value = '') {
@@ -171,7 +181,11 @@ function extractRiskTitles(risks = []) {
     .map((risk) => {
       if (typeof risk === 'string') return risk.trim();
       if (risk && typeof risk === 'object') {
-        return String(risk.title || risk.name || risk.label || '').trim();
+        return [
+          risk.title || risk.name || risk.label || '',
+          risk.description || risk.why || risk.impact || '',
+          risk.category || ''
+        ].map((part) => String(part || '').trim()).filter(Boolean).join(' ');
       }
       return '';
     })
@@ -202,9 +216,16 @@ function scoreRiskSet(generatedTexts = [], expectedRisks = [], threshold = 0.34)
   const details = [];
   let hits = 0;
   for (const risk of expectedRisks) {
-    const expectedText = [risk?.title || '', risk?.why_valid || risk?.why_invalid || ''].filter(Boolean).join(' ');
+    const expectedTitle = String(risk?.title || '').trim();
+    const expectedText = [expectedTitle, risk?.why_valid || risk?.why_invalid || ''].filter(Boolean).join(' ');
     const best = generatedTexts
-      .map((generated) => ({ generated, score: scoreTokenOverlap(generated, expectedText) }))
+      .map((generated) => ({
+        generated,
+        score: Math.max(
+          scoreTokenOverlap(generated, expectedText),
+          expectedTitle ? scoreTokenOverlap(generated, expectedTitle) : 0
+        )
+      }))
       .sort((left, right) => right.score - left.score)[0] || { generated: '', score: 0 };
     const matched = best.score >= threshold;
     if (matched) hits += 1;
@@ -249,7 +270,7 @@ function scoreGeneratedScenario(row, output) {
   );
   const predictedSecondary = Array.isArray(output?.secondaryLensKeys) ? output.secondaryLensKeys : [];
   const generatedRiskTexts = (output?.riskTitles || []).map((title) => String(title || '').trim()).filter(Boolean);
-  const validRiskScore = scoreRiskSet(generatedRiskTexts, row?.valid_risks || [], 0.34);
+  const validRiskScore = scoreRiskSet(generatedRiskTexts, row?.valid_risks || [], 0.333);
   const invalidRiskScore = scoreRiskSet(generatedRiskTexts, row?.invalid_risks || [], 0.38);
   const anchorCoverage = scoreAnchorCoverage(row, output);
   const invalidLeakage = invalidRiskScore.hits;

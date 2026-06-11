@@ -1,20 +1,20 @@
 'use strict';
 
 function getKvUrl() {
-  return process.env.APPLE_CAT
-    || process.env.FOO_URL_TEST
-    || process.env.RC_USER_STORE_URL
+  return process.env.RC_USER_STORE_URL
     || process.env.USER_STORE_KV_URL
     || process.env.KV_REST_API_URL
+    || process.env.APPLE_CAT
+    || process.env.FOO_URL_TEST
     || '';
 }
 
 function getKvToken() {
-  return process.env.BANANA_DOG
-    || process.env.FOO_TOKEN_TEST
-    || process.env.RC_USER_STORE_TOKEN
+  return process.env.RC_USER_STORE_TOKEN
     || process.env.USER_STORE_KV_TOKEN
     || process.env.KV_REST_API_TOKEN
+    || process.env.BANANA_DOG
+    || process.env.FOO_TOKEN_TEST
     || '';
 }
 

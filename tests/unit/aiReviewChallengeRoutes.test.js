@@ -69,7 +69,8 @@ function buildRequest(body = {}) {
         username: 'reviewer',
         role: 'user',
         exp: Date.now() + 60_000
-      })
+      }),
+      'content-type': 'application/json'
     },
     socket: { remoteAddress: '127.0.0.1' }
   };

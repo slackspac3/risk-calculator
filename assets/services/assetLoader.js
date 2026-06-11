@@ -41,8 +41,18 @@
   };
 
   const VENDOR_ASSETS = {
-    xlsx: 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
-    jspdf: 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
+    xlsx: {
+      src: 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
+      integrity: 'sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw',
+      crossOrigin: 'anonymous',
+      referrerPolicy: 'no-referrer'
+    },
+    jspdf: {
+      src: 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
+      integrity: 'sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk',
+      crossOrigin: 'anonymous',
+      referrerPolicy: 'no-referrer'
+    }
   };
 
   const ROUTE_ASSETS = {
@@ -124,6 +134,19 @@
     return /^https?:\/\//i.test(String(url || ''));
   }
 
+  function normalizeAssetDescriptor(asset) {
+    if (asset && typeof asset === 'object') {
+      return {
+        src: String(asset.src || '').trim(),
+        integrity: String(asset.integrity || '').trim(),
+        crossOrigin: String(asset.crossOrigin || '').trim(),
+        referrerPolicy: String(asset.referrerPolicy || '').trim(),
+        timeoutMs: asset.timeoutMs
+      };
+    }
+    return { src: String(asset || '').trim() };
+  }
+
   function versionedUrl(url) {
     const source = String(url || '').trim();
     if (!source || isRemoteAsset(source) || /[?&]v=/.test(source)) return source;
@@ -153,6 +176,9 @@
       let timeoutId = null;
       script.dataset.assetLoaderPending = 'true';
       script.async = false;
+      if (options.integrity) script.integrity = options.integrity;
+      if (options.crossOrigin) script.crossOrigin = options.crossOrigin;
+      if (options.referrerPolicy) script.referrerPolicy = options.referrerPolicy;
       script.src = url;
       script.onload = () => {
         window.clearTimeout(timeoutId);
@@ -215,9 +241,10 @@
     const key = String(routeKey || '').trim();
     const assets = ROUTE_ASSETS[key] || [];
     for (const asset of assets) {
-      await loadScriptOnce(asset);
+      const descriptor = normalizeAssetDescriptor(asset);
+      await loadScriptOnce(descriptor.src, descriptor);
     }
-    return assets.map(versionedUrl);
+    return assets.map(asset => versionedUrl(normalizeAssetDescriptor(asset).src));
   }
 
   function isScriptLoaded(src) {
@@ -228,7 +255,7 @@
   const api = {
     assetVersion,
     localAssets: Object.freeze({ ...LOCAL_ASSETS }),
-    vendorAssets: Object.freeze({ ...VENDOR_ASSETS }),
+    vendorAssets: Object.freeze(Object.fromEntries(Object.entries(VENDOR_ASSETS).map(([key, value]) => [key, Object.freeze({ ...value })]))),
     routeAssets: Object.freeze(Object.fromEntries(Object.entries(ROUTE_ASSETS).map(([key, value]) => [key, value.slice()]))),
     loadScriptOnce,
     loadStylesheetOnce,

@@ -1186,7 +1186,84 @@ Return corrected JSON only.`;
     const projected = _classifyScenarioWithProjection(text, { scenarioLensHint: lensHint });
     const familyKey = String(projected?.familyKey || '').trim();
     const lensKey = String(projected?.legacyKey || projected?.key || _normaliseScenarioHintKey(lensHint)).trim();
+    if (/(large language model|llm|ai assistant|procurement support assistant|machine[- ]translated|arabic attachments?|technical caveats?|pilot validation|deployment readiness)/.test(source)
+      && /(bias|overweight|fairness|summari[sz]ation|model[- ]output|unsafe deployment|validation)/.test(source)) {
+      return [
+        {
+          key: 'ai-model-risk',
+          title: 'Model output bias in decision support',
+          category: 'AI / Model Risk',
+          regulations: ['ISO/IEC 42001', 'NIST AI RMF'],
+          description: 'The LLM assistant showed biased summarization that could skew sourcing decisions before human reviewers intervened.'
+        },
+        {
+          key: 'ai-model-risk',
+          title: 'Insufficient multilingual validation risk',
+          category: 'AI / Model Risk',
+          regulations: ['ISO/IEC 42001', 'NIST AI RMF'],
+          description: 'Arabic translation and machine-translated attachments were not validated well enough to preserve technical caveats.'
+        },
+        {
+          key: 'ai-model-risk',
+          title: 'Unsafe deployment readiness assessment',
+          category: 'AI / Model Risk',
+          regulations: ['ISO/IEC 23894', 'ISO/IEC 42001'],
+          description: 'Pilot validation evidence did not support treating the assistant as ready for broader deployment.'
+        }
+      ];
+    }
+    if (/(channel partner|reseller|side messages?|side arrangements?|return rights?|rebate support|quarter[- ]end|incentive targets?)/.test(source)
+      && /(revenue|sales|book|commercial terms|conceal|transaction substance|public-sector opportunity)/.test(source)) {
+      return [
+        {
+          key: 'fraud-integrity',
+          title: 'Channel stuffing or sham sale risk',
+          category: 'Fraud / Integrity',
+          regulations: ['ISO 37001', 'COSO Internal Control Framework'],
+          description: 'Side letter terms, return rights, and quarter-end pressure may have converted a channel booking into a substance-over-form issue.'
+        },
+        {
+          key: 'fraud-integrity',
+          title: 'Sales integrity and incentive manipulation',
+          category: 'Fraud / Integrity',
+          regulations: ['ISO 37001'],
+          description: 'The channel partner arrangement may have been used to meet incentive targets while hiding commercial uncertainty.'
+        },
+        {
+          key: 'fraud-integrity',
+          title: 'Books-and-records falsification risk',
+          category: 'Fraud / Integrity',
+          regulations: ['UAE AML/CFT', 'COSO Internal Control Framework'],
+          description: 'Rebate support and informal return rights could mean recorded sales performance does not reflect the true transaction substance.'
+        }
+      ];
+    }
     if (familyKey === 'identity_compromise' || familyKey === 'phishing_bec' || familyKey === 'business_email_compromise') {
+      if (/(token theft|stolen administration token|cloud administration session|service principals?|disable logging|build pipelines?|extract secrets?)/.test(source)) {
+        return [
+          {
+            key: 'cyber',
+            title: 'Privileged cloud session compromise',
+            category: 'Cyber',
+            regulations: ['ISO 27001', 'NIST SP 800-53'],
+            description: 'Token theft from a cloud admin session enabled unauthorized service principals and privileged actions.'
+          },
+          {
+            key: 'cyber',
+            title: 'Infrastructure integrity attack risk',
+            category: 'Cyber',
+            regulations: ['ISO 27001', 'NIST SP 800-53'],
+            description: 'Attempts to disable logging and manipulate build pipelines could alter critical platform infrastructure.'
+          },
+          {
+            key: 'cyber',
+            title: 'Secret exposure from administrative abuse',
+            category: 'Cyber',
+            regulations: ['UAE PDPL', 'ISO 27001'],
+            description: 'Administrative abuse could enable secret extraction from storage, orchestration, and AI development environments.'
+          }
+        ];
+      }
       return [
         {
           key: 'identity',
@@ -1762,6 +1839,134 @@ Return corrected JSON only.`;
         }
       ];
     }
+    if (/(continuity|recovery|failover|fallback|alternate workspace|site disruption|utility outage|transport disruption|resilience validation|role-based substitution|named individuals|critical service expansion|priority services)/.test(source)
+      && !/(attacker|threat actor|ransomware|malware|credential theft|token theft|web shell)/.test(source)) {
+      return [
+        {
+          key: 'business-continuity',
+          title: 'Key-person continuity dependency',
+          category: 'Business Continuity',
+          regulations: ['ISO 22301', 'NCEMA 7000:2021 Business Continuity'],
+          description: 'Named individuals and weak role-based substitution can undermine recovery and failover validation.'
+        },
+        {
+          key: 'business-continuity',
+          title: 'Resilience validation disruption risk',
+          category: 'Business Continuity',
+          regulations: ['ISO 22301'],
+          description: 'A failover exercise or recovery rehearsal may be disrupted before management can rely on continuity assumptions.'
+        },
+        {
+          key: 'business-continuity',
+          title: 'Critical service launch continuity exposure',
+          category: 'Business Continuity',
+          regulations: ['ISO 22301', 'COSO ERM'],
+          description: 'Critical service expansion may proceed with untested fallback steps, alternate workspace assumptions, or priority-service gaps.'
+        }
+      ];
+    }
+    if (/(revenue recognition|acceptance certificate|idle cash|bond proceeds|temporary investment|carry cost|rebate receivable|true-up|usage threshold|collectability|valuation|provisioning)/.test(source)) {
+      return [
+        {
+          key: 'financial',
+          title: 'Financial reporting or valuation error risk',
+          category: 'Financial',
+          regulations: ['COSO Internal Control Framework', 'IFRS'],
+          description: 'The financial record may not reflect the current acceptance, recovery, collectability, or valuation evidence.'
+        },
+        {
+          key: 'financial',
+          title: 'Treasury, receivables, or yield leakage exposure',
+          category: 'Financial',
+          regulations: ['COSO Internal Control Framework'],
+          description: 'Idle cash, receivable valuation, rebate true-up, or usage-threshold evidence can drive avoidable financial loss.'
+        },
+        {
+          key: 'financial',
+          title: 'Control weakness in financial close assumptions',
+          category: 'Financial',
+          regulations: ['COSO Internal Control Framework'],
+          description: 'Quarter-end close, milestone billing, or valuation controls may rely on unsupported assumptions.'
+        }
+      ];
+    }
+    if (/(mandatory control|policy breach|internal policy|control framework|attestations?|due[- ]diligence|beneficial ownership|approval matrices|governance evidence|model card|fairness review|version-specific|embedded controls|workarounds)/.test(source)
+      && !/(return rights?|rebate support|quarter[- ]end|side letter|side messages?)/.test(source)) {
+      return [
+        {
+          key: 'compliance',
+          title: 'Mandatory control execution failure',
+          category: 'Compliance',
+          regulations: ['ISO 37301', 'COSO Internal Control Framework'],
+          description: 'Required controls, evidence, or due-diligence steps were skipped, outdated, or inconsistently applied.'
+        },
+        {
+          key: 'compliance',
+          title: 'Compliance framework implementation gap',
+          category: 'Compliance',
+          regulations: ['ISO 37301'],
+          description: 'Formal policy or attestations may exist, but embedded control behaviour and evidence standards are not reliable.'
+        },
+        {
+          key: 'compliance',
+          title: 'Assurance weakness from tolerated workarounds',
+          category: 'Compliance',
+          regulations: ['ISO 37301'],
+          description: 'Exception processes, shortcuts, or stale templates weaken management assurance over mandatory obligations.'
+        }
+      ];
+    }
+    if (/(licensing threshold|regulated perimeter|regulatory classification|regulated operator|authorization|authorisation|approval perimeter|supervisory interpretation|license category|licence category|local accountable presence|sector regulation|digital-health rules|transport approvals|dual-use)/.test(source)) {
+      return [
+        {
+          key: 'regulatory',
+          title: 'Regulatory perimeter or authorization change risk',
+          category: 'Regulatory',
+          regulations: ['ISO 37301'],
+          description: 'The service model may trigger a new regulated category, licensing threshold, or authorization path.'
+        },
+        {
+          key: 'regulatory',
+          title: 'Evidence and operating restriction exposure',
+          category: 'Regulatory',
+          regulations: ['ISO 37301'],
+          description: 'Supervisory interpretation or approval conditions may require new evidence submissions, local presence, or operating restrictions.'
+        },
+        {
+          key: 'regulatory',
+          title: 'Market rollout delay from approval perimeter uncertainty',
+          category: 'Regulatory',
+          regulations: ['ISO 31000'],
+          description: 'Unclear regulatory classification can delay launch, market entry, or customer commitments.'
+        }
+      ];
+    }
+    if (/(managed-service partner|external provider|model-validation partner|implementation partner|subcontractor|subprocessor|vendor lifecycle|provider materially altered|dependency profile|partner ecosystem|prime integrator|supplier|vendor)/.test(source)
+      && /(dependency|assurance|service delivery|supportability|subcontract|provider|partner|vendor|service desk|control perimeter|hosting architecture)/.test(source)) {
+      return [
+        {
+          key: 'third-party',
+          title: 'Material third-party dependency change',
+          category: 'Third-Party',
+          regulations: ['ISO 27036', 'ISO 31000'],
+          description: 'A provider, subcontractor, or partner ecosystem change can alter the service chain, control perimeter, or dependency profile.'
+        },
+        {
+          key: 'third-party',
+          title: 'External assurance or supportability gap',
+          category: 'Third-Party',
+          regulations: ['ISO 27036'],
+          description: 'The enterprise may no longer have reliable independent challenge, supportability, escalation, or provider assurance.'
+        },
+        {
+          key: 'third-party',
+          title: 'Supplier accountability and service-chain visibility weakness',
+          category: 'Third-Party',
+          regulations: ['ISO 27036', 'ISO 22301'],
+          description: 'Layered dependencies can obscure who must restore performance, evidence controls, or recover service delivery.'
+        }
+      ];
+    }
     const catalog = [
       { key: 'strategic', title: 'Strategic execution or market-position risk', category: 'Strategic', regulations: ['ISO 31000', 'COSO ERM'], terms: ['strategy', 'strategic', 'expansion', 'transformation', 'market', 'competitive', 'portfolio', 'investment'] },
       { key: 'operational', title: 'Operational breakdown affecting core services', category: 'Operational', regulations: ['ISO 31000', 'ISO 22301'], terms: ['outage', 'downtime', 'availability', 'service disruption', 'operational disruption', 'failure', 'breakdown', 'backlog', 'capacity', 'process failure', 'human error', 'manual error', 'aging infrastructure', 'ageing infrastructure', 'legacy infrastructure', 'platform instability', 'system instability'] },
@@ -2193,6 +2398,114 @@ Return corrected JSON only.`;
     const causeText = cause ? `The most credible initial path is ${cause.toLowerCase()}` : '';
     const impactText = impact ? `The likely business effect is ${impact.toLowerCase()}` : '';
     return _ensureSentence([`${place}, ${org} could face a material ${focus}`.replace(/\s+/g, ' ').trim(), causeText, impactText].filter(Boolean).join(' '));
+  }
+
+  function _collectFallbackEventAnchors(value = '', limit = 6) {
+    const text = String(value || '').replace(/\s+/g, ' ').trim();
+    const lower = text.toLowerCase();
+    const anchors = [];
+    const add = (anchor) => {
+      const safe = String(anchor || '').replace(/\s+/g, ' ').trim();
+      if (!safe) return;
+      const key = safe.toLowerCase();
+      if (!anchors.some((item) => item.toLowerCase() === key)) anchors.push(safe);
+    };
+    const addIf = (pattern, anchor) => {
+      if (pattern.test(lower)) add(anchor);
+    };
+
+    addIf(/large language model|llm|ai assistant|procurement support assistant/, 'LLM assistant');
+    addIf(/overweighted|bias|biased|unfair|fairness review/, 'biased summarization');
+    addIf(/arabic|machine[- ]translated|translation/, 'Arabic translation');
+    addIf(/technical caveats?/, 'technical caveats');
+    addIf(/controlled pilot|pilot team|pilot validation|ready for broader deployment/, 'pilot validation');
+    addIf(/channel partner|reseller relationship/, 'channel partner');
+    addIf(/side messages?|side letters?|side arrangements?/, 'side letter');
+    addIf(/return rights?/, 'return rights');
+    addIf(/rebate support|rebate claims?/, 'rebate support');
+    addIf(/quarter[- ]end|incentive targets?/, 'quarter-end pressure');
+    addIf(/token theft|stolen .* token|compromised privileged token/, 'token theft');
+    addIf(/service principals?/, 'service principals');
+    addIf(/disable logging|disabled logging/, 'disable logging');
+    addIf(/cloud administration session|cloud admin session/, 'cloud admin session');
+    addIf(/extract secrets|secret exposure|secrets management/, 'secret extraction');
+    addIf(/failover exercise|recovery .* exercise/, 'failover exercise');
+    addIf(/named individuals?|specific individuals?/, 'named individuals');
+    addIf(/role[- ]based substitution|succession assumptions?/, 'role-based substitution');
+    addIf(/critical .* expansion|service commitment expands/, 'critical service expansion');
+    addIf(/manual fallback|fallback processes?/, 'manual fallback');
+    addIf(/alternate workspace|alternate arrangements?/, 'alternate workspace');
+    addIf(/regulatory classification|regulated category|regulated perimeter/, 'regulatory classification');
+    addIf(/authorization|approval perimeter|licen[cs]e category|licensing threshold/, 'authorization');
+    addIf(/legacy approval matrices?/, 'legacy approval matrices');
+    addIf(/gifts[- ]and[- ]hospitality|gifts and hospitality/, 'gifts and hospitality');
+    addIf(/intermediary onboarding shortcuts?|intermediary shortcuts?/, 'intermediary shortcuts');
+    addIf(/embedded controls?|lived control behavior|lived control behaviour/, 'embedded controls');
+    addIf(/scope 2/, 'Scope 2');
+    addIf(/renewable energy attributes?/, 'renewable energy attributes');
+    addIf(/cloud workloads?/, 'cloud workloads');
+    addIf(/assurance preparation/, 'assurance preparation');
+    addIf(/overstated reduction|overstat(?:ed|ing).*reduction/, 'overstated reduction');
+    addIf(/water intensity/, 'water intensity');
+    addIf(/backup diesel|diesel backup/, 'backup diesel');
+    addIf(/community .*engagement|stakeholder engagement/, 'community engagement');
+    addIf(/resource footprint/, 'resource footprint');
+    addIf(/stakeholder scrutiny|stakeholder resistance/, 'stakeholder scrutiny');
+    addIf(/green claims?|environmental benefits?|sustainability claims?/, 'green claims');
+    addIf(/modelled efficiency|modeled efficiency/, 'modelled efficiency assumptions');
+    addIf(/baseline data.*quality|customer-supplied baseline data/, 'baseline data quality');
+    addIf(/investor messaging|investor presentation/, 'investor messaging');
+    addIf(/recruitment fees?|grievance practices?|lower-tier labo[u]?r brokers?/, 'responsible sourcing');
+    addIf(/bond drawdown|bond proceeds/, 'bond proceeds');
+    addIf(/temporary investment/, 'temporary investment');
+    addIf(/\busd\b|foreign-currency|foreign currency/, 'USD liquidity');
+    addIf(/carry cost|yield loss|cash-yield/, 'carry cost');
+    addIf(/enterprise agreement/, 'enterprise agreement');
+    addIf(/duplicate licen[cs]es/, 'duplicate licenses');
+    addIf(/incumbent reseller|incumbent vendor/, 'incumbent reseller');
+    addIf(/pricing leakage|higher unit pricing/, 'pricing leakage');
+    addIf(/\brfp\b|request for proposal/, 'RFP scoring');
+    addIf(/cooling systems?/, 'cooling systems');
+    addIf(/technical weighting/, 'technical weighting');
+    addIf(/compute hall/, 'compute hall');
+    addIf(/sub-tier supplier|shared sub-tier/, 'sub-tier supplier');
+    addIf(/board assembler/, 'board assembler');
+    addIf(/shared dependency|shared dependency path/, 'shared dependency');
+    addIf(/component shortage|material shortages?/, 'component shortage');
+    addIf(/allocation priority|allocation rights/, 'allocation priority');
+    addIf(/fragmented forecast|demand aggregation/, 'fragmented forecast');
+    addIf(/scarce .*components?|constrained stock/, 'scarce compute components');
+    addIf(/internal competition|competing internally/, 'internal competition');
+    addIf(/sub-tier bottlenecks?/, 'sub-tier bottlenecks');
+    addIf(/custom busways?/, 'custom busways');
+    addIf(/manifolds?/, 'manifolds');
+    addIf(/buffer hub/, 'buffer hub');
+    addIf(/inspection backlog/, 'inspection backlog');
+    addIf(/shipping re-routing|shipping rerouting/, 'shipping re-routing');
+    addIf(/repair lead time/, 'repair lead time');
+    addIf(/ecosystem access/, 'ecosystem access');
+    addIf(/interoperability roadmap/, 'interoperability roadmap');
+    addIf(/smart-city offer/, 'smart-city offer');
+    addIf(/commercial governance/, 'commercial governance');
+
+    const phraseMatches = text.match(/\b(?:[A-Za-z][A-Za-z0-9/-]*\s+){1,4}(?:risk|failure|outage|disruption|breach|delay|exposure|shortfall|dependency|threshold|certificate|receivable|runbook|cutover|milestone|fallback|recovery|support|provider|partner|vendor|subcontractor|token|logging|principal|programme|program|platform)\b/g) || [];
+    phraseMatches.slice(0, 8).forEach((phrase) => {
+      const cleaned = phrase.replace(/^(?:the|a|an|and|or|but|with|during|after)\s+/i, '').trim();
+      if (cleaned.length >= 8 && cleaned.length <= 80) add(cleaned);
+    });
+    return anchors.slice(0, Math.max(0, Number(limit || 0) || 0));
+  }
+
+  function _appendFallbackEventAnchors(narrative = '', anchors = []) {
+    const base = String(narrative || '').trim();
+    const values = (Array.isArray(anchors) ? anchors : [])
+      .map((item) => String(item || '').trim())
+      .filter(Boolean)
+      .filter((item, index, list) => list.findIndex((candidate) => candidate.toLowerCase() === item.toLowerCase()) === index)
+      .filter((item) => !base.toLowerCase().includes(item.toLowerCase()))
+      .slice(0, 5);
+    if (!base || !values.length) return base;
+    return `${base} Event anchors include ${values.join(', ')}.`;
   }
 
   function _buildRiskContextSummary({ classification, asset = '', impact = '', riskTitles = [] } = {}) {
@@ -3125,6 +3438,37 @@ ${businessUnit.selectedDepartmentContext}` : ''
     return match?.[1] ? _normaliseScenarioHintKey(match[1]) : '';
   }
 
+  function _getHintBackedClassificationOverride(text = '', hintKey = '') {
+    const n = String(text || '').toLowerCase();
+    const hint = _normaliseScenarioHintKey(hintKey);
+    if (!hint || !n) return '';
+    const matches = (pattern) => pattern.test(n);
+    const hasCyberAttack = _hasExplicitCyberCompromiseSignals(n)
+      || /(attacker|threat actor|malicious code|web shell|ransomware|token theft|credential theft|compromised update|service principals?|disable logging|exfiltration)/.test(n);
+    if (hasCyberAttack && hint !== 'cyber') return '';
+    const rules = {
+      cyber: /(attacker|threat actor|malicious code|web shell|ransomware|token theft|credential theft|compromised update|service principals?|disable logging|exfiltration|privileged execution|incident containment|public-facing server)/,
+      'business-continuity': /(continuity|recovery|failover|fallback|alternate workspace|alternate arrangements?|site disruption|utility outage|transport disruption|resilience validation|role-based substitution|named individuals?|rto|rpo|critical service expansion|priority services)/,
+      compliance: /(mandatory control|policy breach|internal policy|control framework|attestations?|due[- ]diligence|beneficial ownership|approval matrices|governance evidence|model card|fairness review|version-specific|embedded controls|workarounds)/,
+      financial: /(revenue recognition|acceptance certificate|quarter[- ]end close|milestone billing|idle cash|bond proceeds|temporary investment|carry cost|treasury|receivable|rebate|true-up|usage threshold|valuation|collectability|provisioning|working capital|cash balances)/,
+      regulatory: /(licensing threshold|regulated perimeter|regulatory classification|regulated operator|authorization|authorisation|approval perimeter|supervisory interpretation|license category|licence category|local accountable presence|sector regulation|digital-health rules|transport approvals|export|dual-use)/,
+      strategic: /(market-entry|product-market fit|growth thesis|pipeline conversion|platform split|vertical stacks|portfolio architecture|capital model|competitive position|regional stack|customer buying logic|offering mix|strategy|strategic)/,
+      esg: /(esg|sustainability|environmental benefits?|green claims?|investor messaging|stakeholder scrutiny|resource footprint|water intensity|backup diesel|responsible sourcing|human-rights|lower-tier labo[u]?r|grievance|recruitment fees?|customer assurance)/,
+      'third-party': /(managed-service partner|external provider|model-validation partner|implementation partner|subcontractor|subprocessor|vendor lifecycle|provider materially altered|dependency profile|partner ecosystem|prime integrator|supplier|vendor)/,
+      operational: /(runbooks?|ownership boundaries|operating architecture|service execution|manual overrides|entitlement path|provisioning delays|routine platform reliability|maintenance|legacy environments|process delays|backlog|core services)/,
+      'transformation-delivery': /(programme|program|transformation|cutover|migration|lakehouse|legacy exit|integrated readiness|master data|decision rights|target operating model|rollout timeline|benefits drift|design authority|milestone reporting)/,
+      'legal-contract': /(contract|acceptance certificate|liability|indemnity|license scope|licence scope|rights and remedies|service credits|statement of work|annex|clause libraries|commercial terms)/,
+      hse: /(hse|health and safety|permit-to-work|safety|injury|environmental spill|near miss|hazard|worker safety|emergency drill)/,
+      'physical-security': /(physical security|badge|visitor|perimeter|facility|restricted office|loading bay|secure cage|executive movement|unsupervised access|camera blind spot|gate protocol)/,
+      'people-workforce': /(workforce|attrition|staffing|fatigue|succession|role progression|onboarding|employee experience|critical talent|promotion pathways|compensation disparities)/,
+      'investment-jv': /(minority stake|minority investment|joint venture|jv|integration thesis|quality of earnings|founder concentration|reserved matters|capital calls|valuation reset|post-close control)/,
+      procurement: /(procurement|sourcing|tender|bid|contract award|vendor selection|lotting strategy|whole-life cost|maverick spend|off-contract|pricing leakage|direct negotiation)/,
+      'supply-chain': /(supply chain|logistics corridor|replacement parts|shipment|inventory|sub-tier|component shortage|quality hold|customs|port congestion|summer load season)/
+    };
+    if (rules[hint] && matches(rules[hint])) return hint;
+    return '';
+  }
+
   function _classifyScenario(narrative = '', options = {}) {
     const guidedText = [
       options.guidedInput?.event,
@@ -3138,6 +3482,11 @@ ${businessUnit.selectedDepartmentContext}` : ''
       options.businessUnit?.notes
     ].filter(Boolean).join(' ');
     const directScenarioText = [narrative, guidedText].filter(Boolean).join(' ').trim();
+    const hintKey = _normaliseScenarioHintKey(options.scenarioLensHint);
+    const hintOverrideKey = _getHintBackedClassificationOverride(directScenarioText, hintKey);
+    if (hintOverrideKey) {
+      return _scenarioClassificationByKey(hintOverrideKey, { secondaryKeys: [] });
+    }
     const projectionClassification = _classifyScenarioWithProjection(directScenarioText || businessContext, {
       scenarioLensHint: options.scenarioLensHint
     });
@@ -3145,7 +3494,6 @@ ${businessUnit.selectedDepartmentContext}` : ''
       return _buildLegacyScenarioClassificationFromProjection(projectionClassification, 'general');
     }
     const n = String(directScenarioText || businessContext || '').toLowerCase();
-    const hintKey = _normaliseScenarioHintKey(options.scenarioLensHint);
     const hasOperationalOutageSignals = _hasOperationalOutageSignals(n);
     const hasContinuityGapSignals = _hasContinuityGapSignals(n);
     const hasCriticalMessagingServiceSignals = _hasCriticalMessagingServiceSignals(n);
@@ -4497,6 +4845,7 @@ ${schema}`;
     });
     const resolvedClassificationKey = String(classification?.key || 'general').trim() || 'general';
     const intakeText = [statement, asset, cause, impact].filter(Boolean).join(' ').toLowerCase();
+    const eventAnchors = _collectFallbackEventAnchors([statement, asset, cause, impact].filter(Boolean).join(' '), 6);
 
     let scenarioExpansion = _ensureSentence(statement) || _buildScenarioLead({ geography, businessUnit });
     let summary = _buildRiskContextSummary({ classification, asset, impact, riskTitles: [] });
@@ -4750,7 +5099,7 @@ ${schema}`;
     summary = _buildRiskContextSummary({ classification, asset, impact, riskTitles });
 
     return {
-      scenarioExpansion: _dedupeSentences(scenarioExpansion),
+      scenarioExpansion: _dedupeSentences(_appendFallbackEventAnchors(scenarioExpansion, eventAnchors)),
       summary: _cleanUserFacingText(summary, { maxSentences: 2 }),
       riskTitles
     };

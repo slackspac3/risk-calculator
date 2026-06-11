@@ -18,6 +18,38 @@ function parseRequestBody(req) {
   return req?.body ?? {};
 }
 
+function getHeaderValue(headers = {}, name = '') {
+  const target = String(name || '').toLowerCase();
+  return Object.entries(headers || {}).find(([key]) => String(key || '').toLowerCase() === target)?.[1] || '';
+}
+
+function hasJsonContentType(req) {
+  const contentType = String(getHeaderValue(req?.headers || {}, 'content-type') || '').toLowerCase();
+  return contentType.includes('application/json');
+}
+
+function getBodySize(req, fallbackLimit = 160000) {
+  if (typeof req?.body === 'string') return req.body.length;
+  try {
+    return JSON.stringify(req?.body ?? {}).length;
+  } catch {
+    return fallbackLimit + 1;
+  }
+}
+
+function enforceJsonPostBody(req, res, { maxBodyChars = 160000 } = {}) {
+  if (req?.method !== 'POST') return true;
+  if (!hasJsonContentType(req)) {
+    res.status(415).json({ error: 'Content-Type must be application/json' });
+    return false;
+  }
+  if (getBodySize(req, maxBodyChars) > maxBodyChars) {
+    res.status(413).json({ error: 'Request body is too large' });
+    return false;
+  }
+  return true;
+}
+
 function getAllowedOrigins() {
   const raw = String(process.env.ALLOWED_ORIGINS || process.env.ALLOWED_ORIGIN || DEFAULT_ALLOWED_ORIGIN).trim();
   const values = raw
@@ -55,8 +87,12 @@ function getUnexpectedFields(value, allowedFields = []) {
 
 module.exports = {
   applyCorsHeaders,
+  enforceJsonPostBody,
   getAllowedOrigins,
+  getBodySize,
+  getHeaderValue,
   getUnexpectedFields,
+  hasJsonContentType,
   isAllowedOrigin,
   isPlainObject,
   parseRequestBody
