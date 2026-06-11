@@ -4552,6 +4552,38 @@ function buildStep1ProjectExposureFingerprint(scope = 'buyer', draft = AppState.
   });
 }
 
+function buildStep1ProjectExposureFingerprintBreakdown(scope = 'buyer', draft = AppState.draft || {}) {
+  const payload = buildStep1ProjectExposurePayload(scope, draft);
+  const categories = {
+    scenario: {
+      assessmentType: payload.assessmentType,
+      riskStatement: payload.riskStatement
+    },
+    projectEconomics: {
+      projectContext: payload.projectContext,
+      buyerEconomics: payload.assessmentType === 'project_buyer' ? payload.buyerEconomics : {},
+      buyerEconomicsMeta: payload.assessmentType === 'project_buyer' ? payload.buyerEconomicsMeta : {},
+      sellerEconomics: payload.assessmentType === 'project_seller' ? payload.sellerEconomics : {},
+      sellerEconomicsMeta: payload.assessmentType === 'project_seller' ? payload.sellerEconomicsMeta : {},
+      buyerProxyAnswers: payload.assessmentType === 'project_buyer' ? payload.buyerProxyAnswers : {},
+      sellerProxyAnswers: payload.assessmentType === 'project_seller' ? payload.sellerProxyAnswers : {}
+    },
+    citations: payload.citations,
+    businessContext: {
+      geography: payload.geography,
+      applicableRegulations: payload.applicableRegulations,
+      businessUnit: payload.businessUnit
+    }
+  };
+  if (typeof AiProductStateService !== 'undefined' && AiProductStateService?.buildFingerprintBreakdown) {
+    return AiProductStateService.buildFingerprintBreakdown(categories);
+  }
+  return {
+    fingerprint: buildStep1ProjectExposureFingerprint(scope, draft),
+    categories: {}
+  };
+}
+
 function hasStep1ProjectExposureSignal(scope = 'buyer', draft = AppState.draft || {}) {
   const proxyKey = scope === 'seller' ? 'sellerProxyQuestions' : 'buyerProxyQuestions';
   const proxy = draft?.[proxyKey] || {};
@@ -4577,6 +4609,7 @@ function buildStep1DeterministicProjectExposure(scope = 'buyer', draft = AppStat
     ...exposure,
     sourceMode: 'deterministic_preview',
     inputFingerprint: buildStep1ProjectExposureFingerprint(scope, draft),
+    inputFingerprintBreakdown: buildStep1ProjectExposureFingerprintBreakdown(scope, draft),
     generatedAt: new Date().toISOString(),
     usedFallback: true,
     aiUnavailable: false
@@ -4687,12 +4720,14 @@ function renderStep1ProjectExposureMissingInputs(exposure = {}) {
 function renderStep1ProjectExposurePanel(scope = 'buyer', draft = AppState.draft || {}) {
   const storedExposure = draft.projectExposure && typeof draft.projectExposure === 'object' ? draft.projectExposure : {};
   const currentFingerprint = buildStep1ProjectExposureFingerprint(scope, draft);
+  const currentFingerprintBreakdown = buildStep1ProjectExposureFingerprintBreakdown(scope, draft);
   const savedAiState = typeof AiProductStateService !== 'undefined' && AiProductStateService?.buildAiOutputState
     ? AiProductStateService.buildAiOutputState({
         key: 'projectExposure',
         label: 'Project exposure map',
         output: storedExposure,
-        currentFingerprint
+        currentFingerprint,
+        currentFingerprintBreakdown
       })
     : null;
   const exposure = ensureStep1ProjectExposurePreview(scope, draft, { persist: false }) || {};
@@ -4729,12 +4764,12 @@ function renderStep1ProjectExposurePanel(scope = 'buyer', draft = AppState.draft
         ${exposure.aiUnavailable ? '<span class="badge badge--warning">AI unavailable</span>' : ''}
       </div>
     </div>
-    ${savedMapStale ? `<div class="ai-product-state-strip ai-product-state-strip--warning">
+    ${savedMapStale ? `<div class="ai-product-state-strip ${savedAiState.freshnessSeverity === 'critical' ? 'ai-product-state-strip--danger' : 'ai-product-state-strip--warning'}">
       <div>
         <strong>${escapeHtml(savedAiState.recommendedAction)}</strong>
         <span>${escapeHtml(savedAiState.refreshReason || 'Project inputs changed since the saved AI map was generated.')}</span>
       </div>
-      <span class="badge badge--warning">Smart prompt</span>
+      <span class="badge badge--${savedAiState.freshnessSeverity === 'critical' ? 'danger' : 'warning'}">${escapeHtml(savedAiState.freshnessLabel || 'Smart prompt')}</span>
     </div>` : ''}
     <div class="step1-project-exposure__quality">
       <div>
@@ -5007,6 +5042,7 @@ function applyStep1ProjectExposureResult(scope = 'buyer', result = {}) {
         ? 'deterministic_fallback'
         : (exposure.sourceMode || 'live'),
     inputFingerprint: buildStep1ProjectExposureFingerprint(scope, AppState.draft),
+    inputFingerprintBreakdown: buildStep1ProjectExposureFingerprintBreakdown(scope, AppState.draft),
     generatedAt: result.generatedAt || new Date().toISOString(),
     usedFallback: result.usedFallback === true,
     aiUnavailable: result.aiUnavailable === true

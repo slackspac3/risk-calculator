@@ -251,6 +251,9 @@
   function buildCockpitCurrentFingerprints(assessment = {}, r = {}) {
     const service = global.AiProductStateService;
     if (!service || typeof service.buildFingerprint !== 'function') return {};
+    const buildSnapshot = typeof service.buildFingerprintBreakdown === 'function'
+      ? service.buildFingerprintBreakdown
+      : (value) => ({ fingerprint: service.buildFingerprint(value), categories: {} });
     const scenario = {
       assessmentType: assessment?.assessmentType || 'enterprise_generic',
       scenario: assessment?.enhancedNarrative || assessment?.narrative || assessment?.scenarioTitle || '',
@@ -273,46 +276,80 @@
       annualLoss: r?.annualLoss || r?.ale || {},
       projectHorizon: r?.projectHorizon || {}
     };
+    const evidence = {
+      citations: assessment?.citations || [],
+      primaryGrounding: assessment?.primaryGrounding || [],
+      supportingReferences: assessment?.supportingReferences || []
+    };
+    const businessContext = {
+      buId: assessment?.buId || '',
+      buName: assessment?.buName || '',
+      geography: assessment?.geography || '',
+      geographies: assessment?.geographies || [],
+      applicableRegulations: assessment?.applicableRegulations || []
+    };
+    const projectExposure = assessment?.projectExposure || {};
+    const assumptionRegister = assessment?.assumptionRegister || {};
+    const parameterCoach = assessment?.parameterCoach || {};
+    const evidenceMap = assessment?.evidenceMap || {};
+    const decisionChallenge = assessment?.decisionChallenge || {};
     return {
-      projectExposure: service.buildFingerprint(project),
-      assumptionRegister: service.buildFingerprint({
-        ...scenario,
-        projectExposure: assessment?.projectExposure || {},
+      projectExposure: buildSnapshot({
+        scenario,
+        projectEconomics: project,
+        citations: assessment?.citations || [],
+        businessContext
+      }),
+      assumptionRegister: buildSnapshot({
+        scenario,
+        projectEconomics: project,
         parameters,
         results: simulation,
-        citations: assessment?.citations || []
+        evidence,
+        dependentAiOutputs: {
+          projectExposure
+        }
       }),
-      parameterCoach: service.buildFingerprint({
-        ...scenario,
-        projectExposure: assessment?.projectExposure || {},
+      parameterCoach: buildSnapshot({
+        scenario,
+        projectEconomics: project,
         parameters,
-        evidenceMap: assessment?.evidenceMap || {},
-        citations: assessment?.citations || []
+        evidence,
+        dependentAiOutputs: {
+          projectExposure,
+          assumptionRegister,
+          evidenceMap
+        }
       }),
-      evidenceMap: service.buildFingerprint({
-        ...scenario,
-        projectExposure: assessment?.projectExposure || {},
-        citations: assessment?.citations || [],
-        primaryGrounding: assessment?.primaryGrounding || [],
-        supportingReferences: assessment?.supportingReferences || []
+      evidenceMap: buildSnapshot({
+        scenario,
+        projectEconomics: project,
+        evidence,
+        businessContext
       }),
-      decisionChallenge: service.buildFingerprint({
-        ...scenario,
-        projectExposure: assessment?.projectExposure || {},
+      decisionChallenge: buildSnapshot({
+        scenario,
+        projectEconomics: project,
         parameters,
         simulation,
-        assumptionRegister: assessment?.assumptionRegister || {},
-        parameterCoach: assessment?.parameterCoach || {},
-        evidenceMap: assessment?.evidenceMap || {}
+        dependentAiOutputs: {
+          projectExposure,
+          assumptionRegister,
+          parameterCoach,
+          evidenceMap
+        }
       }),
-      decisionBrief: service.buildFingerprint({
-        ...scenario,
-        projectExposure: assessment?.projectExposure || {},
+      decisionBrief: buildSnapshot({
+        scenario,
+        projectEconomics: project,
         simulation,
-        assumptionRegister: assessment?.assumptionRegister || {},
-        parameterCoach: assessment?.parameterCoach || {},
-        evidenceMap: assessment?.evidenceMap || {},
-        decisionChallenge: assessment?.decisionChallenge || {}
+        dependentAiOutputs: {
+          projectExposure,
+          assumptionRegister,
+          parameterCoach,
+          evidenceMap,
+          decisionChallenge
+        }
       })
     };
   }

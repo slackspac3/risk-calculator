@@ -637,17 +637,80 @@ function buildStep4AiFingerprint(value = {}) {
   }
 }
 
+function buildStep4AiFingerprintBreakdown(categories = {}) {
+  if (typeof AiProductStateService !== 'undefined' && AiProductStateService?.buildFingerprintBreakdown) {
+    return AiProductStateService.buildFingerprintBreakdown(categories);
+  }
+  return {
+    fingerprint: buildStep4AiFingerprint(categories),
+    categories: {}
+  };
+}
+
 function buildStep4ParameterCoachFingerprint(draft = AppState.draft, validation = {}) {
   return buildStep4AiFingerprint(buildStep4ParameterCoachPayload(draft, validation));
+}
+
+function buildStep4ParameterCoachFingerprintBreakdown(draft = AppState.draft, validation = {}) {
+  const payload = buildStep4ParameterCoachPayload(draft, validation);
+  return buildStep4AiFingerprintBreakdown({
+    scenario: {
+      assessmentType: payload.assessmentType,
+      scenario: payload.scenario,
+      structuredScenario: payload.structuredScenario,
+      scenarioLens: payload.scenarioLens
+    },
+    projectEconomics: {
+      projectContext: payload.projectContext,
+      projectExposure: payload.projectExposure
+    },
+    parameters: {
+      parameters: payload.parameters,
+      validation: payload.validation
+    },
+    evidence: {
+      citations: payload.citations,
+      evidenceMap: payload.evidenceMap
+    },
+    dependentAiOutputs: {
+      assumptionRegister: payload.assumptionRegister
+    },
+    businessContext: payload.businessContext
+  });
 }
 
 function buildStep4EvidenceMapFingerprint(draft = AppState.draft) {
   return buildStep4AiFingerprint(buildStep4EvidenceMapPayload(draft));
 }
 
-function buildStep4AiOutputState({ key = '', label = '', output = null, currentFingerprint = '' } = {}) {
+function buildStep4EvidenceMapFingerprintBreakdown(draft = AppState.draft) {
+  const payload = buildStep4EvidenceMapPayload(draft);
+  return buildStep4AiFingerprintBreakdown({
+    scenario: {
+      assessmentType: payload.assessmentType,
+      scenario: payload.scenario,
+      structuredScenario: payload.structuredScenario,
+      riskStatement: payload.riskStatement
+    },
+    projectEconomics: {
+      projectContext: payload.projectContext,
+      projectExposure: payload.projectExposure
+    },
+    parameters: payload.parameters,
+    evidence: {
+      citations: payload.citations,
+      ragMatches: payload.ragMatches
+    },
+    dependentAiOutputs: {
+      assumptions: payload.assumptions
+    },
+    businessContext: payload.businessContext
+  });
+}
+
+function buildStep4AiOutputState({ key = '', label = '', output = null, currentFingerprint = '', currentFingerprintBreakdown = null } = {}) {
   if (typeof AiProductStateService !== 'undefined' && AiProductStateService?.buildAiOutputState) {
-    return AiProductStateService.buildAiOutputState({ key, label, output, currentFingerprint });
+    return AiProductStateService.buildAiOutputState({ key, label, output, currentFingerprint, currentFingerprintBreakdown });
   }
   const hasOutput = !!output;
   return {
@@ -668,7 +731,12 @@ function buildStep4AiOutputState({ key = '', label = '', output = null, currentF
 function renderStep4AiStateStrip(state = {}) {
   if (!state || !state.label) return '';
   const needsRefresh = state.freshnessStatus === 'stale';
-  return `<div class="ai-product-state-strip ${needsRefresh ? 'ai-product-state-strip--warning' : ''}">
+  const severityClass = needsRefresh && state.freshnessSeverity === 'critical'
+    ? 'ai-product-state-strip--danger'
+    : needsRefresh
+      ? 'ai-product-state-strip--warning'
+      : '';
+  return `<div class="ai-product-state-strip ${severityClass}">
     <div>
       <strong>${escapeHtml(needsRefresh ? state.recommendedAction : `${state.label} status`)}</strong>
       <span>${escapeHtml(needsRefresh ? state.refreshReason : `${state.modeLabel} · ${state.freshnessLabel}${state.generatedLabel ? ` · ${state.generatedLabel}` : ''}`)}</span>
@@ -771,7 +839,8 @@ function renderStep4ParameterCoachPanel(draft, validation) {
     key: 'parameterCoach',
     label: 'Parameter Coach',
     output: coach,
-    currentFingerprint: buildStep4ParameterCoachFingerprint(draft, validation)
+    currentFingerprint: buildStep4ParameterCoachFingerprint(draft, validation),
+    currentFingerprintBreakdown: buildStep4ParameterCoachFingerprintBreakdown(draft, validation)
   });
   const rationales = Array.isArray(coach?.parameterRationales) ? coach.parameterRationales.slice(0, 8) : [];
   const missingInputs = Array.isArray(coach?.missingHighImpactInputs) ? coach.missingHighImpactInputs.slice(0, 3) : [];
@@ -852,6 +921,7 @@ async function requestStep4ParameterCoach() {
   }
   const validation = validateFairParams(buildSimulationRunPayload(), { toast: false });
   const inputFingerprint = buildStep4ParameterCoachFingerprint(AppState.draft, validation);
+  const inputFingerprintBreakdown = buildStep4ParameterCoachFingerprintBreakdown(AppState.draft, validation);
   AppState.step4ParameterCoachLoading = true;
   renderWizard4();
   try {
@@ -863,7 +933,8 @@ async function requestStep4ParameterCoach() {
       usedFallback: !!result?.usedFallback,
       aiUnavailable: !!result?.aiUnavailable,
       generatedAt: result?.generatedAt || new Date().toISOString(),
-      inputFingerprint
+      inputFingerprint,
+      inputFingerprintBreakdown
     };
     saveDraft();
     UI.toast(result?.usedFallback ? 'Deterministic Parameter Coach is ready.' : 'AI Parameter Coach is ready.', result?.usedFallback ? 'info' : 'success');
@@ -1027,7 +1098,8 @@ function renderStep4EvidenceMapPanel(draft) {
     key: 'evidenceMap',
     label: 'Evidence Map',
     output: evidenceMap,
-    currentFingerprint: buildStep4EvidenceMapFingerprint(draft)
+    currentFingerprint: buildStep4EvidenceMapFingerprint(draft),
+    currentFingerprintBreakdown: buildStep4EvidenceMapFingerprintBreakdown(draft)
   });
   const projectFinancial = Array.isArray(evidenceMap?.projectFinancialEvidenceMap) ? evidenceMap.projectFinancialEvidenceMap : [];
   const foundValues = projectFinancial.filter(item => item.status === 'found').slice(0, 4);
@@ -1123,6 +1195,7 @@ async function requestStep4EvidenceMap() {
     return;
   }
   const inputFingerprint = buildStep4EvidenceMapFingerprint(AppState.draft);
+  const inputFingerprintBreakdown = buildStep4EvidenceMapFingerprintBreakdown(AppState.draft);
   AppState.step4EvidenceMapLoading = true;
   renderWizard4();
   try {
@@ -1134,7 +1207,8 @@ async function requestStep4EvidenceMap() {
       usedFallback: !!result?.usedFallback,
       aiUnavailable: !!result?.aiUnavailable,
       generatedAt: result?.generatedAt || new Date().toISOString(),
-      inputFingerprint
+      inputFingerprint,
+      inputFingerprintBreakdown
     };
     saveDraft();
     UI.toast(result?.usedFallback ? 'Deterministic Evidence Map is ready.' : 'AI Evidence Map is ready.', result?.usedFallback ? 'info' : 'success');
