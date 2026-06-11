@@ -273,12 +273,13 @@ function getLearningStore() {
   const cache = ensureUserStateCache();
   if (cache.learningStore && typeof cache.learningStore === 'object') return cache.learningStore;
   try {
-    cache.learningStore = JSON.parse(localStorage.getItem(buildUserStorageKey(LEARNING_STORAGE_PREFIX)) || '{"templates":{},"scenarioPatterns":[],"analystSignals":{"keptRisks":[],"removedRisks":[],"narrativeEdits":[],"rerunDeltas":[]},"aiFeedback":{"events":[]}}');
+      cache.learningStore = JSON.parse(localStorage.getItem(buildUserStorageKey(LEARNING_STORAGE_PREFIX)) || '{"templates":{},"scenarioPatterns":[],"caseMemories":[],"analystSignals":{"keptRisks":[],"removedRisks":[],"narrativeEdits":[],"rerunDeltas":[]},"aiFeedback":{"events":[],"structuredEvents":[]}}');
   } catch (error) {
     warnAssessmentPersistenceOnce('learning-store-read', 'getLearningStore local read failed:', error);
     cache.learningStore = {
       templates: {},
       scenarioPatterns: [],
+      caseMemories: [],
       analystSignals: {
         keptRisks: [],
         removedRisks: [],
@@ -286,7 +287,8 @@ function getLearningStore() {
         rerunDeltas: []
       },
       aiFeedback: {
-        events: []
+        events: [],
+        structuredEvents: []
       }
     };
   }
@@ -299,6 +301,7 @@ function saveLearningStore(store) {
     ? cloneDraftStateSnapshot(store, {
         templates: {},
         scenarioPatterns: [],
+        caseMemories: [],
       analystSignals: {
         keptRisks: [],
         removedRisks: [],
@@ -306,12 +309,14 @@ function saveLearningStore(store) {
         rerunDeltas: []
       },
       aiFeedback: {
-        events: []
+        events: [],
+        structuredEvents: []
       }
     })
     : {
         templates: {},
         scenarioPatterns: [],
+        caseMemories: [],
         analystSignals: {
           keptRisks: [],
           removedRisks: [],
@@ -319,7 +324,8 @@ function saveLearningStore(store) {
           rerunDeltas: []
         },
         aiFeedback: {
-          events: []
+          events: [],
+          structuredEvents: []
         }
       };
   try {
@@ -387,6 +393,18 @@ function recordLearningFromAssessment(draft) {
     if (username && typeof LearningStore !== 'undefined' && typeof LearningStore.patternFromAssessment === 'function' && typeof LearningStore.saveScenarioPattern === 'function') {
       const pattern = LearningStore.patternFromAssessment(draft);
       if (pattern) LearningStore.saveScenarioPattern(username, pattern);
+    }
+    if (username
+      && typeof LearningStore !== 'undefined'
+      && typeof LearningStore.buildCaseMemoryFromAssessment === 'function'
+      && typeof LearningStore.saveCaseMemory === 'function') {
+      const memory = LearningStore.buildCaseMemoryFromAssessment(draft);
+      if (memory) {
+        LearningStore.saveCaseMemory(username, memory);
+        if (typeof patchLearningStore === 'function' && typeof LearningStore.getLearningStore === 'function') {
+          patchLearningStore({ caseMemories: LearningStore.getLearningStore(username).caseMemories || [] });
+        }
+      }
     }
   } catch {}
   OrgIntelligenceService?.recordCompletedAssessment?.(draft);
@@ -697,6 +715,9 @@ function resetDraft() {
       aiUnavailable: false
     },
     projectFraming: null,
+    evidenceMap: null,
+    parameterCoach: null,
+    step4ValuationMode: '',
     buId: null, buName: null, contextNotes: '',
     narrative: '', structuredScenario: null,
     scenarioLens: null,

@@ -17,7 +17,8 @@
       missingInformation,
       primaryGrounding,
       supportingReferences,
-      inferredAssumptions
+      inferredAssumptions,
+      projectResultsModel
     } = model;
     const openChallengeRecords = typeof getOpenParameterChallengeRecords === 'function'
       ? getOpenParameterChallengeRecords(assessment)
@@ -27,6 +28,7 @@
         ${renderTechnicalOrientationBlock(rolePresentation, runMetadata, confidenceFrame)}
         ${renderTechnicalReviewSurface(r, assessmentIntelligence, confidenceFrame, assessment, thresholdModel)}
         ${renderTechnicalStoryBand(r, assessmentIntelligence, confidenceFrame, thresholdModel, assessment)}
+        ${typeof renderProjectExposureResultsPanel === 'function' ? renderProjectExposureResultsPanel(projectResultsModel) : ''}
         ${renderChallengeSynthesisCard(assessment)}
 
         <section class="results-section-stack results-layer-band results-layer-band--editorial">
@@ -91,7 +93,8 @@
       assessmentChallenge,
       workflowGuidance,
       citations,
-      recommendations
+      recommendations,
+      projectResultsModel
     } = model;
     return `
       <section class="results-appendix-view ${activeTab === 'appendix' ? '' : 'hidden'}" id="results-tab-appendix" role="tabpanel" aria-labelledby="results-tab-btn-appendix" tabindex="-1" data-results-panel="appendix" data-page-focus>
@@ -107,6 +110,8 @@
         </section>
 
         ${renderModelBasisPanel(assessment, runMetadata, confidenceFrame, thresholdModel)}
+        ${typeof renderProjectExposureResultsPanel === 'function' ? renderProjectExposureResultsPanel(projectResultsModel) : ''}
+        ${typeof renderAiAuditStoryAccordion === 'function' ? renderAiAuditStoryAccordion(assessment) : ''}
 
         <details class="results-detail-disclosure">
           <summary>Methodology, settings, and saved run metadata</summary>

@@ -21,6 +21,7 @@
       learningStore: {
         templates: {},
         scenarioPatterns: [],
+        caseMemories: [],
         analystSignals: {
           keptRisks: [],
           removedRisks: [],
@@ -28,7 +29,8 @@
           rerunDeltas: []
         },
         aiFeedback: {
-          events: []
+          events: [],
+          structuredEvents: []
         }
       },
       draft: null,

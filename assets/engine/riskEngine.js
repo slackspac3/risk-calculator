@@ -16,6 +16,9 @@ const RiskEngine = (() => {
   const MAX_ITERATIONS = 100000;
   const HIGH_ITERATION_WARNING = 50000;
   const CORRELATION_LIMIT = 0.95;
+  const PROJECT_ASSESSMENT_TYPES = ['project_buyer', 'project_seller'];
+  const MAX_PROJECT_DURATION_MONTHS = 240;
+  const COMPUTABLE_SOURCE_STATUSES = ['known', 'estimated', 'derived', 'evidence_supported', 'benchmark_proxy'];
 
   function mulberry32(seed) {
     return function () {
@@ -259,6 +262,142 @@ const RiskEngine = (() => {
     return Math.min(max, Math.max(min, numeric));
   }
 
+  function normaliseSourceStatus(value, fallback = 'unknown') {
+    const text = String(value || '').trim().toLowerCase().replace(/-/g, '_');
+    if (!text) return fallback;
+    if (['proxy', 'proxied', 'benchmark_proxied', 'benchmark_proxy_driver'].includes(text)) return 'benchmark_proxy';
+    if (['evidence', 'evidence_supported', 'evidence_based'].includes(text)) return 'evidence_supported';
+    if (['known', 'estimated', 'derived', 'benchmark_proxy', 'unknown', 'not_provided', 'not_applicable'].includes(text)) return text;
+    return fallback;
+  }
+
+  function isComputableSourceStatus(status) {
+    return COMPUTABLE_SOURCE_STATUSES.includes(normaliseSourceStatus(status));
+  }
+
+  function normaliseAssessmentType(value) {
+    const text = String(value || '').trim().toLowerCase();
+    return PROJECT_ASSESSMENT_TYPES.includes(text) ? text : 'enterprise_generic';
+  }
+
+  function normalisePositiveNumber(value) {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
+  }
+
+  function normaliseOptionalNumber(value) {
+    if (value == null || value === '') return null;
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : null;
+  }
+
+  function buildProjectHorizonConfidenceLabel(config) {
+    if (!config?.enabled) return 'Not computed';
+    const statuses = [
+      config.durationSourceStatus,
+      config.projectValueSourceStatus,
+      config.projectMarginSourceStatus
+    ].filter(Boolean).map(status => normaliseSourceStatus(status));
+    if (statuses.includes('benchmark_proxy')) return 'Proxy-based project horizon';
+    if (statuses.includes('estimated') || statuses.includes('derived')) return 'Estimate-led project horizon';
+    if (statuses.includes('evidence_supported')) return 'Evidence-supported project horizon';
+    return 'Known-input project horizon';
+  }
+
+  function buildProjectHorizonCaveats(config) {
+    const caveats = Array.isArray(config?.caveats) ? [...config.caveats] : [];
+    if (!config?.enabled) return caveats;
+    if (!normalisePositiveNumber(config.projectValue) || !isComputableSourceStatus(config.projectValueSourceStatus)) {
+      caveats.push('Project value was not available with a usable source status, so loss as a percentage of project value is omitted.');
+    }
+    if (config.assessmentType === 'project_seller' && (!normalisePositiveNumber(config.projectMargin) || !isComputableSourceStatus(config.projectMarginSourceStatus))) {
+      caveats.push('Seller contribution margin was not available with a usable source status, so margin percentage is omitted.');
+    }
+    if (normaliseSourceStatus(config.durationSourceStatus) === 'benchmark_proxy') {
+      caveats.push('Project duration is benchmark-proxied; read project-horizon metrics as proxy-based, not observed.');
+    }
+    return Array.from(new Set(caveats.map(item => String(item || '').trim()).filter(Boolean))).slice(0, 8);
+  }
+
+  function normaliseProjectHorizonConfig(params = {}) {
+    const assessmentType = normaliseAssessmentType(params.assessmentType);
+    const isProjectAssessment = PROJECT_ASSESSMENT_TYPES.includes(assessmentType);
+    if (!isProjectAssessment) return null;
+
+    const requested = params.projectHorizonEnabled !== false;
+    const base = {
+      enabled: false,
+      skippedReason: requested ? '' : 'project_horizon_disabled',
+      assessmentType,
+      durationMonths: null,
+      durationYears: null,
+      durationSourceStatus: normaliseSourceStatus(params.projectDurationSourceStatus, 'unknown'),
+      durationConfidence: String(params.projectDurationConfidence || 'unknown').trim() || 'unknown',
+      projectValue: normaliseOptionalNumber(params.projectValue),
+      projectValueSourceStatus: normaliseSourceStatus(params.projectValueSourceStatus, params.projectValue == null ? 'unknown' : 'known'),
+      projectMargin: normaliseOptionalNumber(params.projectMargin),
+      projectMarginSourceStatus: normaliseSourceStatus(params.projectMarginSourceStatus, params.projectMargin == null ? 'unknown' : 'known'),
+      caveats: []
+    };
+    if (!requested) return base;
+
+    const rawYears = normaliseOptionalNumber(params.projectHorizonYears);
+    const rawMonths = normaliseOptionalNumber(params.projectDurationMonths);
+    if (rawYears === null && rawMonths === null) {
+      return {
+        ...base,
+        skippedReason: 'project_duration_missing',
+        caveats: ['Project duration is unknown, so project-horizon loss was not computed.']
+      };
+    }
+
+    const sourceStatus = normaliseSourceStatus(params.projectDurationSourceStatus, 'known');
+    const inputMonths = rawYears !== null ? rawYears * 12 : rawMonths;
+    if (!(inputMonths > 0)) {
+      return {
+        ...base,
+        durationMonths: inputMonths,
+        durationYears: inputMonths === null ? null : inputMonths / 12,
+        durationSourceStatus: sourceStatus,
+        skippedReason: 'project_duration_invalid',
+        caveats: ['Project duration must be greater than zero before project-horizon loss can be computed.']
+      };
+    }
+    if (!isComputableSourceStatus(sourceStatus)) {
+      return {
+        ...base,
+        durationMonths: inputMonths,
+        durationYears: inputMonths / 12,
+        durationSourceStatus: sourceStatus,
+        skippedReason: 'project_duration_source_unknown',
+        caveats: ['Project duration is present but its source status is unknown, so project-horizon loss was not computed.']
+      };
+    }
+
+    const cappedMonths = Math.min(inputMonths, MAX_PROJECT_DURATION_MONTHS);
+    const caveats = [];
+    if (inputMonths > MAX_PROJECT_DURATION_MONTHS) {
+      caveats.push(`Project duration was capped at ${MAX_PROJECT_DURATION_MONTHS} months for simulation guardrails.`);
+    }
+    return {
+      ...base,
+      enabled: true,
+      skippedReason: '',
+      durationMonths: cappedMonths,
+      durationYears: cappedMonths / 12,
+      durationSourceStatus: sourceStatus,
+      durationConfidence: String(params.projectDurationConfidence || (sourceStatus === 'known' || sourceStatus === 'evidence_supported' ? 'medium' : 'low')).trim() || 'unknown',
+      caveats
+    };
+  }
+
+  function buildProjectHorizonValidationWarnings(params = {}) {
+    const config = normaliseProjectHorizonConfig(params);
+    if (!config || !config.skippedReason) return [];
+    if (config.skippedReason === 'project_horizon_disabled') return [];
+    return config.caveats.length ? config.caveats : [`Project-horizon metrics skipped: ${config.skippedReason}.`];
+  }
+
   function validateOrderedRange(params, key, label, errors, options = {}) {
     const min = Number(params[`${key}Min`]);
     const likely = Number(params[`${key}Likely`]);
@@ -354,7 +493,20 @@ const RiskEngine = (() => {
       corrBiIr: clampNumber(params.corrBiIr, -CORRELATION_LIMIT, CORRELATION_LIMIT, 0.3),
       corrRlRc: clampNumber(params.corrRlRc, -CORRELATION_LIMIT, CORRELATION_LIMIT, 0.2),
       vulnDirect: !!params.vulnDirect,
-      secondaryEnabled: !!params.secondaryEnabled
+      secondaryEnabled: !!params.secondaryEnabled,
+      assessmentType: normaliseAssessmentType(params.assessmentType),
+      projectHorizonEnabled: params.projectHorizonEnabled !== false,
+      projectDurationMonths: normaliseOptionalNumber(params.projectDurationMonths),
+      projectDurationSourceStatus: normaliseSourceStatus(
+        params.projectDurationSourceStatus,
+        params.projectDurationMonths == null && params.projectHorizonYears == null ? 'unknown' : 'known'
+      ),
+      projectDurationConfidence: String(params.projectDurationConfidence || 'unknown').trim() || 'unknown',
+      projectHorizonYears: normaliseOptionalNumber(params.projectHorizonYears),
+      projectValue: normaliseOptionalNumber(params.projectValue),
+      projectValueSourceStatus: normaliseSourceStatus(params.projectValueSourceStatus, params.projectValue == null ? 'unknown' : 'known'),
+      projectMargin: normaliseOptionalNumber(params.projectMargin),
+      projectMarginSourceStatus: normaliseSourceStatus(params.projectMarginSourceStatus, params.projectMargin == null ? 'unknown' : 'known')
     };
     const errors = [];
 
@@ -406,7 +558,10 @@ const RiskEngine = (() => {
     }
 
     const expensiveSettings = buildExpensiveSettingsWarnings(normalizedParams);
-    const semanticsWarnings = buildParameterSemanticsWarnings(normalizedParams);
+    const semanticsWarnings = [
+      ...buildParameterSemanticsWarnings(normalizedParams),
+      ...buildProjectHorizonValidationWarnings(normalizedParams)
+    ];
     return {
       valid: errors.length === 0,
       errors,
@@ -438,11 +593,14 @@ const RiskEngine = (() => {
       },
       runtimeGuardrails: Array.isArray(context.runtimeGuardrails) ? context.runtimeGuardrails : [],
       currencyContext: context.currencyContext || {},
+      projectHorizon: normaliseProjectHorizonConfig(params),
       inputSnapshot: {
         distType: params.distType,
         vulnDirect: !!params.vulnDirect,
         threshold: params.threshold,
         annualReviewThreshold: params.annualReviewThreshold,
+        assessmentType: normaliseAssessmentType(params.assessmentType),
+        projectHorizon: normaliseProjectHorizonConfig(params),
         tef: { min: params.tefMin, likely: params.tefLikely, max: params.tefMax },
         vulnerability: params.vulnDirect
           ? { min: params.vulnMin, likely: params.vulnLikely, max: params.vulnMax }
@@ -466,9 +624,11 @@ const RiskEngine = (() => {
     };
   }
 
-  function _computeSamples(params, iterations, { onProgress = null, yieldEvery = 0, signal = null } = {}) {
+  function _computeSamples(params, iterations, { onProgress = null, yieldEvery = 0, signal = null, projectHorizonConfig = null } = {}) {
     const lmSamples = [];
     const aleSamples = [];
+    const projectHorizonSamples = projectHorizonConfig?.enabled ? [] : null;
+    const projectEventIndicators = projectHorizonConfig?.enabled ? [] : null;
 
     const computeOne = () => {
       assertNotCancelled(signal);
@@ -486,11 +646,22 @@ const RiskEngine = (() => {
         annualLoss += samplePrimaryLoss(params) + sampleSecondaryLoss(params);
       }
       aleSamples.push(annualLoss);
+
+      if (projectHorizonConfig?.enabled) {
+        const projectLambda = lef * projectHorizonConfig.durationYears;
+        const projectEvents = samplePoisson(projectLambda);
+        let projectLoss = 0;
+        for (let j = 0; j < projectEvents; j += 1) {
+          projectLoss += samplePrimaryLoss(params) + sampleSecondaryLoss(params);
+        }
+        projectHorizonSamples.push(projectLoss);
+        projectEventIndicators.push(projectEvents > 0 ? 1 : 0);
+      }
     };
 
     if (!yieldEvery) {
       for (let i = 0; i < iterations; i += 1) computeOne();
-      return { lmSamples, aleSamples };
+      return { lmSamples, aleSamples, projectHorizonSamples, projectEventIndicators };
     }
 
     return (async () => {
@@ -502,11 +673,73 @@ const RiskEngine = (() => {
           await new Promise(resolve => setTimeout(resolve, 0));
         }
       }
-      return { lmSamples, aleSamples };
+      return { lmSamples, aleSamples, projectHorizonSamples, projectEventIndicators };
     })();
   }
 
-  function _buildResults(iterations, thresholds, lmSamples, aleSamples) {
+  function buildProjectHorizonMetric(config, projectHorizonSamples, projectEventIndicators, thresholds, iterations) {
+    if (!config) return null;
+    if (!config.enabled) {
+      return {
+        enabled: false,
+        skippedReason: config.skippedReason || 'project_horizon_not_available',
+        durationMonths: config.durationMonths,
+        durationYears: config.durationYears,
+        durationSourceStatus: config.durationSourceStatus,
+        durationConfidence: config.durationConfidence,
+        eventProbability: null,
+        loss: null,
+        lossAsPctOfProjectValue: null,
+        lossAsPctOfProjectValueSourceStatus: config.projectValueSourceStatus,
+        lossAsPctOfMargin: null,
+        lossAsPctOfMarginSourceStatus: config.projectMarginSourceStatus,
+        metricSemantics: 'Project-horizon metrics were not computed because the required project duration was not available with a usable source status.',
+        confidenceLabel: 'Not computed',
+        caveats: buildProjectHorizonCaveats(config)
+      };
+    }
+
+    const lossStats = stats(Array.isArray(projectHorizonSamples) ? projectHorizonSamples : []);
+    const eventProbability = Array.isArray(projectEventIndicators) && projectEventIndicators.length
+      ? projectEventIndicators.reduce((sum, value) => sum + (value ? 1 : 0), 0) / projectEventIndicators.length
+      : 0;
+    const loss = {
+      ...lossStats,
+      exceedProbabilities: {
+        eventToleranceThreshold: projectHorizonSamples.filter(v => v > thresholds.eventToleranceThreshold).length / iterations,
+        annualReviewThreshold: projectHorizonSamples.filter(v => v > thresholds.annualReviewThreshold).length / iterations
+      }
+    };
+    const hasProjectValue = normalisePositiveNumber(config.projectValue) !== null && isComputableSourceStatus(config.projectValueSourceStatus);
+    const hasProjectMargin = normalisePositiveNumber(config.projectMargin) !== null && isComputableSourceStatus(config.projectMarginSourceStatus);
+    const pctStats = denominator => ({
+      mean: lossStats.mean / denominator,
+      p50: lossStats.p50 / denominator,
+      p90: lossStats.p90 / denominator,
+      p95: lossStats.p95 / denominator,
+      min: lossStats.min / denominator,
+      max: lossStats.max / denominator
+    });
+    return {
+      enabled: true,
+      skippedReason: '',
+      durationMonths: config.durationMonths,
+      durationYears: config.durationYears,
+      durationSourceStatus: config.durationSourceStatus,
+      durationConfidence: config.durationConfidence,
+      eventProbability,
+      loss,
+      lossAsPctOfProjectValue: hasProjectValue ? pctStats(config.projectValue) : null,
+      lossAsPctOfProjectValueSourceStatus: hasProjectValue ? config.projectValueSourceStatus : config.projectValueSourceStatus,
+      lossAsPctOfMargin: hasProjectMargin ? pctStats(config.projectMargin) : null,
+      lossAsPctOfMarginSourceStatus: hasProjectMargin ? config.projectMarginSourceStatus : config.projectMarginSourceStatus,
+      metricSemantics: 'Project-horizon loss applies annualized event frequency and event-success logic over the project duration, while preserving the separate annualized enterprise-risk view.',
+      confidenceLabel: buildProjectHorizonConfidenceLabel(config),
+      caveats: buildProjectHorizonCaveats(config)
+    };
+  }
+
+  function _buildResults(iterations, thresholds, lmSamples, aleSamples, projectHorizonConfig = null, projectHorizonSamples = null, projectEventIndicators = null) {
     const eventLossStats = stats(lmSamples);
     const annualLossStats = stats(aleSamples);
     const lec = buildLEC(aleSamples);
@@ -529,7 +762,10 @@ const RiskEngine = (() => {
       annualReviewTriggered,
       metricSemantics: {
         eventLoss: 'Conditional loss if a materially successful event occurs.',
-        annualLoss: 'Annualized loss after applying event frequency and event success logic across the year.'
+        annualLoss: 'Annualized loss after applying event frequency and event success logic across the year.',
+        ...(projectHorizonConfig ? {
+          projectHorizon: 'Project-horizon loss applies the same event frequency and event-success logic over the selected project duration when the duration is known, estimated, derived, evidence-supported, or benchmark-proxied.'
+        } : {})
       },
       toleranceDetail: {
         lmP90: eventLossStats.p90,
@@ -540,7 +776,10 @@ const RiskEngine = (() => {
       annualReviewDetail: {
         annualP90: annualLossStats.p90,
         annualExceedProb: aleSamples.filter(v => v > annualReviewThreshold).length / iterations
-      }
+      },
+      ...(projectHorizonConfig ? {
+        projectHorizon: buildProjectHorizonMetric(projectHorizonConfig, projectHorizonSamples || [], projectEventIndicators || [], thresholds, iterations)
+      } : {})
     };
   }
 
@@ -567,6 +806,7 @@ const RiskEngine = (() => {
         eventToleranceThreshold: normalizedParams.threshold,
         annualReviewThreshold: normalizedParams.annualReviewThreshold
       },
+      projectHorizonConfig: normaliseProjectHorizonConfig(normalizedParams),
       validation
     };
   }
@@ -574,16 +814,23 @@ const RiskEngine = (() => {
   function run(params) {
     const prepared = _prepareRun(params);
     const { iterations, thresholds } = prepared;
-    const { lmSamples, aleSamples } = _computeSamples(prepared.params, iterations);
-    return _buildResults(iterations, thresholds, lmSamples, aleSamples);
+    const { lmSamples, aleSamples, projectHorizonSamples, projectEventIndicators } = _computeSamples(prepared.params, iterations, {
+      projectHorizonConfig: prepared.projectHorizonConfig
+    });
+    return _buildResults(iterations, thresholds, lmSamples, aleSamples, prepared.projectHorizonConfig, projectHorizonSamples, projectEventIndicators);
   }
 
   async function runAsync(params, { onProgress = null, yieldEvery = 500, signal = null } = {}) {
     const prepared = _prepareRun(params);
     const { iterations, thresholds } = prepared;
-    const { lmSamples, aleSamples } = await _computeSamples(prepared.params, iterations, { onProgress, yieldEvery, signal });
+    const { lmSamples, aleSamples, projectHorizonSamples, projectEventIndicators } = await _computeSamples(prepared.params, iterations, {
+      onProgress,
+      yieldEvery,
+      signal,
+      projectHorizonConfig: prepared.projectHorizonConfig
+    });
     return {
-      ..._buildResults(iterations, thresholds, lmSamples, aleSamples),
+      ..._buildResults(iterations, thresholds, lmSamples, aleSamples, prepared.projectHorizonConfig, projectHorizonSamples, projectEventIndicators),
       runConfig: {
         seed: prepared.params.seed,
         iterations: prepared.params.iterations,
@@ -593,7 +840,17 @@ const RiskEngine = (() => {
         vulnDirect: prepared.params.vulnDirect,
         secondaryEnabled: prepared.params.secondaryEnabled,
         corrBiIr: prepared.params.corrBiIr,
-        corrRlRc: prepared.params.corrRlRc
+        corrRlRc: prepared.params.corrRlRc,
+        assessmentType: prepared.params.assessmentType,
+        projectHorizonEnabled: !!prepared.projectHorizonConfig,
+        projectDurationMonths: prepared.params.projectDurationMonths,
+        projectDurationSourceStatus: prepared.params.projectDurationSourceStatus,
+        projectDurationConfidence: prepared.params.projectDurationConfidence,
+        projectHorizonYears: prepared.params.projectHorizonYears,
+        projectValue: prepared.params.projectValue,
+        projectValueSourceStatus: prepared.params.projectValueSourceStatus,
+        projectMargin: prepared.params.projectMargin,
+        projectMarginSourceStatus: prepared.params.projectMarginSourceStatus
       },
       validation: prepared.validation
     };
@@ -613,7 +870,9 @@ const RiskEngine = (() => {
       DEFAULT_ITERATIONS,
       MAX_ITERATIONS,
       HIGH_ITERATION_WARNING,
-      CORRELATION_LIMIT
+      CORRELATION_LIMIT,
+      MAX_PROJECT_DURATION_MONTHS,
+      COMPUTABLE_SOURCE_STATUSES
     }
   };
 })();

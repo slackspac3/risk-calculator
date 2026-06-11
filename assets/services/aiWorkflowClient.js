@@ -72,6 +72,37 @@ const AiWorkflowClient = (() => {
     return value;
   }
 
+  function normaliseLooseWorkflowValue(value, depth = 0) {
+    if (value === null || value === undefined) return undefined;
+    if (typeof value === 'string') return normaliseBlockText(value);
+    if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;
+    if (typeof value === 'boolean') return value;
+    if (Array.isArray(value)) {
+      if (depth >= 3) return undefined;
+      const next = value
+        .slice(0, 30)
+        .map((item) => normaliseLooseWorkflowValue(item, depth + 1))
+        .filter((item) => item !== undefined && item !== '');
+      return next.length ? next : undefined;
+    }
+    if (isPlainObject(value)) {
+      if (depth >= 3) return undefined;
+      const next = {};
+      Object.entries(value).slice(0, 40).forEach(([key, item]) => {
+        const cleanKey = normaliseInlineText(key);
+        const cleanItem = normaliseLooseWorkflowValue(item, depth + 1);
+        if (cleanKey && cleanItem !== undefined && cleanItem !== '') next[cleanKey] = cleanItem;
+      });
+      return Object.keys(next).length ? next : undefined;
+    }
+    return undefined;
+  }
+
+  function normaliseLooseWorkflowObject(value = {}) {
+    const next = normaliseLooseWorkflowValue(value);
+    return isPlainObject(next) ? next : undefined;
+  }
+
   function normaliseStringList(items = [], {
     maxItems = 12,
     block = false,
@@ -284,6 +315,121 @@ const AiWorkflowClient = (() => {
     }) || {};
   }
 
+  function normaliseValidationSummary(value = {}) {
+    if (!isPlainObject(value)) return undefined;
+    return compactValue({
+      valid: value.valid === true ? true : value.valid === false ? false : undefined,
+      errors: normaliseStringList(value.errors, { maxItems: 12, block: true }),
+      warnings: normaliseStringList(value.warnings, { maxItems: 12, block: true })
+    });
+  }
+
+  function normaliseParameterCoachPayload(source = {}) {
+    return compactValue({
+      assessmentType: normaliseInlineText(source.assessmentType || ''),
+      scenario: normaliseBlockText(source.scenario || source.riskStatement || source.narrative || ''),
+      structuredScenario: normaliseLooseWorkflowObject(source.structuredScenario),
+      scenarioLens: isPlainObject(source.scenarioLens)
+        ? normaliseLooseWorkflowObject(source.scenarioLens)
+        : normaliseInlineText(source.scenarioLens || ''),
+      projectContext: normaliseProjectContext(source.projectContext),
+      projectExposure: normaliseProjectExposureSummary(source.projectExposure),
+      parameters: normaliseFairParams(source.parameters || source.fairParams),
+      validation: normaliseValidationSummary(source.validation),
+      assumptionRegister: normaliseLooseWorkflowObject(source.assumptionRegister),
+      evidenceMap: normaliseLooseWorkflowObject(source.evidenceMap),
+      citations: normaliseCitations(source.citations, { maxItems: 10 }),
+      businessContext: normaliseLooseWorkflowObject(source.businessContext),
+      adminSettings: normaliseAdminSettings(source.adminSettings),
+      results: normaliseResults(source.results),
+      traceLabel: normaliseInlineText(source.traceLabel || ''),
+      priorMessages: normalisePriorMessages(source.priorMessages, { maxItems: 8 })
+    }) || {};
+  }
+
+  function normaliseEvidenceMapPayload(source = {}) {
+    return compactValue({
+      assessmentType: normaliseInlineText(source.assessmentType || ''),
+      scenario: normaliseBlockText(source.scenario || source.narrative || ''),
+      structuredScenario: normaliseLooseWorkflowObject(source.structuredScenario),
+      riskStatement: normaliseBlockText(source.riskStatement || source.scenario || source.narrative || ''),
+      projectContext: normaliseProjectContext(source.projectContext),
+      projectExposure: normaliseProjectExposureSummary(source.projectExposure),
+      assumptions: Array.isArray(source.assumptions)
+        ? source.assumptions.slice(0, 30).map(normaliseLooseWorkflowValue).filter(Boolean)
+        : undefined,
+      parameters: normaliseFairParams(source.parameters || source.fairParams),
+      citations: normaliseCitations(source.citations, { maxItems: 20 }),
+      ragMatches: Array.isArray(source.ragMatches)
+        ? source.ragMatches.slice(0, 20).map((item) => {
+            if (!isPlainObject(item)) return undefined;
+            return compactValue({
+              title: normaliseInlineText(item.title || item.sourceTitle || item.name || ''),
+              sourceTitle: normaliseInlineText(item.sourceTitle || ''),
+              excerpt: normaliseBlockText(item.excerpt || item.text || item.content || item.chunkText || ''),
+              url: normaliseUrlLike(item.url || item.sourceUrl || item.link || ''),
+              relevanceReason: normaliseBlockText(item.relevanceReason || item.reason || ''),
+              score: normaliseNumber(item.score)
+            });
+          }).filter(Boolean)
+        : undefined,
+      businessContext: normaliseLooseWorkflowObject(source.businessContext),
+      adminSettings: normaliseAdminSettings(source.adminSettings),
+      traceLabel: normaliseInlineText(source.traceLabel || '')
+    }) || {};
+  }
+
+  function normaliseDecisionChallengePayload(source = {}) {
+    return compactValue({
+      assessmentType: normaliseInlineText(source.assessmentType || ''),
+      scenario: normaliseBlockText(source.scenario || source.riskStatement || source.narrative || ''),
+      structuredScenario: normaliseLooseWorkflowObject(source.structuredScenario),
+      scenarioLens: isPlainObject(source.scenarioLens)
+        ? normaliseLooseWorkflowObject(source.scenarioLens)
+        : normaliseInlineText(source.scenarioLens || ''),
+      projectContext: normaliseProjectContext(source.projectContext),
+      projectExposure: normaliseProjectExposureSummary(source.projectExposure),
+      parameters: normaliseFairParams(source.parameters || source.fairParams),
+      simulationResult: normaliseResults(source.simulationResult || source.results),
+      assumptionRegister: normaliseLooseWorkflowObject(source.assumptionRegister),
+      parameterCoach: normaliseLooseWorkflowObject(source.parameterCoach),
+      evidenceMap: normaliseLooseWorkflowObject(source.evidenceMap),
+      treatments: Array.isArray(source.treatments)
+        ? source.treatments.slice(0, 20).map(normaliseLooseWorkflowValue).filter(Boolean)
+        : undefined,
+      riskAppetite: normaliseLooseWorkflowObject(source.riskAppetite),
+      adminSettings: normaliseAdminSettings(source.adminSettings),
+      traceLabel: normaliseInlineText(source.traceLabel || ''),
+      priorMessages: normalisePriorMessages(source.priorMessages, { maxItems: 8 })
+    }) || {};
+  }
+
+  function normaliseDecisionBriefPayload(source = {}) {
+    return compactValue({
+      assessmentType: normaliseInlineText(source.assessmentType || ''),
+      scenario: normaliseBlockText(source.scenario || source.riskStatement || source.narrative || ''),
+      structuredScenario: normaliseLooseWorkflowObject(source.structuredScenario),
+      scenarioLens: isPlainObject(source.scenarioLens)
+        ? normaliseLooseWorkflowObject(source.scenarioLens)
+        : normaliseInlineText(source.scenarioLens || ''),
+      projectContext: normaliseProjectContext(source.projectContext),
+      projectExposure: normaliseProjectExposureSummary(source.projectExposure),
+      simulationResult: normaliseResults(source.simulationResult || source.results),
+      parameters: normaliseFairParams(source.parameters || source.fairParams),
+      assumptionRegister: normaliseLooseWorkflowObject(source.assumptionRegister),
+      parameterCoach: normaliseLooseWorkflowObject(source.parameterCoach),
+      evidenceMap: normaliseLooseWorkflowObject(source.evidenceMap),
+      decisionChallenge: normaliseLooseWorkflowObject(source.decisionChallenge),
+      treatments: Array.isArray(source.treatments)
+        ? source.treatments.slice(0, 20).map(normaliseLooseWorkflowValue).filter(Boolean)
+        : undefined,
+      riskAppetite: normaliseLooseWorkflowObject(source.riskAppetite),
+      adminSettings: normaliseAdminSettings(source.adminSettings),
+      traceLabel: normaliseInlineText(source.traceLabel || ''),
+      priorMessages: normalisePriorMessages(source.priorMessages, { maxItems: 8 })
+    }) || {};
+  }
+
   function normaliseGuidedInput(value = {}) {
     if (!isPlainObject(value)) return undefined;
     return compactValue({
@@ -349,12 +495,27 @@ const AiWorkflowClient = (() => {
     if (!isPlainObject(value)) return undefined;
     return compactValue({
       inputs: normaliseFairParams(value.inputs),
+      threshold: normaliseNumber(value.threshold),
+      annualReviewThreshold: normaliseNumber(value.annualReviewThreshold),
+      annualLoss: compactValue({
+        mean: normaliseNumber(value?.annualLoss?.mean),
+        p50: normaliseNumber(value?.annualLoss?.p50),
+        p90: normaliseNumber(value?.annualLoss?.p90),
+        p95: normaliseNumber(value?.annualLoss?.p95)
+      }),
       ale: compactValue({
-        mean: normaliseNumber(value?.ale?.mean)
+        mean: normaliseNumber(value?.ale?.mean),
+        p50: normaliseNumber(value?.ale?.p50),
+        p90: normaliseNumber(value?.ale?.p90),
+        p95: normaliseNumber(value?.ale?.p95)
       }),
       eventLoss: compactValue({
-        p90: normaliseNumber(value?.eventLoss?.p90)
-      })
+        mean: normaliseNumber(value?.eventLoss?.mean),
+        p50: normaliseNumber(value?.eventLoss?.p50),
+        p90: normaliseNumber(value?.eventLoss?.p90),
+        p95: normaliseNumber(value?.eventLoss?.p95)
+      }),
+      projectHorizon: normaliseLooseWorkflowObject(value.projectHorizon)
     });
   }
 
@@ -532,6 +693,14 @@ const AiWorkflowClient = (() => {
         }) || {};
       case '/api/ai/project-exposure-map':
         return normaliseProjectExposureWorkflowPayload(source);
+      case '/api/ai/parameter-coach':
+        return normaliseParameterCoachPayload(source);
+      case '/api/ai/evidence-map':
+        return normaliseEvidenceMapPayload(source);
+      case '/api/ai/decision-challenge':
+        return normaliseDecisionChallengePayload(source);
+      case '/api/ai/decision-brief':
+        return normaliseDecisionBriefPayload(source);
       case '/api/ai/manual-intake-assist':
       case '/api/ai/manual-draft-refinement':
       case '/api/ai/manual-shortlist':
@@ -867,6 +1036,18 @@ const AiWorkflowClient = (() => {
       getProjectExposureMapUrl() {
         return buildUrl('/api/ai/project-exposure-map');
       },
+      getParameterCoachUrl() {
+        return buildUrl('/api/ai/parameter-coach');
+      },
+      getEvidenceMapUrl() {
+        return buildUrl('/api/ai/evidence-map');
+      },
+      getDecisionChallengeUrl() {
+        return buildUrl('/api/ai/decision-challenge');
+      },
+      getDecisionBriefUrl() {
+        return buildUrl('/api/ai/decision-brief');
+      },
       getManualIntakeAssistUrl() {
         return buildUrl('/api/ai/manual-intake-assist');
       },
@@ -905,6 +1086,18 @@ const AiWorkflowClient = (() => {
       },
       generateProjectExposureMap(payload = {}) {
         return postWorkflow(buildUrl('/api/ai/project-exposure-map'), payload);
+      },
+      generateParameterCoach(payload = {}) {
+        return postWorkflow(buildUrl('/api/ai/parameter-coach'), payload);
+      },
+      generateEvidenceMap(payload = {}) {
+        return postWorkflow(buildUrl('/api/ai/evidence-map'), payload);
+      },
+      generateDecisionChallenge(payload = {}) {
+        return postWorkflow(buildUrl('/api/ai/decision-challenge'), payload);
+      },
+      generateDecisionBrief(payload = {}) {
+        return postWorkflow(buildUrl('/api/ai/decision-brief'), payload);
       },
       postWorkflow
     };

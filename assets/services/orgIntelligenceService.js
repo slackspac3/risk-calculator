@@ -14,7 +14,7 @@ const OrgIntelligenceService = (() => {
     calibration: { updatedAt: 0, scenarioTypes: {} },
     decisions: [],
     coverageMap: { updatedAt: 0, scenarioTypes: {} },
-    feedback: { updatedAt: 0, events: [] },
+    feedback: { updatedAt: 0, events: [], structuredEvents: [] },
     updatedAt: 0
   });
   const RATIO_BOUNDED_FIELDS = new Set([
@@ -59,7 +59,7 @@ const OrgIntelligenceService = (() => {
         calibration: { updatedAt: 0, scenarioTypes: {} },
         decisions: [],
         coverageMap: { updatedAt: 0, scenarioTypes: {} },
-        feedback: { updatedAt: 0, events: [] },
+        feedback: { updatedAt: 0, events: [], structuredEvents: [] },
         updatedAt: 0
       });
       const parsed = JSON.parse(raw);
@@ -70,7 +70,7 @@ const OrgIntelligenceService = (() => {
         calibration: { updatedAt: 0, scenarioTypes: {} },
         decisions: [],
         coverageMap: { updatedAt: 0, scenarioTypes: {} },
-        feedback: { updatedAt: 0, events: [] },
+        feedback: { updatedAt: 0, events: [], structuredEvents: [] },
         updatedAt: 0
       });
     }
@@ -294,9 +294,12 @@ const OrgIntelligenceService = (() => {
             updatedAt: Number(source.feedback.updatedAt || 0),
             events: Array.isArray(source.feedback.events)
               ? source.feedback.events.map(_normaliseFeedbackEvent).filter(item => item.score >= 1 && item.score <= 5).slice(0, 600)
+              : [],
+            structuredEvents: Array.isArray(source.feedback.structuredEvents)
+              ? source.feedback.structuredEvents.filter(Boolean).slice(0, 600)
               : []
           }
-        : { updatedAt: 0, events: [] },
+        : { updatedAt: 0, events: [], structuredEvents: [] },
       updatedAt: Number(source.updatedAt || 0)
     };
   }
@@ -355,7 +358,7 @@ const OrgIntelligenceService = (() => {
         calibration: payload.calibration || { updatedAt: 0, scenarioTypes: {} },
         decisions: payload.decisions || [],
         coverageMap: payload.coverageMap || { updatedAt: 0, scenarioTypes: {} },
-        feedback: payload.feedback || { updatedAt: 0, events: [] },
+        feedback: payload.feedback || { updatedAt: 0, events: [], structuredEvents: [] },
         updatedAt: Date.now()
       });
     }).catch(() => getCachedState()).finally(() => {
@@ -643,12 +646,14 @@ const OrgIntelligenceService = (() => {
     const currentFeedback = cached.feedback && typeof cached.feedback === 'object'
       ? {
           updatedAt: Number(cached.feedback.updatedAt || 0),
-          events: Array.isArray(cached.feedback.events) ? cached.feedback.events.slice() : []
+          events: Array.isArray(cached.feedback.events) ? cached.feedback.events.slice() : [],
+          structuredEvents: Array.isArray(cached.feedback.structuredEvents) ? cached.feedback.structuredEvents.slice() : []
         }
-      : { updatedAt: 0, events: [] };
+      : { updatedAt: 0, events: [], structuredEvents: [] };
     const nextFeedback = {
       updatedAt: Date.now(),
-      events: [event, ...currentFeedback.events.filter(item => item?.id !== event.id)].slice(0, 600)
+      events: [event, ...currentFeedback.events.filter(item => item?.id !== event.id)].slice(0, 600),
+      structuredEvents: currentFeedback.structuredEvents
     };
     _saveCache({
       ...cached,
@@ -671,6 +676,9 @@ const OrgIntelligenceService = (() => {
         updatedAt: Number(response.feedback.updatedAt || Date.now()),
         events: Array.isArray(response.feedback.events)
           ? response.feedback.events.map(_normaliseFeedbackEvent).filter(item => item.score >= 1 && item.score <= 5).slice(0, 600)
+          : [],
+        structuredEvents: Array.isArray(response.feedback.structuredEvents)
+          ? response.feedback.structuredEvents.filter(Boolean).slice(0, 600)
           : []
       },
       updatedAt: Date.now()

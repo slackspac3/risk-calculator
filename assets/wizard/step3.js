@@ -2148,6 +2148,9 @@ function renderWizard3() {
       AppState.draft.confidenceLabel = result.confidenceLabel || AppState.draft.confidenceLabel || '';
       AppState.draft.evidenceQuality = result.evidenceQuality || AppState.draft.evidenceQuality || '';
       AppState.draft.evidenceSummary = result.evidenceSummary || AppState.draft.evidenceSummary || '';
+      AppState.draft.treatmentTradeoff = result.treatmentTradeoff && typeof result.treatmentTradeoff === 'object'
+        ? result.treatmentTradeoff
+        : (AppState.draft.treatmentTradeoff || null);
       AppState.draft.primaryGrounding = Array.isArray(result.primaryGrounding) ? result.primaryGrounding : (AppState.draft.primaryGrounding || []);
       AppState.draft.supportingReferences = Array.isArray(result.supportingReferences) ? result.supportingReferences : (AppState.draft.supportingReferences || []);
       AppState.draft.inferredAssumptions = Array.isArray(result.inferredAssumptions) ? result.inferredAssumptions : (AppState.draft.inferredAssumptions || []);

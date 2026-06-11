@@ -17,6 +17,8 @@
   const MAX_PROJECT_EXPOSURE_MAP_KEYS = 30;
   const MAX_NESTED_ARRAY_ITEMS = 8;
   const MAX_NESTED_OBJECT_KEYS = 12;
+  const MAX_PROJECT_EXPOSURE_TEXT_LENGTH = 1600;
+  const MAX_PROJECT_EXPOSURE_SHORT_TEXT_LENGTH = 320;
 
   const FINANCIAL_VALUE_STATUSES = new Set([
     'known',
@@ -135,11 +137,11 @@
     }
   }
 
-  function normaliseText(value) {
+  function normaliseText(value, maxLength = MAX_PROJECT_EXPOSURE_TEXT_LENGTH) {
     if (value === null || value === undefined) return '';
     const type = typeof value;
     if (type === 'string' || type === 'number' || type === 'boolean' || type === 'bigint') {
-      return String(value).trim();
+      return String(value).trim().slice(0, maxLength);
     }
     return '';
   }
@@ -232,7 +234,7 @@
       if (depth >= 2) return {};
       const output = {};
       Object.keys(value).slice(0, MAX_NESTED_OBJECT_KEYS).forEach(rawKey => {
-        const key = normaliseText(rawKey);
+        const key = normaliseText(rawKey, MAX_PROJECT_EXPOSURE_SHORT_TEXT_LENGTH);
         if (!key) return;
         const item = normaliseLooseValue(readField(value, rawKey), depth + 1);
         if (item === null || item === '') return;
@@ -242,8 +244,8 @@
     }
     if (typeof value === 'number') return Number.isFinite(value) ? value : null;
     if (typeof value === 'boolean') return value;
-    if (typeof value === 'string') return value.trim();
-    if (typeof value === 'bigint') return String(value);
+    if (typeof value === 'string') return value.trim().slice(0, MAX_PROJECT_EXPOSURE_TEXT_LENGTH);
+    if (typeof value === 'bigint') return String(value).slice(0, MAX_PROJECT_EXPOSURE_TEXT_LENGTH);
     return null;
   }
 
@@ -259,7 +261,7 @@
     if (!isPlainObject(value)) return {};
     const output = {};
     Object.keys(value).slice(0, MAX_PROJECT_EXPOSURE_MAP_KEYS).forEach(rawKey => {
-      const key = normaliseText(rawKey);
+      const key = normaliseText(rawKey, MAX_PROJECT_EXPOSURE_SHORT_TEXT_LENGTH);
       if (!key) return;
       const item = normaliseLooseValue(readField(value, rawKey), 0);
       if (item === null || item === '') return;
@@ -532,6 +534,8 @@
     ASSESSMENT_SCREEN_PROJECT_BUYER_INPUTS,
     ASSESSMENT_SCREEN_PROJECT_SELLER_INPUTS,
     MAX_PROJECT_EXPOSURE_ARRAY_ITEMS,
+    MAX_PROJECT_EXPOSURE_TEXT_LENGTH,
+    MAX_PROJECT_EXPOSURE_SHORT_TEXT_LENGTH,
     BUYER_ECONOMICS_FIELDS,
     SELLER_ECONOMICS_FIELDS,
     normaliseAssessmentType,

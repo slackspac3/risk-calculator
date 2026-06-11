@@ -330,6 +330,22 @@ const LLMService = (() => {
     return _workflowClient ? _workflowClient.getProjectExposureMapUrl() : '';
   }
 
+  function _getParameterCoachUrl() {
+    return _workflowClient ? _workflowClient.getParameterCoachUrl() : '';
+  }
+
+  function _getEvidenceMapUrl() {
+    return _workflowClient ? _workflowClient.getEvidenceMapUrl() : '';
+  }
+
+  function _getDecisionChallengeUrl() {
+    return _workflowClient ? _workflowClient.getDecisionChallengeUrl() : '';
+  }
+
+  function _getDecisionBriefUrl() {
+    return _workflowClient ? _workflowClient.getDecisionBriefUrl() : '';
+  }
+
   function _getManualIntakeAssistUrl() {
     return _workflowClient ? _workflowClient.getManualIntakeAssistUrl() : '';
   }
@@ -4184,6 +4200,104 @@ ${businessUnit.selectedDepartmentContext}` : ''
     return _postServerAiWorkflow(_getProjectExposureMapUrl(), payload);
   }
 
+  async function generateParameterCoach(input = {}) {
+    const payload = {
+      assessmentType: typeof input.assessmentType === 'string' ? input.assessmentType : '',
+      scenario: typeof input.scenario === 'string' ? input.scenario : '',
+      structuredScenario: input?.structuredScenario && typeof input.structuredScenario === 'object' ? input.structuredScenario : {},
+      scenarioLens: input?.scenarioLens && typeof input.scenarioLens === 'object' ? input.scenarioLens : (typeof input.scenarioLens === 'string' ? input.scenarioLens : ''),
+      projectContext: input?.projectContext && typeof input.projectContext === 'object' ? input.projectContext : {},
+      projectExposure: input?.projectExposure && typeof input.projectExposure === 'object' ? input.projectExposure : {},
+      parameters: input?.parameters && typeof input.parameters === 'object' ? input.parameters : {},
+      validation: input?.validation && typeof input.validation === 'object' ? input.validation : {},
+      assumptionRegister: input?.assumptionRegister && typeof input.assumptionRegister === 'object' ? input.assumptionRegister : {},
+      evidenceMap: input?.evidenceMap && typeof input.evidenceMap === 'object' ? input.evidenceMap : {},
+      citations: Array.isArray(input.citations) ? input.citations : [],
+      businessContext: input?.businessContext && typeof input.businessContext === 'object' ? input.businessContext : {},
+      adminSettings: input?.adminSettings && typeof input.adminSettings === 'object' ? input.adminSettings : {},
+      results: input?.results && typeof input.results === 'object' ? input.results : {},
+      traceLabel: typeof input.traceLabel === 'string' ? input.traceLabel : '',
+      priorMessages: Array.isArray(input.priorMessages) ? input.priorMessages : []
+    };
+    if (_workflowClient && typeof _workflowClient.generateParameterCoach === 'function') {
+      return _workflowClient.generateParameterCoach(payload);
+    }
+    return _postServerAiWorkflow(_getParameterCoachUrl(), payload);
+  }
+
+  async function generateEvidenceMap(input = {}) {
+    const payload = {
+      assessmentType: typeof input.assessmentType === 'string' ? input.assessmentType : '',
+      scenario: typeof input.scenario === 'string' ? input.scenario : '',
+      structuredScenario: input?.structuredScenario && typeof input.structuredScenario === 'object' ? input.structuredScenario : {},
+      riskStatement: typeof input.riskStatement === 'string' ? input.riskStatement : '',
+      projectContext: input?.projectContext && typeof input.projectContext === 'object' ? input.projectContext : {},
+      projectExposure: input?.projectExposure && typeof input.projectExposure === 'object' ? input.projectExposure : {},
+      assumptions: Array.isArray(input.assumptions) ? input.assumptions : [],
+      parameters: input?.parameters && typeof input.parameters === 'object' ? input.parameters : {},
+      citations: Array.isArray(input.citations) ? input.citations : [],
+      ragMatches: Array.isArray(input.ragMatches) ? input.ragMatches : [],
+      businessContext: input?.businessContext && typeof input.businessContext === 'object' ? input.businessContext : {},
+      adminSettings: input?.adminSettings && typeof input.adminSettings === 'object' ? input.adminSettings : {},
+      traceLabel: typeof input.traceLabel === 'string' ? input.traceLabel : ''
+    };
+    if (_workflowClient && typeof _workflowClient.generateEvidenceMap === 'function') {
+      return _workflowClient.generateEvidenceMap(payload);
+    }
+    return _postServerAiWorkflow(_getEvidenceMapUrl(), payload);
+  }
+
+  async function generateDecisionChallenge(input = {}) {
+    const payload = {
+      assessmentType: typeof input.assessmentType === 'string' ? input.assessmentType : '',
+      scenario: typeof input.scenario === 'string' ? input.scenario : '',
+      structuredScenario: input?.structuredScenario && typeof input.structuredScenario === 'object' ? input.structuredScenario : {},
+      scenarioLens: input?.scenarioLens && typeof input.scenarioLens === 'object' ? input.scenarioLens : (typeof input.scenarioLens === 'string' ? input.scenarioLens : ''),
+      projectContext: input?.projectContext && typeof input.projectContext === 'object' ? input.projectContext : {},
+      projectExposure: input?.projectExposure && typeof input.projectExposure === 'object' ? input.projectExposure : {},
+      parameters: input?.parameters && typeof input.parameters === 'object' ? input.parameters : {},
+      simulationResult: input?.simulationResult && typeof input.simulationResult === 'object' ? input.simulationResult : {},
+      assumptionRegister: input?.assumptionRegister && typeof input.assumptionRegister === 'object' ? input.assumptionRegister : {},
+      parameterCoach: input?.parameterCoach && typeof input.parameterCoach === 'object' ? input.parameterCoach : {},
+      evidenceMap: input?.evidenceMap && typeof input.evidenceMap === 'object' ? input.evidenceMap : {},
+      treatments: Array.isArray(input.treatments) ? input.treatments : [],
+      riskAppetite: input?.riskAppetite && typeof input.riskAppetite === 'object' ? input.riskAppetite : {},
+      adminSettings: input?.adminSettings && typeof input.adminSettings === 'object' ? input.adminSettings : {},
+      traceLabel: typeof input.traceLabel === 'string' ? input.traceLabel : '',
+      priorMessages: Array.isArray(input.priorMessages) ? input.priorMessages : []
+    };
+    if (_workflowClient && typeof _workflowClient.generateDecisionChallenge === 'function') {
+      return _workflowClient.generateDecisionChallenge(payload);
+    }
+    return _postServerAiWorkflow(_getDecisionChallengeUrl(), payload);
+  }
+
+  async function generateDecisionBrief(input = {}) {
+    const payload = {
+      assessmentType: typeof input.assessmentType === 'string' ? input.assessmentType : '',
+      scenario: typeof input.scenario === 'string' ? input.scenario : '',
+      structuredScenario: input?.structuredScenario && typeof input.structuredScenario === 'object' ? input.structuredScenario : {},
+      scenarioLens: input?.scenarioLens && typeof input.scenarioLens === 'object' ? input.scenarioLens : (typeof input.scenarioLens === 'string' ? input.scenarioLens : ''),
+      projectContext: input?.projectContext && typeof input.projectContext === 'object' ? input.projectContext : {},
+      projectExposure: input?.projectExposure && typeof input.projectExposure === 'object' ? input.projectExposure : {},
+      simulationResult: input?.simulationResult && typeof input.simulationResult === 'object' ? input.simulationResult : {},
+      parameters: input?.parameters && typeof input.parameters === 'object' ? input.parameters : {},
+      assumptionRegister: input?.assumptionRegister && typeof input.assumptionRegister === 'object' ? input.assumptionRegister : {},
+      parameterCoach: input?.parameterCoach && typeof input.parameterCoach === 'object' ? input.parameterCoach : {},
+      evidenceMap: input?.evidenceMap && typeof input.evidenceMap === 'object' ? input.evidenceMap : {},
+      decisionChallenge: input?.decisionChallenge && typeof input.decisionChallenge === 'object' ? input.decisionChallenge : {},
+      treatments: Array.isArray(input.treatments) ? input.treatments : [],
+      riskAppetite: input?.riskAppetite && typeof input.riskAppetite === 'object' ? input.riskAppetite : {},
+      adminSettings: input?.adminSettings && typeof input.adminSettings === 'object' ? input.adminSettings : {},
+      traceLabel: typeof input.traceLabel === 'string' ? input.traceLabel : '',
+      priorMessages: Array.isArray(input.priorMessages) ? input.priorMessages : []
+    };
+    if (_workflowClient && typeof _workflowClient.generateDecisionBrief === 'function') {
+      return _workflowClient.generateDecisionBrief(payload);
+    }
+    return _postServerAiWorkflow(_getDecisionBriefUrl(), payload);
+  }
+
   function _buildManualStep1Payload(input = {}) {
     return {
       riskStatement: typeof input.riskStatement === 'string' ? input.riskStatement : '',
@@ -6810,6 +6924,10 @@ Keep the numbers realistic, internally ordered, and anchored to the user's own h
   return {
     buildGuidedScenarioDraft,
     generateProjectExposureMap,
+    generateParameterCoach,
+    generateEvidenceMap,
+    generateDecisionChallenge,
+    generateDecisionBrief,
     buildManualIntakeAssist,
     buildManualDraftRefinement,
     buildManualShortlist,

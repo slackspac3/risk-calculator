@@ -112,6 +112,9 @@
         ? rawResults.toleranceDetail
         : null,
       annualReviewDetail: rawResults.annualReviewDetail || { annualExceedProb: 0, annualP90: 0 },
+      projectHorizon: rawResults.projectHorizon && typeof rawResults.projectHorizon === 'object'
+        ? rawResults.projectHorizon
+        : null,
       metricSemantics: rawResults.metricSemantics || {
         eventLoss: 'Conditional loss if a materially successful event occurs.',
         annualLoss: 'Annualized loss across the year after event frequency is applied.'
@@ -137,6 +140,340 @@
     return {
       roleMode,
       rolePresentation: ROLE_PRESENTATIONS[roleMode]
+    };
+  }
+
+  function cleanCockpitText(value, fallback = '') {
+    const text = String(value ?? '').trim();
+    return text || fallback;
+  }
+
+  function humanizeCockpitToken(value, fallback = 'Not stated') {
+    const text = cleanCockpitText(value);
+    if (!text) return fallback;
+    return text
+      .replace(/[_-]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .replace(/\b\w/g, char => char.toUpperCase());
+  }
+
+  function normaliseCockpitAssessmentType(value) {
+    const text = cleanCockpitText(value).toLowerCase();
+    if (text === 'project_buyer' || text === 'project_seller') return text;
+    return 'enterprise_generic';
+  }
+
+  function uniqueCockpitStrings(items = [], limit = 8) {
+    const seen = new Set();
+    const output = [];
+    (Array.isArray(items) ? items : [items]).forEach(item => {
+      const text = cleanCockpitText(
+        typeof item === 'string'
+          ? item
+          : item?.label || item?.field || item?.driver || item?.title || item?.item || item?.claim || ''
+      );
+      if (!text || seen.has(text.toLowerCase())) return;
+      seen.add(text.toLowerCase());
+      output.push(text);
+    });
+    return output.slice(0, Math.max(0, Number(limit) || 0));
+  }
+
+  function normalizeCockpitValueItems(items = [], limit = 6) {
+    return (Array.isArray(items) ? items : [])
+      .map(item => {
+        const label = cleanCockpitText(item?.label || item?.field || item?.title || '');
+        const value = cleanCockpitText(item?.value || item?.rangeLabel || item?.status || '');
+        if (!label && !value) return null;
+        return {
+          label: label || value,
+          value,
+          status: cleanCockpitText(item?.status || item?.statusLabel || item?.sourceStatus || 'known'),
+          confidence: cleanCockpitText(item?.confidence || 'unknown'),
+          source: cleanCockpitText(item?.source || '')
+        };
+      })
+      .filter(Boolean)
+      .slice(0, Math.max(0, Number(limit) || 0));
+  }
+
+  function formatCockpitPercent(value) {
+    const number = Number(value);
+    return Number.isFinite(number) ? `${(number * 100).toFixed(1)}%` : 'Not computable';
+  }
+
+  function buildCockpitBadge(label, value, tone = 'neutral') {
+    return {
+      label: cleanCockpitText(label),
+      value: cleanCockpitText(value, 'Not stated'),
+      tone: cleanCockpitText(tone, 'neutral')
+    };
+  }
+
+  function resolveCockpitPostureTone(posture = '') {
+    const text = cleanCockpitText(posture).toLowerCase();
+    if (/reject|escalate|above|critical/.test(text)) return 'danger';
+    if (/defer|evidence|review|attention|near|control/.test(text)) return 'warning';
+    if (/proceed|within|ready|approved/.test(text)) return 'success';
+    return 'neutral';
+  }
+
+  function buildCockpitEvidenceConfidence(assessment = {}) {
+    const evidenceMap = assessment?.evidenceMap && typeof assessment.evidenceMap === 'object' ? assessment.evidenceMap : null;
+    const citations = Array.isArray(assessment?.citations) ? assessment.citations.filter(Boolean) : [];
+    const contradictions = Array.isArray(evidenceMap?.contradictions) ? evidenceMap.contradictions.filter(Boolean) : [];
+    const unsupported = Array.isArray(evidenceMap?.unsupportedClaims) ? evidenceMap.unsupportedClaims.filter(Boolean) : [];
+    const strong = Array.isArray(evidenceMap?.citationQuality?.strong) ? evidenceMap.citationQuality.strong.filter(Boolean) : [];
+    const weak = Array.isArray(evidenceMap?.citationQuality?.weak) ? evidenceMap.citationQuality.weak.filter(Boolean) : [];
+    if (contradictions.length) return { label: 'Contradicted evidence', tone: 'danger' };
+    if (strong.length) return { label: 'Evidence supported', tone: 'success' };
+    if (unsupported.length || weak.length || citations.length) return { label: 'Partial evidence', tone: 'warning' };
+    return { label: 'No evidence', tone: 'neutral' };
+  }
+
+  function buildCockpitAssumptionConfidence(assessment = {}, assessmentIntelligence = {}) {
+    const register = assessment?.assumptionRegister && typeof assessment.assumptionRegister === 'object'
+      ? assessment.assumptionRegister
+      : null;
+    const confidence = cleanCockpitText(register?.overallConfidence || assessmentIntelligence?.confidence?.label || '');
+    const assumptions = Array.isArray(register?.assumptions)
+      ? register.assumptions
+      : (Array.isArray(assessmentIntelligence?.assumptions) ? assessmentIntelligence.assumptions : []);
+    if (confidence) {
+      const tone = /high|strong/i.test(confidence) ? 'success' : /low|weak|unknown/i.test(confidence) ? 'warning' : 'neutral';
+      return { label: humanizeCockpitToken(confidence, 'Working assumptions'), tone };
+    }
+    return assumptions.length
+      ? { label: 'Assumptions listed', tone: 'neutral' }
+      : { label: 'No assumptions', tone: 'warning' };
+  }
+
+  function buildCockpitAiMode(assessment = {}) {
+    const metaCandidates = [
+      assessment?.decisionBriefMeta,
+      assessment?.decisionChallengeMeta,
+      assessment?.projectExposureMeta,
+      assessment?.assumptionRegisterMeta,
+      assessment?.parameterCoachMeta,
+      assessment?.evidenceMapMeta
+    ].filter(item => item && typeof item === 'object');
+    const hasOutputs = !!(
+      assessment?.decisionBrief
+      || assessment?.decisionChallenge
+      || assessment?.assumptionRegister
+      || assessment?.parameterCoach
+      || assessment?.evidenceMap
+      || assessment?.projectExposure
+    );
+    if (!metaCandidates.length && !hasOutputs) return { label: 'No AI outputs', tone: 'neutral' };
+    const modes = metaCandidates.map(meta => cleanCockpitText(meta.mode || (meta.usedFallback ? 'fallback' : ''))).filter(Boolean);
+    const hasFallback = modes.some(mode => /fallback|deterministic/i.test(mode)) || metaCandidates.some(meta => meta.usedFallback === true);
+    const hasLive = modes.some(mode => /live|ai/i.test(mode) && !/fallback/i.test(mode));
+    if (hasLive && hasFallback) return { label: 'Mixed AI/fallback', tone: 'warning' };
+    if (hasLive) return { label: 'Live AI', tone: 'success' };
+    if (hasFallback) return { label: 'Deterministic fallback', tone: 'warning' };
+    return { label: hasOutputs ? 'Saved support outputs' : 'No AI outputs', tone: hasOutputs ? 'neutral' : 'warning' };
+  }
+
+  function buildCockpitChallengeSummary(assessment = {}) {
+    const challenge = assessment?.decisionChallenge && typeof assessment.decisionChallenge === 'object'
+      ? assessment.decisionChallenge
+      : null;
+    const changedDecisionIf = Array.isArray(challenge?.changedDecisionIf)
+      ? challenge.changedDecisionIf.map(item => cleanCockpitText(item?.condition || item?.reason || item)).filter(Boolean)
+      : [];
+    const decisionRisks = Array.isArray(challenge?.decisionRisks)
+      ? challenge.decisionRisks.map(item => ({
+          title: cleanCockpitText(item?.title || 'Decision risk'),
+          severity: cleanCockpitText(item?.severity || 'medium'),
+          explanation: cleanCockpitText(item?.explanation || item?.recommendedAction || '')
+        })).filter(item => item.title).slice(0, 3)
+      : [];
+    const stressTests = Array.isArray(challenge?.recommendedStressTests)
+      ? challenge.recommendedStressTests.map(item => ({
+          id: cleanCockpitText(item?.id || item?.title || ''),
+          title: cleanCockpitText(item?.title || 'Stress case'),
+          rationale: cleanCockpitText(item?.rationale || item?.expectedDecisionImpact || ''),
+          confidence: cleanCockpitText(item?.confidence || 'medium')
+        })).filter(item => item.title).slice(0, 2)
+      : [];
+    return {
+      saved: !!challenge,
+      summary: cleanCockpitText(challenge?.challengeSummary || ''),
+      changedDecisionIf: changedDecisionIf.slice(0, 3),
+      decisionRisks,
+      stressTests
+    };
+  }
+
+  function buildDecisionCockpitModel({
+    assessment = {},
+    r = {},
+    projectResultsModel = null,
+    decisionBrief = null,
+    executiveDecision = {},
+    confidenceFrame = {},
+    evidenceGapPlan = [],
+    assessmentIntelligence = {},
+    lifecycle = {},
+    statusTitle = '',
+    executiveAction = ''
+  } = {}) {
+    const assessmentType = normaliseCockpitAssessmentType(assessment?.assessmentType || projectResultsModel?.assessmentType);
+    const isProject = assessmentType === 'project_buyer' || assessmentType === 'project_seller';
+    const typeLabel = assessmentType === 'project_buyer'
+      ? 'Project risk - buyer'
+      : assessmentType === 'project_seller'
+        ? 'Project risk - seller'
+        : 'Generic enterprise risk';
+    const quant = decisionBrief?.quantSummary && typeof decisionBrief.quantSummary === 'object' ? decisionBrief.quantSummary : {};
+    const projectQuant = decisionBrief?.projectQuantSummary && typeof decisionBrief.projectQuantSummary === 'object' ? decisionBrief.projectQuantSummary : {};
+    const posture = cleanCockpitText(decisionBrief?.decisionPosture || executiveDecision?.decision || statusTitle || 'review');
+    const postureLabel = humanizeCockpitToken(posture, 'Review');
+    const postureTone = resolveCockpitPostureTone(`${posture} ${statusTitle}`);
+    const challenge = buildCockpitChallengeSummary(assessment);
+    const knownValues = normalizeCockpitValueItems(projectResultsModel?.knownValues, 6);
+    const estimatedValues = normalizeCockpitValueItems(projectResultsModel?.estimatedValues, 6);
+    const proxyDriverValues = (Array.isArray(projectResultsModel?.driverGroups?.proxyEstimated) ? projectResultsModel.driverGroups.proxyEstimated : [])
+      .map(item => ({
+        label: cleanCockpitText(item?.label || 'Proxy driver'),
+        value: cleanCockpitText(item?.rangeLabel || 'Proxy range'),
+        status: cleanCockpitText(item?.statusLabel || 'benchmark proxy'),
+        confidence: cleanCockpitText(item?.confidence || 'low'),
+        source: cleanCockpitText(item?.source || 'benchmark')
+      }))
+      .slice(0, 4);
+    const proxyValuesUsed = uniqueCockpitStrings([
+      ...(Array.isArray(projectQuant.proxyValuesUsed) ? projectQuant.proxyValuesUsed : []),
+      ...proxyDriverValues.map(item => `${item.label}: ${item.value}`)
+    ], 8);
+    const unknownHighImpactValues = uniqueCockpitStrings([
+      ...(Array.isArray(projectQuant.unknownHighImpactInputs) ? projectQuant.unknownHighImpactInputs : []),
+      ...(Array.isArray(projectResultsModel?.unknownHighImpactValues) ? projectResultsModel.unknownHighImpactValues : []),
+      ...(Array.isArray(projectResultsModel?.decisionSensitiveUnknowns) ? projectResultsModel.decisionSensitiveUnknowns : [])
+    ], 8);
+    const mainDriverCandidates = [
+      ...(Array.isArray(decisionBrief?.mainDrivers) ? decisionBrief.mainDrivers.map(item => item?.driver || item?.impact || item) : []),
+      projectQuant.primaryProjectDriver,
+      ...(Array.isArray(projectResultsModel?.driverGroups?.quantified) ? projectResultsModel.driverGroups.quantified.map(item => item.label) : []),
+      ...(Array.isArray(projectResultsModel?.driverGroups?.proxyEstimated) ? projectResultsModel.driverGroups.proxyEstimated.map(item => item.label) : []),
+      ...(Array.isArray(projectResultsModel?.driverGroups?.unquantified) ? projectResultsModel.driverGroups.unquantified.map(item => item.label) : []),
+      ...(Array.isArray(assessmentIntelligence?.drivers?.upward) ? assessmentIntelligence.drivers.upward : [])
+    ];
+    const mainDriver = uniqueCockpitStrings(mainDriverCandidates, 1)[0] || 'Main driver not identified yet';
+    const nextAction = decisionBrief?.nextAction && typeof decisionBrief.nextAction === 'object'
+      ? {
+          owner: cleanCockpitText(decisionBrief.nextAction.owner || 'Owner not set'),
+          action: cleanCockpitText(decisionBrief.nextAction.action || executiveAction || executiveDecision?.priority || 'Confirm the next management step.'),
+          due: cleanCockpitText(decisionBrief.nextAction.due || ''),
+          controlOrTreatment: cleanCockpitText(decisionBrief.nextAction.controlOrTreatment || '')
+        }
+      : {
+          owner: 'Owner not set',
+          action: cleanCockpitText(executiveAction || executiveDecision?.priority || 'Confirm the next management step.'),
+          due: '',
+          controlOrTreatment: ''
+        };
+    const projectHorizon = projectResultsModel?.projectHorizon && typeof projectResultsModel.projectHorizon === 'object'
+      ? projectResultsModel.projectHorizon
+      : null;
+    const findValue = (...patterns) => {
+      const pool = [...knownValues, ...estimatedValues, ...proxyDriverValues];
+      return pool.find(item => patterns.some(pattern => new RegExp(pattern, 'i').test(`${item.label} ${item.status}`))) || null;
+    };
+    const spendOrBudget = findValue('spend', 'budget');
+    const contractOrRevenue = findValue('contract', 'revenue');
+    const margin = findValue('margin');
+    const projectDriverLabel = cleanCockpitText(projectQuant.primaryProjectDriver || mainDriver);
+    const metrics = isProject
+      ? (assessmentType === 'project_buyer'
+          ? [
+              { label: 'Project spend / budget', value: spendOrBudget?.value || 'Unknown', copy: spendOrBudget ? `${humanizeCockpitToken(spendOrBudget.status)} input` : 'No confirmed spend or budget denominator yet.', tone: spendOrBudget ? 'success' : 'warning' },
+              { label: 'Project-horizon loss', value: projectHorizon?.enabled ? projectHorizon.p90Loss : 'Not computed', copy: projectHorizon?.enabled ? `${projectHorizon.eventProbabilityLabel} event probability over ${projectHorizon.durationLabel}` : (projectHorizon?.skippedReason || 'Duration or value source status is not usable yet.'), tone: projectHorizon?.enabled ? 'warning' : 'neutral', explain: projectHorizon?.enabled ? 'projectHorizon.loss.p90' : '' },
+              { label: 'Loss as % of spend/budget', value: projectHorizon?.lossAsPctOfProjectValueLabel || 'Not computable', copy: 'Only shown when the denominator is known, estimated, derived, or proxied.', tone: projectHorizon?.lossAsPctOfProjectValueLabel ? 'neutral' : 'warning', explain: projectHorizon?.lossAsPctOfProjectValueLabel ? 'projectHorizon.lossAsPctOfProjectValue' : '' },
+              { label: 'Main project driver', value: projectDriverLabel, copy: unknownHighImpactValues.length ? 'High-impact unknowns remain visible below.' : 'No high-impact unknowns currently flagged.', tone: 'neutral' }
+            ]
+          : [
+              { label: 'Contract / revenue context', value: contractOrRevenue?.value || 'Unknown', copy: contractOrRevenue ? `${humanizeCockpitToken(contractOrRevenue.status)} input` : 'No confirmed contract value or revenue denominator yet.', tone: contractOrRevenue ? 'success' : 'warning' },
+              { label: 'Project-horizon loss', value: projectHorizon?.enabled ? projectHorizon.p90Loss : 'Not computed', copy: projectHorizon?.enabled ? `${projectHorizon.eventProbabilityLabel} event probability over ${projectHorizon.durationLabel}` : (projectHorizon?.skippedReason || 'Duration or margin/value source status is not usable yet.'), tone: projectHorizon?.enabled ? 'warning' : 'neutral', explain: projectHorizon?.enabled ? 'projectHorizon.loss.p90' : '' },
+              { label: 'Loss as % of margin', value: projectHorizon?.lossAsPctOfMarginLabel || 'Not computable', copy: margin ? `${humanizeCockpitToken(margin.status)} margin basis` : 'Margin denominator is unavailable or not usable yet.', tone: projectHorizon?.lossAsPctOfMarginLabel ? 'neutral' : 'warning', explain: projectHorizon?.lossAsPctOfMarginLabel ? 'projectHorizon.lossAsPctOfMargin' : '' },
+              { label: 'LD / SLA / cost-to-cure driver', value: projectDriverLabel, copy: unknownHighImpactValues.length ? 'Unknown caps or margin can change the decision.' : 'No high-impact unknowns currently flagged.', tone: 'neutral' }
+            ])
+      : [
+          { label: 'Event loss', value: fmtCurrency(quant.eventLossP90 ?? r?.eventLoss?.p90 ?? r?.lm?.p90 ?? 0), copy: 'Severe single-event management view.', tone: postureTone, explain: 'eventLoss.p90' },
+          { label: 'Annualized loss', value: fmtCurrency(quant.annualLossMean ?? r?.annualLoss?.mean ?? r?.ale?.mean ?? 0), copy: 'Expected annual planning view.', tone: 'neutral', explain: 'annualLoss.mean' },
+          { label: 'Main driver', value: mainDriver, copy: 'Primary factor behind the current read.', tone: 'neutral' },
+          { label: 'Next action', value: nextAction.action, copy: nextAction.owner, tone: 'success' }
+        ];
+    const evidenceConfidence = buildCockpitEvidenceConfidence(assessment);
+    const assumptionConfidence = buildCockpitAssumptionConfidence(assessment, assessmentIntelligence);
+    const aiMode = buildCockpitAiMode(assessment);
+    const inputQualityLabel = isProject
+      ? cleanCockpitText(projectResultsModel?.inputQuality?.label || 'Thin project economics')
+      : 'Enterprise input set';
+    const inputQualityTone = /strong|usable/i.test(inputQualityLabel) ? 'success' : /thin|unknown|missing/i.test(inputQualityLabel) ? 'warning' : 'neutral';
+    const valuationMode = isProject
+      ? cleanCockpitText(assessment?.projectExposure?.valuationMode || projectResultsModel?.valuationMode || 'hybrid')
+      : 'benchmark_led';
+    const evidenceGaps = uniqueCockpitStrings([
+      ...(Array.isArray(evidenceGapPlan) ? evidenceGapPlan : []),
+      ...(Array.isArray(assessment?.evidenceMap?.unsupportedClaims) ? assessment.evidenceMap.unsupportedClaims : []),
+      ...(Array.isArray(assessment?.assumptionRegister?.missingEvidence) ? assessment.assumptionRegister.missingEvidence : [])
+    ], 5);
+    const assumptions = uniqueCockpitStrings(
+      Array.isArray(assessment?.assumptionRegister?.assumptions)
+        ? assessment.assumptionRegister.assumptions.map(item => item?.statement || item)
+        : (Array.isArray(assessmentIntelligence?.assumptions) ? assessmentIntelligence.assumptions.map(item => item?.text || item) : []),
+      4
+    );
+    const emptyStates = [];
+    if (aiMode.label === 'No AI outputs') emptyStates.push({ key: 'no_ai', label: 'No AI configured', copy: 'Deterministic outputs are still shown where available.' });
+    if (evidenceConfidence.label === 'No evidence') emptyStates.push({ key: 'no_evidence', label: 'No evidence', copy: 'Evidence gaps remain visible instead of being treated as support.' });
+    if (isProject && !knownValues.length && !estimatedValues.length && !unknownHighImpactValues.length) emptyStates.push({ key: 'no_project_economics', label: 'No project economics', copy: 'Project economics have not been supplied yet; unknowns are not treated as zero.' });
+    if (isProject && (/thin/i.test(inputQualityLabel) || unknownHighImpactValues.length)) emptyStates.push({ key: 'thin_project_economics', label: 'Thin project economics', copy: 'The estimate is directional until key values are confirmed.' });
+    if (!assumptions.length) emptyStates.push({ key: 'no_assumptions', label: 'No assumptions', copy: 'No structured assumption register has been saved yet.' });
+    if (!challenge.saved) emptyStates.push({ key: 'no_challenge', label: 'No challenge', copy: 'Run the Challenge Agent to capture decision-sensitive stress cases.' });
+
+    return {
+      assessmentType,
+      assessmentTypeLabel: typeLabel,
+      isProject,
+      role: assessmentType === 'project_seller' ? 'seller' : assessmentType === 'project_buyer' ? 'buyer' : 'generic',
+      valuationModeLabel: humanizeCockpitToken(valuationMode, 'Benchmark Led'),
+      recommendation: cleanCockpitText(decisionBrief?.recommendation || executiveDecision?.decision || statusTitle || 'Review result'),
+      why: cleanCockpitText(decisionBrief?.why || executiveDecision?.rationale || confidenceFrame?.summary || 'Use the current result as a decision-support view and confirm the strongest assumptions.'),
+      decisionPostureLabel: postureLabel,
+      decisionPostureTone: postureTone,
+      reviewReadinessLabel: cleanCockpitText(lifecycle?.label || 'Ready for review'),
+      evidenceConfidence,
+      assumptionConfidence,
+      aiMode,
+      inputQualityLabel,
+      inputQualityScore: Number.isFinite(Number(projectResultsModel?.inputQuality?.score)) ? Number(projectResultsModel.inputQuality.score) : null,
+      inputQualityTone,
+      proxyValuesUsed,
+      unknownHighImpactValues,
+      knownValues,
+      estimatedValues: [...estimatedValues, ...proxyDriverValues].slice(0, 8),
+      economicsMetrics: metrics,
+      mainDriver,
+      nextAction,
+      evidenceGaps,
+      assumptions,
+      challenge,
+      sparseDataWarning: cleanCockpitText(decisionBrief?.sparseDataWarning || (isProject && unknownHighImpactValues.length ? 'Project economics are thin. The estimate is directional until key values are confirmed.' : '')),
+      emptyStates,
+      badges: [
+        buildCockpitBadge('Assessment type', typeLabel, isProject ? 'support' : 'neutral'),
+        buildCockpitBadge('Valuation mode', humanizeCockpitToken(valuationMode, 'Benchmark Led'), isProject ? 'support' : 'neutral'),
+        buildCockpitBadge('Project input quality', inputQualityLabel, inputQualityTone),
+        buildCockpitBadge('Decision posture', postureLabel, postureTone),
+        buildCockpitBadge('Evidence confidence', evidenceConfidence.label, evidenceConfidence.tone),
+        buildCockpitBadge('Assumption confidence', assumptionConfidence.label, assumptionConfidence.tone),
+        buildCockpitBadge('AI mode', aiMode.label, aiMode.tone),
+        buildCockpitBadge('Proxy values used', proxyValuesUsed.length ? String(proxyValuesUsed.length) : 'None', proxyValuesUsed.length ? 'warning' : 'neutral'),
+        buildCockpitBadge('Review readiness', cleanCockpitText(lifecycle?.label || 'Ready for review'), 'neutral')
+      ]
     };
   }
 
@@ -193,7 +530,17 @@
       vulnDirect: rawResults.runConfig.vulnDirect,
       secondaryEnabled: rawResults.runConfig.secondaryEnabled,
       corrBiIr: rawResults.runConfig.corrBiIr,
-      corrRlRc: rawResults.runConfig.corrRlRc
+      corrRlRc: rawResults.runConfig.corrRlRc,
+      assessmentType: rawResults.runConfig.assessmentType || assessment.assessmentType,
+      projectHorizonEnabled: rawResults.runConfig.projectHorizonEnabled,
+      projectDurationMonths: rawResults.runConfig.projectDurationMonths,
+      projectDurationSourceStatus: rawResults.runConfig.projectDurationSourceStatus,
+      projectDurationConfidence: rawResults.runConfig.projectDurationConfidence,
+      projectHorizonYears: rawResults.runConfig.projectHorizonYears,
+      projectValue: rawResults.runConfig.projectValue,
+      projectValueSourceStatus: rawResults.runConfig.projectValueSourceStatus,
+      projectMargin: rawResults.runConfig.projectMargin,
+      projectMarginSourceStatus: rawResults.runConfig.projectMarginSourceStatus
     }, {
       scenarioMultipliers: rawResults.portfolioMeta || {},
       warningThreshold: rawResults.warningThreshold,
@@ -227,6 +574,14 @@
     const confidenceFrame = ReportPresentation.buildExecutiveConfidenceFrame(assessmentIntelligence.confidence, assessment.evidenceQuality, missingInformation, citations);
     const thresholdModel = ReportPresentation.buildExecutiveThresholdModel(r, fmtCurrency);
     const impactMix = ReportPresentation.buildExecutiveImpactMix(technicalInputs);
+    const projectResultsModel = typeof ReportPresentation.buildProjectResultsModel === 'function'
+      ? ReportPresentation.buildProjectResultsModel(assessment, r, fmtCurrency)
+      : null;
+    const decisionBrief = assessment.decisionBrief && typeof assessment.decisionBrief === 'object'
+      ? (typeof DecisionSupportModel !== 'undefined' && DecisionSupportModel?.buildDecisionBrief
+          ? DecisionSupportModel.buildDecisionBrief(assessment.decisionBrief)
+          : assessment.decisionBrief)
+      : null;
     const comparisonOptions = getAssessments()
       .filter(item => deriveAssessmentLifecycleStatus(item) !== ASSESSMENT_LIFECYCLE_STATUS.ARCHIVED && item.id !== assessment.id && item.results)
       .sort((a, b) => new Date(b.completedAt || b.createdAt || 0).getTime() - new Date(a.completedAt || a.createdAt || 0).getTime())
@@ -266,6 +621,19 @@
           benchmarkSettings: getAdminSettings().valueBenchmarkSettings
         })
       : null;
+    const decisionCockpitModel = buildDecisionCockpitModel({
+      assessment,
+      r,
+      projectResultsModel,
+      decisionBrief,
+      executiveDecision,
+      confidenceFrame,
+      evidenceGapPlan,
+      assessmentIntelligence,
+      lifecycle,
+      statusTitle,
+      executiveAction
+    });
     return {
       capability,
       rolePresentation,
@@ -302,6 +670,8 @@
       confidenceFrame,
       thresholdModel,
       impactMix,
+      projectResultsModel,
+      decisionBrief,
       comparisonOptions,
       activeComparisonId,
       baselineAssessment,
@@ -313,7 +683,8 @@
       treatmentRecommendationLens,
       explanationPanel,
       analystSummary,
-      assessmentValue
+      assessmentValue,
+      decisionCockpitModel
     };
   }
 

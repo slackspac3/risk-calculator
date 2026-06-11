@@ -202,15 +202,268 @@ function renderExecutiveSignalCard(results) {
           ? `<div class="results-signal-label">Not assessed</div>
              <div class="form-help">Run the simulation to see probability of exceeding tolerance.</div>`
           : `<div class="results-signal-bar"><span style="width:${breach}%"></span></div>
-             <div class="results-comparison-foot">${breach.toFixed(1)}% chance of exceeding tolerance in the model; this is not incident likelihood.</div>`}
+             <div class="results-comparison-foot">${breach.toFixed(1)}% chance of exceeding tolerance in the model; this is not incident likelihood.</div>
+             <button type="button" class="results-metric-explain" data-results-explain="toleranceDetail.lmExceedProb" aria-expanded="false">Explain this number</button>`}
       </div>
       <div class="results-signal-metric">
         <div class="results-driver-label">Annual stress versus review trigger</div>
         <div class="results-signal-bar warning"><span style="width:${Math.min(annualStress, 100)}%"></span></div>
         <div class="results-comparison-foot">${annualStress >= 100 ? 'At or above' : 'Below'} the annual review trigger</div>
+        <button type="button" class="results-metric-explain" data-results-explain="annualReviewDetail.annualExceedProb" aria-expanded="false">Explain this number</button>
       </div>
     </div>`
   });
+}
+
+function renderProjectHorizonResultsPanel(results) {
+  const projectHorizon = results?.projectHorizon && typeof results.projectHorizon === 'object'
+    ? results.projectHorizon
+    : null;
+  if (!projectHorizon) return '';
+  const caveats = Array.isArray(projectHorizon.caveats)
+    ? projectHorizon.caveats.map(item => String(item || '').trim()).filter(Boolean).slice(0, 4)
+    : [];
+  if (!projectHorizon.enabled) {
+    return UI.resultsVisualCard({
+      title: 'Project-horizon view',
+      body: `<div class="results-summary-copy">Project-horizon metrics were not computed for this run.</div>
+        <div class="citation-chips" style="margin-top:12px">
+          <span class="badge badge--warning">${escapeHtml(String(projectHorizon.skippedReason || 'Skipped'))}</span>
+          <span class="badge badge--neutral">${escapeHtml(String(projectHorizon.durationSourceStatus || 'unknown'))} duration</span>
+        </div>
+        ${caveats.length ? `<div class="results-comparison-foot" style="margin-top:var(--sp-3)">${caveats.map(item => escapeHtml(item)).join(' ')}</div>` : ''}`
+    });
+  }
+  const eventProbability = Number(projectHorizon.eventProbability || 0);
+  const valuePct = projectHorizon.lossAsPctOfProjectValue
+    ? `${(Number(projectHorizon.lossAsPctOfProjectValue.p90 || 0) * 100).toFixed(1)}%`
+    : 'Not available';
+  const marginPct = projectHorizon.lossAsPctOfMargin
+    ? `${(Number(projectHorizon.lossAsPctOfMargin.p90 || 0) * 100).toFixed(1)}%`
+    : 'Not available';
+  return UI.resultsVisualCard({
+    title: 'Project-horizon view',
+    body: `<div class="results-track-grid">
+      <div class="results-track-card">
+        <span class="results-track-card__label">Expected project-horizon loss</span>
+        <strong>${fmtCurrency(projectHorizon.loss?.mean || 0)}</strong>
+        <p>${escapeHtml(String(projectHorizon.confidenceLabel || 'Project duration labelled'))}</p>
+        <button type="button" class="results-metric-explain" data-results-explain="projectHorizon.loss.mean" aria-expanded="false">Explain this number</button>
+      </div>
+      <div class="results-track-card">
+        <span class="results-track-card__label">Severe project-horizon loss</span>
+        <strong>${fmtCurrency(projectHorizon.loss?.p90 || 0)}</strong>
+        <p>${(eventProbability * 100).toFixed(1)}% modelled probability of at least one event over ${Number(projectHorizon.durationMonths || 0).toFixed(1)} months.</p>
+        <button type="button" class="results-metric-explain" data-results-explain="projectHorizon.loss.p90" aria-expanded="false">Explain this number</button>
+      </div>
+    </div>
+    <div class="context-chip-grid" style="margin-top:var(--sp-4)">
+      <div class="context-chip-panel"><span>Loss as % of project value</span><strong>${escapeHtml(valuePct)}</strong><small>${escapeHtml(String(projectHorizon.lossAsPctOfProjectValueSourceStatus || 'unknown'))}</small><button type="button" class="results-metric-explain" data-results-explain="projectHorizon.lossAsPctOfProjectValue" aria-expanded="false">Explain this number</button></div>
+      <div class="context-chip-panel"><span>Loss as % of margin</span><strong>${escapeHtml(marginPct)}</strong><small>${escapeHtml(String(projectHorizon.lossAsPctOfMarginSourceStatus || 'unknown'))}</small><button type="button" class="results-metric-explain" data-results-explain="projectHorizon.lossAsPctOfMargin" aria-expanded="false">Explain this number</button></div>
+      <div class="context-chip-panel"><span>Project event probability</span><strong>${(eventProbability * 100).toFixed(1)}%</strong><small>Modelled over project duration</small><button type="button" class="results-metric-explain" data-results-explain="projectHorizon.eventProbability" aria-expanded="false">Explain this number</button></div>
+      <div class="context-chip-panel"><span>Duration source</span><strong>${escapeHtml(String(projectHorizon.durationSourceStatus || 'unknown').replace(/_/g, ' '))}</strong><small>${escapeHtml(String(projectHorizon.durationConfidence || 'unknown'))}</small></div>
+    </div>
+    ${caveats.length ? `<div class="results-comparison-foot" style="margin-top:var(--sp-3)">${caveats.map(item => escapeHtml(item)).join(' ')}</div>` : ''}
+    <div class="form-help" style="margin-top:var(--sp-3)">${escapeHtml(String(projectHorizon.metricSemantics || 'Project-horizon metrics preserve the existing annualized view.'))}</div>`
+  });
+}
+
+function renderResultsAssessmentTypeHeader(model, assessmentValue = null, results = {}) {
+  const safeModel = model && typeof model === 'object' ? model : null;
+  if (!safeModel) return '';
+  const resolveExplainKey = (item = {}) => {
+    const explicit = String(item.explain || '').trim();
+    if (explicit) return explicit;
+    const label = String(item.label || '').toLowerCase();
+    if (/event loss/.test(label)) return 'eventLoss.p90';
+    if (/annualized loss|annual loss/.test(label)) return 'annualLoss.mean';
+    if (/tolerance exceedance/.test(label)) return 'toleranceDetail.lmExceedProb';
+    if (/annual review/.test(label)) return 'annualReviewDetail.annualExceedProb';
+    if (/project-horizon expected/.test(label)) return 'projectHorizon.loss.mean';
+    if (/p90 project-horizon|project-horizon p90/.test(label)) return 'projectHorizon.loss.p90';
+    if (/loss as % of margin/.test(label)) return 'projectHorizon.lossAsPctOfMargin';
+    if (/loss as % of spend|loss as % of project|loss as % of contract/.test(label)) return 'projectHorizon.lossAsPctOfProjectValue';
+    if (/delay|reprocurement|recover|revenue at risk|margin at risk|cost to cure|ld|sla/.test(label)) return 'projectExposure.primaryDriver';
+    return '';
+  };
+  const renderItem = (item, tone = '') => {
+    const explainKey = resolveExplainKey(item);
+    return `<div class="results-top-value-strip__item ${tone ? `results-top-value-strip__item--${escapeHtml(tone)}` : ''}">
+    <span>${escapeHtml(String(item.label || 'Metric'))}</span>
+    <strong>${escapeHtml(String(item.value || 'Not available'))}</strong>
+    ${item.copy ? `<small>${escapeHtml(String(item.copy))}</small>` : ''}
+    ${explainKey ? `<button type="button" class="results-metric-explain" data-results-explain="${escapeHtml(explainKey)}" aria-expanded="false">Explain this number</button>` : ''}
+  </div>`;
+  };
+  if (!safeModel.isProject) {
+    const metrics = Array.isArray(safeModel.metrics) && safeModel.metrics.length
+      ? safeModel.metrics
+      : [
+          { label: 'Event loss', value: fmtCurrency(results?.eventLoss?.p90 || 0), copy: 'Severe single-event view' },
+          { label: 'Annualized loss', value: fmtCurrency(results?.annualLoss?.mean || 0), copy: 'Expected annual exposure' },
+          { label: 'Tolerance exceedance', value: `${(Number(results?.toleranceDetail?.lmExceedProb || 0) * 100).toFixed(1)}%`, copy: 'Modelled threshold exceedance' },
+          { label: 'Annual review trigger', value: results?.annualReviewTriggered ? 'Triggered' : 'Not triggered', copy: 'Existing annual review logic' }
+        ];
+    return `<section class="results-assessment-type-header results-assessment-type-header--generic anim-fade-in" aria-label="Enterprise risk estimate">
+      <div class="results-assessment-type-header__body">
+        <div>
+          <div class="results-driver-label">Enterprise risk estimate</div>
+          <h2>Enterprise risk estimate</h2>
+        </div>
+        <p>Event loss and annualized loss remain the primary enterprise-risk views.</p>
+      </div>
+      <div class="results-top-value-strip results-top-value-strip--wide">${metrics.slice(0, 4).map((item, index) => renderItem(item, index === 0 ? 'value' : '')).join('')}</div>
+    </section>`;
+  }
+
+  const projectMetrics = [];
+  const valueSource = safeModel.role === 'seller'
+    ? safeModel.knownValues.find(item => /contract value/i.test(item.label)) || safeModel.estimatedValues.find(item => /contract value/i.test(item.label))
+    : safeModel.knownValues.find(item => /spend|budget/i.test(item.label)) || safeModel.estimatedValues.find(item => /spend|budget/i.test(item.label));
+  if (valueSource) projectMetrics.push({
+    label: safeModel.role === 'seller' ? 'Contract value' : 'Project spend / budget',
+    value: valueSource.value,
+    copy: `${valueSource.status.replace(/_/g, ' ')} · ${valueSource.confidence} confidence`
+  });
+  if (safeModel.projectHorizon?.enabled) {
+    projectMetrics.push({ label: 'Project-horizon expected loss', value: safeModel.projectHorizon.expectedLoss, copy: safeModel.projectHorizon.confidenceLabel || 'Project duration view' });
+    projectMetrics.push({ label: 'P90 project-horizon loss', value: safeModel.projectHorizon.p90Loss, copy: `${safeModel.projectHorizon.eventProbabilityLabel} event probability over ${safeModel.projectHorizon.durationLabel}` });
+    projectMetrics.push({
+      label: safeModel.role === 'seller' ? 'Loss as % of margin' : 'Loss as % of spend / budget',
+      value: safeModel.role === 'seller'
+        ? (safeModel.projectHorizon.lossAsPctOfMarginLabel || 'Not computable')
+        : (safeModel.projectHorizon.lossAsPctOfProjectValueLabel || 'Not computable'),
+      copy: safeModel.role === 'seller' ? 'Requires margin denominator' : 'Requires spend or budget denominator'
+    });
+  }
+  const quantified = safeModel.driverGroups?.quantified || [];
+  const proxyEstimated = safeModel.driverGroups?.proxyEstimated || [];
+  const driverPick = (pattern) => [...quantified, ...proxyEstimated].find(driver => pattern.test(`${driver.label} ${driver.type}`));
+  const delayDriver = driverPick(/delay/i);
+  const reprocurementDriver = driverPick(/reprocurement/i);
+  const recoveryDriver = driverPick(/recovery|credit|offset/i);
+  const marginDriver = driverPick(/margin/i);
+  const revenueDriver = driverPick(/revenue/i);
+  const cureDriver = driverPick(/cure|delivery cost|cost/i);
+  const penaltyDriver = driverPick(/liquidated|sla|penalt/i);
+  if (safeModel.role === 'buyer') {
+    if (delayDriver) projectMetrics.push({ label: 'Delay cost at risk', value: delayDriver.rangeLabel, copy: `${delayDriver.statusLabel} · ${delayDriver.confidence}` });
+    if (reprocurementDriver) projectMetrics.push({ label: 'Reprocurement exposure', value: reprocurementDriver.rangeLabel, copy: `${reprocurementDriver.statusLabel} · ${reprocurementDriver.confidence}` });
+    if (recoveryDriver) projectMetrics.push({ label: 'Recoveries / offsets', value: recoveryDriver.rangeLabel, copy: `${recoveryDriver.statusLabel} · ${recoveryDriver.confidence}` });
+  } else {
+    if (revenueDriver) projectMetrics.push({ label: 'Revenue at risk', value: revenueDriver.rangeLabel, copy: `${revenueDriver.statusLabel} · ${revenueDriver.confidence}` });
+    if (marginDriver) projectMetrics.push({ label: 'Margin at risk', value: marginDriver.rangeLabel, copy: `${marginDriver.statusLabel} · ${marginDriver.confidence}` });
+    if (cureDriver) projectMetrics.push({ label: 'Cost to cure', value: cureDriver.rangeLabel, copy: `${cureDriver.statusLabel} · ${cureDriver.confidence}` });
+    if (penaltyDriver) projectMetrics.push({ label: 'LD / SLA exposure', value: penaltyDriver.rangeLabel, copy: `${penaltyDriver.statusLabel} · ${penaltyDriver.confidence}` });
+  }
+  if (!projectMetrics.length) {
+    projectMetrics.push({ label: safeModel.role === 'seller' ? 'Project seller exposure' : 'Project buyer exposure', value: 'Directional', copy: 'Project economics are thin. The estimate is directional until key values are confirmed.' });
+  }
+  projectMetrics.push({
+    label: 'Project input quality',
+    value: safeModel.inputQuality?.score == null ? safeModel.inputQuality?.label || 'Thin project economics' : `${Math.round(Number(safeModel.inputQuality.score))}/100`,
+    copy: safeModel.inputQuality?.label || 'Input quality'
+  });
+  if (safeModel.unknownHighImpactValues?.length) {
+    projectMetrics.push({
+      label: 'Unknown high-impact values',
+      value: String(safeModel.unknownHighImpactValues.length),
+      copy: safeModel.unknownHighImpactValues.slice(0, 2).join(', ')
+    });
+  }
+  return `<section class="results-assessment-type-header results-assessment-type-header--project anim-fade-in" aria-label="${escapeHtml(safeModel.title)}">
+    <div class="results-assessment-type-header__body">
+      <div>
+        <div class="results-driver-label">${escapeHtml(safeModel.role === 'seller' ? 'Project seller exposure' : 'Project buyer exposure')}</div>
+        <h2>${escapeHtml(safeModel.title)}</h2>
+      </div>
+      <p>${escapeHtml(safeModel.helperCopy || safeModel.caveatSummary || 'Project economics are directional until key values are confirmed.')}</p>
+    </div>
+    <div class="results-top-value-strip results-top-value-strip--project">${projectMetrics.slice(0, 8).map((item, index) => renderItem(item, index === 0 ? 'value' : '')).join('')}</div>
+  </section>`;
+}
+
+function renderProjectDriverList(title, items = [], emptyCopy = '') {
+  const safeItems = Array.isArray(items) ? items : [];
+  return `<div class="project-exposure-group">
+    <div class="project-exposure-group__head">
+      <span>${escapeHtml(title)}</span>
+      <strong>${safeItems.length}</strong>
+    </div>
+    ${safeItems.length ? safeItems.slice(0, 6).map(item => `<div class="project-exposure-driver">
+      <div>
+        <strong>${escapeHtml(item.label)}</strong>
+        <span>${escapeHtml(item.rationale || item.type || 'Project exposure driver')}</span>
+      </div>
+      <div class="project-exposure-driver__value">
+        <strong>${escapeHtml(item.rangeLabel)}</strong>
+        <span>${escapeHtml(`${item.statusLabel} · ${item.confidence}`)}</span>
+      </div>
+    </div>`).join('') : `<p class="results-summary-copy">${escapeHtml(emptyCopy || 'No drivers in this group yet.')}</p>`}
+  </div>`;
+}
+
+function renderProjectExposureResultsPanel(model) {
+  if (!model?.isProject) return '';
+  const maps = model.mapsToRiskParameters && typeof model.mapsToRiskParameters === 'object' ? Object.entries(model.mapsToRiskParameters) : [];
+  const known = Array.isArray(model.knownValues) ? model.knownValues : [];
+  const estimated = Array.isArray(model.estimatedValues) ? model.estimatedValues : [];
+  const unknowns = Array.isArray(model.unknownHighImpactValues) ? model.unknownHighImpactValues : [];
+  const decisionUnknowns = Array.isArray(model.decisionSensitiveUnknowns) ? model.decisionSensitiveUnknowns : [];
+  const capsAndOffsets = Array.isArray(model.capsAndOffsets) ? model.capsAndOffsets : [];
+  const warnings = Array.isArray(model.doubleCountingWarnings) ? model.doubleCountingWarnings : [];
+  return `<section class="project-results-panel anim-fade-in" data-project-results-panel>
+    <div class="project-results-panel__head">
+      <div>
+        <div class="results-driver-label">${escapeHtml(model.title)}</div>
+        <h2>Project financial exposure</h2>
+      </div>
+      <span class="badge ${unknowns.length ? 'badge--warning' : 'badge--success'}">${escapeHtml(model.inputQuality?.label || 'Project input quality')}</span>
+    </div>
+    <p class="results-summary-copy">${escapeHtml(model.summary || model.caveatSummary)}</p>
+    ${unknowns.length || decisionUnknowns.length ? `<div class="banner banner--warning" style="margin-top:var(--sp-4)"><span class="banner-icon">!</span><span class="banner-text">Project economics are thin. The estimate is directional until key values are confirmed.</span></div>` : ''}
+    <div class="project-results-lens-grid">
+      <div class="context-chip-panel">
+        <span class="project-results-chip-label">Known project values</span>
+        <strong>${known.length ? escapeHtml(known.map(item => `${item.label}: ${item.value}`).join(' · ')) : 'None confirmed'}</strong>
+      </div>
+      <div class="context-chip-panel">
+        <span class="project-results-chip-label">Estimated/proxy values</span>
+        <strong>${estimated.length ? escapeHtml(estimated.map(item => `${item.label}: ${item.value}`).join(' · ')) : 'No proxy values selected'}</strong>
+      </div>
+      <div class="context-chip-panel">
+        <span class="project-results-chip-label">Unknown but important</span>
+        <strong>${unknowns.length ? escapeHtml(unknowns.slice(0, 4).join(', ')) : 'No high-impact unknowns flagged'}</strong>
+      </div>
+      <div class="context-chip-panel">
+        <span class="project-results-chip-label">Could change the decision</span>
+        <strong>${decisionUnknowns.length ? escapeHtml(decisionUnknowns.slice(0, 3).map(item => item.label).join(', ')) : 'No decision-sensitive gaps flagged'}</strong>
+      </div>
+    </div>
+    <div class="project-exposure-grid">
+      ${renderProjectDriverList('Quantified drivers', model.driverGroups?.quantified, 'No project drivers are fully quantified yet.')}
+      ${renderProjectDriverList('Estimated/proxy drivers', model.driverGroups?.proxyEstimated, 'No benchmark-proxy or estimated drivers are currently active.')}
+      ${renderProjectDriverList('Unquantified but relevant', model.driverGroups?.unquantified, 'No unquantified relevant drivers were flagged.')}
+    </div>
+    <div class="project-results-detail-grid">
+      <div class="project-results-detail-card">
+        <div class="results-driver-label">Caps and offsets</div>
+        ${capsAndOffsets.length ? capsAndOffsets.slice(0, 5).map(item => `<p>${escapeHtml(String(item.type || item.label || 'Offset'))}: ${escapeHtml(String(item.effect || item.rationale || 'informational'))}</p>`).join('') : '<p>No caps or offsets are confirmed yet. Unknown recoveries are not treated as zero.</p>'}
+      </div>
+      <div class="project-results-detail-card">
+        <div class="results-driver-label">Double-counting warnings</div>
+        ${warnings.length ? warnings.map(item => `<p>${escapeHtml(item)}</p>`).join('') : '<p>No double-counting warnings are currently flagged.</p>'}
+      </div>
+      <div class="project-results-detail-card">
+        <div class="results-driver-label">Missing inputs</div>
+        ${model.missingInputs.length ? model.missingInputs.slice(0, 5).map(item => `<p><strong>${escapeHtml(item.label)}</strong>${item.whyItMatters ? ` — ${escapeHtml(item.whyItMatters)}` : ''}</p>`).join('') : '<p>No project-specific missing inputs are currently listed.</p>'}
+      </div>
+      <div class="project-results-detail-card">
+        <div class="results-driver-label">Mapped risk parameters</div>
+        ${maps.length ? maps.slice(0, 8).map(([key, value]) => `<p><strong>${escapeHtml(key)}</strong>: ${escapeHtml(typeof value === 'object' ? JSON.stringify(value) : String(value))}</p>`).join('') : '<p>No project drivers have been mapped into FAIR parameter buckets yet.</p>'}
+      </div>
+    </div>
+  </section>`;
 }
 
 function renderHeroMetric(results, confidenceFrame, geography) {
@@ -730,6 +983,827 @@ function renderResultsConfidenceNeedsBlock(confidenceFrame, evidenceQuality, mis
   });
 }
 
+function renderResultsEvidenceMapPanel(assessment = {}) {
+  const evidenceMap = assessment?.evidenceMap && typeof assessment.evidenceMap === 'object' ? assessment.evidenceMap : null;
+  if (!evidenceMap) return '';
+  const projectFinancial = Array.isArray(evidenceMap.projectFinancialEvidenceMap) ? evidenceMap.projectFinancialEvidenceMap : [];
+  const foundValues = projectFinancial.filter(item => item?.status === 'found').slice(0, 4);
+  const missingValues = projectFinancial.filter(item => item?.status === 'not_found' || item?.status === 'unclear').slice(0, 4);
+  const contradictions = Array.isArray(evidenceMap.contradictions) ? evidenceMap.contradictions.slice(0, 3) : [];
+  const unsupported = Array.isArray(evidenceMap.unsupportedClaims) ? evidenceMap.unsupportedClaims.slice(0, 3) : [];
+  const quality = evidenceMap.citationQuality && typeof evidenceMap.citationQuality === 'object' ? evidenceMap.citationQuality : {};
+  const strong = Array.isArray(quality.strong) ? quality.strong.length : 0;
+  const weak = Array.isArray(quality.weak) ? quality.weak.length : 0;
+  const decorative = Array.isArray(quality.decorative) ? quality.decorative.length : 0;
+  const hasContent = foundValues.length || missingValues.length || contradictions.length || unsupported.length || strong || weak || decorative;
+  if (!hasContent) return '';
+  return UI.resultsSectionBlock({
+    title: 'Evidence Map',
+    intro: 'Claims, project values, and citations checked against the saved evidence available to this assessment.',
+    className: 'results-section-stack--evidence-map',
+    body: `
+    <div class="results-summary-grid results-summary-grid--primary">
+      ${UI.resultsSummaryCard({
+        label: 'Citation quality',
+        body: `<div class="results-trace-stat"><strong>${strong}</strong><span>strong</span></div>
+          <div class="results-trace-stat"><strong>${weak}</strong><span>weak</span></div>
+          <div class="results-trace-stat"><strong>${decorative}</strong><span>decorative</span></div>`,
+        foot: decorative ? 'Decorative citations should not be relied on for parameter support.' : 'Citation quality was checked conservatively.'
+      })}
+      ${UI.resultsSummaryCard({
+        label: 'Project values found',
+        body: foundValues.length
+          ? foundValues.map(item => `<p class="results-summary-copy"><strong>${escapeHtml(item.field || 'Project value')}</strong>: ${escapeHtml(item.value || 'Referenced in evidence')}</p>`).join('')
+          : '<p class="results-summary-copy">No project-financial values were found in the linked evidence.</p>',
+        foot: foundValues.map(item => (Array.isArray(item.evidenceRefs) ? item.evidenceRefs[0] : '')).filter(Boolean).slice(0, 2).join(' · ')
+      })}
+      ${UI.resultsSummaryCard({
+        label: 'Unknown but important',
+        wide: true,
+        body: missingValues.length
+          ? missingValues.map(item => `<p class="results-summary-copy"><strong>${escapeHtml(item.field || 'Project value')}</strong>: ${escapeHtml(item.commentary || 'Not found in evidence; remains unknown.')}</p>`).join('')
+          : '<p class="results-summary-copy">No missing project-financial evidence was flagged.</p>',
+        foot: 'Unknown values remain unknown unless evidence supports them.'
+      })}
+    </div>
+    ${contradictions.length ? `<div class="banner banner--warning mt-4"><span class="banner-icon">!</span><span class="banner-text">${contradictions.map(item => escapeHtml(item.claim || item.conflictingEvidence || 'Contradiction found')).join(' ')}</span></div>` : ''}
+    ${unsupported.length ? `<div class="results-disclosure-stack mt-4">
+      ${unsupported.map(item => `<div class="results-trace-row">
+        <div class="results-trace-row__head"><strong>Unsupported claim</strong></div>
+        <div class="results-summary-copy">${escapeHtml(item.claim || 'Claim')}</div>
+        <div class="results-comparison-foot" style="margin-top:var(--sp-2)">${escapeHtml(item.missingEvidence || item.impact || 'No direct evidence was found.')}</div>
+      </div>`).join('')}
+    </div>` : ''}`
+  });
+}
+
+const DECISION_CHALLENGE_PATCH_NUMBERS = new Set([
+  'iterations',
+  'seed',
+  'threshold',
+  'annualReviewThreshold',
+  'tefMin',
+  'tefLikely',
+  'tefMax',
+  'vulnMin',
+  'vulnLikely',
+  'vulnMax',
+  'threatCapMin',
+  'threatCapLikely',
+  'threatCapMax',
+  'controlStrMin',
+  'controlStrLikely',
+  'controlStrMax',
+  'irMin',
+  'irLikely',
+  'irMax',
+  'biMin',
+  'biLikely',
+  'biMax',
+  'dbMin',
+  'dbLikely',
+  'dbMax',
+  'rlMin',
+  'rlLikely',
+  'rlMax',
+  'tpMin',
+  'tpLikely',
+  'tpMax',
+  'rcMin',
+  'rcLikely',
+  'rcMax',
+  'secProbMin',
+  'secProbLikely',
+  'secProbMax',
+  'secMagMin',
+  'secMagLikely',
+  'secMagMax',
+  'corrBiIr',
+  'corrRlRc',
+  'projectDurationMonths',
+  'projectHorizonYears',
+  'projectValue',
+  'projectMargin'
+]);
+const DECISION_CHALLENGE_PATCH_BOOLEANS = new Set(['vulnDirect', 'secondaryEnabled', 'projectHorizonEnabled']);
+const DECISION_CHALLENGE_PATCH_STRINGS = new Set([
+  'distType',
+  'assessmentType',
+  'projectDurationSourceStatus',
+  'projectDurationConfidence',
+  'projectValueSourceStatus',
+  'projectMarginSourceStatus'
+]);
+
+function normaliseDecisionChallengeResult(value = {}) {
+  if (typeof DecisionSupportModel !== 'undefined' && DecisionSupportModel?.buildDecisionChallenge) {
+    return DecisionSupportModel.buildDecisionChallenge(value);
+  }
+  return value && typeof value === 'object' ? value : {};
+}
+
+function readDecisionChallenge(assessment = {}) {
+  return assessment?.decisionChallenge && typeof assessment.decisionChallenge === 'object'
+    ? normaliseDecisionChallengeResult(assessment.decisionChallenge)
+    : null;
+}
+
+function normaliseDecisionChallengePatch(patch = {}) {
+  if (!patch || typeof patch !== 'object' || Array.isArray(patch)) return {};
+  const output = {};
+  Object.entries(patch).forEach(([key, value]) => {
+    if (DECISION_CHALLENGE_PATCH_NUMBERS.has(key)) {
+      const number = Number(value);
+      if (Number.isFinite(number)) output[key] = number;
+      return;
+    }
+    if (DECISION_CHALLENGE_PATCH_BOOLEANS.has(key)) {
+      if (value === true || value === false) output[key] = value;
+      return;
+    }
+    if (DECISION_CHALLENGE_PATCH_STRINGS.has(key)) {
+      const text = String(value || '').trim();
+      if (text) output[key] = text;
+    }
+  });
+  return output;
+}
+
+function formatDecisionChallengePatch(patch = {}) {
+  const normalised = normaliseDecisionChallengePatch(patch);
+  const entries = Object.entries(normalised);
+  if (!entries.length) return 'No valid parameter patch';
+  return entries.slice(0, 5).map(([key, value]) => `${key}: ${typeof value === 'number' ? Number(value.toFixed ? value.toFixed(3) : value) : value}`).join(' · ');
+}
+
+function getDecisionChallengeStressComparisons(assessment = {}) {
+  return (Array.isArray(assessment?.decisionChallengeStressComparisons) ? assessment.decisionChallengeStressComparisons : [])
+    .filter(item => item && typeof item === 'object')
+    .map(item => ({
+      id: String(item.id || '').trim(),
+      stressTestId: String(item.stressTestId || '').trim(),
+      title: String(item.title || '').trim(),
+      baseAleRange: String(item.baseAleRange || '').trim(),
+      projectedAleRange: String(item.projectedAleRange || '').trim(),
+      changePct: Number(item.changePct || 0),
+      patchLabel: String(item.patchLabel || '').trim(),
+      validationWarnings: Array.isArray(item.validationWarnings) ? item.validationWarnings.map(text => String(text || '').trim()).filter(Boolean) : [],
+      createdAt: Number(item.createdAt || 0)
+    }))
+    .filter(item => item.id && item.stressTestId)
+    .sort((left, right) => Number(right.createdAt || 0) - Number(left.createdAt || 0));
+}
+
+function buildDecisionChallengePayload(assessment = {}, r = {}, technicalInputs = {}, runMetadata = {}) {
+  return {
+    assessmentType: String(assessment.assessmentType || 'enterprise_generic'),
+    scenario: String(assessment.enhancedNarrative || assessment.narrative || assessment.scenarioTitle || ''),
+    structuredScenario: assessment.structuredScenario && typeof assessment.structuredScenario === 'object' ? assessment.structuredScenario : {},
+    scenarioLens: assessment.scenarioLens && typeof assessment.scenarioLens === 'object' ? assessment.scenarioLens : {},
+    projectContext: assessment.projectContext && typeof assessment.projectContext === 'object' ? assessment.projectContext : {},
+    projectExposure: assessment.projectExposure && typeof assessment.projectExposure === 'object' ? assessment.projectExposure : {},
+    parameters: buildSensitivitySimulationParams(technicalInputs, r, runMetadata),
+    simulationResult: r && typeof r === 'object' ? r : {},
+    assumptionRegister: assessment.assumptionRegister && typeof assessment.assumptionRegister === 'object' ? assessment.assumptionRegister : {},
+    parameterCoach: assessment.parameterCoach && typeof assessment.parameterCoach === 'object' ? assessment.parameterCoach : {},
+    evidenceMap: assessment.evidenceMap && typeof assessment.evidenceMap === 'object' ? assessment.evidenceMap : {},
+    treatments: Array.isArray(assessment.treatments) ? assessment.treatments : [],
+    riskAppetite: {
+      threshold: Number(r?.threshold || technicalInputs?.threshold || getToleranceThreshold()),
+      annualReviewThreshold: Number(r?.annualReviewThreshold || technicalInputs?.annualReviewThreshold || getAnnualReviewThreshold())
+    },
+    adminSettings: typeof AdminService !== 'undefined' && AdminService?.getSettings ? AdminService.getSettings() : {},
+    traceLabel: 'Decision challenge'
+  };
+}
+
+function runDecisionChallengeStressComparison({
+  assessment,
+  technicalInputs,
+  r,
+  runMetadata,
+  stressTest
+} = {}) {
+  if (typeof RiskEngine === 'undefined' || !assessment || !technicalInputs || !r || !stressTest) return null;
+  const patch = normaliseDecisionChallengePatch(stressTest.parameterPatch);
+  if (!Object.keys(patch).length) {
+    return { error: 'Stress case did not include a valid parameter patch.' };
+  }
+  const baseParams = buildSensitivitySimulationParams(technicalInputs, r, runMetadata);
+  const projectedParams = {
+    ...cloneSerializableState(baseParams, {}),
+    ...patch,
+    iterations: Math.max(1000, Math.min(10000, Number(patch.iterations || baseParams.iterations || 1000))),
+    seed: Number(baseParams.seed || 1337)
+  };
+  const validation = RiskEngine.validateRunParams(projectedParams);
+  if (validation?.valid === false || (Array.isArray(validation?.errors) && validation.errors.length)) {
+    return {
+      error: (Array.isArray(validation?.errors) && validation.errors[0]) || 'Stress case parameter patch is invalid.'
+    };
+  }
+  const baseResults = RiskEngine.run(baseParams);
+  const projectedResults = RiskEngine.run(projectedParams);
+  const baseMean = Number(baseResults?.annualLoss?.mean || baseResults?.ale?.mean || 0);
+  const projectedMean = Number(projectedResults?.annualLoss?.mean || projectedResults?.ale?.mean || 0);
+  return {
+    id: `dcsc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    stressTestId: String(stressTest.id || ''),
+    title: String(stressTest.title || 'Stress case'),
+    baseParams,
+    projectedParams,
+    baseResults,
+    projectedResults,
+    baseAleRange: formatAnnualAleRangeLabel(baseResults),
+    projectedAleRange: formatAnnualAleRangeLabel(projectedResults),
+    changePct: baseMean > 0 ? Number((((projectedMean - baseMean) / baseMean) * 100).toFixed(1)) : 0,
+    patchLabel: formatDecisionChallengePatch(patch),
+    validationWarnings: Array.isArray(validation?.warnings) ? validation.warnings.slice(0, 3) : [],
+    createdAt: Date.now()
+  };
+}
+
+function renderDecisionChallengeAgentCard(assessment = {}, r = {}, technicalInputs = {}, runMetadata = {}) {
+  const challenge = readDecisionChallenge(assessment);
+  const meta = assessment?.decisionChallengeMeta && typeof assessment.decisionChallengeMeta === 'object' ? assessment.decisionChallengeMeta : {};
+  const decisionRisks = Array.isArray(challenge?.decisionRisks) ? challenge.decisionRisks.slice(0, 3) : [];
+  const sensitivityFlags = Array.isArray(challenge?.sensitivityFlags) ? challenge.sensitivityFlags.slice(0, 4) : [];
+  const missingEvidence = Array.isArray(challenge?.missingEvidence) ? challenge.missingEvidence.slice(0, 4) : [];
+  const stressTests = Array.isArray(challenge?.recommendedStressTests) ? challenge.recommendedStressTests.slice(0, 3) : [];
+  const changedDecisionIf = Array.isArray(challenge?.changedDecisionIf) ? challenge.changedDecisionIf.slice(0, 3) : [];
+  const comparisons = getDecisionChallengeStressComparisons(assessment);
+  const emptyCopy = 'Run the Challenge Agent after simulation to identify decision-sensitive assumptions and stress cases. It will not change the baseline result.';
+  return UI.resultsSectionBlock({
+    title: 'Challenge Agent',
+    intro: 'Post-simulation critique focused on what could change the management decision.',
+    className: 'results-section-stack--decision-challenge',
+    body: `
+    <div class="results-summary-grid results-summary-grid--primary">
+      ${UI.resultsSummaryCard({
+        label: 'Challenge summary',
+        wide: true,
+        body: `<p class="results-summary-copy">${escapeHtml(challenge?.challengeSummary || emptyCopy)}</p>`,
+        foot: meta.generatedAt
+          ? `${meta.mode === 'live' ? 'Live AI' : 'Deterministic fallback'} · ${escapeHtml(String(meta.generatedAt || ''))}`
+          : 'Baseline results remain unchanged.'
+      })}
+      ${UI.resultsSummaryCard({
+        label: 'Decision risks',
+        body: decisionRisks.length
+          ? decisionRisks.map(item => `<p class="results-summary-copy"><strong>${escapeHtml(item.title || 'Decision risk')}</strong>: ${escapeHtml(item.explanation || item.recommendedAction || '')}</p>`).join('')
+          : '<p class="results-summary-copy">No challenge run has been saved yet.</p>',
+        foot: decisionRisks.map(item => item.severity).filter(Boolean).slice(0, 3).join(' · ')
+      })}
+      ${UI.resultsSummaryCard({
+        label: 'Sensitivity flags',
+        body: sensitivityFlags.length
+          ? sensitivityFlags.map(item => `<p class="results-summary-copy"><strong>${escapeHtml(item.driver || 'Driver')}</strong>: ${escapeHtml(item.whySensitive || '')}</p>`).join('')
+          : '<p class="results-summary-copy">Unknown high-impact values will appear here as sensitivity flags.</p>',
+        foot: 'Unknowns are not treated as zero.'
+      })}
+    </div>
+    <div class="results-action-row" style="margin-top:var(--sp-4)">
+      <button type="button" class="btn btn--secondary btn--sm" data-decision-challenge-run>${challenge ? 'Refresh Challenge Agent' : 'Run Challenge Agent'}</button>
+    </div>
+    ${missingEvidence.length ? `<div class="results-disclosure-stack mt-4">
+      <div class="results-section-heading">Missing evidence</div>
+      ${missingEvidence.map(item => `<div class="results-trace-row"><div class="results-summary-copy">${escapeHtml(String(item || 'Missing evidence'))}</div></div>`).join('')}
+    </div>` : ''}
+    ${stressTests.length ? `<div class="results-disclosure-stack mt-4">
+      <div class="results-section-heading">Recommended stress cases</div>
+      ${stressTests.map(item => {
+        const latestComparison = comparisons.find(comparison => comparison.stressTestId === item.id);
+        return `<div class="results-trace-row">
+          <div class="results-trace-row__head">
+            <strong>${escapeHtml(item.title || 'Stress case')}</strong>
+            <span class="badge">${escapeHtml(item.confidence || 'medium')} confidence</span>
+          </div>
+          <div class="results-summary-copy">${escapeHtml(item.rationale || item.expectedDecisionImpact || '')}</div>
+          <div class="results-comparison-foot" style="margin-top:var(--sp-2)">${escapeHtml(formatDecisionChallengePatch(item.parameterPatch || {}))}</div>
+          <div class="results-action-row" style="margin-top:var(--sp-3)">
+            <button type="button" class="btn btn--secondary btn--sm" data-decision-challenge-stress="${escapeHtml(String(item.id || ''))}">Run stress case</button>
+          </div>
+          ${latestComparison ? `<div class="banner banner--info mt-4"><span class="banner-icon">i</span><span class="banner-text">Baseline ${escapeHtml(latestComparison.baseAleRange)}. Stress ${escapeHtml(latestComparison.projectedAleRange)} (${latestComparison.changePct >= 0 ? '+' : ''}${escapeHtml(String(latestComparison.changePct))}%). Baseline was not overwritten.</span></div>` : ''}
+        </div>`;
+      }).join('')}
+    </div>` : ''}
+    ${changedDecisionIf.length ? `<div class="results-disclosure-stack mt-4">
+      <div class="results-section-heading">Changed decision if</div>
+      ${changedDecisionIf.map(item => `<div class="results-trace-row">
+        <div class="results-summary-copy"><strong>${escapeHtml(item.condition || 'Condition')}</strong></div>
+        <div class="results-comparison-foot" style="margin-top:var(--sp-2)">${escapeHtml(item.reason || `${item.fromDecision || 'Current'} to ${item.toDecision || 'revised decision'}`)}</div>
+      </div>`).join('')}
+    </div>` : ''}`
+  });
+}
+
+function normaliseDecisionBriefForResults(value = {}) {
+  if (typeof DecisionSupportModel !== 'undefined' && DecisionSupportModel?.buildDecisionBrief) {
+    return DecisionSupportModel.buildDecisionBrief(value);
+  }
+  return value && typeof value === 'object' ? value : {};
+}
+
+function readSavedDecisionBrief(assessment = {}) {
+  return assessment?.decisionBrief && typeof assessment.decisionBrief === 'object'
+    ? normaliseDecisionBriefForResults(assessment.decisionBrief)
+    : null;
+}
+
+function buildSavedAiAuditStory(assessment = {}, extra = {}) {
+  const existing = assessment?.aiAuditStory && typeof assessment.aiAuditStory === 'object' ? assessment.aiAuditStory : {};
+  if (typeof buildAiAuditStory === 'function') {
+    return buildAiAuditStory({
+      ...existing,
+      ...extra,
+      assessment,
+      assessmentType: assessment.assessmentType,
+      scenarioDraftProvenance: {
+        source: assessment.guidedDraftSource || assessment.aiQualityState || '',
+        usedFallback: String(assessment.aiQualityState || '').toLowerCase() === 'fallback',
+        shortlistCoherence: assessment.shortlistCoherence || null
+      },
+      projectExposure: assessment.projectExposure,
+      assumptionRegister: assessment.assumptionRegister,
+      parameterCoach: assessment.parameterCoach,
+      evidenceMap: assessment.evidenceMap,
+      decisionChallenge: assessment.decisionChallenge,
+      decisionBrief: assessment.decisionBrief
+    });
+  }
+  if (typeof DecisionSupportModel !== 'undefined' && DecisionSupportModel?.normaliseAiAuditStory) {
+    return DecisionSupportModel.normaliseAiAuditStory(existing);
+  }
+  return existing;
+}
+
+function renderAiAuditStoryAccordion(assessment = {}, options = {}) {
+  const story = buildSavedAiAuditStory(assessment, options);
+  if (!story || typeof story !== 'object') return '';
+  const renderItems = (items, emptyCopy = 'None recorded.') => {
+    const list = Array.isArray(items) ? items.map(item => {
+      if (!item || typeof item !== 'object') return String(item || '').trim();
+      return String(item.text || item.label || item.title || item.statement || item.claim || item.field || '').trim();
+    }).filter(Boolean).slice(0, 8) : [];
+    return list.length
+      ? `<ul class="ai-audit-story__list">${list.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`
+      : `<p class="results-summary-copy">${escapeHtml(emptyCopy)}</p>`;
+  };
+  const assessmentType = String(story.assessmentType || assessment.assessmentType || 'enterprise_generic').replace(/_/g, ' ');
+  const fallbackLabel = story.fallbackUsed ? 'Fallback used' : 'No fallback recorded';
+  return `<details class="results-detail-disclosure ai-audit-story" ${options.open ? 'open' : ''}>
+    <summary>AI audit story <span class="badge ${story.fallbackUsed ? 'badge--warning' : 'badge--neutral'}">${escapeHtml(fallbackLabel)}</span></summary>
+    <div class="results-detail-disclosure-copy">User-facing trace of what AI and deterministic support contributed. Raw prompts and message bodies are not shown.</div>
+    <div class="ai-audit-story__head">
+      <div>
+        <div class="results-driver-label">Assessment type</div>
+        <strong>${escapeHtml(assessmentType)}</strong>
+      </div>
+      <div>
+        <div class="results-driver-label">AI classification</div>
+        <strong>${escapeHtml(story.classification || 'No AI classification saved')}</strong>
+      </div>
+      <div>
+        <div class="results-driver-label">Risk cards filtered</div>
+        <strong>${Number(story.risksFiltered || 0)}</strong>
+      </div>
+    </div>
+    <p class="results-summary-copy ai-audit-story__summary">${escapeHtml(story.summary || 'No AI audit story has been saved yet.')}</p>
+    <div class="ai-audit-story__grid">
+      <section>
+        <h4>Evidence used</h4>
+        ${renderItems(story.evidenceUsed, 'No evidence references were recorded.')}
+      </section>
+      <section>
+        <h4>Project exposure mapping used</h4>
+        ${renderItems(story.projectEconomicsUsed, 'No project economics were used for this assessment.')}
+      </section>
+      <section>
+        <h4>Proxy values used</h4>
+        ${renderItems(story.proxyValuesUsed, 'No benchmark proxy values were recorded.')}
+      </section>
+      <section>
+        <h4>Unknown high-impact values</h4>
+        ${renderItems(story.unknownsCarriedForward, 'No high-impact unknowns were recorded.')}
+      </section>
+      <section>
+        <h4>Assumptions challenged</h4>
+        ${renderItems(assessment.assumptionRegister?.assumptions || assessment.decisionChallenge?.sensitivityFlags || [], 'No assumption challenge items were saved.')}
+      </section>
+      <section>
+        <h4>Parameter suggestions</h4>
+        ${renderItems(assessment.parameterCoach?.parameterRationales || [], 'No parameter suggestions were saved.')}
+      </section>
+      <section>
+        <h4>Human edits</h4>
+        ${renderItems(story.humanEdits, 'No human edit notes were recorded.')}
+      </section>
+      <section>
+        <h4>Open warnings</h4>
+        ${renderItems(story.openWarnings, 'No open AI audit warnings were recorded.')}
+      </section>
+    </div>
+  </details>`;
+}
+
+function buildFallbackDecisionBriefForResults({
+  assessment = {},
+  r = {},
+  projectResultsModel = null,
+  executiveDecision = {},
+  confidenceFrame = {}
+} = {}) {
+  const isProject = assessment.assessmentType === 'project_buyer' || assessment.assessmentType === 'project_seller';
+  const unknowns = projectResultsModel?.isProject && Array.isArray(projectResultsModel.unknownHighImpactValues)
+    ? projectResultsModel.unknownHighImpactValues.slice(0, 5)
+    : [];
+  const proxies = projectResultsModel?.isProject && Array.isArray(projectResultsModel.driverGroups?.proxyEstimated)
+    ? projectResultsModel.driverGroups.proxyEstimated.slice(0, 4).map(item => `${item.label}: ${item.rangeLabel}`)
+    : [];
+  const posture = r?.toleranceBreached
+    ? 'escalate'
+    : unknowns.length >= 3
+      ? 'needs_more_evidence'
+      : r?.nearTolerance || r?.annualReviewTriggered || unknowns.length
+        ? 'proceed_with_controls'
+        : 'proceed';
+  const recommendation = posture === 'escalate'
+    ? 'Escalate and actively review the result before approval.'
+    : posture === 'needs_more_evidence'
+      ? 'Close the highest-impact evidence or project-economics gap before relying on this decision.'
+      : posture === 'proceed_with_controls'
+        ? 'Proceed only with owner review, controls, and follow-up on the main uncertainty.'
+        : 'Proceed with monitoring under the current baseline assumptions.';
+  const projectPlain = !isProject
+    ? ''
+    : unknowns.length
+      ? `Project economics are thin. ${unknowns[0]} could change the recommendation.`
+      : proxies.length
+        ? 'Project exposure includes benchmark/proxy values. Treat them as directional until confirmed.'
+        : projectResultsModel?.summary || 'Project-linked economics are included where values were known, estimated, derived, or proxied.';
+  return normaliseDecisionBriefForResults({
+    recommendation,
+    decisionPosture: posture,
+    why: isProject
+      ? `${executiveDecision?.rationale || confidenceFrame?.implication || 'Use this as a working management view.'} ${projectPlain}`.trim()
+      : executiveDecision?.rationale || confidenceFrame?.implication || 'Use this as enterprise risk decision support.',
+    quantSummary: {
+      eventLossP90: Number(r?.eventLoss?.p90 || r?.lm?.p90 || 0),
+      annualLossMean: Number(r?.annualLoss?.mean || r?.ale?.mean || 0),
+      annualLossP90: Number(r?.annualLoss?.p90 || r?.ale?.p90 || 0),
+      toleranceExceeded: !!r?.toleranceBreached,
+      annualReviewTriggered: !!r?.annualReviewTriggered,
+      plainEnglish: r?.toleranceBreached
+        ? 'The serious-event estimate is above tolerance.'
+        : r?.nearTolerance
+          ? 'The serious-event estimate is close to tolerance.'
+          : 'The baseline estimate is within current tolerance.'
+    },
+    projectQuantSummary: {
+      projectHorizonLossMean: Number(r?.projectHorizon?.loss?.mean || 0) || null,
+      projectHorizonLossP90: Number(r?.projectHorizon?.loss?.p90 || 0) || null,
+      lossAsPctOfProjectValue: Number(r?.projectHorizon?.lossAsPctOfProjectValue?.p90 ?? r?.projectHorizon?.lossAsPctOfProjectValue ?? 0) || null,
+      lossAsPctOfMargin: Number(r?.projectHorizon?.lossAsPctOfMargin?.p90 ?? r?.projectHorizon?.lossAsPctOfMargin ?? 0) || null,
+      primaryProjectDriver: projectResultsModel?.driverGroups?.quantified?.[0]?.label || projectResultsModel?.driverGroups?.proxyEstimated?.[0]?.label || '',
+      projectInputQuality: projectResultsModel?.inputQuality?.label || '',
+      proxyValuesUsed: proxies,
+      unknownHighImpactInputs: unknowns,
+      plainEnglish: projectPlain
+    },
+    mainDrivers: (projectResultsModel?.driverGroups?.quantified || projectResultsModel?.driverGroups?.proxyEstimated || []).slice(0, 4).map(item => ({
+      driver: item.label,
+      impact: item.rationale || item.rangeLabel,
+      evidenceStrength: item.status === 'benchmark_proxy_driver' ? 'weak' : 'partial',
+      sourceStatus: item.status === 'benchmark_proxy_driver' ? 'benchmark_proxy' : item.status || 'estimated'
+    })),
+    sensitivity: {
+      summary: unknowns.length
+        ? `${unknowns[0]} is the most decision-sensitive unknown.`
+        : 'Challenge the largest cost range and event-frequency assumption before formal reliance.',
+      mostSensitiveAssumption: unknowns[0] || '',
+      changedDecisionIf: unknowns.length ? `${unknowns[0]} is materially different from the current assumption.` : ''
+    },
+    evidence: [],
+    openChallenges: [],
+    sparseDataWarning: unknowns.length ? `Project economics are thin. ${unknowns[0]} could change the recommendation.` : '',
+    nextAction: {
+      owner: isProject ? 'Project owner or finance partner' : 'Assessment owner',
+      action: unknowns.length ? `Confirm ${unknowns[0]} before management sign-off.` : (executiveDecision?.priority || 'Review the baseline assumptions and monitor for change.'),
+      due: unknowns.length ? 'Before approval' : 'Next review cycle',
+      controlOrTreatment: unknowns.length ? 'Project economics validation' : 'Monitoring'
+    },
+    confidence: unknowns.length ? 'low' : proxies.length ? 'medium' : 'medium'
+  });
+}
+
+const RESULTS_DECISION_BRIEF_FEEDBACK_REASONS = Object.freeze([
+  { key: 'wrong_recommendation', label: 'Wrong recommendation' },
+  { key: 'missing_action', label: 'Missing action' },
+  { key: 'weak_evidence', label: 'Weak evidence' },
+  { key: 'unclear_driver', label: 'Unclear driver' },
+  { key: 'wrong_project_interpretation', label: 'Wrong project interpretation' },
+  { key: 'overstates_confidence', label: 'Overstates confidence' },
+  { key: 'too_verbose', label: 'Too verbose' },
+  { key: 'too_generic', label: 'Too generic' }
+]);
+
+function normaliseResultsStructuredReason(value = '', targetType = 'decision_brief', eventType = 'decision_brief_regenerated') {
+  if (typeof LearningStore !== 'undefined' && LearningStore && typeof LearningStore.normaliseStructuredAiFeedbackReason === 'function') {
+    return LearningStore.normaliseStructuredAiFeedbackReason(targetType, value, eventType);
+  }
+  return String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'other';
+}
+
+function recordResultsStructuredAiFeedback(assessment = {}, payload = {}) {
+  const username = AuthService.getCurrentUser()?.username || '';
+  const event = {
+    assessmentType: assessment.assessmentType || 'enterprise_generic',
+    scenarioLens: assessment.scenarioLens || null,
+    primaryFamily: assessment.scenarioLens?.functionKey || '',
+    buId: assessment.buId || '',
+    functionKey: assessment.scenarioLens?.functionKey || '',
+    lensKey: assessment.scenarioLens?.key || '',
+    ...payload,
+    submittedBy: payload.submittedBy || username
+  };
+  if (typeof window !== 'undefined' && typeof window.recordStructuredAiFeedback === 'function') {
+    return window.recordStructuredAiFeedback(event);
+  }
+  if (username && typeof LearningStore !== 'undefined' && LearningStore && typeof LearningStore.recordStructuredAiFeedback === 'function') {
+    const saved = LearningStore.recordStructuredAiFeedback(username, event);
+    if (saved && typeof patchLearningStore === 'function' && typeof LearningStore.getLearningStore === 'function') {
+      try {
+        patchLearningStore({ aiFeedback: LearningStore.getLearningStore(username).aiFeedback });
+      } catch {}
+    }
+    return saved;
+  }
+  return null;
+}
+
+function renderDecisionBriefFeedbackReasonChips() {
+  return `<div class="citation-chips decision-brief-feedback-reasons" aria-label="Optional brief feedback reason">
+    ${RESULTS_DECISION_BRIEF_FEEDBACK_REASONS.map(reason => `<button type="button" class="btn btn--ghost btn--sm" data-decision-brief-feedback-reason="${escapeHtml(reason.key)}" aria-pressed="false">${escapeHtml(reason.label)}</button>`).join('')}
+  </div>`;
+}
+
+function getSelectedDecisionBriefFeedbackReason() {
+  const selected = document.querySelector('[data-decision-brief-feedback-reason][aria-pressed="true"]');
+  return selected ? normaliseResultsStructuredReason(selected.dataset.decisionBriefFeedbackReason || '', 'decision_brief', 'decision_brief_regenerated') : '';
+}
+
+function renderDecisionBriefPanel({ assessment = {}, r = {}, projectResultsModel = null, executiveDecision = {}, confidenceFrame = {}, savedDecisionBrief = null } = {}) {
+  const saved = savedDecisionBrief || readSavedDecisionBrief(assessment);
+  const brief = saved || buildFallbackDecisionBriefForResults({ assessment, r, projectResultsModel, executiveDecision, confidenceFrame });
+  const meta = assessment?.decisionBriefMeta && typeof assessment.decisionBriefMeta === 'object' ? assessment.decisionBriefMeta : {};
+  const quant = brief.quantSummary && typeof brief.quantSummary === 'object' ? brief.quantSummary : {};
+  const project = brief.projectQuantSummary && typeof brief.projectQuantSummary === 'object' ? brief.projectQuantSummary : {};
+  const isProject = assessment.assessmentType === 'project_buyer' || assessment.assessmentType === 'project_seller';
+  const mainDrivers = Array.isArray(brief.mainDrivers) ? brief.mainDrivers.slice(0, 4) : [];
+  const evidence = Array.isArray(brief.evidence) ? brief.evidence.slice(0, 4) : [];
+  const openChallenges = Array.isArray(brief.openChallenges) ? brief.openChallenges.slice(0, 4) : [];
+  const postureLabel = String(brief.decisionPosture || 'needs_more_evidence').replace(/_/g, ' ');
+  const postureTone = brief.decisionPosture === 'escalate' || brief.decisionPosture === 'reject'
+    ? 'badge--danger'
+    : brief.decisionPosture === 'needs_more_evidence' || brief.decisionPosture === 'defer'
+      ? 'badge--warning'
+      : 'badge--success';
+  const fmtPct = value => {
+    const number = Number(value);
+    return Number.isFinite(number) ? `${(number * 100).toFixed(1)}%` : 'Not available';
+  };
+  return `<section class="decision-brief-panel anim-fade-in" aria-label="Decision Brief">
+    <div class="decision-brief-panel__head">
+      <div>
+        <div class="results-driver-label">Decision Brief</div>
+        <h2>${escapeHtml(brief.recommendation || 'Decision brief')}</h2>
+      </div>
+      <div class="decision-brief-panel__actions">
+        <span class="badge ${postureTone}">${escapeHtml(postureLabel)}</span>
+        ${renderDecisionBriefFeedbackReasonChips()}
+        <button type="button" class="btn btn--secondary btn--sm" data-decision-brief-run>${saved ? 'Regenerate brief' : 'Generate AI brief'}</button>
+      </div>
+    </div>
+    <p class="results-summary-copy decision-brief-panel__why">${escapeHtml(brief.why || 'No management brief has been generated yet.')}</p>
+    ${brief.sparseDataWarning ? `<div class="banner banner--warning mt-4"><span class="banner-icon">!</span><span class="banner-text">${escapeHtml(brief.sparseDataWarning)}</span></div>` : ''}
+    <div class="results-top-value-strip results-top-value-strip--project mt-4">
+      <div class="results-top-value-strip__item results-top-value-strip__item--value"><span>Event-loss P90</span><strong>${fmtCurrency(quant.eventLossP90 || 0)}</strong><small>${quant.toleranceExceeded ? 'Above tolerance' : 'Tolerance check'}</small></div>
+      <div class="results-top-value-strip__item"><span>Annual mean</span><strong>${fmtCurrency(quant.annualLossMean || 0)}</strong><small>Annualized view</small></div>
+      <div class="results-top-value-strip__item"><span>Annual P90</span><strong>${fmtCurrency(quant.annualLossP90 || 0)}</strong><small>${quant.annualReviewTriggered ? 'Review triggered' : 'Annual review check'}</small></div>
+      <div class="results-top-value-strip__item"><span>Confidence</span><strong>${escapeHtml(String(brief.confidence || 'unknown'))}</strong><small>${meta.mode ? `${meta.mode === 'live' ? 'Live AI' : 'Deterministic fallback'}` : 'Current brief'}</small></div>
+    </div>
+    ${isProject ? `<div class="decision-brief-project mt-4">
+      <div class="context-chip-panel"><span>Project view</span><strong>${escapeHtml(project.plainEnglish || 'Project economics summary not available.')}</strong><small>${escapeHtml(project.projectInputQuality || 'Input quality not stated')}</small></div>
+      <div class="context-chip-panel"><span>Project-horizon P90</span><strong>${project.projectHorizonLossP90 == null ? 'Not computed' : fmtCurrency(project.projectHorizonLossP90)}</strong><small>Annualized metrics remain separate</small></div>
+      <div class="context-chip-panel"><span>Loss as % of value / margin</span><strong>${escapeHtml(`${fmtPct(project.lossAsPctOfProjectValue)} / ${fmtPct(project.lossAsPctOfMargin)}`)}</strong><small>Only shown when denominator is available</small></div>
+    </div>
+    <div class="decision-brief-project mt-4">
+      <div class="context-chip-panel"><span>Proxy values</span><strong>${project.proxyValuesUsed?.length ? escapeHtml(project.proxyValuesUsed.slice(0, 3).join(' · ')) : 'None listed'}</strong><small>Proxy values are not confirmed project values</small></div>
+      <div class="context-chip-panel"><span>Unknown but important</span><strong>${project.unknownHighImpactInputs?.length ? escapeHtml(project.unknownHighImpactInputs.slice(0, 3).join(' · ')) : 'None listed'}</strong><small>Could change the decision</small></div>
+      <div class="context-chip-panel"><span>Primary project driver</span><strong>${escapeHtml(project.primaryProjectDriver || 'Not identified')}</strong><small>${escapeHtml(project.projectInputQuality || 'Project input quality')}</small></div>
+    </div>` : ''}
+    <div class="decision-brief-grid mt-4">
+      <div class="results-trace-row">
+        <div class="results-trace-row__head"><strong>Main drivers</strong></div>
+        ${mainDrivers.length ? mainDrivers.map(item => `<p class="results-summary-copy"><strong>${escapeHtml(item.driver || 'Driver')}</strong>: ${escapeHtml(item.impact || '')} <span class="badge">${escapeHtml(item.sourceStatus || 'unknown')}</span></p>`).join('') : '<p class="results-summary-copy">No main drivers listed yet.</p>'}
+      </div>
+      <div class="results-trace-row">
+        <div class="results-trace-row__head"><strong>Sensitivity</strong></div>
+        <p class="results-summary-copy">${escapeHtml(brief.sensitivity?.summary || 'No sensitivity summary available.')}</p>
+        ${brief.sensitivity?.changedDecisionIf ? `<div class="results-comparison-foot">${escapeHtml(brief.sensitivity.changedDecisionIf)}</div>` : ''}
+      </div>
+      <div class="results-trace-row">
+        <div class="results-trace-row__head"><strong>Evidence and open challenges</strong></div>
+        ${evidence.length ? evidence.map(item => `<p class="results-summary-copy">${escapeHtml(String(item.claim || item.text || item))}</p>`).join('') : '<p class="results-summary-copy">No evidence highlights listed.</p>'}
+        ${openChallenges.length ? `<div class="results-comparison-foot">${openChallenges.map(item => escapeHtml(String(item.text || item.title || item))).join(' ')}</div>` : ''}
+      </div>
+      <div class="results-trace-row">
+        <div class="results-trace-row__head"><strong>Next action</strong></div>
+        <p class="results-summary-copy"><strong>${escapeHtml(brief.nextAction?.owner || 'Owner not set')}</strong>: ${escapeHtml(brief.nextAction?.action || 'No next action listed.')}</p>
+        <div class="results-comparison-foot">${escapeHtml([brief.nextAction?.due, brief.nextAction?.controlOrTreatment].filter(Boolean).join(' · '))}</div>
+      </div>
+    </div>
+  </section>`;
+}
+
+function normaliseResultsBadgeTone(tone = 'neutral') {
+  const value = String(tone || 'neutral').trim().toLowerCase();
+  return ['success', 'danger', 'warning', 'neutral', 'gold'].includes(value) ? value : 'neutral';
+}
+
+function renderResultsCockpitBadge(item = {}) {
+  const label = String(item?.label || '').trim();
+  const value = String(item?.value || '').trim() || 'Not stated';
+  const tone = normaliseResultsBadgeTone(item?.tone);
+  return `<span class="badge badge--${tone} results-decision-cockpit__badge">
+    ${label ? `<small>${escapeHtml(label)}</small>` : ''}
+    ${escapeHtml(value)}
+  </span>`;
+}
+
+function renderResultsCockpitMetric(item = {}) {
+  const tone = normaliseResultsBadgeTone(item?.tone);
+  return `<article class="results-cockpit-metric results-decision-cockpit__metric results-decision-cockpit__metric--${tone}">
+    <span class="results-cockpit-metric__label">${escapeHtml(String(item?.label || 'Metric'))}</span>
+    <strong>${escapeHtml(String(item?.value || 'Not available'))}</strong>
+    <span class="results-cockpit-metric__copy">${escapeHtml(String(item?.copy || ''))}</span>
+    ${item?.explain ? `<button type="button" class="results-metric-explain" data-results-explain="${escapeHtml(String(item.explain))}" aria-expanded="false">Explain this number</button>` : ''}
+  </article>`;
+}
+
+function renderResultsCockpitValueList(title = '', items = [], emptyCopy = '') {
+  const safeItems = Array.isArray(items) ? items : [];
+  return `<article class="results-decision-cockpit__list-card">
+    <div class="results-driver-label">${escapeHtml(String(title || 'Values'))}</div>
+    ${safeItems.length
+      ? `<div class="results-decision-cockpit__value-list">
+          ${safeItems.slice(0, 5).map(item => `<div class="results-decision-cockpit__value-row">
+            <div>
+              <strong>${escapeHtml(String(item?.label || item || 'Value'))}</strong>
+              <span>${escapeHtml(String(item?.value || item?.status || item?.confidence || ''))}</span>
+            </div>
+            ${item?.status ? `<span class="badge badge--neutral">${escapeHtml(String(item.status).replace(/_/g, ' '))}</span>` : ''}
+          </div>`).join('')}
+        </div>`
+      : `<p class="results-summary-copy">${escapeHtml(String(emptyCopy || 'Nothing listed yet.'))}</p>`}
+  </article>`;
+}
+
+function renderResultsCockpitStringList(title = '', items = [], emptyCopy = '') {
+  const safeItems = Array.isArray(items) ? items.map(item => String(item || '').trim()).filter(Boolean) : [];
+  return `<article class="results-decision-cockpit__list-card">
+    <div class="results-driver-label">${escapeHtml(String(title || 'Items'))}</div>
+    ${safeItems.length
+      ? `<div class="results-decision-cockpit__pill-list">${safeItems.slice(0, 6).map(item => `<span>${escapeHtml(item)}</span>`).join('')}</div>`
+      : `<p class="results-summary-copy">${escapeHtml(String(emptyCopy || 'Nothing listed yet.'))}</p>`}
+  </article>`;
+}
+
+function renderResultsDecisionCockpit(model = {}) {
+  if (!model || typeof model !== 'object') return '';
+  const metrics = Array.isArray(model.economicsMetrics) ? model.economicsMetrics : [];
+  const badges = Array.isArray(model.badges) ? model.badges : [];
+  const challenge = model.challenge && typeof model.challenge === 'object' ? model.challenge : {};
+  const emptyStates = Array.isArray(model.emptyStates) ? model.emptyStates : [];
+  const nextAction = model.nextAction && typeof model.nextAction === 'object' ? model.nextAction : {};
+  const challengeRisks = Array.isArray(challenge.decisionRisks) ? challenge.decisionRisks : [];
+  const stressTests = Array.isArray(challenge.stressTests) ? challenge.stressTests : [];
+  const changedDecisionIf = Array.isArray(challenge.changedDecisionIf) ? challenge.changedDecisionIf : [];
+  const cockpitClass = [
+    'results-decision-cockpit',
+    `results-decision-cockpit--${normaliseResultsBadgeTone(model.decisionPostureTone)}`,
+    model.isProject ? 'results-decision-cockpit--project' : 'results-decision-cockpit--generic'
+  ].join(' ');
+  const challengeSummary = String(challenge.summary || '').trim()
+    || (challenge.saved ? 'Challenge Agent output is saved, but no short summary was provided.' : 'Run the Challenge Agent to capture decision-sensitive assumptions and stress cases.');
+  return `<section class="${cockpitClass}" aria-label="Decision Cockpit">
+    <div class="results-decision-cockpit__head">
+      <div>
+        <div class="results-driver-label">${escapeHtml(String(model.assessmentTypeLabel || 'Risk assessment'))}</div>
+        <h2>${escapeHtml(String(model.recommendation || 'Review result'))}</h2>
+      </div>
+      <div class="results-decision-cockpit__actions">
+        <button type="button" class="btn btn--secondary btn--sm" data-decision-brief-run>${model.aiMode?.label === 'No AI outputs' ? 'Generate AI brief' : 'Refresh brief'}</button>
+        <button type="button" class="btn btn--secondary btn--sm" data-decision-challenge-run>${challenge.saved ? 'Refresh Challenge Agent' : 'Run Challenge Agent'}</button>
+      </div>
+    </div>
+    <div class="results-decision-cockpit__brief-grid">
+      <article class="results-decision-cockpit__recommendation">
+        <div class="results-driver-label">Recommendation</div>
+        <p>${escapeHtml(String(model.why || 'Use this as the current decision-support read.'))}</p>
+        ${model.sparseDataWarning ? `<div class="banner banner--warning mt-4"><span class="banner-icon">!</span><span class="banner-text">${escapeHtml(String(model.sparseDataWarning))}</span></div>` : ''}
+      </article>
+      <article class="results-decision-cockpit__next-action">
+        <div class="results-driver-label">Next action</div>
+        <strong>${escapeHtml(String(nextAction.action || 'Confirm the next management step.'))}</strong>
+        <span>${escapeHtml([nextAction.owner, nextAction.due, nextAction.controlOrTreatment].filter(Boolean).join(' · ') || 'Owner not set')}</span>
+      </article>
+    </div>
+    <div class="results-decision-cockpit__metrics">
+      ${metrics.map(renderResultsCockpitMetric).join('')}
+    </div>
+    <div class="results-decision-cockpit__quality-strip">
+      ${badges.map(renderResultsCockpitBadge).join('')}
+    </div>
+    <div class="results-decision-cockpit__known-grid">
+      ${model.isProject
+        ? `
+          ${renderResultsCockpitValueList('Known project values', model.knownValues, 'No confirmed project values yet.')}
+          ${renderResultsCockpitValueList('Estimated/proxy values', model.estimatedValues, 'No estimated or proxy project values are active.')}
+          ${renderResultsCockpitStringList('Unknown but important', model.unknownHighImpactValues, 'No high-impact unknowns flagged.')}
+        `
+        : `
+          ${renderResultsCockpitStringList('Main drivers', [model.mainDriver], 'No main driver has been identified yet.')}
+          ${renderResultsCockpitStringList('Evidence gaps', model.evidenceGaps, 'No evidence gaps listed yet.')}
+          ${renderResultsCockpitStringList('Key assumptions', model.assumptions, 'No structured assumptions listed yet.')}
+        `}
+    </div>
+    <div class="results-decision-cockpit__challenge">
+      <div class="results-decision-cockpit__challenge-main">
+        <div class="results-driver-label">Challenge Agent</div>
+        <strong>${escapeHtml(challenge.saved ? 'Decision challenge saved' : 'Challenge not run yet')}</strong>
+        <p>${escapeHtml(challengeSummary)}</p>
+      </div>
+      <div class="results-decision-cockpit__challenge-grid">
+        ${renderResultsCockpitStringList('Changed decision if', changedDecisionIf, 'No changed-decision condition listed yet.')}
+        ${renderResultsCockpitStringList('Evidence gaps', model.evidenceGaps, 'No evidence gaps listed yet.')}
+        ${renderResultsCockpitStringList('Assumptions to challenge', model.assumptions, 'No assumptions listed yet.')}
+      </div>
+      ${challengeRisks.length ? `<div class="results-decision-cockpit__risk-row">
+        ${challengeRisks.map(item => `<div class="results-trace-row">
+          <div class="results-trace-row__head">
+            <strong>${escapeHtml(item.title || 'Decision risk')}</strong>
+            <span class="badge badge--${normaliseResultsBadgeTone(item.severity === 'high' ? 'danger' : item.severity === 'medium' ? 'warning' : 'neutral')}">${escapeHtml(item.severity || 'medium')}</span>
+          </div>
+          <p class="results-summary-copy">${escapeHtml(item.explanation || '')}</p>
+        </div>`).join('')}
+      </div>` : ''}
+      ${stressTests.length ? `<div class="results-decision-cockpit__stress-row">
+        ${stressTests.map(item => `<div class="results-trace-row">
+          <div class="results-trace-row__head">
+            <strong>${escapeHtml(item.title || 'Stress case')}</strong>
+            <span class="badge badge--neutral">${escapeHtml(item.confidence || 'medium')} confidence</span>
+          </div>
+          <p class="results-summary-copy">${escapeHtml(item.rationale || 'Stress case available.')}</p>
+          <div class="results-action-row" style="margin-top:var(--sp-3)">
+            <button type="button" class="btn btn--secondary btn--sm" data-decision-challenge-stress="${escapeHtml(String(item.id || ''))}">Run stress case</button>
+          </div>
+        </div>`).join('')}
+      </div>` : ''}
+    </div>
+    ${emptyStates.length ? `<div class="results-decision-cockpit__empty-states">
+      ${emptyStates.slice(0, 6).map(item => `<div>
+        <strong>${escapeHtml(item.label || 'Empty state')}</strong>
+        <span>${escapeHtml(item.copy || '')}</span>
+      </div>`).join('')}
+    </div>` : ''}
+  </section>`;
+}
+
+function buildDecisionBriefPayload(assessment = {}, r = {}, technicalInputs = {}, runMetadata = {}) {
+  return {
+    assessmentType: String(assessment.assessmentType || 'enterprise_generic'),
+    scenario: String(assessment.enhancedNarrative || assessment.narrative || assessment.scenarioTitle || ''),
+    structuredScenario: assessment.structuredScenario && typeof assessment.structuredScenario === 'object' ? assessment.structuredScenario : {},
+    scenarioLens: assessment.scenarioLens && typeof assessment.scenarioLens === 'object' ? assessment.scenarioLens : {},
+    projectContext: assessment.projectContext && typeof assessment.projectContext === 'object' ? assessment.projectContext : {},
+    projectExposure: assessment.projectExposure && typeof assessment.projectExposure === 'object' ? assessment.projectExposure : {},
+    simulationResult: r && typeof r === 'object' ? r : {},
+    parameters: buildSensitivitySimulationParams(technicalInputs, r, runMetadata),
+    assumptionRegister: assessment.assumptionRegister && typeof assessment.assumptionRegister === 'object' ? assessment.assumptionRegister : {},
+    parameterCoach: assessment.parameterCoach && typeof assessment.parameterCoach === 'object' ? assessment.parameterCoach : {},
+    evidenceMap: assessment.evidenceMap && typeof assessment.evidenceMap === 'object' ? assessment.evidenceMap : {},
+    decisionChallenge: assessment.decisionChallenge && typeof assessment.decisionChallenge === 'object' ? assessment.decisionChallenge : {},
+    treatments: Array.isArray(assessment.treatments) ? assessment.treatments : [],
+    riskAppetite: {
+      threshold: Number(r?.threshold || technicalInputs?.threshold || getToleranceThreshold()),
+      annualReviewThreshold: Number(r?.annualReviewThreshold || technicalInputs?.annualReviewThreshold || getAnnualReviewThreshold())
+    },
+    adminSettings: typeof AdminService !== 'undefined' && AdminService?.getSettings ? AdminService.getSettings() : {},
+    traceLabel: 'Decision brief'
+  };
+}
+
 function buildTreatmentDecisionAssist(comparison, treatmentDecision) {
   if (!comparison) return null;
   const improving = comparison.severeEvent.direction === 'down' && (comparison.annualExposure.direction === 'down' || comparison.severeAnnual.direction === 'down');
@@ -826,6 +1900,104 @@ function renderSponsorshipVerdict(comparison, assist) {
   </div>`;
 }
 
+function getResultsTreatmentTradeoffUnknowns(assessment = {}) {
+  const exposure = assessment?.projectExposure && typeof assessment.projectExposure === 'object' ? assessment.projectExposure : {};
+  const quality = exposure.projectInputQuality && typeof exposure.projectInputQuality === 'object' ? exposure.projectInputQuality : {};
+  const missingInputs = Array.isArray(exposure.missingInputs) ? exposure.missingInputs : [];
+  const drivers = Array.isArray(exposure.financialDrivers) ? exposure.financialDrivers : [];
+  return Array.from(new Set([
+    ...(Array.isArray(quality.unknownHighImpactInputs) ? quality.unknownHighImpactInputs : []),
+    ...missingInputs.map(item => item?.label || item?.field || item),
+    ...drivers
+      .filter(item => /unquantified|unknown/i.test(String(item?.driverStatus || item?.source || '')))
+      .flatMap(item => [
+        item?.label || item?.id || item?.driverType,
+        ...(Array.isArray(item?.missingInputs) ? item.missingInputs : [])
+      ])
+  ].map(item => String(item || '').trim()).filter(Boolean))).slice(0, 10);
+}
+
+function getResultsProjectEconomicsTradeoff(assessment = {}, unknowns = []) {
+  const assessmentType = String(assessment?.assessmentType || 'enterprise_generic').trim();
+  const firstUnknown = unknowns[0] || '';
+  if (assessmentType === 'project_buyer') {
+    return `Buyer-side economics should improve only where the treatment reduces delay, reprocurement, stranded spend, or improves recoveries.${firstUnknown ? ` Benefit cannot be quantified until ${firstUnknown} is known.` : ''}`;
+  }
+  if (assessmentType === 'project_seller') {
+    return `Seller-side economics should improve only where the treatment protects margin, delivery cost, LD/SLA exposure, termination risk, or revenue timing.${firstUnknown ? ` Benefit cannot be quantified until ${firstUnknown} is known.` : ''}`;
+  }
+  return 'No project economics effect is assumed for this generic enterprise comparison.';
+}
+
+function normaliseResultsTreatmentTradeoff(value = {}, fallback = {}) {
+  const source = value && typeof value === 'object' ? value : {};
+  const fallbackOptions = Array.isArray(fallback.options) ? fallback.options : [];
+  const sourceOptions = Array.isArray(source.options) ? source.options : [];
+  const options = (sourceOptions.length ? sourceOptions : fallbackOptions)
+    .map((item, index) => {
+      const option = item && typeof item === 'object' ? item : {};
+      const fallbackOption = fallbackOptions[index] || fallbackOptions[0] || {};
+      return {
+        title: String(option.title || fallbackOption.title || 'Treatment option').trim(),
+        affectsFrequency: String(option.affectsFrequency || fallbackOption.affectsFrequency || '').trim(),
+        affectsVulnerability: String(option.affectsVulnerability || fallbackOption.affectsVulnerability || '').trim(),
+        affectsEventLoss: String(option.affectsEventLoss || fallbackOption.affectsEventLoss || '').trim(),
+        affectsAnnualizedLoss: String(option.affectsAnnualizedLoss || fallbackOption.affectsAnnualizedLoss || '').trim(),
+        affectsProjectHorizonLoss: String(option.affectsProjectHorizonLoss || fallbackOption.affectsProjectHorizonLoss || '').trim(),
+        affectsProjectEconomics: String(option.affectsProjectEconomics || fallbackOption.affectsProjectEconomics || '').trim(),
+        affectedUnknownDrivers: Array.from(new Set((Array.isArray(option.affectedUnknownDrivers) ? option.affectedUnknownDrivers : fallbackOption.affectedUnknownDrivers || [])
+          .map(item => String(item || '').trim())
+          .filter(Boolean))).slice(0, 8),
+        evidenceStrength: String(option.evidenceStrength || fallbackOption.evidenceStrength || 'weak').trim(),
+        residualUncertainty: String(option.residualUncertainty || fallbackOption.residualUncertainty || '').trim(),
+        implementationBurden: String(option.implementationBurden || fallbackOption.implementationBurden || 'medium').trim(),
+        rationale: String(option.rationale || fallbackOption.rationale || '').trim(),
+        bestFor: String(option.bestFor || fallbackOption.bestFor || '').trim(),
+        limitation: String(option.limitation || fallbackOption.limitation || '').trim()
+      };
+    })
+    .filter(item => item.title || item.rationale)
+    .slice(0, 4);
+  return {
+    summary: String(source.summary || fallback.summary || '').trim(),
+    options,
+    recommendedPath: String(source.recommendedPath || fallback.recommendedPath || '').trim()
+  };
+}
+
+function renderTreatmentTradeoffCards(comparison) {
+  const tradeoff = comparison?.treatmentTradeoff && typeof comparison.treatmentTradeoff === 'object'
+    ? comparison.treatmentTradeoff
+    : null;
+  const options = Array.isArray(tradeoff?.options) ? tradeoff.options : [];
+  if (!tradeoff || !options.length) return '';
+  return `<div class="results-comparison-tradeoff">
+    <div class="wizard-premium-head">
+      <div>
+        <div class="results-driver-label">Treatment trade-off</div>
+        <div class="results-summary-copy" style="margin-top:var(--sp-2)">${escapeHtml(tradeoff.summary || 'Review what the treatment changes, what remains uncertain, and what implementation burden it creates.')}</div>
+      </div>
+      <span class="badge badge--gold">${escapeHtml(tradeoff.recommendedPath ? 'Recommended path ready' : 'Review trade-off')}</span>
+    </div>
+    <div class="results-comparison-guidance-grid" style="margin-top:var(--sp-4)">
+      ${options.map(option => `<div class="results-comparison-guidance-card">
+        <span class="results-driver-label">${escapeHtml(option.implementationBurden || 'medium')} burden · ${escapeHtml(option.evidenceStrength || 'weak')} evidence</span>
+        <strong>${escapeHtml(option.title || 'Treatment option')}</strong>
+        <span>${escapeHtml(option.rationale || option.bestFor || 'Review the assumptions this treatment would actually change.')}</span>
+        <div class="results-comparison-foot" style="margin-top:var(--sp-3)"><strong>Frequency:</strong> ${escapeHtml(option.affectsFrequency || 'No clear frequency effect recorded.')}</div>
+        <div class="results-comparison-foot"><strong>Vulnerability:</strong> ${escapeHtml(option.affectsVulnerability || 'No clear vulnerability effect recorded.')}</div>
+        <div class="results-comparison-foot"><strong>Event loss:</strong> ${escapeHtml(option.affectsEventLoss || 'No clear event-loss effect recorded.')}</div>
+        <div class="results-comparison-foot"><strong>Annualized loss:</strong> ${escapeHtml(option.affectsAnnualizedLoss || 'Rerun the model to quantify annualized movement.')}</div>
+        <div class="results-comparison-foot"><strong>Project horizon:</strong> ${escapeHtml(option.affectsProjectHorizonLoss || 'No project-horizon effect recorded.')}</div>
+        <div class="results-comparison-foot"><strong>Project economics:</strong> ${escapeHtml(option.affectsProjectEconomics || 'No project economics effect recorded.')}</div>
+        ${option.affectedUnknownDrivers?.length ? `<div class="citation-chips" style="margin-top:var(--sp-3)">${option.affectedUnknownDrivers.map(item => `<span class="badge badge--warning">${escapeHtml(item)}</span>`).join('')}</div>` : ''}
+        <div class="results-comparison-foot" style="margin-top:var(--sp-3)"><strong>Uncertainty:</strong> ${escapeHtml(option.residualUncertainty || option.limitation || 'Validate evidence before relying on the treatment delta.')}</div>
+      </div>`).join('')}
+    </div>
+    ${tradeoff.recommendedPath ? `<div class="results-comparison-rail-note results-comparison-rail-note--strong" style="margin-top:var(--sp-4)">${escapeHtml(tradeoff.recommendedPath)}</div>` : ''}
+  </div>`;
+}
+
 function renderResultsComparisonHighlight(comparison) {
   if (!comparison) return '';
   const treatmentDecision = ReportPresentation.buildTreatmentDecisionSummary(comparison);
@@ -904,6 +2076,7 @@ function renderResultsComparisonHighlight(comparison) {
         <div class="results-comparison-metric ${comparison.annualExposure.direction}"><div class="results-impact-label">Reduction in expected annual loss</div><div class="results-comparison-value">${comparison.annualExposure.formatted}</div><div class="results-comparison-foot">${comparison.annualExposure.direction === 'down' ? 'Average-year burden is falling.' : comparison.annualExposure.direction === 'up' ? 'Average-year burden is rising.' : 'Average-year burden is broadly unchanged.'}</div></div>
         <div class="results-comparison-metric ${comparison.severeAnnual.direction}"><div class="results-impact-label">Change in threshold posture</div><div class="results-comparison-value">${comparison.currentStatus}</div><div class="results-comparison-foot">${comparison.statusShift}</div></div>
       </div>
+      ${renderTreatmentTradeoffCards(comparison)}
       <div class="results-comparison-narrative">
         <div class="results-comparison-narrative__main">
           <div class="results-driver-label">Plain-language treatment impact</div>
@@ -1072,7 +2245,7 @@ function renderResultsExecutiveCockpit({
       value: fmtCurrency(r?.eventLoss?.p90 || 0),
       copy: 'Severe single-event exposure',
       foot: eventFoot,
-      explain: 'eventLossP90'
+      explain: 'eventLoss.p90'
     },
     {
       tone: 'warning',
@@ -1080,7 +2253,7 @@ function renderResultsExecutiveCockpit({
       value: fmtCurrency(r?.annualLoss?.mean || 0),
       copy: 'Average annual exposure',
       foot: annualFoot,
-      explain: 'aleMean'
+      explain: 'annualLoss.mean'
     }
   ];
 
@@ -1339,6 +2512,7 @@ function renderTrustExplanationLayer({ confidenceNeedsBlock, evidenceGapPlan = [
     className: 'results-layer-band results-layer-band--editorial',
     body: `
     ${confidenceNeedsBlock}
+    ${renderResultsEvidenceMapPanel(assessment)}
     ${evidenceGapPlan.length ? renderEvidenceGapActionPlan(evidenceGapPlan, {
       title: 'Best evidence to collect next',
       subtitle: 'Use these to strengthen confidence, narrow the range, or improve the treatment decision before the next review.',
@@ -1428,6 +2602,7 @@ function buildAssessmentComparison(currentAssessment, baselineAssessment) {
   const severeEvent = formatComparisonDelta(current.lm?.p90, baseline.lm?.p90);
   const annualExposure = formatComparisonDelta(current.ale?.mean, baseline.ale?.mean);
   const severeAnnual = formatComparisonDelta(current.ale?.p90, baseline.ale?.p90);
+  const projectHorizonLoss = formatComparisonDelta(current.projectHorizon?.loss?.mean, baseline.projectHorizon?.loss?.mean);
   const currentStatus = current.toleranceBreached ? 'Above tolerance' : current.nearTolerance ? 'Close to tolerance' : 'Within tolerance';
   const baselineStatus = baseline.toleranceBreached ? 'Above tolerance' : baseline.nearTolerance ? 'Close to tolerance' : 'Within tolerance';
   const statusShift = currentStatus === baselineStatus
@@ -1472,6 +2647,53 @@ function buildAssessmentComparison(currentAssessment, baselineAssessment) {
     : severeEvent.direction === 'up'
       ? `The current case is worse than the selected baseline mainly because ${String(levers[0]?.message || 'the main assumptions are still heavier than the baseline').replace(/\.$/, '').toLowerCase()}. ${secondaryDriver}`
       : 'The current case and baseline are directionally similar, so the outcome is not being moved by one dominant lever.';
+  const unknownDrivers = getResultsTreatmentTradeoffUnknowns(currentAssessment);
+  const unknownCaveat = unknownDrivers[0] ? `Benefit cannot be quantified until ${unknownDrivers[0]} is known.` : '';
+  const fallbackTradeoff = {
+    summary: treatmentNarrative,
+    options: [{
+      title: 'Simulated treatment case',
+      affectsFrequency: Number(currentInputs.tefLikely || 0) < Number(baselineInputs.tefLikely || 0)
+        ? 'Likely event frequency is lower than the baseline.'
+        : Number(currentInputs.tefLikely || 0) > Number(baselineInputs.tefLikely || 0)
+          ? 'Likely event frequency is higher than the baseline and should be challenged.'
+          : 'No material frequency change is visible in the saved inputs.',
+      affectsVulnerability: Number(currentInputs.controlStrLikely || 0) > Number(baselineInputs.controlStrLikely || 0)
+        ? 'Control strength is higher, which should reduce vulnerability if the treatment is implemented as assumed.'
+        : Number(currentInputs.controlStrLikely || 0) < Number(baselineInputs.controlStrLikely || 0)
+          ? 'Control strength is lower than baseline, so the treatment case does not yet reduce vulnerability.'
+          : 'No material vulnerability/control-strength change is visible in the saved inputs.',
+      affectsEventLoss: severeEvent.direction === 'down'
+        ? `Severe event loss falls by ${severeEvent.formatted}.`
+        : severeEvent.direction === 'up'
+          ? `Severe event loss rises by ${severeEvent.formatted}; the treatment case is not yet improving impact.`
+          : 'Severe event loss is broadly unchanged.',
+      affectsAnnualizedLoss: annualExposure.direction === 'down'
+        ? `Expected annualized loss falls by ${annualExposure.formatted}.`
+        : annualExposure.direction === 'up'
+          ? `Expected annualized loss rises by ${annualExposure.formatted}; challenge the future-state assumptions.`
+          : 'Expected annualized loss is broadly unchanged.',
+      affectsProjectHorizonLoss: currentAssessment.assessmentType === 'project_buyer' || currentAssessment.assessmentType === 'project_seller'
+        ? (projectHorizonLoss.direction === 'flat'
+            ? `Project-horizon loss is unchanged or unavailable. ${unknownCaveat || 'Confirm project duration and value before relying on this metric.'}`
+            : `Project-horizon loss ${projectHorizonLoss.direction === 'down' ? 'falls' : 'rises'} by ${projectHorizonLoss.formatted}.`)
+        : 'Not applicable for a generic enterprise risk.',
+      affectsProjectEconomics: getResultsProjectEconomicsTradeoff(currentAssessment, unknownDrivers),
+      affectedUnknownDrivers: unknownDrivers,
+      evidenceStrength: currentAssessment.evidenceMap?.citationQuality?.strong?.length ? 'partial' : 'weak',
+      residualUncertainty: unknownCaveat || currentAssessment.missingInformation?.[0] || 'Validate the treatment assumptions before relying on this delta.',
+      implementationBurden: /platform|replace|deploy|rollout|supplier|contract|architecture|migration/i.test(String(currentAssessment.treatmentImprovementRequest || currentAssessment.comparisonNarrative || '')) ? 'high' : 'medium',
+      rationale: levers[0]?.message || 'The comparison reads the saved before/after FAIR parameters and simulated results.',
+      bestFor: currentAssessment.assessmentType === 'project_buyer'
+        ? 'Buyer-side project exposure where delivery timing, replacement options, or recoveries are the key levers.'
+        : currentAssessment.assessmentType === 'project_seller'
+          ? 'Seller-side exposure where margin, delivery cost, penalties, revenue timing, or termination are the key levers.'
+          : 'Enterprise risk treatment where likelihood, vulnerability, or direct impact can be credibly changed.',
+      limitation: unknownCaveat || 'This is a modelled comparison; evidence of implementation and control effectiveness is still required.'
+    }],
+    recommendedPath: unknownCaveat || 'Validate the future-state assumptions, confirm implementation burden, then decide whether to sponsor the treatment path.'
+  };
+  const treatmentTradeoff = normaliseResultsTreatmentTradeoff(currentAssessment.treatmentTradeoff, fallbackTradeoff);
 
   return {
     baselineTitle: getResultsScenarioDisplayTitle(baselineAssessment || {}),
@@ -1479,6 +2701,7 @@ function buildAssessmentComparison(currentAssessment, baselineAssessment) {
     severeEvent,
     annualExposure,
     severeAnnual,
+    projectHorizonLoss,
     currentStatus,
     baselineStatus,
     statusShift,
@@ -1486,6 +2709,7 @@ function buildAssessmentComparison(currentAssessment, baselineAssessment) {
     secondaryDriver,
     caveat: currentAssessment.missingInformation?.[0] || baselineAssessment.missingInformation?.[0] || 'Validate the treatment assumptions before relying on this delta for investment or prioritisation.',
     treatmentNarrative,
+    treatmentTradeoff,
     directionTitle: severeEvent.direction === 'down'
       ? 'The treatment path is reducing the decision burden.'
       : severeEvent.direction === 'up'
@@ -3649,84 +4873,84 @@ function openAssessmentForRevision(assessment, {
 }
 
 function buildResultsMetricExplainerModel(metricKey, assessment, r, assessmentIntelligence = {}, runMetadata = {}) {
-  const assumptions = Array.isArray(assessmentIntelligence?.assumptions)
-    ? assessmentIntelligence.assumptions.map(item => String(item?.text || item || '').trim()).filter(Boolean).slice(0, 3)
-    : [];
-  const evidence = [
-    String(assessment?.evidenceSummary || '').trim(),
-    ...normaliseCitations(assessment?.citations || []).map(item => String(item?.title || item?.relevanceReason || '').trim()),
-    ...((Array.isArray(assessment?.primaryGrounding) ? assessment.primaryGrounding : []).map(item => String(item || '').trim()))
-  ].filter(Boolean).slice(0, 3);
-  const driverCopy = Array.isArray(assessmentIntelligence?.drivers?.sensitivity)
-    ? assessmentIntelligence.drivers.sensitivity.slice(0, 2).map(item => `${item?.label || 'Driver'}: ${item?.why || ''}`).filter(Boolean)
-    : [];
-  const models = {
-    eventLossP90: {
-      title: 'Conditional loss from one successful event',
-      valueLabel: fmtCurrency(r?.eventLoss?.p90 || 0),
-      meaning: 'This is the severe-but-plausible single-event view. It helps leadership judge whether one successful event is large enough to breach tolerance even before annual frequency is applied.',
-      assumptions,
-      moveUp: 'This rises when the event is harder to contain, business disruption is longer, or legal and contract tail costs are larger than the current case assumes.',
-      moveDown: 'This falls when controls contain the event faster, disruption is shorter, or the severe-case cost tail is narrower than assumed.',
-      evidence,
-      dependency: driverCopy.length
-        ? `This result currently depends most on ${driverCopy.join(' · ')}`
-        : 'This result mostly depends on the loss-component ranges and how severe the single-event tail becomes.'
+  if (typeof MetricExplainerService !== 'undefined' && MetricExplainerService && typeof MetricExplainerService.explainMetric === 'function') {
+    return MetricExplainerService.explainMetric(metricKey, {
+      assessment,
+      results: r,
+      parameters: assessment?.fairParams || r?.inputs || {},
+      assessmentType: assessment?.assessmentType || r?.runConfig?.assessmentType,
+      projectContext: assessment?.projectContext,
+      projectExposure: assessment?.projectExposure,
+      projectHorizon: r?.projectHorizon,
+      decisionBrief: assessment?.decisionBrief,
+      parameterCoach: assessment?.parameterCoach,
+      assumptionRegister: assessment?.assumptionRegister,
+      evidenceMap: assessment?.evidenceMap,
+      assumptionSummary: assessmentIntelligence?.assumptions,
+      runMetadata
+    });
+  }
+  return {
+    metric: String(metricKey || '').trim(),
+    label: 'Metric detail',
+    plainEnglish: 'This number is generated from the saved simulation result.',
+    calculationLogic: 'The deterministic metric explainer service is unavailable, so only a basic explanation can be shown.',
+    mainDrivers: ['Current model parameters and saved result context.'],
+    sourceContext: {
+      userProvided: [],
+      evidenceSupported: [],
+      derived: ['Saved RiskEngine result.'],
+      benchmarkProxy: [],
+      unknown: ['Detailed source context is unavailable.']
     },
-    aleMean: {
-      title: 'Expected annualized loss',
-      valueLabel: fmtCurrency(r?.annualLoss?.mean || r?.ale?.mean || 0),
-      meaning: 'This is the average-year planning view. It combines the current event-frequency range with the single-event loss distribution to estimate the expected annual exposure.',
-      assumptions,
-      moveUp: 'This rises when the event is more frequent, more likely to succeed, or the expected-case loss rows are heavier than the current planning case.',
-      moveDown: 'This falls when frequency is lower, controls work better, or the expected-case impact range is lighter than assumed.',
-      evidence,
-      dependency: 'This result is especially sensitive to event frequency and the expected-case control and disruption assumptions.'
-    },
-    aleP90: {
-      title: 'High-stress annualized loss',
-      valueLabel: fmtCurrency(r?.annualLoss?.p90 || r?.ale?.p90 || 0),
-      meaning: 'This is the severe annual planning view. It shows what a bad year can look like once the event tail and annual frequency are combined.',
-      assumptions,
-      moveUp: 'This rises when severe-case loss tails are fatter, the event can happen several times in a bad year, or the annual review trigger is approached with weak resilience.',
-      moveDown: 'This falls when the severe tail is better bounded, event frequency is lower, or resilience and recovery reduce the worst-year impact.',
-      evidence,
-      dependency: String(runMetadata?.runtimeGuardrails?.[0] || 'This view depends on both the severe single-event tail and how often that tail can show up across a year.')
-    }
+    whatWouldLowerIt: 'Lower input ranges or stronger controls would lower this number.',
+    whatWouldIncreaseIt: 'Higher input ranges or weaker controls would increase this number.',
+    caveat: 'Detailed source status is unavailable.'
   };
-  return models[metricKey] || null;
 }
 
 function renderResultsMetricExplainerPanel(model) {
   if (!model) return '';
+  const sourceContext = model.sourceContext && typeof model.sourceContext === 'object' ? model.sourceContext : {};
+  const renderList = (items, empty = 'None identified for this metric.') => {
+    const values = Array.isArray(items) ? items.map(item => String(item || '').trim()).filter(Boolean).slice(0, 6) : [];
+    return values.length ? values.map(item => `• ${escapeHtml(item)}`).join('<br>') : escapeHtml(empty);
+  };
+  const mainDrivers = Array.isArray(model.mainDrivers) ? model.mainDrivers : [];
   return `<div class="assumption-explainer-panel">
     <div class="assumption-explainer-panel__head">
       <div>
-        <div class="assumption-explainer-panel__label">Assumption explainer</div>
-        <strong>${escapeHtml(String(model.title || 'Metric detail'))}</strong>
+        <div class="assumption-explainer-panel__label">Metric explainer</div>
+        <strong>${escapeHtml(String(model.label || model.title || 'Metric detail'))}</strong>
       </div>
-      ${model.valueLabel ? `<span class="badge badge--neutral">${escapeHtml(String(model.valueLabel))}</span>` : ''}
+      ${model.metric ? `<span class="badge badge--neutral">${escapeHtml(String(model.metric))}</span>` : ''}
     </div>
-    <p class="assumption-explainer-panel__copy">${escapeHtml(String(model.meaning || ''))}</p>
+    <p class="assumption-explainer-panel__copy">${escapeHtml(String(model.plainEnglish || model.meaning || ''))}</p>
+    <div class="assumption-explainer-panel__logic">${escapeHtml(String(model.calculationLogic || ''))}</div>
     <div class="assumption-explainer-panel__grid">
       <div>
-        <div class="assumption-explainer-panel__section">Assumptions supporting it</div>
-        <p>${(Array.isArray(model.assumptions) && model.assumptions.length ? model.assumptions : ['No explicit assumption summary is attached yet.']).map(item => `• ${escapeHtml(String(item))}`).join('<br>')}</p>
+        <div class="assumption-explainer-panel__section">Main drivers</div>
+        <p>${renderList(mainDrivers, 'No specific driver summary is attached yet.')}</p>
       </div>
       <div>
-        <div class="assumption-explainer-panel__section">What would move it up</div>
-        <p>${escapeHtml(String(model.moveUp || ''))}</p>
+        <div class="assumption-explainer-panel__section">Source context</div>
+        <p><strong>User provided</strong><br>${renderList(sourceContext.userProvided, 'No user-provided source identified.')}<br><br><strong>Evidence supported</strong><br>${renderList(sourceContext.evidenceSupported, 'No evidence-supported source identified.')}</p>
       </div>
       <div>
         <div class="assumption-explainer-panel__section">What would move it down</div>
-        <p>${escapeHtml(String(model.moveDown || ''))}</p>
+        <p>${escapeHtml(String(model.whatWouldLowerIt || model.moveDown || ''))}</p>
       </div>
       <div>
-        <div class="assumption-explainer-panel__section">Evidence supporting it</div>
-        <p>${(Array.isArray(model.evidence) && model.evidence.length ? model.evidence : ['No named evidence is attached yet.']).map(item => `• ${escapeHtml(String(item))}`).join('<br>')}</p>
+        <div class="assumption-explainer-panel__section">What would move it up</div>
+        <p>${escapeHtml(String(model.whatWouldIncreaseIt || model.moveUp || ''))}</p>
       </div>
     </div>
-    <div class="assumption-explainer-panel__foot">${escapeHtml(String(model.dependency || ''))}</div>
+    <div class="metric-source-grid">
+      <div><span>Derived</span><p>${renderList(sourceContext.derived, 'No derived source identified.')}</p></div>
+      <div><span>Benchmark proxy</span><p>${renderList(sourceContext.benchmarkProxy, 'No benchmark proxy source identified.')}</p></div>
+      <div><span>Unknown</span><p>${renderList(sourceContext.unknown, 'No unknown source identified.')}</p></div>
+    </div>
+    <div class="assumption-explainer-panel__foot">${escapeHtml(String(model.caveat || model.dependency || ''))}</div>
   </div>`;
 }
 
@@ -4357,6 +5581,182 @@ function bindResultsInteractions({
         }
       });
       UI.toast('Reviewer adjustment loaded into the model and queued for rerun.', 'success');
+    });
+  });
+  document.querySelectorAll('[data-decision-brief-feedback-reason]').forEach(button => {
+    button.addEventListener('click', () => {
+      document.querySelectorAll('[data-decision-brief-feedback-reason]').forEach(peer => {
+        const active = peer === button && button.getAttribute('aria-pressed') !== 'true';
+        peer.setAttribute('aria-pressed', active ? 'true' : 'false');
+        peer.classList.toggle('btn--secondary', active);
+        peer.classList.toggle('btn--ghost', !active);
+      });
+    });
+  });
+  document.querySelectorAll('[data-decision-brief-run]').forEach(button => {
+    button.addEventListener('click', async () => {
+      const latest = getAssessmentById(assessment.id) || assessment;
+      const requestPayload = buildDecisionBriefPayload(latest, r, technicalInputs, runMetadata);
+      const feedbackReason = getSelectedDecisionBriefFeedbackReason();
+      const previousBrief = readSavedDecisionBrief(latest);
+      if (guardResultsAiActionCooldown({
+        button,
+        actionKey: 'decision-brief',
+        endpoint: '/api/ai/decision-brief',
+        payload: requestPayload,
+        assessment: latest,
+        fallbackId: id,
+        cooldownLabel: 'Loaded just now',
+        message: 'This Decision Brief already reflects the current simulation. Review it or change inputs before rerunning.'
+      })) return;
+      const resetBusy = setResultsAiActionBusy(button, 'Briefing…');
+      try {
+        const result = await LLMService.generateDecisionBrief(requestPayload);
+        markResultsAiActionCooldown('decision-brief', '/api/ai/decision-brief', requestPayload, latest, id);
+        const decisionBrief = normaliseDecisionBriefForResults(result?.decisionBrief || {});
+        if (feedbackReason) {
+          recordResultsStructuredAiFeedback(latest, {
+            eventType: 'decision_brief_regenerated',
+            targetType: 'decision_brief',
+            targetId: latest.id || id || '',
+            reasonCode: feedbackReason,
+            note: 'User regenerated the Decision Brief with a selected feedback reason.',
+            before: previousBrief || null,
+            after: decisionBrief,
+            projectExposureRefs: Array.isArray(latest?.projectExposure?.financialDrivers)
+              ? latest.projectExposure.financialDrivers.map(driver => driver.id || driver.label).filter(Boolean).slice(0, 6)
+              : [],
+            sourceStatusBefore: previousBrief ? 'derived' : 'unknown',
+            sourceStatusAfter: result?.usedFallback ? 'derived' : 'evidence_supported'
+          });
+        }
+        updateAssessmentRecord(latest.id, current => {
+          const next = {
+            ...current,
+            decisionBrief,
+            decisionBriefMeta: {
+              mode: String(result?.mode || '').trim().toLowerCase(),
+              usedFallback: result?.usedFallback === true,
+              aiUnavailable: result?.aiUnavailable === true,
+              fallbackReasonMessage: String(result?.fallbackReasonMessage || '').trim(),
+              fallbackReasonTitle: String(result?.fallbackReasonTitle || '').trim(),
+              generatedAt: String(result?.generatedAt || new Date().toISOString())
+            }
+          };
+          return {
+            ...next,
+            aiAuditStory: buildSavedAiAuditStory(next)
+          };
+        });
+        const toastMeta = buildReviewerWorkflowSuccessToast(result, {
+          live: 'Decision Brief loaded.',
+          deterministicFallback: 'Deterministic fallback Decision Brief loaded. Review sparse-data warnings before relying on it.',
+          manual: 'Decision Brief guidance loaded.'
+        });
+        UI.toast(toastMeta.copy, toastMeta.tone, 5000);
+        renderResults(latest.id, isShared || latest._shared);
+      } catch (error) {
+        console.error('generateDecisionBrief failed:', error);
+        UI.toast('Decision Brief is unavailable right now. Try again.', 'danger');
+      } finally {
+        resetBusy();
+      }
+    });
+  });
+  document.querySelectorAll('[data-decision-challenge-run]').forEach(button => {
+    button.addEventListener('click', async () => {
+      const latest = getAssessmentById(assessment.id) || assessment;
+      const requestPayload = buildDecisionChallengePayload(latest, r, technicalInputs, runMetadata);
+      if (guardResultsAiActionCooldown({
+        button,
+        actionKey: 'decision-challenge',
+        endpoint: '/api/ai/decision-challenge',
+        payload: requestPayload,
+        assessment: latest,
+        fallbackId: id,
+        cooldownLabel: 'Loaded just now',
+        message: 'This Challenge Agent review already reflects the current simulation. Review it or change inputs before rerunning.'
+      })) return;
+      const resetBusy = setResultsAiActionBusy(button, 'Challenging…');
+      try {
+        const result = await LLMService.generateDecisionChallenge(requestPayload);
+        markResultsAiActionCooldown('decision-challenge', '/api/ai/decision-challenge', requestPayload, latest, id);
+        const decisionChallenge = normaliseDecisionChallengeResult(result?.decisionChallenge || {});
+        updateAssessmentRecord(latest.id, current => {
+          const next = {
+            ...current,
+            decisionChallenge,
+            decisionChallengeMeta: {
+              mode: String(result?.mode || '').trim().toLowerCase(),
+              usedFallback: result?.usedFallback === true,
+              aiUnavailable: result?.aiUnavailable === true,
+              fallbackReasonMessage: String(result?.fallbackReasonMessage || '').trim(),
+              fallbackReasonTitle: String(result?.fallbackReasonTitle || '').trim(),
+              generatedAt: String(result?.generatedAt || new Date().toISOString())
+            }
+          };
+          return {
+            ...next,
+            aiAuditStory: buildSavedAiAuditStory(next)
+          };
+        });
+        const toastMeta = buildReviewerWorkflowSuccessToast(result, {
+          live: 'Challenge Agent review loaded.',
+          deterministicFallback: 'Deterministic fallback Challenge Agent review loaded. Review the stress cases before relying on it.',
+          manual: 'Challenge Agent guidance loaded.'
+        });
+        UI.toast(toastMeta.copy, toastMeta.tone, 5000);
+        renderResults(latest.id, isShared || latest._shared);
+      } catch (error) {
+        console.error('generateDecisionChallenge failed:', error);
+        UI.toast('Challenge Agent is unavailable right now. Try again.', 'danger');
+      } finally {
+        resetBusy();
+      }
+    });
+  });
+  document.querySelectorAll('[data-decision-challenge-stress]').forEach(button => {
+    button.addEventListener('click', () => {
+      const latest = getAssessmentById(assessment.id) || assessment;
+      const challenge = readDecisionChallenge(latest);
+      const stressId = String(button.dataset.decisionChallengeStress || '').trim();
+      const stressTest = (Array.isArray(challenge?.recommendedStressTests) ? challenge.recommendedStressTests : [])
+        .find(item => String(item.id || '').trim() === stressId);
+      if (!stressTest) {
+        UI.toast('That stress case could not be found anymore.', 'warning');
+        return;
+      }
+      const comparison = runDecisionChallengeStressComparison({
+        assessment: latest,
+        technicalInputs,
+        r,
+        runMetadata,
+        stressTest
+      });
+      if (!comparison || comparison.error) {
+        UI.toast(comparison?.error || 'Stress case could not be run for this result.', 'warning');
+        return;
+      }
+      const storedComparison = {
+        id: comparison.id,
+        stressTestId: comparison.stressTestId,
+        title: comparison.title,
+        baseAleRange: comparison.baseAleRange,
+        projectedAleRange: comparison.projectedAleRange,
+        changePct: comparison.changePct,
+        patchLabel: comparison.patchLabel,
+        validationWarnings: comparison.validationWarnings,
+        createdAt: comparison.createdAt
+      };
+      updateAssessmentRecord(latest.id, current => ({
+        ...current,
+        decisionChallengeStressComparisons: [
+          storedComparison,
+          ...getDecisionChallengeStressComparisons(current).filter(item => item.stressTestId !== stressId)
+        ].slice(0, 8)
+      }));
+      UI.toast('Stress case comparison saved. Baseline result was not overwritten.', 'success', 5000);
+      renderResults(latest.id, isShared || latest._shared);
     });
   });
   document.querySelectorAll('[data-consensus-path-run]').forEach(button => {
@@ -5168,6 +6568,8 @@ function renderResults(id, isShared) {
     confidenceFrame,
     thresholdModel,
     impactMix,
+    projectResultsModel,
+    decisionBrief,
     comparisonOptions,
     activeComparisonId,
     baselineAssessment,
@@ -5180,6 +6582,7 @@ function renderResults(id, isShared) {
     explanationPanel,
     analystSummary,
     assessmentValue,
+    decisionCockpitModel,
     rolePresentation
   } = window.ResultsViewModel.buildResultsRenderModel(assessment, { isShared });
   const displayScenarioTitle = typeof resolveScenarioDisplayTitle === 'function'
@@ -5400,35 +6803,41 @@ function renderResults(id, isShared) {
     rolePresentation,
     boardroomMode
   });
-  const topValueUsd = Number(
-    assessmentValue?.cost?.totalDirectionalValueUsd
-    || assessmentValue?.cost?.externalEquivalentValueUsd
-    || assessmentValue?.cost?.internalCostAvoidedUsd
-    || 0
-  );
-  const resultsTopValueStrip = `<div class="results-top-value-strip anim-fade-in" aria-label="Key value metrics">
-    <div class="results-top-value-strip__item results-top-value-strip__item--value">
-      <span>Estimated value created</span>
-      <strong>${topValueUsd > 0 ? escapeHtml(fmtCurrency(topValueUsd)) : 'Not estimated'}</strong>
-    </div>
-    <div class="results-top-value-strip__item">
-      <span>Estimated analyst time saved</span>
-      <strong>${escapeHtml(String(assessmentValue?.directional?.internalHoursAvoidedLabel || 'Not estimated'))}</strong>
-    </div>
-    <div class="results-top-value-strip__item">
-      <span>Expected annual loss</span>
-      <strong>${escapeHtml(fmtCurrency(r?.annualLoss?.mean || 0))}</strong>
-    </div>
-  </div>`;
+  const projectHorizonPanel = renderProjectHorizonResultsPanel(r);
+  const resultsTopValueStrip = renderResultsAssessmentTypeHeader(projectResultsModel, assessmentValue, r);
+  const projectExposureResultsPanel = renderProjectExposureResultsPanel(projectResultsModel);
+  const decisionBriefPanel = renderDecisionBriefPanel({
+    assessment,
+    r,
+    projectResultsModel,
+    executiveDecision,
+    confidenceFrame,
+    savedDecisionBrief: decisionBrief
+  });
+  const decisionChallengeAgentCard = renderDecisionChallengeAgentCard(assessment, r, technicalInputs, runMetadata);
+  const decisionCockpit = renderResultsDecisionCockpit(decisionCockpitModel);
+  const detailedDecisionSupportDisclosure = renderExecutiveSupportDisclosure({
+    title: 'Detailed decision-support outputs',
+    copy: 'Open this when you need the full AI brief, project exposure map, project-horizon detail, or saved challenge stress cases behind the cockpit.',
+    badge: 'Decision support',
+    body: `
+      ${decisionBriefPanel}
+      ${executiveCockpit}
+      ${projectHorizonPanel}
+      ${projectExposureResultsPanel}
+      ${decisionChallengeAgentCard}
+    `
+  });
 
   const executiveTab = `
     <section class="results-executive-view ${boardroomMode ? 'results-executive-view--boardroom' : ''} ${activeTab === 'executive' ? '' : 'hidden'}" id="results-tab-executive" role="tabpanel" aria-labelledby="results-tab-btn-executive" tabindex="-1" data-results-panel="executive" data-page-focus>
       ${assessmentFreshnessWarning ? `<div class="banner banner--info mb-6"><span class="banner-icon">ℹ</span><span class="banner-text">${escapeHtml(assessmentFreshnessWarning)}</span></div>` : ''}
       ${renderReviewerBriefPanel(assessment, rolePresentation)}
-      ${executiveCockpit}
+      ${decisionCockpit}
       <div id="results-assumption-explainer-host" style="display:none"></div>
       ${reviewSubmitBanner}
       ${executiveCommandDeck}
+      ${detailedDecisionSupportDisclosure}
       ${resultsChallengeStory && typeof renderAssessmentChallengeStory === 'function'
         ? renderAssessmentChallengeStory(resultsChallengeStory)
         : ''}
@@ -5457,6 +6866,7 @@ function renderResults(id, isShared) {
     assessment,
     thresholdModel,
     technicalInputs,
+    projectResultsModel,
     comparison,
     evidenceGapPlan,
     missingInformation,
@@ -5473,6 +6883,7 @@ function renderResults(id, isShared) {
     thresholdModel,
     technicalInputs,
     r,
+    projectResultsModel,
     assessmentChallenge,
     workflowGuidance,
     citations,

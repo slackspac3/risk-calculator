@@ -299,6 +299,7 @@ function buildDefaultLearningStoreState() {
   return {
     templates: {},
     scenarioPatterns: [],
+    caseMemories: [],
     analystSignals: {
       keptRisks: [],
       removedRisks: [],
@@ -4115,6 +4116,9 @@ function ensureDraftShape() {
     sellerEconomics: assessmentTypeState.sellerEconomics,
     sellerEconomicsMeta: assessmentTypeState.sellerEconomicsMeta,
     projectExposure: assessmentTypeState.projectExposure,
+    step4ValuationMode: ['benchmark_led', 'project_linked', 'hybrid'].includes(String(AppState.draft.step4ValuationMode || '').trim())
+      ? String(AppState.draft.step4ValuationMode || '').trim()
+      : '',
     buId: AppState.draft.buId || null,
     buName: AppState.draft.buName || null,
     contextNotes: AppState.draft.contextNotes || '',
@@ -4177,6 +4181,8 @@ function ensureDraftShape() {
     missingInformation: Array.isArray(AppState.draft.missingInformation) ? AppState.draft.missingInformation : [],
     aiAlignment: AppState.draft.aiAlignment && typeof AppState.draft.aiAlignment === 'object' ? AppState.draft.aiAlignment : null,
     projectFraming: AppState.draft.projectFraming && typeof AppState.draft.projectFraming === 'object' ? AppState.draft.projectFraming : null,
+    evidenceMap: AppState.draft.evidenceMap && typeof AppState.draft.evidenceMap === 'object' ? AppState.draft.evidenceMap : null,
+    parameterCoach: AppState.draft.parameterCoach && typeof AppState.draft.parameterCoach === 'object' ? AppState.draft.parameterCoach : null,
     decisionReadiness: AppState.draft.decisionReadiness && typeof AppState.draft.decisionReadiness === 'object' ? AppState.draft.decisionReadiness : null,
     assessmentChallengePass: AppState.draft.assessmentChallengePass && typeof AppState.draft.assessmentChallengePass === 'object' ? AppState.draft.assessmentChallengePass : null,
     assessmentManagerTrace: AppState.draft.assessmentManagerTrace && typeof AppState.draft.assessmentManagerTrace === 'object' ? AppState.draft.assessmentManagerTrace : null,

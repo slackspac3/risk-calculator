@@ -44,6 +44,7 @@
     return {
       templates: {},
       scenarioPatterns: [],
+      caseMemories: [],
       analystSignals: {
         keptRisks: [],
         removedRisks: [],
@@ -51,7 +52,8 @@
         rerunDeltas: []
       },
       aiFeedback: {
-        events: []
+        events: [],
+        structuredEvents: []
       },
       aiMemory: {
         paramHistory: [],
@@ -87,6 +89,7 @@
       ...cloned,
       templates: cloned.templates && typeof cloned.templates === 'object' ? cloned.templates : fallback.templates,
       scenarioPatterns: Array.isArray(cloned.scenarioPatterns) ? cloned.scenarioPatterns : fallback.scenarioPatterns,
+      caseMemories: Array.isArray(cloned.caseMemories) ? cloned.caseMemories.slice(0, 80) : fallback.caseMemories,
       analystSignals: cloned.analystSignals && typeof cloned.analystSignals === 'object'
         ? { ...fallback.analystSignals, ...cloned.analystSignals }
         : fallback.analystSignals,
@@ -94,7 +97,8 @@
         ? {
             ...fallback.aiFeedback,
             ...cloned.aiFeedback,
-            events: Array.isArray(cloned.aiFeedback.events) ? cloned.aiFeedback.events : fallback.aiFeedback.events
+            events: Array.isArray(cloned.aiFeedback.events) ? cloned.aiFeedback.events : fallback.aiFeedback.events,
+            structuredEvents: Array.isArray(cloned.aiFeedback.structuredEvents) ? cloned.aiFeedback.structuredEvents : fallback.aiFeedback.structuredEvents
           }
         : fallback.aiFeedback,
       aiMemory: cloned.aiMemory && typeof cloned.aiMemory === 'object'
