@@ -1,6 +1,15 @@
 {
   "headers": [
     {
+      "source": "/assets/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
       "source": "/(.*)",
       "headers": [
         {
@@ -23,6 +32,10 @@
     }
   ],
   "functions": {
+    "api/ai/*.js": {
+      "memory": 512,
+      "maxDuration": 60
+    },
     "api/compass.js": {
       "memory": 256,
       "maxDuration": 30

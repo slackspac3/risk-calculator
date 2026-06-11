@@ -24,6 +24,7 @@ function extractAssetVersions(indexHtml) {
 
 const indexHtml = read('index.html');
 const releaseBootstrapJs = read('assets/releaseBootstrap.js');
+const assetLoaderJs = read('assets/services/assetLoader.js');
 const appJs = read('assets/app.js');
 const appRoutesJs = read('assets/appRoutes.js');
 const exportJs = read('assets/services/exportService.js');
@@ -97,18 +98,27 @@ expect(String(packageJson.version || '').trim().length > 0, 'package.json must i
 expect(String(packageJson.engines?.node || '').trim() === '>=24 <25', 'package.json engines.node must pin the supported Node major version.');
 expect(typeof packageJson.scripts?.['qa:app'] === 'string', 'package.json is missing qa:app');
 expect(typeof packageJson.scripts?.['qa:ai'] === 'string', 'package.json is missing qa:ai');
+expect(typeof packageJson.scripts?.['qa:online'] === 'string', 'package.json is missing qa:online');
 expect(typeof packageJson.scripts?.['qa:release'] === 'string', 'package.json is missing qa:release');
 expect(typeof packageJson.scripts?.['check:staleness'] === 'string', 'package.json is missing check:staleness');
 expect(String(packageJson.scripts?.['release:pilot'] || '').trim() === 'npm run qa:release', 'release:pilot must defer to qa:release so CI and humans use one release gate');
 expect(String(packageJson.scripts?.['test:e2e'] || '').trim().includes('run-playwright-static.js'), 'test:e2e must use the managed static-server Playwright runner');
 expect(String(packageJson.scripts?.['test:e2e:smoke'] || '').trim().includes('run-playwright-static.js'), 'test:e2e:smoke must use the managed static-server Playwright runner');
 expect(appJs.includes(`const APP_ASSET_VERSION = '${versions[0] || ''}'`), 'app.js asset version does not match index.html asset version');
-expect(indexHtml.includes('assets/services/reportPresentation.js'), 'index.html is missing reportPresentation.js');
+expect(indexHtml.includes('assets/services/assetLoader.js'), 'index.html is missing assetLoader.js');
+expect(assetLoaderJs.includes('loadRouteAssets'), 'assetLoader.js is missing route asset loading support');
+expect(assetLoaderJs.includes('assets/services/reportPresentation.js'), 'assetLoader.js is missing reportPresentation.js');
+expect(assetLoaderJs.includes('assets/services/exportService.js'), 'assetLoader.js is missing exportService.js');
+expect(assetLoaderJs.includes('assets/admin/documentLibrarySection.js'), 'assetLoader.js is missing documentLibrarySection.js');
+expect(assetLoaderJs.includes('assets/admin/aiFeedbackSection.js'), 'assetLoader.js is missing aiFeedbackSection.js');
+expect(assetLoaderJs.indexOf('assets/services/reportPresentation.js') < assetLoaderJs.indexOf('assets/services/exportService.js'), 'reportPresentation.js must load before exportService.js in the asset manifest');
+expect(!indexHtml.includes('cdnjs.cloudflare.com/ajax/libs/xlsx'), 'index.html must not load XLSX before a spreadsheet import needs it');
+expect(!indexHtml.includes('cdnjs.cloudflare.com/ajax/libs/jspdf'), 'index.html must not load jsPDF before a PDF download needs it');
+expect(!indexHtml.includes('assets/services/scenarioTaxonomyProjectionData.js'), 'index.html must lazy-load scenario taxonomy projection data');
+expect(!indexHtml.includes('assets/dashboard/userDashboard.js'), 'index.html must lazy-load dashboard route code');
+expect(!indexHtml.includes('assets/results/resultsRoute.js'), 'index.html must lazy-load results route code');
+expect(!indexHtml.includes('assets/wizard/step1.js'), 'index.html must lazy-load wizard route code');
 expect(indexHtml.includes('assets/services/benchmarkService.js'), 'index.html is missing benchmarkService.js');
-expect(indexHtml.includes('assets/admin/documentLibrarySection.js'), 'index.html is missing documentLibrarySection.js');
-expect(indexHtml.includes('assets/admin/aiFeedbackSection.js'), 'index.html is missing aiFeedbackSection.js');
-expect(indexHtml.indexOf('assets/services/reportPresentation.js') < indexHtml.indexOf('assets/services/exportService.js'), 'reportPresentation.js must load before exportService.js');
-expect(indexHtml.indexOf('assets/services/reportPresentation.js') < indexHtml.indexOf('assets/app.js'), 'reportPresentation.js must load before app.js');
 expect(indexHtml.includes('assets/state/workspaceStateModel.js'), 'index.html is missing workspaceStateModel.js');
 expect(indexHtml.includes('assets/state/userWorkspacePersistence.js'), 'index.html is missing userWorkspacePersistence.js');
 expect(indexHtml.includes('assets/state/assessmentLifecycle.js'), 'index.html is missing assessmentLifecycle.js');
@@ -163,8 +173,8 @@ expect(usersApi.includes('await deleteUserState(removed.username);'), 'users API
 expect(!authServiceJs.includes('businessUnitEntityId: payload.businessUnitEntityId'), 'authService self-update still sends businessUnitEntityId');
 expect(!authServiceJs.includes('departmentEntityId: payload.departmentEntityId'), 'authService self-update still sends departmentEntityId');
 
-expect(resultsRouteJs.includes('Confirm your organisation context'), 'results route is missing the updated organisation-context copy');
-expect(resultsRouteJs.includes('const canChooseDepartment = capability.canManageBusinessUnit && !capability.canManageDepartment;'), 'results route is missing the aligned BU-admin-only department chooser guard');
+expect(appJs.includes('Confirm your organisation context'), 'app.js is missing the updated organisation-context copy');
+expect(appJs.includes('const canChooseDepartment = capability.canManageBusinessUnit && !capability.canManageDepartment;'), 'app.js is missing the aligned BU-admin-only department chooser guard');
 expect(systemAccessSectionJs.includes('Pilot release diagnostics'), 'admin system access section is missing pilot release diagnostics');
 expect(systemAccessSectionJs.includes('Server AI status'), 'admin system access section is missing server AI status guidance');
 expect(!demoModeJs.includes("Router.navigate('/results');"), 'demo mode still navigates to the stale /results route');

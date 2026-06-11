@@ -6518,7 +6518,7 @@ function hasStep1Content() {
   );
 }
 
-function applyDryRunScenario(example) {
+function applyDryRunScenario(example, options = {}) {
   const settings = getEffectiveSettings();
   const nextNarrative = buildDryRunNarrative(example);
   AppState.draft.step1Path = 'import';
@@ -6554,8 +6554,8 @@ function applyDryRunScenario(example) {
   resetStep1RegulationSelectionState();
   updateStep1ApplicableRegulations(getBUList(), AppState.draft.geographies);
   saveDraft();
-  renderWizard1();
-  UI.toast(`Loaded dry-run example: ${example.title}.`, 'success');
+  if (options.render !== false) renderWizard1();
+  if (options.toast !== false) UI.toast(`Loaded dry-run example: ${example.title}.`, 'success');
 }
 
 

@@ -4330,14 +4330,31 @@ function withResultsActionBusy(button, busyLabel, resetDelayMs, callback) {
   const original = button.textContent;
   button.disabled = true;
   button.textContent = busyLabel;
-  try {
-    callback();
-  } finally {
+  const reset = () => {
     window.setTimeout(() => {
       button.disabled = false;
       button.textContent = original;
     }, resetDelayMs);
+  };
+  try {
+    const result = callback();
+    if (result && typeof result.then === 'function') {
+      result.then(reset, reset);
+      return;
+    }
+  } catch (error) {
+    reset();
+    throw error;
   }
+  reset();
+}
+
+async function ensureResultsPdfLibrary() {
+  if (window.jspdf?.jsPDF) return true;
+  if (window.AppAssetLoader && typeof window.AppAssetLoader.loadRouteAssets === 'function') {
+    await window.AppAssetLoader.loadRouteAssets('jspdf');
+  }
+  return !!window.jspdf?.jsPDF;
 }
 
 function getResultsSessionToken() {
@@ -6362,8 +6379,10 @@ function bindResultsInteractions({
     });
   });
   document.getElementById('btn-download-pdf')?.addEventListener('click', event => {
-    withResultsActionBusy(event.currentTarget, 'Building PDF…', 800, () => {
+    withResultsActionBusy(event.currentTarget, 'Building PDF…', 800, async () => {
       try {
+        const ready = await ensureResultsPdfLibrary();
+        if (!ready) throw new Error('jsPDF is not available in this session.');
         const doc = ExportService.generatePdfReport(assessment);
         doc.save(`${assessment.id || 'assessment'}-report.pdf`);
         UI.toast('PDF downloaded.', 'success');
@@ -7009,141 +7028,4 @@ function renderResults(id, isShared) {
     console.error('renderResults failed:', error);
     renderResultsFailureState(id, isShared, error);
   }
-}
-
-// ─── AUTH & SETTINGS ──────────────────────────────────────────
-const ADMIN_SECTION_STORAGE_KEY = 'rq_admin_active_section';
-
-function getPreferredAdminSection() {
-  try {
-    const value = String(localStorage.getItem(ADMIN_SECTION_STORAGE_KEY) || '').trim();
-    return ['org', 'company', 'defaults', 'governance', 'feedback', 'access', 'users', 'audit'].includes(value) ? value : 'org';
-  } catch {
-    return 'org';
-  }
-}
-
-function setPreferredAdminSection(section) {
-  const value = ['org', 'company', 'defaults', 'governance', 'feedback', 'access', 'users', 'audit'].includes(section) ? section : 'org';
-  try {
-    localStorage.setItem(ADMIN_SECTION_STORAGE_KEY, value);
-  } catch {}
-  return value;
-}
-
-function getDefaultRouteForCurrentUser() {
-  const user = AuthService.getCurrentUser();
-  // Global admins need a proper front door that separates assessment work from console administration.
-  return user?.role === 'admin' ? '/admin/home' : '/dashboard';
-}
-
-function userNeedsOrganisationSelection(user = AuthService.getCurrentUser(), settings = getAdminSettings()) {
-  if (!user || user.role === 'admin') return false;
-  const companyStructure = Array.isArray(settings.companyStructure) ? settings.companyStructure : [];
-  const companies = getCompanyEntities(companyStructure);
-  if (!companies.length) return false;
-  const storedSettings = getUserSettings();
-  const selection = resolveUserOrganisationSelection(user, storedSettings, settings);
-  const businessUnitEntityId = String(selection.businessUnitEntityId || '').trim();
-  const departmentEntityId = String(selection.departmentEntityId || '').trim();
-  if (!businessUnitEntityId) return true;
-  const departments = getDepartmentEntities(companyStructure, businessUnitEntityId);
-  return !!departments.length && !departmentEntityId;
-}
-
-function renderLoginOrganisationSelection(currentUser, existingSettings = getUserSettings()) {
-  const adminSettings = getAdminSettings();
-  const companyStructure = Array.isArray(adminSettings.companyStructure) ? adminSettings.companyStructure : [];
-  const companies = getCompanyEntities(companyStructure);
-  if (!companies.length) {
-    Router.navigate('/dashboard');
-    return;
-  }
-  const selection = resolveUserOrganisationSelection(currentUser, existingSettings, adminSettings);
-  const capability = getNonAdminCapabilityState(currentUser, existingSettings, adminSettings);
-  const canChooseDepartment = capability.canManageBusinessUnit && !capability.canManageDepartment;
-  let selectedBusinessId = selection.businessUnitEntityId || companies[0]?.id || '';
-  const ownedDefault = getDefaultOrgAssignmentForUser(currentUser.username, adminSettings);
-  if (!selectedBusinessId && ownedDefault.businessUnitEntityId) {
-    selectedBusinessId = ownedDefault.businessUnitEntityId;
-  }
-  const settings = {
-    ...existingSettings,
-    userProfile: typeof reconcileUserProfileToManagedScope === 'function'
-      ? reconcileUserProfileToManagedScope(existingSettings.userProfile, currentUser, adminSettings)
-      : normaliseUserProfile(existingSettings.userProfile, currentUser)
-  };
-
-  function renderSelectionStep() {
-    const departmentOptions = getDepartmentEntities(companyStructure, selectedBusinessId);
-    let selectedDepartmentId = String(selection.departmentEntityId || settings.userProfile.departmentEntityId || ownedDefault.departmentEntityId || '').trim();
-    if (!departmentOptions.some(option => option.id === selectedDepartmentId)) {
-      selectedDepartmentId = departmentOptions.find(option => option.ownerUsername === currentUser.username)?.id || departmentOptions[0]?.id || '';
-    }
-    settings.userProfile.departmentEntityId = selectedDepartmentId;
-
-    setPage(`
-      <main class="page">
-        <div class="container container--narrow" style="padding:var(--sp-16) var(--sp-6);max-width:760px">
-          <div class="card card--elevated">
-            <div class="landing-badge">Sign In</div>
-            <h2 style="margin-top:var(--sp-4)">Confirm your organisation context</h2>
-            <p style="margin-top:8px;color:var(--text-muted)">This confirms the business context used for this session. Admin-assigned scope stays fixed unless your ownership allows a department choice.</p>
-            <div class="form-group mt-6">
-              <label class="form-label" for="login-business-unit">Business unit / company</label>
-              <select class="form-select" id="login-business-unit" disabled>
-                ${companies.map(entity => `<option value="${entity.id}" ${entity.id === selectedBusinessId ? 'selected' : ''}>${entity.name}</option>`).join('')}
-              </select>
-            </div>
-            <div class="form-group mt-4">
-              <label class="form-label" for="login-department">Function / department</label>
-              <select class="form-select" id="login-department" ${departmentOptions.length && canChooseDepartment ? '' : 'disabled'}>
-                ${departmentOptions.length
-                  ? departmentOptions.map(entity => `<option value="${entity.id}" ${entity.id === selectedDepartmentId ? 'selected' : ''}>${entity.name}${entity.ownerUsername === currentUser.username ? ' · your department' : ''}</option>`).join('')
-                  : '<option value="">No functions configured yet</option>'}
-              </select>
-              <span class="form-help">${departmentOptions.length ? (canChooseDepartment ? 'Choose the function context you want to work within for this session.' : 'Your function context is fixed by your current assignment.') : 'No function has been configured beneath this business yet. Ask an admin or BU admin to add one before continuing.'}</span>
-            </div>
-            <div class="flex items-center justify-between mt-6" style="gap:var(--sp-4);flex-wrap:wrap">
-              <button class="btn btn--ghost" id="btn-login-switch-account">Switch Account</button>
-              <button class="btn btn--primary" id="btn-login-context-continue">Continue</button>
-            </div>
-          </div>
-        </div>
-      </main>`);
-
-    document.getElementById('btn-login-switch-account').addEventListener('click', () => {
-      performLogout({ renderLoginScreen: true });
-    });
-    document.getElementById('btn-login-context-continue').addEventListener('click', async () => {
-      const businessUnitEntityId = selectedBusinessId;
-      const departmentEntityId = canChooseDepartment ? document.getElementById('login-department').value : selectedDepartmentId;
-      const businessEntity = getEntityById(companyStructure, businessUnitEntityId);
-      const departmentEntity = getEntityById(companyStructure, departmentEntityId);
-      const availableDepartments = getDepartmentEntities(companyStructure, businessUnitEntityId);
-      if (!businessEntity) {
-        UI.toast('Choose a business unit first.', 'warning');
-        return;
-      }
-      if (availableDepartments.length && !departmentEntity) {
-        UI.toast('Choose a department or function for this sign-in session.', 'warning');
-        return;
-      }
-      saveUserSettings({
-        ...settings,
-        userProfile: {
-          ...settings.userProfile,
-          businessUnit: businessEntity.name,
-          businessUnitEntityId,
-          department: departmentEntity?.name || '',
-          departmentEntityId: departmentEntity?.id || ''
-        }
-      });
-      activateAuthenticatedState();
-      Router.navigate('/dashboard');
-    });
-  }
-
-  settings.userProfile.businessUnitEntityId = selectedBusinessId;
-  renderSelectionStep();
 }

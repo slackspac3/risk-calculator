@@ -13,6 +13,7 @@
     "sync:taxonomy-projection": "node scripts/sync-scenario-taxonomy-projection.js --write",
     "qa:app": "node scripts/qa-app.js",
     "qa:ai": "node scripts/qa-ai.js",
+    "qa:online": "node scripts/online-smoke.js",
     "qa:release": "node scripts/qa-release.js",
     "qdrant:smoke": "node scripts/qdrant-smoke.js",
     "test:e2e": "node scripts/run-playwright-static.js",
