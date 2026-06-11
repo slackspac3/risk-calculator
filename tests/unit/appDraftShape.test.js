@@ -32,6 +32,26 @@ function loadEnsureDraftShape() {
             savedAt: 1710000000000
           }
         },
+        parameterCoach: {
+          mode: 'deterministic_fallback',
+          parameterRationales: [{
+            parameterKey: 'businessInterruption',
+            suggestionType: 'parameter_gap'
+          }],
+          missingHighImpactInputs: [{
+            field: 'delayCostPerDay'
+          }]
+        },
+        evidenceMap: {
+          mode: 'deterministic_fallback',
+          projectFinancialEvidenceMap: [{
+            field: 'grossMarginPct',
+            status: 'not_found'
+          }],
+          citationQuality: {
+            decorative: ['Title only source']
+          }
+        },
         guidedInput: {},
         geographies: [],
         applicableRegulations: [],
@@ -70,6 +90,12 @@ test('ensureDraftShape preserves draft aiFeedback state across rerender normalis
       savedAt: 1710000000000
     }
   });
+  assert.equal(context.AppState.draft.parameterCoach.mode, 'deterministic_fallback');
+  assert.equal(context.AppState.draft.parameterCoach.parameterRationales[0].parameterKey, 'businessInterruption');
+  assert.equal(context.AppState.draft.parameterCoach.missingHighImpactInputs[0].field, 'delayCostPerDay');
+  assert.equal(context.AppState.draft.evidenceMap.mode, 'deterministic_fallback');
+  assert.equal(context.AppState.draft.evidenceMap.projectFinancialEvidenceMap[0].field, 'grossMarginPct');
+  assert.equal(context.AppState.draft.evidenceMap.citationQuality.decorative[0], 'Title only source');
 });
 
 test('ensureDraftShape seeds and normalises assessment type fields', () => {
@@ -84,6 +110,7 @@ test('ensureDraftShape seeds and normalises assessment type fields', () => {
     contractValue: '250000',
     grossMarginPct: '1.2'
   };
+  context.AppState.draft.step4ValuationMode = 'project_linked';
 
   context.ensureDraftShape();
 
@@ -94,4 +121,5 @@ test('ensureDraftShape seeds and normalises assessment type fields', () => {
   assert.equal(context.AppState.draft.sellerEconomics.contractValue, 250000);
   assert.equal(context.AppState.draft.sellerEconomics.grossMarginPct, 1);
   assert.equal(context.AppState.draft.projectExposure.valuationMode, 'benchmark_led');
+  assert.equal(context.AppState.draft.step4ValuationMode, 'project_linked');
 });

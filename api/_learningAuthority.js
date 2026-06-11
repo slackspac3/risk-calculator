@@ -7,6 +7,13 @@ const { readUserState } = require('./user-state');
 const AI_FEEDBACK_KEY = 'risk_calculator_ai_feedback';
 const DAY_MS = 24 * 60 * 60 * 1000;
 const FEEDBACK_HALF_LIFE_DAYS = 90;
+const STRUCTURED_REASON_TAXONOMIES = Object.freeze({
+  risk_card_removal: Object.freeze(['wrong_domain', 'too_generic', 'not_material', 'duplicate', 'missing_evidence', 'wrong_consequence', 'wrong_event_path', 'wrong_project_economics', 'other']),
+  narrative_edit: Object.freeze(['event_wording', 'impact_wording', 'asset_service', 'cause_trigger', 'regulatory_framing', 'project_framing', 'management_recommendation', 'tone_clarity', 'other']),
+  parameter_change: Object.freeze(['better_internal_data', 'expert_judgement', 'too_conservative', 'too_optimistic', 'not_applicable', 'weak_evidence', 'project_financial_input', 'benchmark_too_high', 'benchmark_too_low', 'stress_case', 'other']),
+  project_exposure_correction: Object.freeze(['missing_project_value', 'known_value_added', 'wrong_proxy_assumption', 'incorrect_financial_driver', 'not_applicable_field', 'recovery_missing', 'cap_missing', 'margin_missing', 'double_counting_risk', 'other']),
+  decision_brief_feedback: Object.freeze(['wrong_recommendation', 'missing_action', 'weak_evidence', 'unclear_driver', 'wrong_project_interpretation', 'overstates_confidence', 'too_verbose', 'too_generic', 'other'])
+});
 
 function toSafeString(value, max = 240) {
   return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max);
@@ -24,6 +31,47 @@ function normaliseRuntimeMode(value = '') {
   if (raw === 'live_ai' || raw === 'live-ai' || raw === 'live') return 'live_ai';
   if (raw === 'fallback' || raw === 'stub' || raw === 'deterministic_fallback') return 'fallback';
   return 'local';
+}
+
+function normaliseStructuredToken(value = '', max = 80) {
+  return toSafeString(value, max)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '') || '';
+}
+
+function normaliseStructuredTargetType(value = '') {
+  const raw = normaliseStructuredToken(value, 80);
+  const aliases = {
+    risk: 'risk_card',
+    risk_card_removed: 'risk_card',
+    risk_card_removal: 'risk_card',
+    risk_removal: 'risk_card',
+    narrative_edit: 'narrative',
+    parameter_change: 'parameter',
+    parameter_suggestion: 'parameter',
+    parameter_coach: 'parameter',
+    project_exposure_map: 'project_exposure',
+    brief: 'decision_brief'
+  };
+  return aliases[raw] || raw || 'correction';
+}
+
+function resolveStructuredTaxonomyKey(targetType = '', eventType = '') {
+  const target = normaliseStructuredTargetType(targetType);
+  const event = normaliseStructuredToken(eventType, 80);
+  if (target === 'risk_card' || /risk.*(remove|reject|dismiss)/.test(event)) return 'risk_card_removal';
+  if (target === 'narrative' || /narrative|draft|wording/.test(event)) return 'narrative_edit';
+  if (target === 'parameter' || /parameter|range|suggestion/.test(event)) return 'parameter_change';
+  if (target === 'project_exposure' || /project.*exposure|missing.*value|proxy|cap|margin|recovery/.test(event)) return 'project_exposure_correction';
+  if (target === 'decision_brief' || /decision.*brief|brief/.test(event)) return 'decision_brief_feedback';
+  return 'project_exposure_correction';
+}
+
+function normaliseStructuredReasonCode(targetType = '', reasonCode = '', eventType = '') {
+  const taxonomy = STRUCTURED_REASON_TAXONOMIES[resolveStructuredTaxonomyKey(targetType, eventType)] || ['other'];
+  const safeReason = normaliseStructuredToken(reasonCode || 'other', 80);
+  return taxonomy.includes(safeReason) ? safeReason : 'other';
 }
 
 function normaliseFeedbackEvent(event = {}) {
@@ -54,6 +102,27 @@ function normaliseFeedbackEvent(event = {}) {
   };
 }
 
+function normaliseStructuredFeedbackEvent(event = {}) {
+  const targetType = normaliseStructuredTargetType(event.targetType || event.target || '');
+  const eventType = normaliseStructuredToken(event.eventType || `${targetType}_correction`, 90) || 'correction';
+  return {
+    eventType,
+    targetType,
+    targetId: toSafeString(event.targetId || event.id, 140),
+    reasonCode: normaliseStructuredReasonCode(targetType, event.reasonCode || event.reason, eventType),
+    note: toSafeString(event.note, 600),
+    buId: toSafeString(event.buId, 80),
+    functionKey: toSafeString(event.functionKey || event.primaryFamily, 80).toLowerCase(),
+    lensKey: normaliseScenarioKey(event.lensKey || event.scenarioLensKey || event.scenarioLens?.key || 'general'),
+    assessmentType: normaliseStructuredToken(event.assessmentType, 80),
+    projectExposureRefs: Array.from(new Set((Array.isArray(event.projectExposureRefs) ? event.projectExposureRefs : []).map((item) => toSafeString(item, 140)).filter(Boolean))).slice(0, 12),
+    sourceStatusBefore: normaliseStructuredToken(event.sourceStatusBefore || 'unknown', 80) || 'unknown',
+    sourceStatusAfter: normaliseStructuredToken(event.sourceStatusAfter || 'unknown', 80) || 'unknown',
+    recordedAt: Number(event.recordedAt || event.timestamp || Date.now()),
+    submittedBy: toSafeString(event.submittedBy, 120).toLowerCase()
+  };
+}
+
 function feedbackMatches(event = {}, filters = {}) {
   const buId = toSafeString(filters.buId, 80);
   const functionKey = toSafeString(filters.functionKey, 80).toLowerCase();
@@ -62,6 +131,17 @@ function feedbackMatches(event = {}, filters = {}) {
   if (buId && toSafeString(event.buId, 80) !== buId) return false;
   if (functionKey && toSafeString(event.functionKey, 80).toLowerCase() !== functionKey) return false;
   if (lensKey && normaliseScenarioKey(event.lensKey || '') !== lensKey) return false;
+  return true;
+}
+
+function structuredFeedbackMatches(event = {}, filters = {}) {
+  if (!feedbackMatches({
+    buId: event.buId,
+    functionKey: event.functionKey,
+    lensKey: event.lensKey
+  }, filters)) return false;
+  const assessmentType = normaliseStructuredToken(filters.assessmentType || '', 80);
+  if (assessmentType && normaliseStructuredToken(event.assessmentType || '', 80) !== assessmentType) return false;
   return true;
 }
 
@@ -239,6 +319,54 @@ function buildFeedbackProfile(events = []) {
   return finaliseFeedbackProfile(profile);
 }
 
+function buildStructuredCorrectionProfile(events = []) {
+  const profile = {
+    totalEvents: 0,
+    distinctUsers: 0,
+    latestAt: 0,
+    reasonCounts: {},
+    targetCounts: {},
+    projectReasonCounts: {},
+    sourceTransitions: {},
+    topReasons: [],
+    topProjectCorrections: [],
+    topSourceTransitions: []
+  };
+  const submitters = new Set();
+  (Array.isArray(events) ? events : []).forEach((rawEvent) => {
+    const event = normaliseStructuredFeedbackEvent(rawEvent);
+    const decayWeight = getFeedbackDecayWeight(event.recordedAt);
+    profile.totalEvents += 1;
+    profile.latestAt = Math.max(profile.latestAt, Number(event.recordedAt || 0));
+    if (event.submittedBy) submitters.add(event.submittedBy);
+    const reasonKey = `${event.targetType}:${event.reasonCode}`;
+    incrementWeightedMapValue(profile.reasonCounts, reasonKey, decayWeight, 140);
+    incrementWeightedMapValue(profile.targetCounts, event.targetType, decayWeight, 80);
+    if (event.targetType === 'project_exposure' || event.reasonCode.includes('project') || ['known_value_added', 'wrong_proxy_assumption', 'recovery_missing', 'cap_missing', 'margin_missing', 'double_counting_risk'].includes(event.reasonCode)) {
+      incrementWeightedMapValue(profile.projectReasonCounts, event.reasonCode, decayWeight, 100);
+    }
+    const transition = `${event.sourceStatusBefore || 'unknown'}->${event.sourceStatusAfter || 'unknown'}`;
+    incrementWeightedMapValue(profile.sourceTransitions, transition, decayWeight, 100);
+  });
+  profile.distinctUsers = submitters.size;
+  profile.topReasons = Object.entries(profile.reasonCounts)
+    .filter(([, value]) => Number(value) >= 1)
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+    .slice(0, 6)
+    .map(([reason, weight]) => ({ reason, weight: Number(weight.toFixed(2)) }));
+  profile.topProjectCorrections = Object.entries(profile.projectReasonCounts)
+    .filter(([, value]) => Number(value) >= 1)
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+    .slice(0, 6)
+    .map(([reason, weight]) => ({ reason, weight: Number(weight.toFixed(2)) }));
+  profile.topSourceTransitions = Object.entries(profile.sourceTransitions)
+    .filter(([, value]) => Number(value) >= 1)
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+    .slice(0, 4)
+    .map(([transition, weight]) => ({ transition, weight: Number(weight.toFixed(2)) }));
+  return profile;
+}
+
 function buildInactiveFeedbackProfile(label = '') {
   return {
     active: false,
@@ -254,6 +382,17 @@ function buildTierProfile(events = [], { label = '', minEvents = 0, minUsers = 0
   const active = profile.liveAiEvents >= minEvents && profile.distinctUsers >= minUsers;
   return {
     active,
+    label,
+    minEvents,
+    minUsers,
+    profile
+  };
+}
+
+function buildStructuredTierProfile(events = [], { label = '', minEvents = 0, minUsers = 0 } = {}) {
+  const profile = buildStructuredCorrectionProfile(events);
+  return {
+    active: profile.totalEvents >= minEvents && profile.distinctUsers >= minUsers,
     label,
     minEvents,
     minUsers,
@@ -289,6 +428,23 @@ function mergeFeedbackTier(combined, tierProfile, weight = 1) {
   return combined;
 }
 
+function mergeStructuredCorrectionTier(combined, tierProfile, weight = 1) {
+  const source = tierProfile?.profile;
+  if (!tierProfile?.active || !source || !Number.isFinite(weight) || weight <= 0) return combined;
+  combined.structuredActiveTiers.push(tierProfile.label || 'tier');
+  combined.structuredCorrectionCount += Number(source.totalEvents || 0) * weight;
+  Object.entries(source.reasonCounts || {}).forEach(([reason, count]) => {
+    incrementWeightedMapValue(combined.structuredReasonWeights, reason, Number(count || 0) * weight, 140);
+  });
+  Object.entries(source.projectReasonCounts || {}).forEach(([reason, count]) => {
+    incrementWeightedMapValue(combined.projectCorrectionWeights, reason, Number(count || 0) * weight, 100);
+  });
+  Object.entries(source.sourceTransitions || {}).forEach(([transition, count]) => {
+    incrementWeightedMapValue(combined.sourceTransitionWeights, transition, Number(count || 0) * weight, 100);
+  });
+  return combined;
+}
+
 function finaliseCombinedFeedback(combined = {}) {
   const next = combined && typeof combined === 'object'
     ? combined
@@ -303,7 +459,12 @@ function finaliseCombinedFeedback(combined = {}) {
         wrongDomainPressure: 0,
         weakCitationPressure: 0,
         missedRiskPressure: 0,
-        unrelatedRiskPressure: 0
+        unrelatedRiskPressure: 0,
+        structuredActiveTiers: [],
+        structuredCorrectionCount: 0,
+        structuredReasonWeights: {},
+        projectCorrectionWeights: {},
+        sourceTransitionWeights: {}
       };
   next.preferredRiskTitles = Object.entries(next.riskWeights || {})
     .filter(([, value]) => Number(value) > 0.35)
@@ -329,6 +490,21 @@ function finaliseCombinedFeedback(combined = {}) {
     .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
     .slice(0, 5)
     .map(([reason, weight]) => ({ reason, weight: Number(weight.toFixed(2)) }));
+  next.topStructuredCorrections = Object.entries(next.structuredReasonWeights || {})
+    .filter(([, value]) => Number(value) >= 1)
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+    .slice(0, 5)
+    .map(([reason, weight]) => ({ reason, weight: Number(weight.toFixed(2)) }));
+  next.topProjectCorrections = Object.entries(next.projectCorrectionWeights || {})
+    .filter(([, value]) => Number(value) >= 1)
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+    .slice(0, 5)
+    .map(([reason, weight]) => ({ reason, weight: Number(weight.toFixed(2)) }));
+  next.topSourceTransitions = Object.entries(next.sourceTransitionWeights || {})
+    .filter(([, value]) => Number(value) >= 1)
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+    .slice(0, 4)
+    .map(([transition, weight]) => ({ transition, weight: Number(weight.toFixed(2)) }));
   return next;
 }
 
@@ -361,15 +537,16 @@ function getFeedbackTierThresholds(settings = null) {
 async function readOrgFeedbackStore() {
   try {
     const raw = await kvGet(AI_FEEDBACK_KEY);
-    if (!raw) return { updatedAt: 0, events: [] };
+    if (!raw) return { updatedAt: 0, events: [], structuredEvents: [] };
     const parsed = JSON.parse(raw);
     return {
       updatedAt: Number(parsed?.updatedAt || 0),
-      events: Array.isArray(parsed?.events) ? parsed.events : []
+      events: Array.isArray(parsed?.events) ? parsed.events : [],
+      structuredEvents: Array.isArray(parsed?.structuredEvents) ? parsed.structuredEvents : []
     };
   } catch (error) {
     console.error('api/_learningAuthority.readOrgFeedbackStore failed:', error);
-    return { updatedAt: 0, events: [] };
+    return { updatedAt: 0, events: [], structuredEvents: [] };
   }
 }
 
@@ -389,12 +566,21 @@ async function resolveHierarchicalFeedbackProfile(context = {}) {
   const orgEvents = (Array.isArray(feedbackStore?.events) ? feedbackStore.events : [])
     .map(normaliseFeedbackEvent)
     .filter((event) => feedbackMatches(event, { scenarioLensKey: filters.scenarioLensKey }));
+  const orgStructuredEvents = (Array.isArray(feedbackStore?.structuredEvents) ? feedbackStore.structuredEvents : [])
+    .map(normaliseStructuredFeedbackEvent)
+    .filter((event) => structuredFeedbackMatches(event, { scenarioLensKey: filters.scenarioLensKey }));
   const userEvents = (Array.isArray(userState?.learningStore?.aiFeedback?.events) ? userState.learningStore.aiFeedback.events : [])
     .map(normaliseFeedbackEvent)
     .filter((event) => feedbackMatches(event, filters));
+  const userStructuredEvents = (Array.isArray(userState?.learningStore?.aiFeedback?.structuredEvents) ? userState.learningStore.aiFeedback.structuredEvents : [])
+    .map(normaliseStructuredFeedbackEvent)
+    .filter((event) => structuredFeedbackMatches(event, filters));
   const userProfile = userEvents.length
     ? buildTierProfile(userEvents, { label: 'user', minEvents: 1, minUsers: 1 })
     : buildInactiveFeedbackProfile('user');
+  const userStructuredProfile = userStructuredEvents.length
+    ? buildStructuredTierProfile(userStructuredEvents, { label: 'user', minEvents: 1, minUsers: 1 })
+    : { active: false, label: 'user', minEvents: 1, minUsers: 1, profile: buildStructuredCorrectionProfile([]) };
   const functionProfile = filters.functionKey
     ? buildTierProfile(orgEvents.filter((event) => feedbackMatches(event, {
         buId: '',
@@ -406,6 +592,17 @@ async function resolveHierarchicalFeedbackProfile(context = {}) {
         minUsers: thresholds.function.minUsers
       })
     : buildInactiveFeedbackProfile('function');
+  const functionStructuredProfile = filters.functionKey
+    ? buildStructuredTierProfile(orgStructuredEvents.filter((event) => structuredFeedbackMatches(event, {
+        buId: '',
+        functionKey: filters.functionKey,
+        scenarioLensKey: filters.scenarioLensKey
+      })), {
+        label: 'function',
+        minEvents: thresholds.function.minEvents,
+        minUsers: thresholds.function.minUsers
+      })
+    : { active: false, label: 'function', minEvents: thresholds.function.minEvents, minUsers: thresholds.function.minUsers, profile: buildStructuredCorrectionProfile([]) };
   const businessUnitProfile = filters.buId
     ? buildTierProfile(orgEvents.filter((event) => feedbackMatches(event, {
         buId: filters.buId,
@@ -417,7 +614,23 @@ async function resolveHierarchicalFeedbackProfile(context = {}) {
         minUsers: thresholds.businessUnit.minUsers
       })
     : buildInactiveFeedbackProfile('business-unit');
+  const businessUnitStructuredProfile = filters.buId
+    ? buildStructuredTierProfile(orgStructuredEvents.filter((event) => structuredFeedbackMatches(event, {
+        buId: filters.buId,
+        functionKey: '',
+        scenarioLensKey: filters.scenarioLensKey
+      })), {
+        label: 'business-unit',
+        minEvents: thresholds.businessUnit.minEvents,
+        minUsers: thresholds.businessUnit.minUsers
+      })
+    : { active: false, label: 'business-unit', minEvents: thresholds.businessUnit.minEvents, minUsers: thresholds.businessUnit.minUsers, profile: buildStructuredCorrectionProfile([]) };
   const globalProfile = buildTierProfile(orgEvents, {
+    label: 'global',
+    minEvents: thresholds.global.minEvents,
+    minUsers: thresholds.global.minUsers
+  });
+  const globalStructuredProfile = buildStructuredTierProfile(orgStructuredEvents, {
     label: 'global',
     minEvents: thresholds.global.minEvents,
     minUsers: thresholds.global.minUsers
@@ -438,8 +651,20 @@ async function resolveHierarchicalFeedbackProfile(context = {}) {
     wrongDomainPressure: 0,
     weakCitationPressure: 0,
     missedRiskPressure: 0,
-    unrelatedRiskPressure: 0
+    unrelatedRiskPressure: 0,
+    structuredActiveTiers: [],
+    structuredCorrectionCount: 0,
+    structuredReasonWeights: {},
+    projectCorrectionWeights: {},
+    sourceTransitionWeights: {}
   }));
+  [
+    { profile: globalStructuredProfile.profile, active: globalStructuredProfile.active, label: 'global', weight: 1 },
+    { profile: businessUnitStructuredProfile.profile, active: businessUnitStructuredProfile.active, label: 'business-unit', weight: 1.15 },
+    { profile: functionStructuredProfile.profile, active: functionStructuredProfile.active, label: 'function', weight: 1.1 },
+    { profile: userStructuredProfile.profile, active: userStructuredProfile.active, label: 'user', weight: 1.25 }
+  ].forEach((item) => mergeStructuredCorrectionTier(combined, item, item.weight));
+  finaliseCombinedFeedback(combined);
   return {
     source: 'server',
     resolvedAt: Date.now(),
@@ -447,6 +672,12 @@ async function resolveHierarchicalFeedbackProfile(context = {}) {
     function: functionProfile,
     businessUnit: businessUnitProfile,
     global: globalProfile,
+    structured: {
+      user: userStructuredProfile,
+      function: functionStructuredProfile,
+      businessUnit: businessUnitStructuredProfile,
+      global: globalStructuredProfile
+    },
     thresholds,
     combined
   };
@@ -454,13 +685,18 @@ async function resolveHierarchicalFeedbackProfile(context = {}) {
 
 function buildFeedbackLearningPromptBlock(profile = null) {
   const combined = profile?.combined;
-  if (!combined || !Array.isArray(combined.activeTiers) || !combined.activeTiers.length) {
+  const activeTiers = [
+    ...(Array.isArray(combined?.activeTiers) ? combined.activeTiers : []),
+    ...(Array.isArray(combined?.structuredActiveTiers) ? combined.structuredActiveTiers.map((tier) => `structured-${tier}`) : [])
+  ];
+  if (!combined || !activeTiers.length) {
     return 'Feedback priors:\n- No active server-approved live-AI feedback priors are shaping this scenario yet.';
   }
   const issueLabel = (value = '') => String(value || '').replace(/^(draft|shortlist):/, '').replace(/-/g, ' ');
+  const structuredIssueLabel = (value = '') => String(value || '').replace(/^[^:]+:/, '').replace(/_/g, ' ');
   return [
     'Feedback priors from server-approved live-AI feedback:',
-    `- Active tiers: ${combined.activeTiers.join(', ')}`,
+    `- Active tiers: ${activeTiers.join(', ')}`,
     `- Draft pressure: ${combined.draftPressure < -0.25 ? 'tighten and stay closer to the user event path' : combined.draftPressure > 0.25 ? 'current draft patterns are generally landing well' : 'neutral'}`,
     `- Shortlist pressure: ${combined.shortlistPressure < -0.25 ? 'be more selective and avoid off-path risks' : combined.shortlistPressure > 0.25 ? 'current shortlist patterns are generally landing well' : 'neutral'}`,
     combined.wrongDomainPressure > 0 ? '- Repeated server-observed issue: domain drift. Keep the explicit user event path above profile, compliance, and cyber context.' : '',
@@ -471,6 +707,9 @@ function buildFeedbackLearningPromptBlock(profile = null) {
     combined.preferredRiskTitles?.length ? `- Frequently retained risks in similar scenarios: ${combined.preferredRiskTitles.map((item) => item.title).join(', ')}` : '',
     combined.avoidRiskTitles?.length ? `- Frequently removed risks in similar scenarios: ${combined.avoidRiskTitles.map((item) => item.title).join(', ')}` : '',
     combined.topIssues?.length ? `- Common review issues to avoid: ${combined.topIssues.map((item) => issueLabel(item.reason)).join(', ')}` : '',
+    combined.topStructuredCorrections?.length ? `- Repeated structured correction themes: ${combined.topStructuredCorrections.map((item) => structuredIssueLabel(item.reason)).join(', ')}.` : '',
+    combined.topProjectCorrections?.length ? `- Project-economics correction themes to watch: ${combined.topProjectCorrections.map((item) => structuredIssueLabel(item.reason)).join(', ')}. Treat sparse values as missing/proxy assumptions until the user or evidence confirms them.` : '',
+    combined.topSourceTransitions?.some((item) => String(item.transition || '').includes('unknown->known')) ? '- Users often add known values after initial sparse project inputs. Treat that as a positive correction signal and ask for the one value most likely to change the decision.' : '',
     '- Use these priors to refine ranking and wording only. They must not override an explicit user event path.'
   ].filter(Boolean).join('\n');
 }

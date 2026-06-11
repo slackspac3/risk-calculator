@@ -38,6 +38,7 @@ function loadAssessmentStateRuntime() {
     learningStore: {
       templates: {},
       scenarioPatterns: [],
+      caseMemories: [],
       analystSignals: {
         keptRisks: [],
         removedRisks: [],
@@ -45,7 +46,8 @@ function loadAssessmentStateRuntime() {
         rerunDeltas: []
       },
       aiFeedback: {
-        events: []
+        events: [],
+        structuredEvents: []
       }
     },
     draft: null,

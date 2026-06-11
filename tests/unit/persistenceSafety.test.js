@@ -41,6 +41,7 @@ const { writeSettings } = require('../../api/settings');
 const learningStore = {
   templates: {},
   scenarioPatterns: [],
+  caseMemories: [],
   analystSignals: {
     keptRisks: [],
     removedRisks: [],
@@ -48,7 +49,8 @@ const learningStore = {
     rerunDeltas: []
   },
   aiFeedback: {
-    events: []
+    events: [],
+    structuredEvents: []
   }
 };
 

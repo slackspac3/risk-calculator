@@ -23,7 +23,8 @@ test('normaliseUserWorkspaceState migrates legacy draft and assessments into bou
   assert.equal(state.draftWorkspace.draft.id, 'draft-1');
   assert.equal(state.savedAssessments.index[0].id, 'a-1');
   assert.equal(state.assessments[0].scenarioTitle, 'Assessment one');
-  assert.deepEqual(state.learningStore.aiFeedback, { events: [] });
+  assert.deepEqual(state.learningStore.caseMemories, []);
+  assert.deepEqual(state.learningStore.aiFeedback, { events: [], structuredEvents: [] });
 });
 
 test('serializeUserWorkspaceState keeps the canonical bounded sections without duplicating legacy fields', () => {
@@ -55,15 +56,39 @@ test('workspace persistence keeps the project assessment shape compatible across
         expectedSpend: '1000000',
         reprocurementPremiumPct: '1.5'
       },
+      step4ValuationMode: 'hybrid',
       projectExposure: {
         valuationMode: 'project_linked',
         financialDrivers: ['  budget overrun ']
+      },
+      parameterCoach: {
+        suggestedChangesCount: 1,
+        parameterRationales: [{
+          parameterKey: 'businessInterruption',
+          suggestionType: 'project_derived_range'
+        }]
+      },
+      evidenceMap: {
+        projectFinancialEvidenceMap: [{
+          field: 'approvedBudget',
+          status: 'found',
+          value: 'USD 1,000,000'
+        }],
+        citationQuality: {
+          strong: ['Business case']
+        }
       }
     }),
     savedAssessments: buildSavedAssessmentsSection([{
       id: 'saved-project',
       assessmentType: 'project_seller',
       scenarioTitle: 'Seller delivery risk',
+      aiAuditStory: {
+        classification: 'Project seller assessment',
+        fallbackUsed: true,
+        proxyValuesUsed: [{ text: 'LD benchmark proxy' }],
+        unknownsCarriedForward: [{ text: 'Gross margin percentage' }]
+      },
       projectContext: {
         projectName: ' Managed services renewal ',
         projectRole: 'buyer'
@@ -84,14 +109,24 @@ test('workspace persistence keeps the project assessment shape compatible across
   assert.equal(draft.projectContext.projectDurationMonths, 12);
   assert.equal(draft.buyerEconomics.expectedSpend, 1000000);
   assert.equal(draft.buyerEconomics.reprocurementPremiumPct, 1);
+  assert.equal(draft.step4ValuationMode, 'hybrid');
   assert.equal(draft.projectExposure.valuationMode, 'project_linked');
   assert.deepEqual(draft.projectExposure.financialDrivers, ['budget overrun']);
+  assert.equal(draft.parameterCoach.suggestedChangesCount, 1);
+  assert.equal(draft.parameterCoach.parameterRationales[0].parameterKey, 'businessInterruption');
+  assert.equal(draft.evidenceMap.projectFinancialEvidenceMap[0].field, 'approvedBudget');
+  assert.equal(draft.evidenceMap.projectFinancialEvidenceMap[0].status, 'found');
+  assert.equal(draft.evidenceMap.citationQuality.strong[0], 'Business case');
 
   assert.equal(saved.assessmentType, 'project_seller');
   assert.equal(saved.projectContext.projectName, 'Managed services renewal');
   assert.equal(saved.projectContext.projectRole, 'seller');
   assert.equal(saved.sellerEconomics.contractValue, 250000);
   assert.equal(saved.sellerEconomics.grossMarginPct, 0);
+  assert.equal(saved.aiAuditStory.classification, 'Project seller assessment');
+  assert.equal(saved.aiAuditStory.fallbackUsed, true);
+  assert.equal(saved.aiAuditStory.proxyValuesUsed[0].text, 'LD benchmark proxy');
+  assert.equal(saved.aiAuditStory.unknownsCarriedForward[0].text, 'Gross margin percentage');
 });
 
 test('saved assessment delta patches preserve unrelated records while carrying upserts and removals', () => {

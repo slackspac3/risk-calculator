@@ -146,3 +146,253 @@ test('recordRiskDecision preserves removal reason as analyst-only context', () =
   assert.equal(store.analystSignals.removedRisks[0].reason, 'narrower-scope');
   assert.match(store.analystSignals.removedRisks[0].scenarioFingerprint, /Azure global admin credentials/i);
 });
+
+test('recordStructuredAiFeedback normalises taxonomies and preserves sparse project correction metadata', () => {
+  const saved = LearningStore.recordStructuredAiFeedback('alex', {
+    eventType: 'project_missing_value_provided',
+    targetType: 'project_exposure',
+    targetId: 'delayCostPerDay',
+    reasonCode: 'known_value_added',
+    note: 'Delay cost provided after initial unknown.',
+    before: { field: 'delayCostPerDay', value: null, status: 'unknown' },
+    after: { field: 'delayCostPerDay', value: 0, status: 'known' },
+    assessmentType: 'project_buyer',
+    scenarioLens: { key: 'third-party', functionKey: 'procurement' },
+    primaryFamily: 'Procurement',
+    projectExposureRefs: ['delayCostPerDay', 'delayCostPerDay'],
+    sourceStatusBefore: 'unknown',
+    sourceStatusAfter: 'known',
+    submittedBy: 'alex'
+  });
+
+  assert.equal(saved.reasonCode, 'known_value_added');
+  assert.equal(saved.assessmentType, 'project_buyer');
+  assert.equal(saved.sourceStatusBefore, 'unknown');
+  assert.equal(saved.sourceStatusAfter, 'known');
+  assert.equal(saved.after.value, 0);
+  assert.deepEqual(saved.projectExposureRefs, ['delayCostPerDay']);
+
+  const fallback = LearningStore.recordStructuredAiFeedback('alex', {
+    eventType: 'decision_brief_regenerated',
+    targetType: 'decision_brief',
+    reasonCode: 'known_value_added',
+    sourceStatusBefore: 'not_provided',
+    sourceStatusAfter: 'evidence_supported'
+  });
+
+  assert.equal(fallback.reasonCode, 'other');
+  assert.equal(fallback.sourceStatusBefore, 'unknown');
+  assert.equal(fallback.sourceStatusAfter, 'evidence_supported');
+
+  const events = LearningStore.getStructuredAiFeedbackEvents('alex', {
+    assessmentType: 'project_buyer'
+  });
+  assert.equal(events.length, 1);
+  assert.equal(events[0].targetType, 'project_exposure');
+
+  const normalisedOnly = LearningStore.recordStructuredAiFeedback({
+    targetType: 'project_exposure',
+    reasonCode: 'not_a_reason',
+    after: { value: 0 }
+  });
+  assert.equal(normalisedOnly.reasonCode, 'other');
+  assert.equal(normalisedOnly.after.value, 0);
+});
+
+test('buildCaseMemoryFromAssessment creates generic enterprise memory safely', () => {
+  const memory = LearningStore.buildCaseMemoryFromAssessment({
+    id: 'generic-1',
+    scenarioTitle: 'Payroll platform outage',
+    assessmentType: 'enterprise_generic',
+    scenarioLens: { key: 'operational', functionKey: 'operations', label: 'Operational' },
+    structuredScenario: {
+      assetService: 'Payroll platform',
+      eventPath: 'Business continuity failure',
+      primaryDriver: 'Business interruption'
+    },
+    fairParams: {
+      eventFreqLikely: 1.2,
+      businessInterruptionLikely: 250000
+    },
+    missingInformation: ['Recovery time evidence'],
+    recommendations: [{ title: 'Test payroll recovery plan' }],
+    results: { nearTolerance: true },
+    completedAt: 1000
+  });
+
+  assert.equal(memory.caseId, 'generic-1');
+  assert.equal(memory.assessmentType, 'enterprise_generic');
+  assert.equal(memory.primaryFamily, 'operations');
+  assert.equal(memory.assetService, 'Payroll platform');
+  assert.equal(memory.eventPath, 'Business continuity failure');
+  assert.equal(memory.decisionPosture, 'proceed_with_controls');
+  assert.deepEqual(memory.evidenceGaps, ['Recovery time evidence']);
+  assert.deepEqual(memory.treatments, ['Test payroll recovery plan']);
+  assert.equal(memory.parameterSummary.topLossDriver, 'Business interruption');
+});
+
+test('buildCaseMemoryFromAssessment preserves buyer project proxy and unknown values', () => {
+  const memory = LearningStore.buildCaseMemoryFromAssessment({
+    id: 'buyer-1',
+    scenarioTitle: 'ERP implementation supplier delay',
+    assessmentType: 'project_buyer',
+    scenarioLens: { key: 'third-party', functionKey: 'procurement' },
+    projectContext: {
+      projectRole: 'buyer',
+      projectStage: 'implementation'
+    },
+    structuredScenario: {
+      assetService: 'ERP implementation',
+      eventPath: 'Supplier delivery failure'
+    },
+    buyerEconomics: {
+      expectedSpend: 0,
+      delayCostPerDay: null
+    },
+    buyerEconomicsMeta: {
+      expectedSpend: { status: 'estimated' },
+      delayCostPerDay: { status: 'unknown' }
+    },
+    projectExposure: {
+      projectExposureSummary: 'Delay and reprocurement exposure are relevant but sparse.',
+      projectInputQuality: {
+        unknownHighImpactInputs: ['Delay cost per day']
+      },
+      financialDrivers: [{
+        id: 'delay_proxy',
+        label: 'Delay cost benchmark proxy',
+        driverStatus: 'benchmark_proxy_driver',
+        confidence: 'low'
+      }],
+      missingInputs: [{
+        field: 'delayCostPerDay',
+        label: 'Delay cost per day'
+      }]
+    },
+    completedAt: 2000
+  });
+
+  assert.equal(memory.assessmentType, 'project_buyer');
+  assert.equal(memory.projectRole, 'buyer');
+  assert.equal(memory.projectStage, 'implementation');
+  assert.equal(memory.projectValueSourceStatus, 'estimated');
+  assert.equal(memory.projectValueSourceLabel, 'estimated');
+  assert.equal(memory.proxyValuesUsed[0].sourceStatus, 'benchmark_proxy');
+  assert.equal(memory.proxyValuesUsed[0].reusableLabel, 'benchmark proxy');
+  assert.equal(memory.unknownsCarriedForward.some(item => item.label === 'Delay cost per day'), true);
+  assert.equal(memory.unknownsCarriedForward.find(item => item.label === 'Delay cost per day').reusable, false);
+});
+
+test('buildCaseMemoryFromAssessment preserves seller margin unknowns as not reusable facts', () => {
+  const memory = LearningStore.buildCaseMemoryFromAssessment({
+    id: 'seller-1',
+    scenarioTitle: 'Managed services SLA breach',
+    assessmentType: 'project_seller',
+    scenarioLens: { key: 'legal-contract', functionKey: 'compliance' },
+    projectContext: {
+      projectRole: 'seller',
+      projectStage: 'delivery'
+    },
+    sellerEconomics: {
+      contractValue: 500000,
+      grossMarginPct: null
+    },
+    sellerEconomicsMeta: {
+      contractValue: { status: 'known' },
+      grossMarginPct: { status: 'unknown' }
+    },
+    projectExposure: {
+      projectInputQuality: {
+        unknownHighImpactInputs: ['Gross margin percentage']
+      },
+      financialDrivers: [{
+        id: 'margin_at_risk',
+        label: 'Margin at risk',
+        driverStatus: 'unquantified_driver'
+      }]
+    },
+    decisionBrief: {
+      projectQuantSummary: {
+        unknownHighImpactInputs: ['Gross margin percentage']
+      }
+    },
+    completedAt: 3000
+  });
+
+  assert.equal(memory.assessmentType, 'project_seller');
+  assert.equal(memory.projectValueSourceStatus, 'known');
+  assert.equal(memory.projectValueSourceLabel, 'confirmed');
+  assert.equal(memory.marginSourceStatus, 'unknown');
+  assert.equal(memory.marginSourceLabel, 'unknown / not reusable');
+  assert.equal(memory.unknownsCarriedForward.some(item => item.label === 'Gross margin percentage'), true);
+});
+
+test('findSimilarCaseMemories ranks deterministic matches and keeps unknowns labelled', () => {
+  const seed = LearningStore.buildCaseMemoryFromAssessment({
+    id: 'draft-seed',
+    scenarioTitle: 'ERP supplier misses go-live',
+    assessmentType: 'project_buyer',
+    scenarioLens: { key: 'third-party', functionKey: 'procurement' },
+    projectContext: { projectRole: 'buyer', projectStage: 'implementation' },
+    structuredScenario: {
+      assetService: 'ERP supplier',
+      eventPath: 'Supplier delivery delay'
+    }
+  });
+  const close = LearningStore.buildCaseMemoryFromAssessment({
+    id: 'close',
+    scenarioTitle: 'ERP supplier delivery delay',
+    assessmentType: 'project_buyer',
+    scenarioLens: { key: 'third-party', functionKey: 'procurement' },
+    projectContext: { projectRole: 'buyer', projectStage: 'implementation' },
+    structuredScenario: {
+      assetService: 'ERP supplier',
+      eventPath: 'Supplier delivery delay'
+    },
+    buyerEconomicsMeta: {
+      expectedSpend: { status: 'benchmark_proxy' }
+    },
+    buyerEconomics: {
+      expectedSpend: 1000000
+    },
+    projectExposure: {
+      missingInputs: [{ field: 'delayCostPerDay', label: 'Delay cost per day' }]
+    },
+    completedAt: Date.now()
+  });
+  const far = LearningStore.buildCaseMemoryFromAssessment({
+    id: 'far',
+    scenarioTitle: 'Privacy filing issue',
+    assessmentType: 'enterprise_generic',
+    scenarioLens: { key: 'data-governance', functionKey: 'compliance' },
+    structuredScenario: {
+      assetService: 'Privacy notice',
+      eventPath: 'Regulatory breach'
+    },
+    completedAt: Date.now()
+  });
+
+  const matches = LearningStore.findSimilarCaseMemories(seed, [far, close], { limit: 2 });
+  assert.equal(matches[0].caseId, 'close');
+  assert.equal(matches[0].projectValueSourceLabel, 'benchmark proxy');
+  assert.equal(matches[0]._caseMemory.reusableValues.sourceStatuses[0].reusable, false);
+});
+
+test('case memory persistence normalises malformed input and saved shape', () => {
+  assert.equal(LearningStore.buildCaseMemoryFromAssessment(null), null);
+  const saved = LearningStore.saveCaseMemory('alex', {
+    caseId: 'persisted-1',
+    scenarioTitle: '  Cloud migration delay  ',
+    assessmentType: 'not-real',
+    scenarioLens: { key: 'third-party', functionKey: 'procurement' },
+    projectValueSourceStatus: 'benchmark',
+    unknownsCarriedForward: ['Contractual recovery cap']
+  });
+  const store = LearningStore.getLearningStore('alex');
+
+  assert.equal(saved.assessmentType, 'enterprise_generic');
+  assert.equal(saved.scenarioTitle, 'Cloud migration delay');
+  assert.equal(saved.projectValueSourceStatus, 'benchmark_proxy');
+  assert.equal(store.caseMemories.length, 1);
+  assert.equal(store.caseMemories[0].unknownsCarriedForward[0].reusableLabel, 'unknown / not reusable');
+});

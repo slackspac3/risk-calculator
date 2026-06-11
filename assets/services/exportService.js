@@ -159,7 +159,143 @@ const ExportService = (() => {
       severeAnnual: { direction: severeAnnualDirection },
       treatmentNarrative: assessment.comparisonNarrative || assessment.treatmentImprovementRequest || '',
       keyDriver: assessment.comparisonKeyDriver || 'Review the changed assumptions against the saved baseline.',
-      secondaryDriver: assessment.comparisonSecondaryDriver || ''
+      secondaryDriver: assessment.comparisonSecondaryDriver || '',
+      treatmentTradeoff: assessment.treatmentTradeoff && typeof assessment.treatmentTradeoff === 'object' ? assessment.treatmentTradeoff : null
+    };
+  }
+
+  function _normaliseDecisionBriefForExport(value = {}) {
+    const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+    const quant = source.quantSummary && typeof source.quantSummary === 'object' ? source.quantSummary : {};
+    const project = source.projectQuantSummary && typeof source.projectQuantSummary === 'object' ? source.projectQuantSummary : {};
+    return {
+      recommendation: String(source.recommendation || '').trim(),
+      decisionPosture: String(source.decisionPosture || '').trim(),
+      why: String(source.why || '').trim(),
+      quantSummary: {
+        eventLossP90: Number.isFinite(Number(quant.eventLossP90)) ? Number(quant.eventLossP90) : null,
+        annualLossMean: Number.isFinite(Number(quant.annualLossMean)) ? Number(quant.annualLossMean) : null,
+        annualLossP90: Number.isFinite(Number(quant.annualLossP90)) ? Number(quant.annualLossP90) : null,
+        toleranceExceeded: quant.toleranceExceeded === true,
+        annualReviewTriggered: quant.annualReviewTriggered === true,
+        plainEnglish: String(quant.plainEnglish || '').trim()
+      },
+      projectQuantSummary: {
+        projectHorizonLossMean: Number.isFinite(Number(project.projectHorizonLossMean)) ? Number(project.projectHorizonLossMean) : null,
+        projectHorizonLossP90: Number.isFinite(Number(project.projectHorizonLossP90)) ? Number(project.projectHorizonLossP90) : null,
+        lossAsPctOfProjectValue: Number.isFinite(Number(project.lossAsPctOfProjectValue)) ? Number(project.lossAsPctOfProjectValue) : null,
+        lossAsPctOfMargin: Number.isFinite(Number(project.lossAsPctOfMargin)) ? Number(project.lossAsPctOfMargin) : null,
+        primaryProjectDriver: String(project.primaryProjectDriver || '').trim(),
+        projectInputQuality: String(project.projectInputQuality || '').trim(),
+        proxyValuesUsed: Array.isArray(project.proxyValuesUsed) ? project.proxyValuesUsed.map(item => String(item || '').trim()).filter(Boolean).slice(0, 6) : [],
+        unknownHighImpactInputs: Array.isArray(project.unknownHighImpactInputs) ? project.unknownHighImpactInputs.map(item => String(item || '').trim()).filter(Boolean).slice(0, 6) : [],
+        plainEnglish: String(project.plainEnglish || '').trim()
+      },
+      mainDrivers: Array.isArray(source.mainDrivers) ? source.mainDrivers.filter(Boolean).slice(0, 6) : [],
+      sensitivity: source.sensitivity && typeof source.sensitivity === 'object' ? {
+        summary: String(source.sensitivity.summary || '').trim(),
+        mostSensitiveAssumption: String(source.sensitivity.mostSensitiveAssumption || '').trim(),
+        changedDecisionIf: String(source.sensitivity.changedDecisionIf || '').trim()
+      } : null,
+      evidence: Array.isArray(source.evidence) ? source.evidence.filter(Boolean).slice(0, 6) : [],
+      openChallenges: Array.isArray(source.openChallenges) ? source.openChallenges.filter(Boolean).slice(0, 6) : [],
+      sparseDataWarning: String(source.sparseDataWarning || '').trim(),
+      nextAction: source.nextAction && typeof source.nextAction === 'object' ? {
+        owner: String(source.nextAction.owner || '').trim(),
+        action: String(source.nextAction.action || '').trim(),
+        due: String(source.nextAction.due || '').trim(),
+        controlOrTreatment: String(source.nextAction.controlOrTreatment || '').trim()
+      } : null,
+      confidence: String(source.confidence || '').trim()
+    };
+  }
+
+  function _normaliseAssessmentTypeForExport(value = '') {
+    const text = String(value || '').trim().toLowerCase();
+    if (text === 'project_buyer' || text === 'project_seller') return text;
+    return 'enterprise_generic';
+  }
+
+  function _humanizeExportToken(value = '', fallback = 'Not stated') {
+    const text = String(value || '').trim();
+    if (!text) return fallback;
+    return text.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').replace(/\b\w/g, char => char.toUpperCase());
+  }
+
+  function _uniqueExportStrings(items = [], limit = 8) {
+    const seen = new Set();
+    const output = [];
+    (Array.isArray(items) ? items : [items]).forEach(item => {
+      const text = String(
+        typeof item === 'string'
+          ? item
+          : item?.statement || item?.text || item?.label || item?.field || item?.item || item?.claim || item?.title || ''
+      ).trim();
+      if (!text || seen.has(text.toLowerCase())) return;
+      seen.add(text.toLowerCase());
+      output.push(text);
+    });
+    return output.slice(0, Math.max(0, Number(limit) || 0));
+  }
+
+  function _buildDecisionSupportExportSummary(assessment = {}, projectResultsModel = null, decisionBrief = null, confidenceFrame = null, intelligence = {}) {
+    const assessmentType = _normaliseAssessmentTypeForExport(assessment?.assessmentType || projectResultsModel?.assessmentType);
+    const projectInputQuality = projectResultsModel?.isProject
+      ? String(projectResultsModel?.inputQuality?.label || 'Thin project economics').trim()
+      : 'Not applicable';
+    const proxyValuesUsed = _uniqueExportStrings([
+      ...(Array.isArray(decisionBrief?.projectQuantSummary?.proxyValuesUsed) ? decisionBrief.projectQuantSummary.proxyValuesUsed : []),
+      ...(Array.isArray(projectResultsModel?.estimatedValues) ? projectResultsModel.estimatedValues.map(item => `${item.label}: ${item.value} (${item.status})`) : []),
+      ...(Array.isArray(projectResultsModel?.driverGroups?.proxyEstimated) ? projectResultsModel.driverGroups.proxyEstimated.map(item => `${item.label}: ${item.rangeLabel}`) : [])
+    ], 8);
+    const unknownHighImpactValues = _uniqueExportStrings([
+      ...(Array.isArray(decisionBrief?.projectQuantSummary?.unknownHighImpactInputs) ? decisionBrief.projectQuantSummary.unknownHighImpactInputs : []),
+      ...(Array.isArray(projectResultsModel?.unknownHighImpactValues) ? projectResultsModel.unknownHighImpactValues : [])
+    ], 8);
+    const evidenceMap = assessment?.evidenceMap && typeof assessment.evidenceMap === 'object' ? assessment.evidenceMap : {};
+    const evidenceGaps = _uniqueExportStrings([
+      ...(Array.isArray(evidenceMap.unsupportedClaims) ? evidenceMap.unsupportedClaims : []),
+      ...(Array.isArray(assessment?.assumptionRegister?.missingEvidence) ? assessment.assumptionRegister.missingEvidence : []),
+      ...(Array.isArray(assessment?.missingInformation) ? assessment.missingInformation : []),
+      confidenceFrame?.topGap
+    ], 6);
+    const keyAssumptions = _uniqueExportStrings([
+      ...(Array.isArray(assessment?.assumptionRegister?.assumptions) ? assessment.assumptionRegister.assumptions : []),
+      ...(Array.isArray(intelligence?.assumptions) ? intelligence.assumptions : [])
+    ], 6);
+    const aiAuditStory = assessment?.aiAuditStory && typeof assessment.aiAuditStory === 'object'
+      ? {
+          classification: String(assessment.aiAuditStory.classification || '').trim(),
+          fallbackUsed: assessment.aiAuditStory.fallbackUsed === true,
+          summary: String(assessment.aiAuditStory.summary || '').trim(),
+          proxyValuesUsed: _uniqueExportStrings(assessment.aiAuditStory.proxyValuesUsed, 6),
+          unknownsCarriedForward: _uniqueExportStrings(assessment.aiAuditStory.unknownsCarriedForward, 6),
+          evidenceUsed: _uniqueExportStrings(assessment.aiAuditStory.evidenceUsed, 6)
+        }
+      : null;
+    return {
+      assessmentType,
+      assessmentTypeLabel: assessmentType === 'project_buyer'
+        ? 'Project risk - buyer'
+        : assessmentType === 'project_seller'
+          ? 'Project risk - seller'
+          : 'Generic enterprise risk',
+      valuationMode: projectResultsModel?.isProject
+        ? _humanizeExportToken(assessment?.projectExposure?.valuationMode || 'hybrid', 'Hybrid')
+        : 'Benchmark Led',
+      projectInputQuality,
+      proxyValuesUsed,
+      unknownHighImpactValues,
+      decisionBrief: decisionBrief ? {
+        recommendation: decisionBrief.recommendation,
+        posture: _humanizeExportToken(decisionBrief.decisionPosture, 'Review'),
+        sparseDataWarning: decisionBrief.sparseDataWarning
+      } : null,
+      projectExposureSummary: String(projectResultsModel?.summary || '').trim(),
+      challengeSummary: String(assessment?.decisionChallenge?.challengeSummary || '').trim(),
+      evidenceGaps,
+      keyAssumptions,
+      aiAuditStory
     };
   }
 
@@ -217,11 +353,25 @@ const ExportService = (() => {
       : r.nearTolerance
         ? 'Near tolerance'
         : 'Within tolerance';
+    const projectResultsModel = typeof ReportPresentation.buildProjectResultsModel === 'function'
+      ? ReportPresentation.buildProjectResultsModel(assessment, r, fmt)
+      : null;
+    const decisionBrief = assessment.decisionBrief && typeof assessment.decisionBrief === 'object'
+      ? _normaliseDecisionBriefForExport(assessment.decisionBrief)
+      : null;
+    const decisionSupportSummary = _buildDecisionSupportExportSummary(assessment, projectResultsModel, decisionBrief, confidenceFrame, intelligence);
     const safeMetrics = [
       { label: 'Severe single-event view', value: fmt(r.lm?.p90 || 0), copy: 'P90 per-event management view.' },
       { label: 'Expected annual exposure', value: fmt(r.ale?.mean || 0), copy: 'Most likely annual planning view.' },
       { label: 'Severe annual exposure', value: fmt(r.ale?.p90 || 0), copy: 'High-stress annual planning view.' }
     ];
+    if (projectResultsModel?.isProject && projectResultsModel.projectHorizon?.enabled) {
+      safeMetrics.push({
+        label: 'Project-horizon expected loss',
+        value: projectResultsModel.projectHorizon.expectedLoss,
+        copy: `${projectResultsModel.projectHorizon.confidenceLabel || 'Project-duration view'}; annualized metrics remain separate.`
+      });
+    }
     return {
       title: _resolveAssessmentDisplayTitle(assessment) || 'Risk assessment',
       businessContext: `${assessment.buName || '—'} · ${assessment.geography || '—'}`,
@@ -238,6 +388,9 @@ const ExportService = (() => {
       treatmentDecision,
       comparison,
       aiQualitySummary: _buildExecutiveAiQualitySignal(assessment),
+      projectResultsModel,
+      decisionBrief,
+      decisionSupportSummary,
       exportSnapshotNote: 'This export is a point-in-time snapshot. Regenerate it after material scenario, evidence, or treatment changes.',
       valueSummary: valueModel ? {
         domainLabel: valueModel.domain?.label || 'General enterprise',
@@ -255,14 +408,92 @@ const ExportService = (() => {
         assumptions: Array.isArray(intelligence.assumptions) ? intelligence.assumptions.slice(0, 4) : [],
         citations: citations.slice(0, 6),
         topGap: confidenceFrame?.topGap || 'No major evidence gap recorded.',
-        evidenceSummary: confidenceFrame?.evidenceSummary || 'Evidence quality has not been summarised yet.'
+        evidenceSummary: confidenceFrame?.evidenceSummary || 'Evidence quality has not been summarised yet.',
+        aiAuditStory: decisionSupportSummary.aiAuditStory,
+        projectEconomicsUsed: projectResultsModel?.isProject ? [
+          ...(Array.isArray(projectResultsModel.knownValues) ? projectResultsModel.knownValues.map(item => `${item.label}: ${item.value} (${item.status})`) : []),
+          ...(Array.isArray(projectResultsModel.estimatedValues) ? projectResultsModel.estimatedValues.map(item => `${item.label}: ${item.value} (${item.status})`) : [])
+        ].slice(0, 8) : [],
+        proxyValuesUsed: decisionSupportSummary.proxyValuesUsed,
+        unknownHighImpactValues: decisionSupportSummary.unknownHighImpactValues
       } : null
     };
+  }
+
+  function _renderDecisionSupportMemoSection(summary, safe = value => String(value ?? '')) {
+    if (!summary) return '';
+    const list = (items, emptyCopy) => Array.isArray(items) && items.length
+      ? items.map(item => `• ${safe(item)}`).join('<br>')
+      : safe(emptyCopy);
+    return `<div class="mid-grid decision-support-export-section">
+      <div class="card">
+        <div class="section-label">Decision cockpit snapshot</div>
+        <div class="decision-row"><div class="section-label">Assessment type</div><div class="body-copy"><strong>${safe(summary.assessmentTypeLabel)}</strong><br>${safe(summary.valuationMode)} valuation mode.</div></div>
+        <div class="decision-row"><div class="section-label">Project input quality</div><div class="body-copy">${safe(summary.projectInputQuality)}</div></div>
+        <div class="decision-row"><div class="section-label">Decision brief</div><div class="body-copy">${summary.decisionBrief ? `<strong>${safe(summary.decisionBrief.recommendation || 'Decision brief')}</strong><br>${safe(summary.decisionBrief.posture || 'Review')}${summary.decisionBrief.sparseDataWarning ? `<br>${safe(summary.decisionBrief.sparseDataWarning)}` : ''}` : 'No saved decision brief.'}</div></div>
+        <div class="decision-row"><div class="section-label">Challenge summary</div><div class="body-copy">${safe(summary.challengeSummary || 'No saved Challenge Agent summary.')}</div></div>
+      </div>
+      <div class="card">
+        <div class="section-label">Sparse economics and evidence limits</div>
+        <div class="decision-row"><div class="section-label">Proxy values used</div><div class="body-copy">${list(summary.proxyValuesUsed, 'No proxy values listed.')}</div></div>
+        <div class="decision-row"><div class="section-label">Unknown high-impact values</div><div class="body-copy">${list(summary.unknownHighImpactValues, 'No high-impact unknowns listed.')}</div></div>
+        <div class="decision-row"><div class="section-label">Evidence gaps</div><div class="body-copy">${list(summary.evidenceGaps, 'No evidence gaps listed.')}</div></div>
+        <div class="decision-row"><div class="section-label">Key assumptions</div><div class="body-copy">${list(summary.keyAssumptions, 'No key assumptions listed.')}</div></div>
+      </div>
+    </div>`;
+  }
+
+  function _renderProjectMemoSection(projectModel, safe = value => String(value ?? '')) {
+    if (!projectModel?.isProject) return '';
+    const horizon = projectModel.projectHorizon;
+    const known = Array.isArray(projectModel.knownValues) ? projectModel.knownValues : [];
+    const estimated = Array.isArray(projectModel.estimatedValues) ? projectModel.estimatedValues : [];
+    const unknowns = Array.isArray(projectModel.unknownHighImpactValues) ? projectModel.unknownHighImpactValues : [];
+    const quantified = Array.isArray(projectModel.driverGroups?.quantified) ? projectModel.driverGroups.quantified : [];
+    const proxyEstimated = Array.isArray(projectModel.driverGroups?.proxyEstimated) ? projectModel.driverGroups.proxyEstimated : [];
+    const unquantified = Array.isArray(projectModel.driverGroups?.unquantified) ? projectModel.driverGroups.unquantified : [];
+    const warnings = Array.isArray(projectModel.doubleCountingWarnings) ? projectModel.doubleCountingWarnings : [];
+    return `<div class="mid-grid project-export-section">
+      <div class="card">
+        <div class="section-label">${safe(projectModel.title)}</div>
+        <div class="body-copy"><strong>${safe(projectModel.inputQuality?.label || 'Thin project economics')}</strong><br>${safe(projectModel.summary || projectModel.caveatSummary)}</div>
+        ${horizon?.enabled ? `<div class="decision-row"><div class="section-label">Project-horizon metrics</div><div class="body-copy"><strong>${safe(horizon.expectedLoss)} expected · ${safe(horizon.p90Loss)} P90</strong><br>${safe(horizon.eventProbabilityLabel)} event probability over ${safe(horizon.durationLabel)}. ${safe(horizon.confidenceLabel || '')}</div></div>` : `<div class="decision-row"><div class="section-label">Project-horizon metrics</div><div class="body-copy">Not computed. ${safe(horizon?.skippedReason || 'Project duration or value was not available with usable source status.')}</div></div>`}
+        <div class="decision-row"><div class="section-label">Known project values</div><div class="body-copy">${known.length ? known.map(item => `${safe(item.label)}: ${safe(item.value)} (${safe(item.status)})`).join('<br>') : 'No project economics have been confirmed yet.'}</div></div>
+        <div class="decision-row"><div class="section-label">Estimated/proxy values</div><div class="body-copy">${estimated.length ? estimated.map(item => `${safe(item.label)}: ${safe(item.value)} (${safe(item.status)})`).join('<br>') : 'No estimated or proxy project values are active.'}</div></div>
+      </div>
+      <div class="card">
+        <div class="section-label">Exposure drivers and limitations</div>
+        <div class="decision-row"><div class="section-label">Quantified</div><div class="body-copy">${quantified.length ? quantified.slice(0, 4).map(item => `${safe(item.label)}: ${safe(item.rangeLabel)}`).join('<br>') : 'No project drivers are fully quantified yet.'}</div></div>
+        <div class="decision-row"><div class="section-label">Estimated/proxy</div><div class="body-copy">${proxyEstimated.length ? proxyEstimated.slice(0, 4).map(item => `${safe(item.label)}: ${safe(item.rangeLabel)} (${safe(item.statusLabel)})`).join('<br>') : 'No proxy or estimated project drivers are active.'}</div></div>
+        <div class="decision-row"><div class="section-label">Unknown but important</div><div class="body-copy">${unknowns.length ? unknowns.slice(0, 6).map(item => `• ${safe(item)}`).join('<br>') : 'No high-impact unknowns were flagged.'}</div></div>
+        ${unquantified.length ? `<div class="decision-row"><div class="section-label">Unquantified but relevant</div><div class="body-copy">${unquantified.slice(0, 4).map(item => `${safe(item.label)}: ${safe(item.missingInputs?.join(', ') || 'missing inputs')}`).join('<br>')}</div></div>` : ''}
+        ${warnings.length ? `<div class="decision-row"><div class="section-label">Double-counting warnings</div><div class="body-copy">${warnings.map(item => `• ${safe(item)}`).join('<br>')}</div></div>` : ''}
+      </div>
+    </div>`;
   }
 
   function exportDecisionMemo(assessment, currency = 'USD', fxRate = 3.6725, { includeAppendix = false } = {}) {
     const memo = buildDecisionMemoModel(assessment, currency, fxRate, { includeAppendix });
     const fmt = v => _formatCurrency(v, currency, fxRate);
+    const safeHtml = value => (typeof escapeHtml === 'function' ? escapeHtml(String(value ?? '')) : String(value ?? ''));
+    const projectMemoSection = _renderProjectMemoSection(memo.projectResultsModel, safeHtml);
+    const decisionSupportMemoSection = _renderDecisionSupportMemoSection(memo.decisionSupportSummary, safeHtml);
+    const decisionBrief = memo.decisionBrief;
+    const decisionBriefSection = decisionBrief ? `<div class="mid-grid">
+      <div class="card">
+        <div class="section-label">Decision Brief</div>
+        <div class="body-copy"><strong>${safeHtml(decisionBrief.recommendation || 'Decision brief')}</strong><br>${safeHtml(decisionBrief.why || '')}</div>
+        ${decisionBrief.sparseDataWarning ? `<div class="decision-row"><div class="section-label">Sparse data warning</div><div class="body-copy">${safeHtml(decisionBrief.sparseDataWarning)}</div></div>` : ''}
+        ${decisionBrief.sensitivity?.summary ? `<div class="decision-row"><div class="section-label">Sensitivity</div><div class="body-copy">${safeHtml(decisionBrief.sensitivity.summary)}${decisionBrief.sensitivity.changedDecisionIf ? `<br>${safeHtml(decisionBrief.sensitivity.changedDecisionIf)}` : ''}</div></div>` : ''}
+      </div>
+      <div class="card">
+        <div class="section-label">Project and evidence caveats</div>
+        <div class="decision-row"><div class="section-label">Project summary</div><div class="body-copy">${safeHtml(decisionBrief.projectQuantSummary?.plainEnglish || 'No project-specific brief is required for this assessment type.')}</div></div>
+        <div class="decision-row"><div class="section-label">Proxy values</div><div class="body-copy">${decisionBrief.projectQuantSummary?.proxyValuesUsed?.length ? decisionBrief.projectQuantSummary.proxyValuesUsed.map(item => `• ${safeHtml(item)}`).join('<br>') : 'No proxy values listed.'}</div></div>
+        <div class="decision-row"><div class="section-label">Unknown but important</div><div class="body-copy">${decisionBrief.projectQuantSummary?.unknownHighImpactInputs?.length ? decisionBrief.projectQuantSummary.unknownHighImpactInputs.map(item => `• ${safeHtml(item)}`).join('<br>') : 'No high-impact unknowns listed.'}</div></div>
+        ${decisionBrief.nextAction?.action ? `<div class="decision-row"><div class="section-label">Next action</div><div class="body-copy"><strong>${safeHtml(decisionBrief.nextAction.owner || 'Owner not set')}</strong><br>${safeHtml(decisionBrief.nextAction.action)}${decisionBrief.nextAction.due ? `<br>${safeHtml(decisionBrief.nextAction.due)}` : ''}</div></div>` : ''}
+      </div>
+    </div>` : '';
     const postureClass = memo.postureTone;
     const appendix = memo.appendix;
     const html = `<!DOCTYPE html>
@@ -365,6 +596,12 @@ const ExportService = (() => {
         ${(Array.isArray(memo.metrics) ? memo.metrics : []).map(item => `<div class="card"><div class="section-label">${item.label}</div><div class="metric-value">${item.value}</div><div class="metric-copy">${item.copy}</div></div>`).join('')}
       </div>
 
+      ${decisionBriefSection}
+
+      ${projectMemoSection}
+
+      ${decisionSupportMemoSection}
+
       ${memo.valueSummary ? `<div class="mid-grid">
         <div class="card">
           <div class="section-label">Value created by this assessment</div>
@@ -402,7 +639,7 @@ const ExportService = (() => {
             <div class="section-label">Next decision required</div>
             <div class="body-copy"><strong>${memo.nextStepPlan[0]?.title || 'Review the saved result'}</strong><br>${memo.nextStepPlan[0]?.copy || memo.executiveDecision.rationale}</div>
           </div>
-          ${memo.treatmentDecision ? `<div class="decision-row"><div class="section-label">Treatment comparison read</div><div class="body-copy"><strong>${memo.treatmentDecision.title}</strong><br>${memo.treatmentDecision.summary}</div></div>` : ''}
+          ${memo.treatmentDecision ? `<div class="decision-row"><div class="section-label">Treatment comparison read</div><div class="body-copy"><strong>${memo.treatmentDecision.title}</strong><br>${memo.treatmentDecision.summary}${memo.treatmentDecision.tradeoffSummary ? `<br><br><strong>Treatment trade-off:</strong> ${safeHtml(memo.treatmentDecision.tradeoffSummary)}` : ''}${memo.treatmentDecision.tradeoffRecommendedPath ? `<br>${safeHtml(memo.treatmentDecision.tradeoffRecommendedPath)}` : ''}</div></div>` : ''}
         </div>
         <div class="card">
           <div class="section-label">Confidence and caveat</div>
@@ -575,6 +812,31 @@ const ExportService = (() => {
     const challenge = assessment.assessmentChallenge || null;
     const thresholdModel = _buildExecutiveThresholdModel(r, fmt);
     const impactMix = _buildExecutiveImpactMix(technicalInputs);
+    const projectResultsModel = typeof ReportPresentation.buildProjectResultsModel === 'function'
+      ? ReportPresentation.buildProjectResultsModel(assessment, r, fmt)
+      : null;
+    const decisionBrief = assessment.decisionBrief && typeof assessment.decisionBrief === 'object'
+      ? _normaliseDecisionBriefForExport(assessment.decisionBrief)
+      : null;
+    const safeHtml = value => (typeof escapeHtml === 'function' ? escapeHtml(String(value ?? '')) : String(value ?? ''));
+    const projectMemoSection = _renderProjectMemoSection(projectResultsModel, safeHtml);
+    const decisionSupportSummary = _buildDecisionSupportExportSummary(assessment, projectResultsModel, decisionBrief, confidenceFrame, intelligence);
+    const decisionSupportMemoSection = _renderDecisionSupportMemoSection(decisionSupportSummary, safeHtml);
+    const decisionBriefSection = decisionBrief ? `
+      <div class="decision-grid">
+        <div class="card">
+          <div class="section-label">Decision Brief</div>
+          <div class="body-copy"><strong>${safeHtml(decisionBrief.recommendation || 'Decision brief')}</strong><br>${safeHtml(decisionBrief.why || '')}</div>
+          ${decisionBrief.sparseDataWarning ? `<div class="decision-row"><div class="section-label">Sparse data warning</div><div class="body-copy">${safeHtml(decisionBrief.sparseDataWarning)}</div></div>` : ''}
+          ${decisionBrief.sensitivity?.summary ? `<div class="decision-row"><div class="section-label">Sensitivity</div><div class="body-copy">${safeHtml(decisionBrief.sensitivity.summary)}</div></div>` : ''}
+        </div>
+        <div class="card">
+          <div class="section-label">Project/evidence caveats</div>
+          <div class="decision-row"><div class="section-label">Project summary</div><div class="body-copy">${safeHtml(decisionBrief.projectQuantSummary?.plainEnglish || 'No project-specific brief is required for this assessment type.')}</div></div>
+          <div class="decision-row"><div class="section-label">Unknown but important</div><div class="body-copy">${decisionBrief.projectQuantSummary?.unknownHighImpactInputs?.length ? decisionBrief.projectQuantSummary.unknownHighImpactInputs.map(item => `• ${safeHtml(item)}`).join('<br>') : 'No high-impact unknowns listed.'}</div></div>
+          ${decisionBrief.nextAction?.action ? `<div class="decision-row"><div class="section-label">Next action</div><div class="body-copy"><strong>${safeHtml(decisionBrief.nextAction.owner || 'Owner not set')}</strong><br>${safeHtml(decisionBrief.nextAction.action)}</div></div>` : ''}
+        </div>
+      </div>` : '';
     const treatmentComparison = assessment.comparisonBaseline?.results
       ? (() => {
           const baseline = assessment.comparisonBaseline;
@@ -591,7 +853,8 @@ const ExportService = (() => {
             severeAnnual: { direction: severeAnnualDirection },
             treatmentNarrative: assessment.comparisonNarrative || assessment.treatmentImprovementRequest || '',
             keyDriver: assessment.comparisonKeyDriver || 'Review the changed assumptions versus the saved baseline.',
-            secondaryDriver: assessment.comparisonSecondaryDriver || ''
+            secondaryDriver: assessment.comparisonSecondaryDriver || '',
+            treatmentTradeoff: assessment.treatmentTradeoff && typeof assessment.treatmentTradeoff === 'object' ? assessment.treatmentTradeoff : null
           });
         })()
       : null;
@@ -749,6 +1012,12 @@ const ExportService = (() => {
         </div>
       </div>
 
+      ${projectMemoSection}
+
+      ${decisionBriefSection}
+
+      ${decisionSupportMemoSection}
+
       ${valueModel ? `<div class="decision-grid">
         <div class="card">
           <div class="section-label">Value created by this assessment</div>
@@ -812,7 +1081,7 @@ const ExportService = (() => {
           <div class="decision-row"><div class="section-label">What should happen now</div><div class="body-copy">${executiveAction}</div></div>
           <div class="decision-row"><div class="section-label">Main priority</div><div class="body-copy">${executiveDecision.priority}</div></div>
           <div class="decision-row"><div class="section-label">Management focus area</div><div class="body-copy">${executiveDecision.managementFocus}</div></div>
-          ${treatmentComparison ? `<div class="decision-row"><div class="section-label">Treatment decision read</div><div class="body-copy"><strong>${treatmentComparison.title}</strong><br>${treatmentComparison.summary}</div></div>` : ''}
+          ${treatmentComparison ? `<div class="decision-row"><div class="section-label">Treatment decision read</div><div class="body-copy"><strong>${treatmentComparison.title}</strong><br>${treatmentComparison.summary}${treatmentComparison.tradeoffSummary ? `<br><br><strong>Treatment trade-off:</strong> ${safeHtml(treatmentComparison.tradeoffSummary)}` : ''}${treatmentComparison.tradeoffRecommendedPath ? `<br>${safeHtml(treatmentComparison.tradeoffRecommendedPath)}` : ''}</div></div>` : ''}
         </div>
         <div class="card">
           <div class="section-label">Threshold position</div>
@@ -1415,6 +1684,9 @@ const ExportService = (() => {
     const fmt = v => _formatCurrency(v, currency, fxRate);
     const intelligence = assessment.assessmentIntelligence || {};
     const confidenceFrame = _buildExecutiveConfidenceFrame(intelligence.confidence, assessment.evidenceQuality, assessment.missingInformation, assessment.citations || []);
+    const projectResultsModel = typeof ReportPresentation.buildProjectResultsModel === 'function'
+      ? ReportPresentation.buildProjectResultsModel(assessment, r, fmt)
+      : null;
 
     const slideSpec = {
       _note: 'Feed this JSON into pptxgenjs to generate a real PPTX. See README for integration instructions.',
@@ -1474,8 +1746,24 @@ const ExportService = (() => {
             impact: r.impact
           }))
         },
-        {
+        ...(projectResultsModel?.isProject ? [{
           slideIndex: 6,
+          type: 'project_economics',
+          title: projectResultsModel.title,
+          summary: projectResultsModel.summary,
+          inputQuality: projectResultsModel.inputQuality,
+          knownProjectValues: projectResultsModel.knownValues,
+          estimatedProxyValues: projectResultsModel.estimatedValues,
+          unknownHighImpactValues: projectResultsModel.unknownHighImpactValues,
+          projectHorizon: projectResultsModel.projectHorizon,
+          quantifiedDrivers: projectResultsModel.driverGroups?.quantified || [],
+          proxyEstimatedDrivers: projectResultsModel.driverGroups?.proxyEstimated || [],
+          unquantifiedDrivers: projectResultsModel.driverGroups?.unquantified || [],
+          doubleCountingWarnings: projectResultsModel.doubleCountingWarnings,
+          missingInputs: projectResultsModel.missingInputs
+        }] : []),
+        {
+          slideIndex: projectResultsModel?.isProject ? 7 : 6,
           type: 'disclaimer',
           title: 'Important Notes',
           points: [
@@ -2253,3 +2541,5 @@ body {
     buildDecisionMemoModel
   };
 })();
+
+if (typeof module !== 'undefined' && module.exports) module.exports = ExportService;

@@ -549,36 +549,43 @@ const ReportPresentation = (() => {
     const severeAnnualDirection = String(comparison?.severeAnnual?.direction || 'flat');
     const keyDriver = comparison?.keyDriver || 'No dominant change driver has been recorded yet.';
     const secondaryDriver = comparison?.secondaryDriver || 'No secondary change driver has been recorded yet.';
+    const tradeoffSummary = String(comparison?.treatmentTradeoff?.summary || '').trim();
+    const tradeoffRecommendedPath = String(comparison?.treatmentTradeoff?.recommendedPath || '').trim();
+    const withTradeoff = (payload) => ({
+      ...payload,
+      tradeoffSummary,
+      tradeoffRecommendedPath
+    });
 
     if (severeDirection === 'down' && (annualDirection === 'down' || severeAnnualDirection === 'down')) {
-      return {
+      return withTradeoff({
         title: 'The treatment path is materially improving the management position',
         summary: comparison?.treatmentNarrative || 'The treated case is reducing both the severe event burden and the annual exposure profile relative to the baseline.',
         action: `Validate the treatment assumptions, then decide whether to sponsor this path. Main lever: ${keyDriver} Supporting lever: ${secondaryDriver}`
-      };
+      });
     }
 
     if (severeDirection === 'down') {
-      return {
+      return withTradeoff({
         title: 'The treatment path improves the severe case, but not the whole annual picture yet',
         summary: comparison?.treatmentNarrative || 'The treated case is improving the single-event position, but the annual exposure still needs more work before this becomes a clear management move.',
         action: `Keep the stronger severe-event assumptions, then refine the annual drivers before relying on this as the preferred path. Main lever: ${keyDriver}`
-      };
+      });
     }
 
     if (severeDirection === 'up' || annualDirection === 'up' || severeAnnualDirection === 'up') {
-      return {
+      return withTradeoff({
         title: 'The current treatment assumptions are not yet improving the baseline',
         summary: comparison?.treatmentNarrative || 'The current case remains heavier than the baseline, so the proposed treatment path should be refined before it is taken forward.',
         action: `Challenge the assumptions that are still keeping the case above the baseline. Main lever: ${keyDriver} Supporting lever: ${secondaryDriver}`
-      };
+      });
     }
 
-    return {
+    return withTradeoff({
       title: 'The treatment path is not yet materially changing the position',
       summary: comparison?.treatmentNarrative || 'The current case and baseline are directionally similar, so the proposed change is not yet creating a clear decision delta.',
       action: `Adjust the assumptions that should move the result most, then rerun the comparison. Main lever: ${keyDriver}`
-    };
+    });
   }
 
   function buildAnalystAdvisorySummary({ assessment, results, executiveDecision, confidenceFrame, comparison, missingInformation = [], lifecycle } = {}) {
@@ -682,6 +689,20 @@ const ReportPresentation = (() => {
         : results?.annualReviewTriggered
           ? 'Annual review triggered'
           : 'Within tolerance';
+    const projectHorizon = results?.projectHorizon && typeof results.projectHorizon === 'object'
+      ? results.projectHorizon
+      : null;
+    const projectHorizonLines = projectHorizon
+      ? (projectHorizon.enabled
+          ? [
+              `Project-horizon expected loss: ${Number(projectHorizon.loss?.mean || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })}`,
+              `Project event probability: ${(Number(projectHorizon.eventProbability || 0) * 100).toFixed(1)}% over ${Number(projectHorizon.durationMonths || 0).toFixed(1)} months`,
+              projectHorizon.lossAsPctOfProjectValue ? `Project-horizon P90 as % of project value: ${(Number(projectHorizon.lossAsPctOfProjectValue.p90 || 0) * 100).toFixed(1)}% (${String(projectHorizon.lossAsPctOfProjectValueSourceStatus || 'unknown')})` : '',
+              projectHorizon.lossAsPctOfMargin ? `Project-horizon P90 as % of margin: ${(Number(projectHorizon.lossAsPctOfMargin.p90 || 0) * 100).toFixed(1)}% (${String(projectHorizon.lossAsPctOfMarginSourceStatus || 'unknown')})` : '',
+              `Project-horizon confidence: ${String(projectHorizon.confidenceLabel || 'Not labelled')}`
+            ]
+          : [`Project-horizon metrics skipped: ${String(projectHorizon.skippedReason || 'duration or value unavailable')}`])
+      : [];
     return [
       `Scenario summary: ${scenarioSummary}`,
       `Executive headline: ${String(executiveHeadline || statusTitle || 'Management review needed').trim()}`,
@@ -691,12 +712,241 @@ const ReportPresentation = (() => {
       `Severe single-event loss (P90): ${Number(results?.eventLoss?.p90 || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })}`,
       `Expected annualized loss: ${Number(results?.annualLoss?.mean || results?.ale?.mean || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })}`,
       `Severe annualized loss (P90): ${Number(results?.annualLoss?.p90 || results?.ale?.p90 || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })}`,
+      ...projectHorizonLines,
       `Management decision: ${String(executiveDecision?.decision || 'Review').trim()}`,
       `Immediate focus: ${String(executiveAction || executiveDecision?.priority || '').trim()}`,
       `Confidence: ${String(confidenceFrame?.label || 'Moderate confidence').trim()}${confidenceFrame?.summary ? `. ${String(confidenceFrame.summary).trim()}` : ''}`,
       topAssumption ? `Key assumption: ${String(topAssumption.text || topAssumption).trim()}` : '',
       topDriver ? `Main upward driver: ${String(topDriver).trim()}` : ''
     ].filter(Boolean).join('\n');
+  }
+
+  function normaliseProjectResultsAssessmentType(value) {
+    const text = String(value || '').trim().toLowerCase();
+    if (text === 'project_buyer' || text === 'project_seller') return text;
+    return 'enterprise_generic';
+  }
+
+  function formatProjectResultCurrency(value, fmtCurrency) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return '';
+    if (typeof fmtCurrency === 'function') return fmtCurrency(numeric);
+    return numeric.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+  }
+
+  function projectResultMetaStatus(meta = {}, value = null) {
+    const raw = meta && typeof meta === 'object' ? meta : {};
+    const status = String(raw.status || '').trim().toLowerCase();
+    if (status) return status;
+    return value == null || value === '' || !Number.isFinite(Number(value)) ? 'unknown' : 'known';
+  }
+
+  function projectResultMetaConfidence(meta = {}, fallback = 'unknown') {
+    const raw = meta && typeof meta === 'object' ? meta : {};
+    return String(raw.confidence || fallback || 'unknown').trim() || 'unknown';
+  }
+
+  function buildProjectValueItem({ label, value, meta, fmtCurrency }) {
+    const numeric = Number(value);
+    const status = projectResultMetaStatus(meta, value);
+    if (!Number.isFinite(numeric)) return null;
+    return {
+      label,
+      value: formatProjectResultCurrency(numeric, fmtCurrency),
+      rawValue: numeric,
+      status,
+      confidence: projectResultMetaConfidence(meta, status === 'known' ? 'medium' : 'unknown'),
+      source: String(meta?.source || (status === 'unknown' ? 'not_provided' : 'user')).trim() || 'user'
+    };
+  }
+
+  function buildProjectDriverItem(driver = {}, fmtCurrency) {
+    const status = String(driver?.driverStatus || '').trim() || 'unquantified_driver';
+    const hasRange = [driver?.low, driver?.likely, driver?.high]
+      .every(value => value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value)));
+    const missingInputs = Array.isArray(driver?.missingInputs)
+      ? driver.missingInputs.map(item => typeof item === 'string' ? item : (item?.label || item?.field || '')).map(item => String(item || '').trim()).filter(Boolean)
+      : [];
+    return {
+      id: String(driver?.id || driver?.label || '').trim(),
+      label: String(driver?.label || driver?.driverType || 'Project exposure driver').trim(),
+      type: String(driver?.driverType || 'other').trim(),
+      status,
+      statusLabel: status.replace(/_/g, ' '),
+      low: hasRange ? Number(driver.low) : null,
+      likely: hasRange ? Number(driver.likely) : null,
+      high: hasRange ? Number(driver.high) : null,
+      rangeLabel: hasRange
+        ? `${formatProjectResultCurrency(driver.low, fmtCurrency)} / ${formatProjectResultCurrency(driver.likely, fmtCurrency)} / ${formatProjectResultCurrency(driver.high, fmtCurrency)}`
+        : 'Not quantified',
+      confidence: String(driver?.confidence || 'unknown').trim() || 'unknown',
+      source: String(driver?.source || 'unknown').trim() || 'unknown',
+      mapsTo: Array.isArray(driver?.mapsTo) ? driver.mapsTo.map(item => String(item || '').trim()).filter(Boolean) : [driver?.mapsTo].map(item => String(item || '').trim()).filter(Boolean),
+      rationale: String(driver?.rationale || '').trim(),
+      missingInputs
+    };
+  }
+
+  function groupProjectDrivers(financialDrivers = [], fmtCurrency) {
+    const groups = {
+      quantified: [],
+      proxyEstimated: [],
+      unquantified: []
+    };
+    (Array.isArray(financialDrivers) ? financialDrivers : []).forEach(driver => {
+      const item = buildProjectDriverItem(driver, fmtCurrency);
+      if (item.status === 'unquantified_driver' || item.low == null || item.likely == null || item.high == null) {
+        groups.unquantified.push(item);
+      } else if (item.status === 'benchmark_proxy_driver' || item.status === 'estimated_driver') {
+        groups.proxyEstimated.push(item);
+      } else {
+        groups.quantified.push(item);
+      }
+    });
+    return groups;
+  }
+
+  function normaliseProjectMissingInputs(projectExposure = {}) {
+    const missing = Array.isArray(projectExposure?.missingInputs) ? projectExposure.missingInputs : [];
+    return missing.map(item => {
+      if (typeof item === 'string') {
+        return {
+          field: item,
+          label: item,
+          importance: 'medium',
+          whyItMatters: '',
+          whoMightKnow: '',
+          suggestedQuestion: '',
+          mapsTo: ''
+        };
+      }
+      return {
+        field: String(item?.field || '').trim(),
+        label: String(item?.label || item?.field || 'Missing project input').trim(),
+        importance: String(item?.importance || 'medium').trim(),
+        whyItMatters: String(item?.whyItMatters || '').trim(),
+        whoMightKnow: String(item?.whoMightKnow || '').trim(),
+        suggestedQuestion: String(item?.suggestedQuestion || '').trim(),
+        mapsTo: Array.isArray(item?.mapsTo) ? item.mapsTo.join(', ') : String(item?.mapsTo || '').trim()
+      };
+    }).filter(item => item.label).slice(0, 12);
+  }
+
+  function buildProjectHorizonSummary(projectHorizon = {}, fmtCurrency) {
+    if (!projectHorizon || typeof projectHorizon !== 'object') return null;
+    if (!projectHorizon.enabled) {
+      return {
+        enabled: false,
+        skippedReason: String(projectHorizon.skippedReason || 'Project duration or value unavailable').trim(),
+        caveats: Array.isArray(projectHorizon.caveats) ? projectHorizon.caveats.map(item => String(item || '').trim()).filter(Boolean) : []
+      };
+    }
+    return {
+      enabled: true,
+      expectedLoss: formatProjectResultCurrency(projectHorizon.loss?.mean || 0, fmtCurrency),
+      p90Loss: formatProjectResultCurrency(projectHorizon.loss?.p90 || 0, fmtCurrency),
+      eventProbabilityLabel: `${(Number(projectHorizon.eventProbability || 0) * 100).toFixed(1)}%`,
+      durationLabel: `${Number(projectHorizon.durationMonths || 0).toFixed(1)} months`,
+      confidenceLabel: String(projectHorizon.confidenceLabel || '').trim(),
+      durationSourceStatus: String(projectHorizon.durationSourceStatus || 'unknown').trim(),
+      lossAsPctOfProjectValueLabel: projectHorizon.lossAsPctOfProjectValue
+        ? `${(Number(projectHorizon.lossAsPctOfProjectValue.p90 || 0) * 100).toFixed(1)}%`
+        : '',
+      lossAsPctOfMarginLabel: projectHorizon.lossAsPctOfMargin
+        ? `${(Number(projectHorizon.lossAsPctOfMargin.p90 || 0) * 100).toFixed(1)}%`
+        : '',
+      caveats: Array.isArray(projectHorizon.caveats) ? projectHorizon.caveats.map(item => String(item || '').trim()).filter(Boolean) : []
+    };
+  }
+
+  function buildProjectResultsModel(assessment = {}, results = {}, fmtCurrency = null) {
+    const assessmentType = normaliseProjectResultsAssessmentType(assessment?.assessmentType || results?.runConfig?.assessmentType || results?.inputs?.assessmentType);
+    const isProject = assessmentType === 'project_buyer' || assessmentType === 'project_seller';
+    if (!isProject) {
+      return {
+        assessmentType,
+        isProject: false,
+        title: 'Enterprise risk estimate',
+        metrics: [
+          { label: 'Event loss', value: formatProjectResultCurrency(results?.eventLoss?.p90 || results?.lm?.p90 || 0, fmtCurrency), copy: 'Severe single-event view' },
+          { label: 'Annualized loss', value: formatProjectResultCurrency(results?.annualLoss?.mean || results?.ale?.mean || 0, fmtCurrency), copy: 'Expected annual planning view' },
+          { label: 'Tolerance exceedance', value: `${(Number(results?.toleranceDetail?.lmExceedProb || 0) * 100).toFixed(1)}%`, copy: 'Probability of exceeding event tolerance in the model' },
+          { label: 'Annual review trigger', value: results?.annualReviewTriggered ? 'Triggered' : 'Not triggered', copy: 'Existing annual review logic' }
+        ]
+      };
+    }
+
+    const projectExposure = assessment?.projectExposure && typeof assessment.projectExposure === 'object'
+      ? assessment.projectExposure
+      : {};
+    const hasProjectExposureSignal = !!String(projectExposure.projectExposureSummary || '').trim()
+      || (Array.isArray(projectExposure.financialDrivers) && projectExposure.financialDrivers.length > 0)
+      || (Array.isArray(projectExposure.missingInputs) && projectExposure.missingInputs.length > 0)
+      || (projectExposure.projectInputQuality && typeof projectExposure.projectInputQuality === 'object' && Object.keys(projectExposure.projectInputQuality).length > 0);
+    const quality = projectExposure.projectInputQuality && typeof projectExposure.projectInputQuality === 'object'
+      ? projectExposure.projectInputQuality
+      : {};
+    const missingInputs = normaliseProjectMissingInputs(projectExposure);
+    const unknownQuality = Array.isArray(quality.unknownHighImpactInputs)
+      ? quality.unknownHighImpactInputs.map(item => typeof item === 'string' ? item : (item?.label || item?.field || '')).map(item => String(item || '').trim()).filter(Boolean)
+      : [];
+    const driverGroups = groupProjectDrivers(projectExposure.financialDrivers, fmtCurrency);
+    const caveatSummary = !hasProjectExposureSignal || missingInputs.length || unknownQuality.length
+      ? 'Project economics are thin. The estimate is directional until key values are confirmed.'
+      : 'Project economics have enough support for a directional management read.';
+    const buyerEconomics = assessment?.buyerEconomics && typeof assessment.buyerEconomics === 'object' ? assessment.buyerEconomics : {};
+    const buyerMeta = assessment?.buyerEconomicsMeta && typeof assessment.buyerEconomicsMeta === 'object' ? assessment.buyerEconomicsMeta : {};
+    const sellerEconomics = assessment?.sellerEconomics && typeof assessment.sellerEconomics === 'object' ? assessment.sellerEconomics : {};
+    const sellerMeta = assessment?.sellerEconomicsMeta && typeof assessment.sellerEconomicsMeta === 'object' ? assessment.sellerEconomicsMeta : {};
+    const knownValues = [];
+    const estimatedValues = [];
+    const pushValue = (item) => {
+      if (!item) return;
+      if (item.status === 'estimated' || item.status === 'benchmark_proxy' || item.status === 'derived') estimatedValues.push(item);
+      else if (item.status !== 'unknown' && item.status !== 'not_applicable') knownValues.push(item);
+    };
+    if (assessmentType === 'project_buyer') {
+      pushValue(buildProjectValueItem({ label: 'Project spend / budget', value: buyerEconomics.expectedSpend ?? buyerEconomics.approvedBudget, meta: buyerEconomics.expectedSpend != null ? buyerMeta.expectedSpend : buyerMeta.approvedBudget, fmtCurrency }));
+      pushValue(buildProjectValueItem({ label: 'Amount paid or committed', value: buyerEconomics.amountPaid ?? buyerEconomics.amountCommitted, meta: buyerEconomics.amountPaid != null ? buyerMeta.amountPaid : buyerMeta.amountCommitted, fmtCurrency }));
+      pushValue(buildProjectValueItem({ label: 'Recoveries / offsets', value: buyerEconomics.supplierCredits ?? buyerEconomics.insuranceRecoveries ?? buyerEconomics.liquidatedDamagesRecoverable, meta: buyerEconomics.supplierCredits != null ? buyerMeta.supplierCredits : buyerEconomics.insuranceRecoveries != null ? buyerMeta.insuranceRecoveries : buyerMeta.liquidatedDamagesRecoverable, fmtCurrency }));
+    } else {
+      pushValue(buildProjectValueItem({ label: 'Contract value', value: sellerEconomics.contractValue, meta: sellerMeta.contractValue, fmtCurrency }));
+      pushValue(buildProjectValueItem({ label: 'Revenue at risk', value: sellerEconomics.expectedRevenue ?? sellerEconomics.revenueRecognitionAtRisk, meta: sellerEconomics.expectedRevenue != null ? sellerMeta.expectedRevenue : sellerMeta.revenueRecognitionAtRisk, fmtCurrency }));
+      pushValue(buildProjectValueItem({ label: 'Expected margin', value: sellerEconomics.contributionMargin, meta: sellerMeta.contributionMargin, fmtCurrency }));
+      pushValue(buildProjectValueItem({ label: 'Cost to cure', value: sellerEconomics.costToCure, meta: sellerMeta.costToCure, fmtCurrency }));
+    }
+
+    const summary = String(projectExposure.projectExposureSummary || '').trim() || caveatSummary;
+    return {
+      assessmentType,
+      isProject: true,
+      role: assessmentType === 'project_seller' ? 'seller' : 'buyer',
+      title: assessmentType === 'project_seller' ? 'Project seller exposure' : 'Project buyer exposure',
+      helperCopy: assessmentType === 'project_seller'
+        ? 'Seller project results separate revenue at risk, margin at risk, delivery cost, penalties, termination, recoveries, and project-horizon exposure.'
+        : 'Buyer project results separate spend, delay cost, reprocurement, sunk cost, recoveries, and project-horizon exposure.',
+      summary,
+      inputQuality: {
+        score: Number.isFinite(Number(quality.score)) ? Number(quality.score) : null,
+        label: String(quality.label || 'Thin project economics').trim(),
+        canProceed: quality.canProceed !== false,
+        recommendedNextInput: quality.recommendedNextInput && typeof quality.recommendedNextInput === 'object' ? quality.recommendedNextInput : null
+      },
+      knownValues,
+      estimatedValues,
+      unknownHighImpactValues: Array.from(new Set([
+        ...unknownQuality,
+        ...missingInputs.filter(item => item.importance === 'high').map(item => item.label)
+      ])).slice(0, 12),
+      decisionSensitiveUnknowns: missingInputs.filter(item => item.importance === 'high').slice(0, 6),
+      driverGroups,
+      capsAndOffsets: Array.isArray(projectExposure.capsAndOffsets) ? projectExposure.capsAndOffsets.slice(0, 8) : [],
+      doubleCountingWarnings: Array.isArray(projectExposure.doubleCountingWarnings) ? projectExposure.doubleCountingWarnings.map(item => String(item || '').trim()).filter(Boolean).slice(0, 8) : [],
+      missingInputs,
+      mapsToRiskParameters: projectExposure.mapsToRiskParameters && typeof projectExposure.mapsToRiskParameters === 'object' ? projectExposure.mapsToRiskParameters : {},
+      projectHorizon: buildProjectHorizonSummary(results?.projectHorizon, fmtCurrency),
+      caveatSummary
+    };
   }
 
   function buildPortfolioBoardBriefSource({
@@ -749,6 +999,7 @@ const ReportPresentation = (() => {
     buildAnalystAdvisorySummary,
     buildFastestReductionLever,
     buildMetricAnchorSentence,
+    buildProjectResultsModel,
     buildReviewerBriefSource,
     buildPortfolioBoardBriefSource
   };

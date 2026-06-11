@@ -15,6 +15,109 @@ function renderStep2TopEvidenceNudge(draft) {
   </div>`;
 }
 
+function getStep2CaseMemoryMatches(draft = AppState.draft) {
+  try {
+    if (typeof LearningStore === 'undefined' || typeof LearningStore.findSimilarCaseMemories !== 'function') return [];
+    if (Array.isArray(draft?.caseMemoryMatches) && draft.caseMemoryMatches.length) return draft.caseMemoryMatches.slice(0, 3);
+    const username = AuthService.getCurrentUser?.()?.username || '';
+    const cachedMemories = Array.isArray(AppState.userStateCache?.learningStore?.caseMemories)
+      ? AppState.userStateCache.learningStore.caseMemories
+      : [];
+    const storeMemories = username && typeof LearningStore.getCaseMemories === 'function'
+      ? LearningStore.getCaseMemories(username, 80)
+      : [];
+    const seed = typeof LearningStore.buildCaseMemoryFromAssessment === 'function'
+      ? LearningStore.buildCaseMemoryFromAssessment({
+          ...draft,
+          id: draft?.id || 'current-draft',
+          completedAt: Date.now()
+        })
+      : draft;
+    return LearningStore.findSimilarCaseMemories(seed || draft, storeMemories.length ? storeMemories : cachedMemories, { limit: 3 });
+  } catch {
+    return [];
+  }
+}
+
+function formatStep2CaseMemoryDate(timestamp = 0) {
+  const value = Number(timestamp || 0);
+  if (!value) return 'date not available';
+  try {
+    return new Date(value).toLocaleDateString('en-GB');
+  } catch {
+    return 'date not available';
+  }
+}
+
+function getStep2CaseMemoryStatusLabel(status = '') {
+  if (typeof LearningStore !== 'undefined' && typeof LearningStore.formatCaseMemorySourceStatus === 'function') {
+    return LearningStore.formatCaseMemorySourceStatus(status);
+  }
+  const raw = String(status || '').trim();
+  if (raw === 'known' || raw === 'derived' || raw === 'evidence_supported') return 'confirmed';
+  if (raw === 'estimated') return 'estimated';
+  if (raw === 'benchmark_proxy') return 'benchmark proxy';
+  return 'unknown / not reusable';
+}
+
+function renderStep2SimilarCaseMemoryPanel(draft = AppState.draft) {
+  const matches = getStep2CaseMemoryMatches(draft);
+  if (!matches.length) return '';
+  return `<div class="card card--background anim-fade-in" id="step2-case-memory-host">
+    <div class="wizard-premium-head">
+      <div>
+        <div class="context-panel-title">Similar prior assessments</div>
+        <p class="context-panel-copy" style="margin-top:var(--sp-2)">Use these as read-only references while refining the scenario. Nothing is copied into this draft unless you type it in.</p>
+      </div>
+      <span class="badge badge--gold">${matches.length} reference${matches.length === 1 ? '' : 's'}</span>
+    </div>
+    <div class="context-grid" style="margin-top:var(--sp-4)">
+      ${matches.map((match) => {
+        const reusable = match?._caseMemory?.reusableValues || (
+          typeof LearningStore !== 'undefined' && typeof LearningStore.buildCaseReusableValues === 'function'
+            ? LearningStore.buildCaseReusableValues(match)
+            : {}
+        );
+        const treatment = (Array.isArray(reusable?.treatments) ? reusable.treatments : [])[0]?.label || match.treatments?.[0] || 'No treatment captured.';
+        const evidenceGap = (Array.isArray(reusable?.evidenceGaps) ? reusable.evidenceGaps : [])[0]?.label || match.evidenceGaps?.[0] || 'No evidence gap captured.';
+        const assumption = (Array.isArray(reusable?.assumptions) ? reusable.assumptions : [])[0]?.label || match.assumptionWeaknesses?.[0] || 'No weak assumption captured.';
+        return `<div class="context-chip-panel">
+          <div class="context-panel-title">${escapeHtml(String(match.scenarioTitle || 'Untitled assessment'))}</div>
+          <p class="context-panel-copy" style="margin-top:6px">${escapeHtml(formatStep2CaseMemoryDate(match.completedAt))} · ${escapeHtml(String(match.decisionPosture || 'prior decision').replace(/_/g, ' '))}</p>
+          <div class="citation-chips" style="margin-top:8px">
+            ${match.projectValueSourceStatus && match.assessmentType !== 'enterprise_generic' ? `<span class="badge badge--neutral">Project value: ${escapeHtml(getStep2CaseMemoryStatusLabel(match.projectValueSourceStatus))}</span>` : ''}
+            ${match.marginSourceStatus && match.assessmentType === 'project_seller' ? `<span class="badge badge--neutral">Margin: ${escapeHtml(getStep2CaseMemoryStatusLabel(match.marginSourceStatus))}</span>` : ''}
+          </div>
+          <p class="context-panel-copy" style="margin-top:10px"><strong>Treatment:</strong> ${escapeHtml(String(treatment))}</p>
+          <p class="context-panel-copy"><strong>Assumption:</strong> ${escapeHtml(String(assumption))}</p>
+          <p class="context-panel-copy"><strong>Evidence gap:</strong> ${escapeHtml(String(evidenceGap))}</p>
+          <button class="btn btn--ghost btn--sm btn-step2-case-memory-reference" data-case-memory-id="${escapeHtml(String(match.caseId || ''))}" type="button" style="margin-top:var(--sp-3)">${String(draft.caseMemoryReferenceId || '') === String(match.caseId || '') ? 'Reference selected' : 'Use as reference'}</button>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>`;
+}
+
+function bindStep2CaseMemoryActions() {
+  document.querySelectorAll('.btn-step2-case-memory-reference').forEach((button) => {
+    if (button.dataset.bound === 'true') return;
+    button.dataset.bound = 'true';
+    button.addEventListener('click', () => {
+      const targetId = String(button.dataset.caseMemoryId || '').trim();
+      if (!targetId) return;
+      AppState.draft.caseMemoryReferenceId = targetId;
+      markDraftDirty();
+      scheduleDraftAutosave();
+      const host = document.getElementById('step2-case-memory-host');
+      if (host) {
+        const replacement = renderStep2SimilarCaseMemoryPanel(AppState.draft);
+        if (replacement) host.outerHTML = replacement;
+        bindStep2CaseMemoryActions();
+      }
+    });
+  });
+}
+
 const STEP2_SCENARIO_TYPE_OPTIONS = [
   'Strategic shift / programme failure',
   'Operational breakdown / control failure',
@@ -234,6 +337,39 @@ function recordStep2NarrativeEditIfNeeded(nextNarrative) {
     after,
     changeSummary: buildStep2NarrativeEditSummary(before, after)
   });
+  if (typeof LearningStore.recordStructuredAiFeedback === 'function') {
+    const reasonCode = typeof LearningStore.normaliseStructuredAiFeedbackReason === 'function'
+      ? LearningStore.normaliseStructuredAiFeedbackReason('narrative', 'tone_clarity', 'narrative_edit')
+      : 'tone_clarity';
+    const event = {
+      eventType: 'narrative_edit',
+      targetType: 'narrative',
+      targetId: AppState.draft?.id || '',
+      reasonCode,
+      note: buildStep2NarrativeEditSummary(before, after),
+      before,
+      after,
+      assessmentType: AppState.draft?.assessmentType || 'enterprise_generic',
+      scenarioLens: AppState.draft?.scenarioLens || null,
+      primaryFamily: AppState.draft?.scenarioLens?.functionKey || '',
+      buId: AppState.draft?.buId || '',
+      functionKey: AppState.draft?.scenarioLens?.functionKey || '',
+      lensKey: AppState.draft?.scenarioLens?.key || '',
+      sourceStatusBefore: 'derived',
+      sourceStatusAfter: 'known',
+      submittedBy: username
+    };
+    if (typeof window !== 'undefined' && typeof window.recordStructuredAiFeedback === 'function') {
+      window.recordStructuredAiFeedback(event);
+    } else {
+      LearningStore.recordStructuredAiFeedback(username, event);
+      if (typeof patchLearningStore === 'function' && typeof LearningStore.getLearningStore === 'function') {
+        try {
+          patchLearningStore({ aiFeedback: LearningStore.getLearningStore(username).aiFeedback });
+        } catch {}
+      }
+    }
+  }
   AppState.draft.aiNarrativeBaseline = after;
 }
 
@@ -375,6 +511,7 @@ function renderWizard2() {
             <div class="form-help" style="margin-top:8px">Write one coherent scenario first. Keep the support modules below as optional aids rather than part of the main task.</div>
           </section>
           ${renderStep2FocusStrip(draft, selectedRisks, scenarioGeographies)}
+          ${renderStep2SimilarCaseMemoryPanel(draft)}
           ${renderAssessmentReadinessStrip(readinessModel)}
           ${renderContextInfluencePreview(contextPreviewModel)}
           ${UI.wizardInputSection({
@@ -514,6 +651,7 @@ function renderWizard2() {
   });
   ensureStep2NarrativeDiffStyles();
   bindNarrativeDiffToggle();
+  bindStep2CaseMemoryActions();
   attachCitationHandlers();
 }
 

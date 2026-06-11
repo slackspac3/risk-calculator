@@ -7,6 +7,7 @@ const {
   ASSESSMENT_TYPE_GENERIC,
   ASSESSMENT_TYPE_PROJECT_BUYER,
   ASSESSMENT_TYPE_PROJECT_SELLER,
+  MAX_PROJECT_EXPOSURE_TEXT_LENGTH,
   applyAssessmentTypeSelectionToDraft,
   buildAssessmentTypeChangePatch,
   getAssessmentTypeNextScreen,
@@ -339,4 +340,36 @@ test('project exposure arrays are capped and normalized', () => {
   assert.equal(exposure.financialDrivers.length, 20);
   assert.equal(exposure.financialDrivers[0], 'item 0');
   assert.deepEqual(exposure.missingInputs, ['impact', 0, false]);
+});
+
+test('project assessment text and saved exposure values are bounded without changing sparse numeric semantics', () => {
+  const longText = ' x '.repeat(1000);
+  const state = normaliseAssessmentTypeState({
+    assessmentType: ASSESSMENT_TYPE_PROJECT_BUYER,
+    projectContext: {
+      projectName: longText,
+      projectDescription: longText
+    },
+    buyerEconomics: {
+      delayCostPerDay: '',
+      supplierCredits: '0'
+    },
+    buyerEconomicsMeta: {
+      delayCostPerDay: { status: 'unknown' },
+      supplierCredits: { status: 'known', confidence: 'high', source: 'user' }
+    },
+    projectExposure: {
+      projectExposureSummary: longText,
+      financialDrivers: [{ label: longText, rationale: longText }]
+    }
+  });
+
+  assert.equal(state.projectContext.projectName.length, MAX_PROJECT_EXPOSURE_TEXT_LENGTH);
+  assert.equal(state.projectContext.projectDescription.length, MAX_PROJECT_EXPOSURE_TEXT_LENGTH);
+  assert.equal(state.projectExposure.projectExposureSummary.length, MAX_PROJECT_EXPOSURE_TEXT_LENGTH);
+  assert.equal(state.projectExposure.financialDrivers[0].label.length, MAX_PROJECT_EXPOSURE_TEXT_LENGTH);
+  assert.equal(state.buyerEconomics.delayCostPerDay, null);
+  assert.equal(state.buyerEconomicsMeta.delayCostPerDay.status, 'unknown');
+  assert.equal(state.buyerEconomics.supplierCredits, 0);
+  assert.equal(state.buyerEconomicsMeta.supplierCredits.status, 'known');
 });

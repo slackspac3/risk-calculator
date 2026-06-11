@@ -152,3 +152,149 @@ test('createRunMetadata captures the saved execution context', () => {
   assert.equal(metadata.scenarioMultipliers.lossMultiplier, 1.2);
   assert.deepEqual(metadata.assumptions, ['Business interruption remains the main cost driver.']);
 });
+
+test('generic risk results remain free of project-horizon output', () => {
+  const result = RiskEngine.run(buildValidParams());
+  assert.equal(Object.prototype.hasOwnProperty.call(result, 'projectHorizon'), false);
+  assert.equal(typeof result.annualLoss.mean, 'number');
+  assert.equal(typeof result.eventLoss.p90, 'number');
+});
+
+test('project duration creates project-horizon output without changing annual loss shape', () => {
+  const result = RiskEngine.run(buildValidParams({
+    assessmentType: 'project_buyer',
+    projectDurationMonths: 6,
+    projectDurationSourceStatus: 'known',
+    projectDurationConfidence: 'high',
+    projectValue: 1000000,
+    projectValueSourceStatus: 'known'
+  }));
+
+  assert.equal(result.projectHorizon.enabled, true);
+  assert.equal(result.projectHorizon.durationMonths, 6);
+  assert.equal(result.projectHorizon.durationYears, 0.5);
+  assert.equal(result.projectHorizon.durationSourceStatus, 'known');
+  assert.equal(typeof result.projectHorizon.eventProbability, 'number');
+  assert.equal(typeof result.projectHorizon.loss.mean, 'number');
+  assert.equal(typeof result.annualLoss.mean, 'number');
+});
+
+test('short project duration reduces project event probability', () => {
+  const base = buildValidParams({
+    iterations: 5000,
+    seed: 78910,
+    assessmentType: 'project_buyer',
+    projectDurationSourceStatus: 'known',
+    vulnDirect: true,
+    vulnMin: 1,
+    vulnLikely: 1,
+    vulnMax: 1,
+    tefMin: 1,
+    tefLikely: 1,
+    tefMax: 1
+  });
+  const oneMonth = RiskEngine.run({ ...base, projectDurationMonths: 1 });
+  const oneYear = RiskEngine.run({ ...base, projectDurationMonths: 12 });
+
+  assert.ok(oneMonth.projectHorizon.eventProbability < oneYear.projectHorizon.eventProbability);
+  assert.ok(oneMonth.projectHorizon.loss.mean < oneYear.projectHorizon.loss.mean);
+});
+
+test('unknown or missing project duration skips project-horizon metrics gracefully', () => {
+  const missing = RiskEngine.run(buildValidParams({
+    assessmentType: 'project_buyer'
+  }));
+  assert.equal(missing.projectHorizon.enabled, false);
+  assert.equal(missing.projectHorizon.skippedReason, 'project_duration_missing');
+  assert.equal(missing.projectHorizon.loss, null);
+
+  const unknown = RiskEngine.run(buildValidParams({
+    assessmentType: 'project_buyer',
+    projectDurationMonths: 6,
+    projectDurationSourceStatus: 'unknown'
+  }));
+  assert.equal(unknown.projectHorizon.enabled, false);
+  assert.equal(unknown.projectHorizon.skippedReason, 'project_duration_source_unknown');
+});
+
+test('benchmark-proxy project duration is computed and clearly labelled', () => {
+  const result = RiskEngine.run(buildValidParams({
+    assessmentType: 'project_buyer',
+    projectDurationMonths: 9,
+    projectDurationSourceStatus: 'benchmark_proxy',
+    projectValue: 750000,
+    projectValueSourceStatus: 'estimated'
+  }));
+
+  assert.equal(result.projectHorizon.enabled, true);
+  assert.equal(result.projectHorizon.durationSourceStatus, 'benchmark_proxy');
+  assert.match(result.projectHorizon.confidenceLabel, /Proxy-based/i);
+  assert.ok(result.projectHorizon.caveats.some(item => /benchmark-proxied/i.test(item)));
+});
+
+test('buyer project-horizon loss percentage uses known spend denominator', () => {
+  const result = RiskEngine.run(buildValidParams({
+    assessmentType: 'project_buyer',
+    projectDurationMonths: 12,
+    projectDurationSourceStatus: 'known',
+    projectValue: 2000000,
+    projectValueSourceStatus: 'known'
+  }));
+
+  assert.ok(result.projectHorizon.lossAsPctOfProjectValue);
+  assert.equal(
+    result.projectHorizon.lossAsPctOfProjectValue.p90,
+    result.projectHorizon.loss.p90 / 2000000
+  );
+  assert.equal(result.projectHorizon.lossAsPctOfMargin, null);
+});
+
+test('seller project-horizon loss percentage uses contract value and margin denominators', () => {
+  const result = RiskEngine.run(buildValidParams({
+    assessmentType: 'project_seller',
+    projectDurationMonths: 12,
+    projectDurationSourceStatus: 'known',
+    projectValue: 1000000,
+    projectValueSourceStatus: 'known',
+    projectMargin: 250000,
+    projectMarginSourceStatus: 'derived'
+  }));
+
+  assert.ok(result.projectHorizon.lossAsPctOfProjectValue);
+  assert.ok(result.projectHorizon.lossAsPctOfMargin);
+  assert.equal(
+    result.projectHorizon.lossAsPctOfMargin.p90,
+    result.projectHorizon.loss.p90 / 250000
+  );
+  assert.equal(result.projectHorizon.lossAsPctOfMarginSourceStatus, 'derived');
+});
+
+test('missing project value omits percentages without treating value as zero', () => {
+  const result = RiskEngine.run(buildValidParams({
+    assessmentType: 'project_buyer',
+    projectDurationMonths: 6,
+    projectDurationSourceStatus: 'estimated'
+  }));
+
+  assert.equal(result.projectHorizon.enabled, true);
+  assert.equal(result.projectHorizon.lossAsPctOfProjectValue, null);
+  assert.ok(result.projectHorizon.caveats.some(item => /project value/i.test(item)));
+});
+
+test('invalid project duration stays a warning and skips project-horizon metrics', () => {
+  const validation = RiskEngine.validateRunParams(buildValidParams({
+    assessmentType: 'project_buyer',
+    projectDurationMonths: 0,
+    projectDurationSourceStatus: 'known'
+  }));
+  assert.equal(validation.valid, true);
+  assert.ok(validation.warnings.some(item => /greater than zero/i.test(item)));
+
+  const result = RiskEngine.run(buildValidParams({
+    assessmentType: 'project_buyer',
+    projectDurationMonths: 0,
+    projectDurationSourceStatus: 'known'
+  }));
+  assert.equal(result.projectHorizon.enabled, false);
+  assert.equal(result.projectHorizon.skippedReason, 'project_duration_invalid');
+});

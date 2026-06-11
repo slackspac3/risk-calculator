@@ -76,8 +76,21 @@ function normaliseFairParamsInput(value = {}) {
 
 function normaliseResultsInput(value = {}) {
   if (!workflowUtils.isPlainObject || !workflowUtils.isPlainObject(value)) return undefined;
+  const projectHorizon = value.projectHorizon && typeof value.projectHorizon === 'object'
+    ? compactInputValue({
+        enabled: value.projectHorizon.enabled === true,
+        skippedReason: normaliseInlineInputText(value.projectHorizon.skippedReason || ''),
+        durationMonths: Number.isFinite(Number(value.projectHorizon.durationMonths)) ? Number(value.projectHorizon.durationMonths) : undefined,
+        durationSourceStatus: normaliseInlineInputText(value.projectHorizon.durationSourceStatus || ''),
+        durationConfidence: normaliseInlineInputText(value.projectHorizon.durationConfidence || ''),
+        eventProbability: Number.isFinite(Number(value.projectHorizon.eventProbability)) ? Number(value.projectHorizon.eventProbability) : undefined,
+        confidenceLabel: normaliseInlineInputText(value.projectHorizon.confidenceLabel || ''),
+        caveats: normaliseStringListInput(value.projectHorizon.caveats, { maxItems: 8 })
+      })
+    : undefined;
   return compactInputValue({
-    inputs: normaliseFairParamsInput(value.inputs)
+    inputs: normaliseFairParamsInput(value.inputs),
+    projectHorizon
   });
 }
 
@@ -118,10 +131,107 @@ function normaliseSelectedRisksInput(items = []) {
     .slice(0, 8);
 }
 
+function normaliseProjectContextInput(value = {}) {
+  if (!workflowUtils.isPlainObject || !workflowUtils.isPlainObject(value)) return undefined;
+  return compactInputValue({
+    projectName: normaliseInlineInputText(value.projectName || ''),
+    projectDescription: normaliseBlockInputText(value.projectDescription || ''),
+    projectRole: normaliseInlineInputText(value.projectRole || ''),
+    projectStage: normaliseInlineInputText(value.projectStage || ''),
+    contractType: normaliseInlineInputText(value.contractType || ''),
+    currency: normaliseInlineInputText(value.currency || ''),
+    strategicImportance: normaliseInlineInputText(value.strategicImportance || '')
+  });
+}
+
+function normaliseProjectEconomicsInput(value = {}) {
+  if (!workflowUtils.isPlainObject || !workflowUtils.isPlainObject(value)) return undefined;
+  const next = {};
+  Object.entries(value).slice(0, 40).forEach(([key, item]) => {
+    const safeKey = normaliseInlineInputText(key || '');
+    if (!safeKey) return;
+    const numeric = Number(item);
+    if (Number.isFinite(numeric)) next[safeKey] = numeric;
+  });
+  return Object.keys(next).length ? next : undefined;
+}
+
+function normaliseProjectEconomicsMetaInput(value = {}) {
+  if (!workflowUtils.isPlainObject || !workflowUtils.isPlainObject(value)) return undefined;
+  const next = {};
+  Object.entries(value).slice(0, 40).forEach(([key, item]) => {
+    const safeKey = normaliseInlineInputText(key || '');
+    if (!safeKey) return;
+    const source = item && typeof item === 'object' ? item : {};
+    next[safeKey] = compactInputValue({
+      status: normaliseInlineInputText(source.status || source.sourceStatus || ''),
+      confidence: normaliseInlineInputText(source.confidence || ''),
+      source: normaliseInlineInputText(source.source || ''),
+      note: normaliseBlockInputText(source.note || '')
+    });
+  });
+  return Object.keys(next).length ? next : undefined;
+}
+
+function normaliseProjectExposureInput(value = {}) {
+  if (!workflowUtils.isPlainObject || !workflowUtils.isPlainObject(value)) return undefined;
+  const financialDrivers = (Array.isArray(value.financialDrivers) ? value.financialDrivers : [])
+    .map(item => {
+      if (!item || typeof item !== 'object') return null;
+      return compactInputValue({
+        id: normaliseInlineInputText(item.id || ''),
+        label: normaliseInlineInputText(item.label || ''),
+        driverType: normaliseInlineInputText(item.driverType || ''),
+        driverStatus: normaliseInlineInputText(item.driverStatus || ''),
+        mapsTo: normaliseInlineInputText(item.mapsTo || ''),
+        confidence: normaliseInlineInputText(item.confidence || ''),
+        source: normaliseInlineInputText(item.source || ''),
+        missingInputs: normaliseStringListInput(item.missingInputs, { maxItems: 6 }),
+        rationale: normaliseBlockInputText(item.rationale || '')
+      });
+    })
+    .filter(Boolean)
+    .slice(0, 12);
+  const missingInputs = (Array.isArray(value.missingInputs) ? value.missingInputs : [])
+    .map(item => {
+      if (typeof item === 'string') return { label: normaliseInlineInputText(item) };
+      if (!item || typeof item !== 'object') return null;
+      return compactInputValue({
+        field: normaliseInlineInputText(item.field || ''),
+        label: normaliseInlineInputText(item.label || ''),
+        importance: normaliseInlineInputText(item.importance || ''),
+        whyItMatters: normaliseBlockInputText(item.whyItMatters || ''),
+        whoMightKnow: normaliseInlineInputText(item.whoMightKnow || ''),
+        suggestedQuestion: normaliseBlockInputText(item.suggestedQuestion || ''),
+        mapsTo: normaliseInlineInputText(item.mapsTo || '')
+      });
+    })
+    .filter(Boolean)
+    .slice(0, 12);
+  return compactInputValue({
+    valuationMode: normaliseInlineInputText(value.valuationMode || ''),
+    projectExposureSummary: normaliseBlockInputText(value.projectExposureSummary || ''),
+    projectInputQuality: value.projectInputQuality && typeof value.projectInputQuality === 'object'
+      ? compactInputValue({
+          score: Number.isFinite(Number(value.projectInputQuality.score)) ? Number(value.projectInputQuality.score) : undefined,
+          label: normaliseInlineInputText(value.projectInputQuality.label || ''),
+          knownHighImpactInputs: normaliseStringListInput(value.projectInputQuality.knownHighImpactInputs, { maxItems: 8 }),
+          estimatedHighImpactInputs: normaliseStringListInput(value.projectInputQuality.estimatedHighImpactInputs, { maxItems: 8 }),
+          unknownHighImpactInputs: normaliseStringListInput(value.projectInputQuality.unknownHighImpactInputs, { maxItems: 8 })
+        })
+      : undefined,
+    financialDrivers,
+    capsAndOffsets: normaliseStringListInput(value.capsAndOffsets, { maxItems: 8 }),
+    doubleCountingWarnings: normaliseStringListInput(value.doubleCountingWarnings, { maxItems: 8 }),
+    missingInputs
+  });
+}
+
 function normaliseBaselineAssessmentInput(value = {}) {
   if (!workflowUtils.isPlainObject || !workflowUtils.isPlainObject(value)) return undefined;
   return compactInputValue({
     scenarioTitle: normaliseInlineInputText(value.scenarioTitle || ''),
+    assessmentType: normaliseInlineInputText(value.assessmentType || ''),
     narrative: normaliseBlockInputText(value.narrative || ''),
     enhancedNarrative: normaliseBlockInputText(value.enhancedNarrative || ''),
     structuredScenario: normaliseStructuredScenarioInput(value.structuredScenario),
@@ -130,7 +240,13 @@ function normaliseBaselineAssessmentInput(value = {}) {
     geography: normaliseInlineInputText(value.geography || ''),
     applicableRegulations: normaliseStringListInput(value.applicableRegulations, { maxItems: 12 }),
     fairParams: normaliseFairParamsInput(value.fairParams),
-    results: normaliseResultsInput(value.results)
+    results: normaliseResultsInput(value.results),
+    projectContext: normaliseProjectContextInput(value.projectContext),
+    buyerEconomics: normaliseProjectEconomicsInput(value.buyerEconomics),
+    buyerEconomicsMeta: normaliseProjectEconomicsMetaInput(value.buyerEconomicsMeta),
+    sellerEconomics: normaliseProjectEconomicsInput(value.sellerEconomics),
+    sellerEconomicsMeta: normaliseProjectEconomicsMetaInput(value.sellerEconomicsMeta),
+    projectExposure: normaliseProjectExposureInput(value.projectExposure)
   });
 }
 
@@ -780,6 +896,220 @@ function buildTreatmentImprovementStub(input = {}, context = null) {
   };
 }
 
+function normaliseTradeoffText(value = '', fallback = '') {
+  return cleanUserFacingText(value || fallback || '', { maxSentences: 2 }) || String(fallback || '').trim();
+}
+
+function normaliseTradeoffStringList(items = [], fallback = []) {
+  const source = Array.isArray(items) ? items : (items ? [items] : fallback);
+  return Array.from(new Set(source
+    .map(item => cleanUserFacingText(item?.label || item?.field || item, { maxSentences: 1, stripTrailingPeriod: true }))
+    .filter(Boolean)))
+    .slice(0, 8);
+}
+
+function getTreatmentSuggestedLikely(output = {}, group = '', key = '') {
+  const suggested = output?.suggestedInputs || {};
+  if (group === 'lossComponents') return Number(suggested?.lossComponents?.[key]?.likely);
+  return Number(suggested?.[key]?.likely);
+}
+
+function getBaselineLikely(input = {}, key = '') {
+  const fair = getBaselineFairInputs(input);
+  return Number(fair?.[key]);
+}
+
+function describeLikelyDelta(current, baseline, {
+  downText = 'reduced',
+  upText = 'increased',
+  flatText = 'not materially changed',
+  unit = ''
+} = {}) {
+  const next = Number(current);
+  const prior = Number(baseline);
+  if (!Number.isFinite(next) || !Number.isFinite(prior)) return flatText;
+  const delta = next - prior;
+  if (Math.abs(delta) < 0.0001) return flatText;
+  const direction = delta < 0 ? downText : upText;
+  const magnitude = Math.abs(delta);
+  return `${direction} by ${Number(magnitude.toFixed(2))}${unit}`;
+}
+
+function collectTreatmentUnknownDrivers(input = {}) {
+  const exposure = input?.baselineAssessment?.projectExposure || {};
+  const quality = exposure?.projectInputQuality || {};
+  const missing = Array.isArray(exposure?.missingInputs) ? exposure.missingInputs : [];
+  const drivers = Array.isArray(exposure?.financialDrivers) ? exposure.financialDrivers : [];
+  return Array.from(new Set([
+    ...normaliseTradeoffStringList(quality.unknownHighImpactInputs),
+    ...missing.map(item => item?.label || item?.field || item).filter(Boolean),
+    ...drivers
+      .filter(item => /unquantified|unknown/i.test(String(item?.driverStatus || item?.source || '')))
+      .flatMap(item => [
+        item.label || item.id || item.driverType,
+        ...(Array.isArray(item.missingInputs) ? item.missingInputs : [])
+      ])
+  ].map(item => cleanUserFacingText(item, { maxSentences: 1, stripTrailingPeriod: true })).filter(Boolean))).slice(0, 10);
+}
+
+function inferTreatmentImplementationBurden(request = '') {
+  const text = String(request || '').toLowerCase();
+  if (/\b(platform|migration|replace|implement|rollout|deploy|architecture|segmentation|contract renegotiation|alternate supplier|reprocurement|new supplier)\b/.test(text)) {
+    return 'high';
+  }
+  if (/\b(mfa|monitor|detect|response|playbook|exercise|training|review|approval|contract amendment|sla|supplier assurance)\b/.test(text)) {
+    return 'medium';
+  }
+  return 'low';
+}
+
+function inferTreatmentEvidenceStrength(input = {}) {
+  const citations = Array.isArray(input.citations) ? input.citations : [];
+  const baseline = input.baselineAssessment || {};
+  const hasProjectEvidence = Array.isArray(baseline.projectExposure?.financialDrivers)
+    && baseline.projectExposure.financialDrivers.some(item => /known|evidence|derived|estimated|benchmark/i.test(String(item?.source || item?.driverStatus || '')));
+  if (citations.length >= 2 || hasProjectEvidence) return 'partial';
+  if (citations.length === 1) return 'weak';
+  return 'weak';
+}
+
+function buildProjectEconomicsTreatmentEffect(input = {}, unknownDrivers = []) {
+  const type = String(input?.baselineAssessment?.assessmentType || 'enterprise_generic').trim();
+  const request = String(input?.improvementRequest || '').toLowerCase();
+  const firstUnknown = unknownDrivers[0] || '';
+  if (type === 'project_buyer') {
+    const mechanisms = [];
+    if (/delay|milestone|go-live|contain|recover|resilien|supplier/.test(request)) mechanisms.push('delay exposure');
+    if (/alternate|supplier|reprocure|vendor|contractor/.test(request)) mechanisms.push('reprocurement exposure');
+    if (/recover|credit|insurance|liquidated|ld|claim/.test(request)) mechanisms.push('recoveries or contractual offsets');
+    return `${mechanisms.length ? `Likely affects ${joinList(mechanisms)}.` : 'Likely affects buyer-side project exposure if it changes delivery timing, replacement options, or recoveries.'}${firstUnknown ? ` Benefit cannot be quantified until ${firstUnknown} is known.` : ''}`;
+  }
+  if (type === 'project_seller') {
+    const mechanisms = [];
+    if (/margin|cost|cure|delivery|overrun/.test(request)) mechanisms.push('margin or cost-to-cure exposure');
+    if (/sla|service credit|liquidated|ld|penalt/.test(request)) mechanisms.push('LD/SLA exposure');
+    if (/terminate|renewal|customer|revenue/.test(request)) mechanisms.push('termination, revenue, or renewal exposure');
+    return `${mechanisms.length ? `Likely affects ${joinList(mechanisms)}.` : 'Likely affects seller-side exposure if it changes delivery cost, penalties, revenue timing, or termination risk.'}${firstUnknown ? ` Benefit cannot be quantified until ${firstUnknown} is known.` : ''}`;
+  }
+  return 'Project economics are not the primary lens for this generic enterprise assessment.';
+}
+
+function buildTreatmentTradeoff(input = {}, output = {}) {
+  const unknownDrivers = collectTreatmentUnknownDrivers(input);
+  const frequencyDelta = describeLikelyDelta(
+    getTreatmentSuggestedLikely(output, '', 'TEF'),
+    getBaselineLikely(input, 'tefLikely'),
+    {
+      downText: 'Likely event frequency reduced',
+      upText: 'Likely event frequency increased',
+      flatText: 'No explicit frequency reduction has been modelled'
+    }
+  );
+  const controlDelta = describeLikelyDelta(
+    getTreatmentSuggestedLikely(output, '', 'controlStrength'),
+    getBaselineLikely(input, 'controlStrLikely'),
+    {
+      downText: 'Control strength reduced',
+      upText: 'Control strength improved',
+      flatText: 'No explicit vulnerability/control-strength change has been modelled'
+    }
+  );
+  const biDelta = describeLikelyDelta(
+    getTreatmentSuggestedLikely(output, 'lossComponents', 'businessInterruption'),
+    getBaselineLikely(input, 'biLikely'),
+    {
+      downText: 'Likely business interruption impact reduced',
+      upText: 'Likely business interruption impact increased',
+      flatText: 'No explicit event-loss impact change has been modelled'
+    }
+  );
+  const irDelta = describeLikelyDelta(
+    getTreatmentSuggestedLikely(output, 'lossComponents', 'incidentResponse'),
+    getBaselineLikely(input, 'irLikely'),
+    {
+      downText: 'incident response cost reduced',
+      upText: 'incident response cost increased',
+      flatText: ''
+    }
+  );
+  const affectsEventLoss = [biDelta, irDelta].filter(Boolean).join('; ') || 'Event-loss benefit is qualitative until the changed loss components are rerun.';
+  const affectsAnnualizedLoss = /frequency reduced|impact reduced|cost reduced|control strength improved/i.test(`${frequencyDelta} ${affectsEventLoss} ${controlDelta}`)
+    ? 'Annualized loss should fall only where lower frequency, lower vulnerability, or lower event-loss assumptions are applied and then simulated.'
+    : 'Annualized loss is not expected to move materially unless frequency, vulnerability, or event-loss inputs change.';
+  const projectEffect = buildProjectEconomicsTreatmentEffect(input, unknownDrivers);
+  const affectsProjectHorizonLoss = String(input?.baselineAssessment?.assessmentType || '') === 'project_buyer' || String(input?.baselineAssessment?.assessmentType || '') === 'project_seller'
+    ? `${projectEffect} Project-horizon loss should be rerun after the future-state assumptions are applied.`
+    : 'Not applicable unless this assessment is run as a buyer or seller project risk.';
+  const burden = inferTreatmentImplementationBurden(input.improvementRequest || '');
+  const evidenceStrength = inferTreatmentEvidenceStrength(input);
+  const unknownSentence = unknownDrivers[0] ? `Benefit cannot be quantified until ${unknownDrivers[0]} is known.` : '';
+  return {
+    summary: normaliseTradeoffText(
+      output?.changesSummary || output?.summary || '',
+      'The treatment path should be judged by which assumptions it changes, what remains unknown, and whether implementation burden is proportionate.'
+    ),
+    options: [{
+      title: 'Modelled treatment path',
+      affectsFrequency: frequencyDelta,
+      affectsVulnerability: controlDelta,
+      affectsEventLoss,
+      affectsAnnualizedLoss,
+      affectsProjectHorizonLoss,
+      affectsProjectEconomics: projectEffect,
+      affectedUnknownDrivers: unknownDrivers,
+      evidenceStrength,
+      residualUncertainty: unknownSentence || 'Residual uncertainty depends on whether the future-state assumptions can be evidenced after implementation.',
+      implementationBurden: burden,
+      rationale: normaliseTradeoffText(output?.inputRationale?.lossComponents || output?.changesSummary || '', 'The treatment should be credited only for assumptions it plausibly changes.'),
+      bestFor: String(input?.baselineAssessment?.assessmentType || '') === 'project_buyer'
+        ? 'Buyer project risks where the treatment protects delivery timing, supplier options, or recoveries.'
+        : String(input?.baselineAssessment?.assessmentType || '') === 'project_seller'
+          ? 'Seller project risks where the treatment protects margin, delivery cost, penalty exposure, or customer continuity.'
+          : 'Generic enterprise risks where the treatment credibly changes likelihood, vulnerability, or direct event impact.',
+      limitation: unknownSentence || 'Quantified benefit depends on running the future-state case and validating the changed assumptions.'
+    }],
+    recommendedPath: unknownSentence
+      ? `Proceed with the treatment comparison as directional, but answer the missing input first if it could change sponsorship. ${unknownSentence}`
+      : 'Use the treatment comparison after simulation, then validate the assumptions with evidence before sponsorship.'
+  };
+}
+
+function normaliseTreatmentTradeoff(value = {}, fallbackSource = null, input = {}, output = {}) {
+  const fallback = typeof fallbackSource === 'function'
+    ? fallbackSource()
+    : (fallbackSource && typeof fallbackSource === 'object' ? fallbackSource : buildTreatmentTradeoff(input, output));
+  const source = value && typeof value === 'object' ? value : {};
+  const parsedOptions = Array.isArray(source.options) ? source.options : [];
+  const fallbackOptions = Array.isArray(fallback.options) ? fallback.options : [];
+  const options = (parsedOptions.length ? parsedOptions : fallbackOptions)
+    .map((item, index) => {
+      const fallbackOption = fallbackOptions[index] || fallbackOptions[0] || {};
+      const option = item && typeof item === 'object' ? item : {};
+      return {
+        title: normaliseTradeoffText(option.title, fallbackOption.title || 'Treatment option'),
+        affectsFrequency: normaliseTradeoffText(option.affectsFrequency, fallbackOption.affectsFrequency || ''),
+        affectsVulnerability: normaliseTradeoffText(option.affectsVulnerability, fallbackOption.affectsVulnerability || ''),
+        affectsEventLoss: normaliseTradeoffText(option.affectsEventLoss, fallbackOption.affectsEventLoss || ''),
+        affectsAnnualizedLoss: normaliseTradeoffText(option.affectsAnnualizedLoss, fallbackOption.affectsAnnualizedLoss || ''),
+        affectsProjectHorizonLoss: normaliseTradeoffText(option.affectsProjectHorizonLoss, fallbackOption.affectsProjectHorizonLoss || ''),
+        affectsProjectEconomics: normaliseTradeoffText(option.affectsProjectEconomics, fallbackOption.affectsProjectEconomics || ''),
+        affectedUnknownDrivers: normaliseTradeoffStringList(option.affectedUnknownDrivers, fallbackOption.affectedUnknownDrivers || []),
+        evidenceStrength: normaliseTradeoffText(option.evidenceStrength, fallbackOption.evidenceStrength || 'weak'),
+        residualUncertainty: normaliseTradeoffText(option.residualUncertainty, fallbackOption.residualUncertainty || ''),
+        implementationBurden: normaliseTradeoffText(option.implementationBurden, fallbackOption.implementationBurden || 'medium'),
+        rationale: normaliseTradeoffText(option.rationale, fallbackOption.rationale || ''),
+        bestFor: normaliseTradeoffText(option.bestFor, fallbackOption.bestFor || ''),
+        limitation: normaliseTradeoffText(option.limitation, fallbackOption.limitation || '')
+      };
+    })
+    .slice(0, 4);
+  return {
+    summary: normaliseTradeoffText(source.summary, fallback.summary || ''),
+    options,
+    recommendedPath: normaliseTradeoffText(source.recommendedPath, fallback.recommendedPath || '')
+  };
+}
+
 function classifyTreatmentText(text = '', acceptedContext = {}) {
   const cleanText = cleanUserFacingText(text, { maxSentences: 6 });
   if (!cleanText) {
@@ -1105,10 +1435,18 @@ function finaliseTreatmentSuggestionResult(result = {}, { input = {} } = {}) {
     input,
     sourceMode
   });
+  const attachTradeoff = (output = {}) => {
+    const fallbackTradeoff = buildTreatmentTradeoff(input, output);
+    return {
+      ...output,
+      treatmentTradeoff: normaliseTreatmentTradeoff(output.treatmentTradeoff, fallbackTradeoff, input, output)
+    };
+  };
   if (enforced.coherenceMode === 'fallback_replaced' && sourceMode === 'live') {
+    const output = attachTradeoff(enforced.output);
     return {
       ...result,
-      ...enforced.output,
+      ...output,
       mode: 'deterministic_fallback',
       usedFallback: true,
       aiUnavailable: false,
@@ -1118,15 +1456,16 @@ function finaliseTreatmentSuggestionResult(result = {}, { input = {} } = {}) {
     };
   }
   if (enforced.coherenceMode === 'fallback_replaced') {
+    const output = attachTradeoff(enforced.output);
     return {
       ...result,
-      ...enforced.output,
+      ...output,
       mode: sourceMode,
       usedFallback: result?.usedFallback,
       aiUnavailable: result?.aiUnavailable
     };
   }
-  return enforced.output;
+  return attachTradeoff(enforced.output);
 }
 
 function buildFallbackTreatmentSuggestionResult(input = {}, {
@@ -1145,9 +1484,11 @@ function buildFallbackTreatmentSuggestionResult(input = {}, {
     userProfile: input.adminSettings?.userProfileSummary
   });
   const stub = buildTreatmentImprovementStub(input);
+  const treatmentTradeoff = buildTreatmentTradeoff(input, stub);
   return buildDeterministicFallbackResult({
     baseResult: {
-      ...stub
+      ...stub,
+      treatmentTradeoff
     },
     fallbackReason: fallbackReason || {
       code: 'server_treatment_fallback',
@@ -1213,6 +1554,11 @@ function buildManualTreatmentSuggestionResult(input = {}, { traceLabel = 'Step 3
         lossComponents: ''
       },
       suggestedInputs: {},
+      treatmentTradeoff: buildTreatmentTradeoff(input, {
+        summary: 'The better-outcome case stayed manual because the current request or baseline data is incomplete.',
+        changesSummary: 'No treatment adjustments were applied.',
+        suggestedInputs: {}
+      }),
       citations: Array.isArray(input.citations) ? input.citations : []
     },
     manualReason: {
@@ -1278,7 +1624,7 @@ function normaliseTreatmentSuggestionCandidate(parsed = {}, fallbackSource = nul
   const parsedSuggestedInputs = parsed?.suggestedInputs && typeof parsed.suggestedInputs === 'object' ? parsed.suggestedInputs : {};
   const getFallbackSuggestedInputs = () => (getFallback().suggestedInputs || {});
   const getFallbackLossComponents = () => (getFallbackSuggestedInputs().lossComponents || {});
-  return {
+  const candidate = {
     summary: parsedSummary || cleanUserFacingText(getFallback().summary || '', { maxSentences: 2 }),
     changesSummary: parsedChangesSummary || cleanUserFacingText(getFallback().changesSummary || '', { maxSentences: 3 }),
     workflowGuidance: parsedWorkflowGuidance.length ? parsedWorkflowGuidance : normaliseGuidance(getFallback().workflowGuidance),
@@ -1303,6 +1649,13 @@ function normaliseTreatmentSuggestionCandidate(parsed = {}, fallbackSource = nul
     },
     citations: Array.isArray(input.citations) ? input.citations : []
   };
+  candidate.treatmentTradeoff = normaliseTreatmentTradeoff(
+    parsed.treatmentTradeoff,
+    getFallback().treatmentTradeoff || buildTreatmentTradeoff(input, candidate),
+    input,
+    candidate
+  );
+  return candidate;
 }
 
 const TREATMENT_SUGGESTION_TIMEOUTS = buildWorkflowTimeoutProfile({
@@ -1351,6 +1704,28 @@ async function buildTreatmentSuggestionWorkflow(input = {}) {
     "vulnerability": "string",
     "lossComponents": "string"
   },
+  "treatmentTradeoff": {
+    "summary": "string",
+    "options": [
+      {
+        "title": "string",
+        "affectsFrequency": "string",
+        "affectsVulnerability": "string",
+        "affectsEventLoss": "string",
+        "affectsAnnualizedLoss": "string",
+        "affectsProjectHorizonLoss": "string",
+        "affectsProjectEconomics": "string",
+        "affectedUnknownDrivers": ["string"],
+        "evidenceStrength": "string",
+        "residualUncertainty": "string",
+        "implementationBurden": "string",
+        "rationale": "string",
+        "bestFor": "string",
+        "limitation": "string"
+      }
+    ],
+    "recommendedPath": "string"
+  },
   "suggestedInputs": {
     "TEF": { "min": number, "likely": number, "max": number },
     "controlStrength": { "min": number, "likely": number, "max": number },
@@ -1375,6 +1750,12 @@ Rules:
 - adjust only the FAIR inputs that are plausibly improved by the user's request
 - keep changes credible and proportionate
 - do not reduce every value automatically; preserve unchanged inputs where the request does not justify a shift
+- distinguish reducing likelihood/frequency from reducing event impact/loss
+- do not claim quantified risk reduction without saying which FAIR parameter or project driver changes
+- for buyer project risks, explain effect on delay, reprocurement, spend at risk, and recoveries where relevant
+- for seller project risks, explain effect on margin, cost to cure, LD/SLA, and termination where relevant
+- if a key project value is unknown, say exactly: "Benefit cannot be quantified until [input] is known."
+- flag implementation burden, weak evidence, and residual uncertainty
 - explain the future-state logic in plain business language`;
   const fairInputs = input.baselineAssessment?.fairParams || input.baselineAssessment?.results?.inputs || {};
   const userPrompt = `Baseline scenario title: ${input.baselineAssessment?.scenarioTitle || 'Untitled scenario'}
@@ -1384,6 +1765,11 @@ Geography: ${input.baselineAssessment?.geography || input.businessUnit?.geograph
 User improvement request: ${truncateText(input.improvementRequest || '(none)', 1200)}
 Current FAIR inputs:
 ${JSON.stringify(fairInputs, null, 2)}
+Assessment type: ${input.baselineAssessment?.assessmentType || 'enterprise_generic'}
+Project context:
+${JSON.stringify(input.baselineAssessment?.projectContext || {}, null, 2)}
+Project exposure:
+${JSON.stringify(input.baselineAssessment?.projectExposure || {}, null, 2)}
 Live scoped context:
 ${truncateText(buildContextPromptBlock(input.adminSettings || {}, input.businessUnit || null), 1400)}
 
@@ -1393,6 +1779,11 @@ Instructions:
 - keep changes credible and proportionate
 - explain what changed in plain language
 - prefer stronger controls, lower event frequency, lower vulnerability, or lower loss only when justified by the user's request
+- distinguish likelihood/frequency reductions from impact/event-loss reductions
+- include treatmentTradeoff with what changes, expected benefit if quantifiable, what cannot yet be quantified, uncertainty, implementation burden, and recommended path
+- for buyer project risks, discuss delay, reprocurement, spend-at-risk, recoveries, and project-horizon effects where relevant
+- for seller project risks, discuss margin, cost-to-cure, LD/SLA, termination, revenue, and project-horizon effects where relevant
+- do not turn unknown project economics into precise benefit; use the exact caveat "Benefit cannot be quantified until [input] is known." where applicable
 
 Evidence quality context:
 ${truncateText(evidenceMeta.promptBlock || '', 320)}`;

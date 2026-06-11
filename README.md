@@ -51,6 +51,23 @@ Core capabilities:
    - Appendix & Evidence
 9. Compare a better outcome, export, submit for review, or revisit later
 
+## Assessment Types And Project Valuation
+
+Every assessment starts with a department-agnostic route choice. The route is based on the economic nature of the risk, not on whether the user sits in Finance, Legal, Procurement, IT, or another function.
+
+Current assessment types:
+- `enterprise_generic`: use when the risk affects a process, function, system, supplier, obligation, business unit, control, or operation, but is not tied to a specific project spend, revenue opportunity, or contract.
+- `project_buyer`: use when the organisation is buying, procuring, implementing, investing in, or depending on a project, supplier, contractor, platform, or delivery partner.
+- `project_seller`: use when the organisation is delivering a project, service, implementation, contract, bid, or revenue commitment to a customer.
+
+Project-linked valuation is optional and can run with sparse economics. Blank financial fields mean `unknown`, not zero. Explicit zero remains a real zero when the user provides it. Unknown values are carried forward as missing inputs, assumptions, benchmark-proxy candidates, confidence limitations, or stress-case candidates.
+
+Project value, project spend, contract value, and revenue are exposure bases. They are not treated as automatic losses. Buyer project logic separates delay, reprocurement, sunk cost, delayed benefit, recoveries, and caps. Seller project logic separates revenue at risk, margin at risk, delivery cost, LD/SLA exposure, termination, recoveries, and caps.
+
+Step 4 supports benchmark-led, project-linked, and hybrid valuation modes. Generic enterprise assessments keep the benchmark-led behavior by default. Buyer and seller project assessments default toward hybrid so benchmark context remains available while project-specific drivers can be reviewed and applied explicitly.
+
+Pilot boundary: this project-assessment workflow is decision-support foundation for the PoC. It should not be described as production-ready without a separate operational readiness review.
+
 ## Current User Experience Model
 
 The authenticated workspace defaults to `Basic` mode. Every user can switch between `Basic` and `Advanced` from the top bar, next to the currency toggle.

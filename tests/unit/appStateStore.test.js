@@ -18,6 +18,7 @@ const {
 const expectedLearningStore = {
   templates: {},
   scenarioPatterns: [],
+  caseMemories: [],
   analystSignals: {
     keptRisks: [],
     removedRisks: [],
@@ -25,7 +26,8 @@ const expectedLearningStore = {
     rerunDeltas: []
   },
   aiFeedback: {
-    events: []
+    events: [],
+    structuredEvents: []
   }
 };
 

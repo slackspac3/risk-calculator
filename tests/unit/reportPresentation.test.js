@@ -175,3 +175,144 @@ test('buildAnalystAdvisorySummary layers meaning confidence and treatment contex
   assert.match(summary.treatment, /improves the severe-event position/i);
   assert.match(summary.close, /simulated status/i);
 });
+
+function buildProjectResultFixture(overrides = {}) {
+  return {
+    eventLoss: { p90: 250000 },
+    annualLoss: { mean: 120000, p90: 400000 },
+    lm: { p90: 250000 },
+    ale: { mean: 120000, p90: 400000 },
+    toleranceDetail: { lmExceedProb: 0.12 },
+    annualReviewTriggered: false,
+    projectHorizon: {
+      enabled: true,
+      loss: { mean: 90000, p90: 220000 },
+      eventProbability: 0.18,
+      durationMonths: 9,
+      durationSourceStatus: 'estimated',
+      confidenceLabel: 'Estimate-led project horizon',
+      lossAsPctOfProjectValue: { p90: 0.11 },
+      lossAsPctOfMargin: { p90: 0.44 },
+      caveats: []
+    },
+    ...overrides
+  };
+}
+
+test('buildProjectResultsModel keeps generic enterprise results project-free', () => {
+  const model = ReportPresentation.buildProjectResultsModel(
+    { assessmentType: 'enterprise_generic' },
+    buildProjectResultFixture({ projectHorizon: null }),
+    value => `$${Number(value || 0).toLocaleString('en-US')}`
+  );
+
+  assert.equal(model.isProject, false);
+  assert.equal(model.title, 'Enterprise risk estimate');
+  assert.ok(model.metrics.some(item => item.label === 'Event loss'));
+  assert.ok(model.metrics.some(item => item.label === 'Annualized loss'));
+});
+
+test('buildProjectResultsModel renders buyer economics without turning sparse unknowns into zero', () => {
+  const model = ReportPresentation.buildProjectResultsModel(
+    {
+      assessmentType: 'project_buyer',
+      buyerEconomics: { expectedSpend: null, approvedBudget: null },
+      buyerEconomicsMeta: {
+        expectedSpend: { status: 'unknown', confidence: 'unknown', source: 'not_provided' }
+      },
+      projectExposure: {
+        projectExposureSummary: 'Buyer exposure is delay-led but economics are sparse.',
+        projectInputQuality: {
+          score: 35,
+          label: 'Thin project economics',
+          unknownHighImpactInputs: [{ field: 'expectedSpend', label: 'Expected spend' }]
+        },
+        financialDrivers: [
+          {
+            id: 'buyer-delay',
+            label: 'Delay cost',
+            driverType: 'delay',
+            driverStatus: 'unquantified_driver',
+            low: null,
+            likely: null,
+            high: null,
+            confidence: 'low',
+            missingInputs: [{ field: 'delayCostPerDay', label: 'Delay cost per day' }]
+          }
+        ],
+        missingInputs: [
+          { field: 'expectedSpend', label: 'Expected spend', importance: 'high', whyItMatters: 'Needed for spend denominator.' }
+        ]
+      }
+    },
+    buildProjectResultFixture(),
+    value => `$${Number(value || 0).toLocaleString('en-US')}`
+  );
+
+  assert.equal(model.isProject, true);
+  assert.equal(model.title, 'Project buyer exposure');
+  assert.equal(model.knownValues.length, 0);
+  assert.ok(model.unknownHighImpactValues.includes('Expected spend'));
+  assert.equal(model.driverGroups.unquantified[0].rangeLabel, 'Not quantified');
+  assert.doesNotMatch(JSON.stringify(model), /\$0/);
+});
+
+test('buildProjectResultsModel renders seller economics with proxy and margin context', () => {
+  const model = ReportPresentation.buildProjectResultsModel(
+    {
+      assessmentType: 'project_seller',
+      sellerEconomics: {
+        contractValue: 1000000,
+        contributionMargin: 250000
+      },
+      sellerEconomicsMeta: {
+        contractValue: { status: 'benchmark_proxy', confidence: 'low', source: 'benchmark' },
+        contributionMargin: { status: 'estimated', confidence: 'medium', source: 'user' }
+      },
+      projectExposure: {
+        projectExposureSummary: 'Seller exposure is margin and LD led.',
+        projectInputQuality: { score: 65, label: 'Partial project economics' },
+        financialDrivers: [
+          {
+            id: 'seller-margin',
+            label: 'Margin at risk',
+            driverType: 'margin_at_risk',
+            driverStatus: 'estimated_driver',
+            low: 100000,
+            likely: 180000,
+            high: 250000,
+            confidence: 'medium',
+            rationale: 'Uses estimated contribution margin.'
+          }
+        ],
+        doubleCountingWarnings: ['Do not count total contract value and margin together.']
+      }
+    },
+    buildProjectResultFixture(),
+    value => `$${Number(value || 0).toLocaleString('en-US')}`
+  );
+
+  assert.equal(model.title, 'Project seller exposure');
+  assert.ok(model.estimatedValues.some(item => item.label === 'Contract value'));
+  assert.ok(model.estimatedValues.some(item => item.label === 'Expected margin'));
+  assert.equal(model.driverGroups.proxyEstimated[0].label, 'Margin at risk');
+  assert.equal(model.projectHorizon.lossAsPctOfMarginLabel, '44.0%');
+  assert.match(model.doubleCountingWarnings[0], /contract value and margin/i);
+});
+
+test('buildProjectResultsModel tolerates missing projectExposure safely', () => {
+  const model = ReportPresentation.buildProjectResultsModel(
+    {
+      assessmentType: 'project_buyer',
+      buyerEconomics: {},
+      buyerEconomicsMeta: {}
+    },
+    buildProjectResultFixture({ projectHorizon: { enabled: false, skippedReason: 'project_duration_missing' } }),
+    value => `$${Number(value || 0).toLocaleString('en-US')}`
+  );
+
+  assert.equal(model.isProject, true);
+  assert.match(model.summary, /Project economics are thin/i);
+  assert.equal(model.driverGroups.quantified.length, 0);
+  assert.equal(model.projectHorizon.enabled, false);
+});

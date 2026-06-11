@@ -58,7 +58,8 @@ function createEmptyCalibrationStore() {
 function createEmptyFeedbackStore() {
   return {
     updatedAt: 0,
-    events: []
+    events: [],
+    structuredEvents: []
   };
 }
 
@@ -324,7 +325,8 @@ async function resetUserTierAiFeedback() {
             ...((currentState?.learningStore?.aiFeedback && typeof currentState.learningStore.aiFeedback === 'object')
               ? currentState.learningStore.aiFeedback
               : {}),
-            events: []
+            events: [],
+            structuredEvents: []
           }
         }
       };
@@ -498,7 +500,8 @@ module.exports = async function handler(req, res) {
         const includeUserTier = body.includeUserTier === true;
         const nextFeedback = {
           updatedAt: Date.now(),
-          events: []
+          events: [],
+          structuredEvents: []
         };
         await withKvLock(AI_FEEDBACK_KEY, async () => {
           await writeJsonKey(AI_FEEDBACK_KEY, nextFeedback);

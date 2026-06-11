@@ -15,6 +15,9 @@ const {
   summariseScenarioScores,
   filterDataset
 } = require('./eval/lib/scenarioEval.js');
+const {
+  runProjectDecisionEvalFixtures
+} = require('./eval/lib/projectDecisionEval.js');
 const { loadBrowserLlmService } = require('./eval/lib/loadBrowserLlmService.js');
 const { loadBrowserRagService } = require('./eval/lib/loadBrowserRagService.js');
 
@@ -118,12 +121,17 @@ async function main() {
   }
 
   const summary = summariseScenarioScores(scenarios);
+  const projectDecisionSupport = runProjectDecisionEvalFixtures();
+  summary.projectDecisionSupportPassRate = projectDecisionSupport.summary.passRate;
+  summary.projectDecisionSupportDimensionPassRate = projectDecisionSupport.summary.dimensionPassRate;
+  summary.projectDecisionSupportCases = projectDecisionSupport.summary.total;
   const report = {
     generatedAt: new Date().toISOString(),
     datasetPath: path.resolve(args.dataset),
     outputPath: path.resolve(args.output),
     mode: liveMode ? 'live' : 'stub',
     summary,
+    projectDecisionSupport,
     scenarios
   };
   ensureParentDir(args.output);

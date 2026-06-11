@@ -9,6 +9,10 @@ const {
   buildEvalInput,
   scoreGeneratedScenario
 } = require('../../scripts/eval/lib/scenarioEval.js');
+const {
+  PROJECT_DECISION_EVAL_FIXTURES,
+  runProjectDecisionEvalFixtures
+} = require('../../scripts/eval/lib/projectDecisionEval.js');
 
 test('eval fixture stays structurally complete and balanced', () => {
   const dataset = loadEvalDataset(DEFAULT_DATASET_PATH);
@@ -80,4 +84,31 @@ test('scoreGeneratedScenario rewards coherent outputs and flags invalid leakage'
   assert.equal(drifted.pass, false);
   assert.equal(drifted.primaryLensPass, false);
   assert.equal(drifted.invalidRiskLeakage > 0, true);
+});
+
+test('project decision-support eval fixtures run locally without live AI', () => {
+  assert.equal(PROJECT_DECISION_EVAL_FIXTURES.length, 7);
+  const report = runProjectDecisionEvalFixtures();
+  assert.equal(report.summary.total, 7);
+  assert.equal(report.summary.passed, 7);
+  assert.equal(report.summary.passRate, 1);
+  assert.equal(report.summary.dimensionPassRate, 1);
+  assert.deepEqual(report.summary.failedCases, []);
+
+  const buyerSparse = report.cases.find(item => item.id === 'project-eval-b-buyer-supplier-delay-sparse');
+  assert.equal(buyerSparse.score.dimensions.blankValuesNotTreatedAsZero, true);
+  assert.equal(buyerSparse.score.dimensions.projectBuyerTotalSpendNotAutomaticLoss, true);
+  assert.equal(buyerSparse.score.dimensions.mappedRiskBucketsPresent, true);
+
+  const sellerSparse = report.cases.find(item => item.id === 'project-eval-c-seller-fixed-price-sparse');
+  assert.equal(sellerSparse.score.dimensions.blankLdCapDoesNotMeanNoLdExposure, true);
+  assert.equal(sellerSparse.score.dimensions.unknownMarginNoFalsePrecision, true);
+  assert.equal(sellerSparse.score.dimensions.sellerRevenueAndMarginNotDoubleCounted, true);
+
+  const contradiction = report.cases.find(item => item.id === 'project-eval-d-recovery-contradiction');
+  assert.equal(contradiction.score.dimensions.contradictionDetected, true);
+  assert.equal(contradiction.score.dimensions.assumptionRegisterMarksWeakOrReview, true);
+
+  const explicitZero = report.cases.find(item => item.id === 'project-eval-g-explicit-zero-recovery');
+  assert.equal(explicitZero.score.dimensions.explicitZeroPreserved, true);
 });

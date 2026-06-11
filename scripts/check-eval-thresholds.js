@@ -28,6 +28,59 @@ const RELEASE_EVAL_THRESHOLD_PROFILES = Object.freeze({
   })
 });
 
+const PROJECT_DECISION_EVAL_REQUIRED_CASES = Object.freeze([
+  {
+    id: 'project-eval-b-buyer-supplier-delay-sparse',
+    dimension: 'blankValuesNotTreatedAsZero',
+    failure: 'blank delay cost becomes zero or is not carried as an unknown project input'
+  },
+  {
+    id: 'project-eval-b-buyer-supplier-delay-sparse',
+    dimension: 'projectBuyerTotalSpendNotAutomaticLoss',
+    failure: 'buyer project spend is treated as automatic loss'
+  },
+  {
+    id: 'project-eval-c-seller-fixed-price-sparse',
+    dimension: 'blankLdCapDoesNotMeanNoLdExposure',
+    failure: 'blank LD cap becomes no LD exposure'
+  },
+  {
+    id: 'project-eval-c-seller-fixed-price-sparse',
+    dimension: 'unknownMarginNoFalsePrecision',
+    failure: 'unknown margin produces false margin-at-risk precision'
+  },
+  {
+    id: 'project-eval-c-seller-fixed-price-sparse',
+    dimension: 'sellerRevenueAndMarginNotDoubleCounted',
+    failure: 'seller contract value is double-counted with margin'
+  },
+  {
+    id: 'project-eval-d-recovery-contradiction',
+    dimension: 'contradictionDetected',
+    failure: 'contradiction case does not flag contradiction'
+  },
+  {
+    id: 'project-eval-e-near-tolerance-project',
+    dimension: 'nearToleranceChallengePresent',
+    failure: 'near-tolerance challenge missing'
+  },
+  {
+    id: 'project-eval-d-recovery-contradiction',
+    dimension: 'unsupportedEvidenceNotOverstated',
+    failure: 'unsupported or contradicted evidence is overstated as strong'
+  },
+  {
+    id: 'project-eval-e-near-tolerance-project',
+    dimension: 'proxyValuesLabelled',
+    failure: 'proxy values are not labelled'
+  },
+  {
+    id: 'project-eval-g-explicit-zero-recovery',
+    dimension: 'explicitZeroPreserved',
+    failure: 'explicit zero recovery is not preserved'
+  }
+]);
+
 function parseArgs(argv) {
   const args = {
     report: path.resolve(process.cwd(), 'test-results/eval/qa-release-report.json')
@@ -59,6 +112,58 @@ function loadEvalReport(reportPath) {
 function getEvalThresholdProfile(mode = '') {
   const safeMode = String(mode || '').trim().toLowerCase();
   return RELEASE_EVAL_THRESHOLD_PROFILES[safeMode] || RELEASE_EVAL_THRESHOLD_PROFILES.stub;
+}
+
+function evaluateProjectDecisionSupportThresholds(report = {}) {
+  const failures = [];
+  const support = report && typeof report.projectDecisionSupport === 'object'
+    ? report.projectDecisionSupport
+    : null;
+  if (!support) {
+    return {
+      ok: false,
+      failures: ['project decision-support eval section is missing']
+    };
+  }
+  const cases = Array.isArray(support.cases) ? support.cases : [];
+  const summary = support.summary && typeof support.summary === 'object' ? support.summary : {};
+  const total = Number(summary.total ?? support.total ?? cases.length ?? 0);
+  if (total < 7) {
+    failures.push(`project decision-support eval cases ${formatMetric(total)} is below the release minimum 7.000`);
+  }
+  if (Number(summary.passRate ?? 0) < 1) {
+    failures.push(`project decision-support passRate ${formatMetric(summary.passRate)} is below the release minimum 1.000`);
+  }
+  if (Number(summary.dimensionPassRate ?? 0) < 1) {
+    failures.push(`project decision-support dimensionPassRate ${formatMetric(summary.dimensionPassRate)} is below the release minimum 1.000`);
+  }
+
+  cases.forEach((testCase) => {
+    const score = testCase && typeof testCase.score === 'object' ? testCase.score : {};
+    if (score.pass === false) {
+      const failuresForCase = Array.isArray(score.failures) ? score.failures.join(', ') : 'unknown dimensions';
+      failures.push(`project decision-support case ${testCase.id || 'unknown'} failed: ${failuresForCase}`);
+    }
+  });
+
+  PROJECT_DECISION_EVAL_REQUIRED_CASES.forEach((requirement) => {
+    const testCase = cases.find(item => String(item?.id || '') === requirement.id);
+    if (!testCase) {
+      failures.push(`${requirement.failure}: required eval case ${requirement.id} is missing`);
+      return;
+    }
+    const dimensions = testCase.score && typeof testCase.score.dimensions === 'object'
+      ? testCase.score.dimensions
+      : {};
+    if (dimensions[requirement.dimension] !== true) {
+      failures.push(`${requirement.failure}: ${requirement.id}.${requirement.dimension} did not pass`);
+    }
+  });
+
+  return {
+    ok: failures.length === 0,
+    failures
+  };
 }
 
 function evaluateEvalThresholds(report = {}) {
@@ -95,11 +200,15 @@ function evaluateEvalThresholds(report = {}) {
     checkMax('fallbackRate', Number(summary.fallbackRate || 0), profile.fallbackRateMax);
   }
 
+  const projectDecisionSupport = evaluateProjectDecisionSupportThresholds(report);
+  projectDecisionSupport.failures.forEach((failure) => failures.push(failure));
+
   return {
     ok: failures.length === 0,
     mode,
     profile,
     retrievalCoverage,
+    projectDecisionSupport,
     failures
   };
 }
@@ -138,7 +247,9 @@ if (require.main === module) {
 
 module.exports = {
   RELEASE_EVAL_THRESHOLD_PROFILES,
+  PROJECT_DECISION_EVAL_REQUIRED_CASES,
   getEvalThresholdProfile,
   evaluateEvalThresholds,
+  evaluateProjectDecisionSupportThresholds,
   loadEvalReport
 };

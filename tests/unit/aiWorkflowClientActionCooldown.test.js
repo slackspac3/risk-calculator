@@ -165,3 +165,277 @@ test('generateProjectExposureMap posts the normalized project exposure request s
   assert.equal(captured.body.buyerProxyAnswers.mainImpact, 'delay');
   assert.equal(Object.prototype.hasOwnProperty.call(captured.body, 'unexpectedLocalOnly'), false);
 });
+
+test('generateParameterCoach posts the normalized parameter coach request shape', async () => {
+  let captured = null;
+  const clientApi = loadAiWorkflowClient({
+    fetchImpl: async (url, options) => {
+      captured = { url, options, body: JSON.parse(options.body) };
+      return {
+        ok: true,
+        json: async () => ({
+          mode: 'deterministic_fallback',
+          parameterCoach: { parameterRationales: [] },
+          generatedAt: '2026-06-10T00:00:00.000Z'
+        })
+      };
+    }
+  });
+  const client = clientApi.createClient({
+    defaultBaseUrl: 'https://risk-calculator.example',
+    getSessionToken: () => 'session-token'
+  });
+
+  await client.generateParameterCoach({
+    assessmentType: 'project_buyer',
+    scenario: '  Supplier may miss go-live.  ',
+    scenarioLens: { key: 'third-party', label: ' Third party ' },
+    projectExposure: {
+      projectExposureSummary: ' Delay cost is known. ',
+      financialDrivers: [{
+        id: 'buyer-delay-cost',
+        label: 'Delay cost',
+        driverStatus: 'calculated_driver',
+        source: 'user',
+        low: 0,
+        likely: 20000,
+        high: 40000,
+        mapsTo: ['businessInterruption']
+      }],
+      missingInputs: [{ field: 'delayCostPerDay', label: 'Delay cost per day' }]
+    },
+    parameters: {
+      biMin: 0,
+      biLikely: 10000,
+      biMax: 20000,
+      ignoredEmpty: ''
+    },
+    validation: {
+      valid: false,
+      warnings: ['  Review severe business interruption range.  ']
+    },
+    businessContext: {
+      buName: '  G42  '
+    },
+    unexpectedLocalOnly: 'drop me'
+  });
+
+  assert.equal(captured.url, 'https://risk-calculator.example/api/ai/parameter-coach');
+  assert.equal(captured.options.method, 'POST');
+  assert.equal(captured.options.headers['x-session-token'], 'session-token');
+  assert.equal(captured.body.assessmentType, 'project_buyer');
+  assert.equal(captured.body.scenario, 'Supplier may miss go-live.');
+  assert.equal(captured.body.projectExposure.projectExposureSummary, 'Delay cost is known.');
+  assert.equal(captured.body.projectExposure.financialDrivers[0].low, 0);
+  assert.equal(captured.body.parameters.biMin, 0);
+  assert.equal(Object.prototype.hasOwnProperty.call(captured.body.parameters, 'ignoredEmpty'), false);
+  assert.equal(captured.body.validation.valid, false);
+  assert.deepEqual(captured.body.validation.warnings, ['Review severe business interruption range.']);
+  assert.equal(captured.body.businessContext.buName, 'G42');
+  assert.equal(Object.prototype.hasOwnProperty.call(captured.body, 'unexpectedLocalOnly'), false);
+});
+
+test('generateEvidenceMap posts the normalized evidence map request shape', async () => {
+  let captured = null;
+  const clientApi = loadAiWorkflowClient({
+    fetchImpl: async (url, options) => {
+      captured = { url, options, body: JSON.parse(options.body) };
+      return {
+        ok: true,
+        json: async () => ({
+          mode: 'deterministic_fallback',
+          evidenceMap: { supportedClaims: [] },
+          generatedAt: '2026-06-10T00:00:00.000Z'
+        })
+      };
+    }
+  });
+  const client = clientApi.createClient({
+    defaultBaseUrl: 'https://risk-calculator.example',
+    getSessionToken: () => 'session-token'
+  });
+
+  await client.generateEvidenceMap({
+    assessmentType: 'project_seller',
+    scenario: '  Delivery issue may trigger LDs.  ',
+    riskStatement: ' Delivery issue ',
+    projectContext: {
+      projectName: '  Customer implementation  ',
+      projectRole: 'seller'
+    },
+    projectExposure: {
+      missingInputs: [{ field: 'grossMarginPct', label: ' Gross margin ' }]
+    },
+    assumptions: [{ statement: ' No LDs apply. ' }],
+    parameters: {
+      rcMin: 0,
+      rcLikely: 10000,
+      rcMax: 20000
+    },
+    citations: [{
+      title: ' Customer SOW ',
+      excerpt: ' Liquidated damages cap is USD 100,000. '
+    }],
+    ragMatches: [{
+      title: ' RAG match ',
+      text: ' Gross margin is 25%. ',
+      score: 0.88
+    }],
+    businessContext: {
+      buName: '  G42  '
+    },
+    unexpectedLocalOnly: 'drop me'
+  });
+
+  assert.equal(captured.url, 'https://risk-calculator.example/api/ai/evidence-map');
+  assert.equal(captured.options.method, 'POST');
+  assert.equal(captured.options.headers['x-session-token'], 'session-token');
+  assert.equal(captured.body.assessmentType, 'project_seller');
+  assert.equal(captured.body.scenario, 'Delivery issue may trigger LDs.');
+  assert.equal(captured.body.projectContext.projectName, 'Customer implementation');
+  assert.equal(captured.body.parameters.rcMin, 0);
+  assert.equal(captured.body.citations[0].title, 'Customer SOW');
+  assert.equal(captured.body.citations[0].excerpt, 'Liquidated damages cap is USD 100,000.');
+  assert.equal(captured.body.ragMatches[0].title, 'RAG match');
+  assert.equal(captured.body.ragMatches[0].excerpt, 'Gross margin is 25%.');
+  assert.equal(captured.body.businessContext.buName, 'G42');
+  assert.equal(Object.prototype.hasOwnProperty.call(captured.body, 'unexpectedLocalOnly'), false);
+});
+
+test('generateDecisionChallenge posts the normalized challenge request shape', async () => {
+  let captured = null;
+  const clientApi = loadAiWorkflowClient({
+    fetchImpl: async (url, options) => {
+      captured = { url, options, body: JSON.parse(options.body) };
+      return {
+        ok: true,
+        json: async () => ({
+          mode: 'deterministic_fallback',
+          decisionChallenge: { challengeSummary: 'Challenge complete.' },
+          generatedAt: '2026-06-10T00:00:00.000Z'
+        })
+      };
+    }
+  });
+  const client = clientApi.createClient({
+    defaultBaseUrl: 'https://risk-calculator.example',
+    getSessionToken: () => 'session-token'
+  });
+
+  await client.generateDecisionChallenge({
+    assessmentType: 'project_buyer',
+    scenario: '  Supplier delay may affect go-live.  ',
+    projectContext: {
+      projectName: ' ERP rollout ',
+      projectRole: 'buyer'
+    },
+    projectExposure: {
+      missingInputs: [{ field: 'delayCostPerDay', label: ' Delay cost per day ' }]
+    },
+    parameters: {
+      biMin: 0,
+      biLikely: 10000,
+      biMax: 25000,
+      ignoredEmpty: ''
+    },
+    simulationResult: {
+      annualLoss: { mean: 500000, p90: 900000 },
+      threshold: 1000000,
+      projectHorizon: { enabled: true, lossAsPctOfProjectValue: 0.12 }
+    },
+    assumptionRegister: {
+      assumptions: [{ statement: ' Delay cost unknown. ' }]
+    },
+    parameterCoach: {
+      missingHighImpactInputs: [{ field: 'delayCostPerDay' }]
+    },
+    evidenceMap: {
+      projectFinancialEvidenceMap: [{ field: 'delayCostPerDay', status: 'not_found' }]
+    },
+    treatments: [{ title: '  Escalate supplier governance  ' }],
+    riskAppetite: { threshold: 1000000 },
+    unexpectedLocalOnly: 'drop me'
+  });
+
+  assert.equal(captured.url, 'https://risk-calculator.example/api/ai/decision-challenge');
+  assert.equal(captured.options.method, 'POST');
+  assert.equal(captured.options.headers['x-session-token'], 'session-token');
+  assert.equal(captured.body.assessmentType, 'project_buyer');
+  assert.equal(captured.body.scenario, 'Supplier delay may affect go-live.');
+  assert.equal(captured.body.projectContext.projectName, 'ERP rollout');
+  assert.equal(captured.body.projectExposure.missingInputs[0].field, 'delayCostPerDay');
+  assert.equal(captured.body.parameters.biMin, 0);
+  assert.equal(captured.body.simulationResult.annualLoss.p90, 900000);
+  assert.equal(captured.body.simulationResult.projectHorizon.lossAsPctOfProjectValue, 0.12);
+  assert.equal(captured.body.riskAppetite.threshold, 1000000);
+  assert.equal(Object.prototype.hasOwnProperty.call(captured.body, 'unexpectedLocalOnly'), false);
+});
+
+test('generateDecisionBrief posts the normalized decision brief request shape', async () => {
+  let captured = null;
+  const clientApi = loadAiWorkflowClient({
+    fetchImpl: async (url, options) => {
+      captured = { url, options, body: JSON.parse(options.body) };
+      return {
+        ok: true,
+        json: async () => ({
+          mode: 'deterministic_fallback',
+          decisionBrief: { recommendation: 'Proceed with controls.' },
+          generatedAt: '2026-06-10T00:00:00.000Z'
+        })
+      };
+    }
+  });
+  const client = clientApi.createClient({
+    defaultBaseUrl: 'https://risk-calculator.example',
+    getSessionToken: () => 'session-token'
+  });
+
+  await client.generateDecisionBrief({
+    assessmentType: 'project_seller',
+    scenario: '  Delivery issue may erode margin.  ',
+    projectContext: {
+      projectName: ' Implementation ',
+      projectRole: 'seller'
+    },
+    projectExposure: {
+      financialDrivers: [{
+        id: 'margin',
+        label: ' Margin at risk ',
+        driverStatus: 'benchmark_proxy_driver',
+        low: 0,
+        likely: 100000,
+        high: 250000
+      }],
+      missingInputs: [{ field: 'grossMarginPct', label: ' Gross margin ' }]
+    },
+    simulationResult: {
+      eventLoss: { p90: 500000 },
+      annualLoss: { mean: 200000, p90: 700000 },
+      projectHorizon: { enabled: true, loss: { mean: 90000, p90: 220000 } }
+    },
+    parameters: {
+      rcMin: 0,
+      rcLikely: 10000,
+      rcMax: 20000
+    },
+    decisionChallenge: {
+      sensitivityFlags: [{ driver: 'grossMarginPct', sourceStatus: 'unknown' }]
+    },
+    riskAppetite: { threshold: 1000000 },
+    unexpectedLocalOnly: 'drop me'
+  });
+
+  assert.equal(captured.url, 'https://risk-calculator.example/api/ai/decision-brief');
+  assert.equal(captured.options.method, 'POST');
+  assert.equal(captured.options.headers['x-session-token'], 'session-token');
+  assert.equal(captured.body.assessmentType, 'project_seller');
+  assert.equal(captured.body.scenario, 'Delivery issue may erode margin.');
+  assert.equal(captured.body.projectContext.projectName, 'Implementation');
+  assert.equal(captured.body.projectExposure.financialDrivers[0].likely, 100000);
+  assert.equal(captured.body.simulationResult.eventLoss.p90, 500000);
+  assert.equal(captured.body.simulationResult.projectHorizon.loss.p90, 220000);
+  assert.equal(captured.body.parameters.rcMin, 0);
+  assert.equal(captured.body.riskAppetite.threshold, 1000000);
+  assert.equal(Object.prototype.hasOwnProperty.call(captured.body, 'unexpectedLocalOnly'), false);
+});

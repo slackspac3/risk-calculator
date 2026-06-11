@@ -175,7 +175,152 @@ test('treatment-suggestion route returns deterministic server fallback when host
   assert.ok(Array.isArray(res.payload.treatmentCoherence.confidenceDrivers));
   assert.equal(typeof res.payload.treatmentCoherence.calibrationMode, 'string');
   assert.equal(typeof res.payload.suggestedInputs?.TEF?.likely, 'number');
+  assert.equal(typeof res.payload.treatmentTradeoff?.summary, 'string');
+  assert.equal(res.payload.treatmentTradeoff.options.length, 1);
+  assert.match(String(res.payload.treatmentTradeoff.options[0].affectsFrequency || ''), /frequency/i);
+  assert.match(String(res.payload.treatmentTradeoff.options[0].affectsEventLoss || ''), /impact|loss|cost/i);
+  assert.notEqual(
+    String(res.payload.treatmentTradeoff.options[0].affectsFrequency || ''),
+    String(res.payload.treatmentTradeoff.options[0].affectsEventLoss || '')
+  );
   assert.equal(String(res.payload.trace?.label || ''), 'Step 3 treatment suggestion');
+});
+
+test('treatment-suggestion fallback explains buyer project tradeoff without quantifying unknown delay cost', async () => {
+  process.env.ALLOWED_ORIGIN = 'https://slackspac3.github.io';
+  process.env.SESSION_SIGNING_SECRET = 'test-signing-secret';
+  process.env.KV_REST_API_URL = 'https://example.test/kv';
+  process.env.KV_REST_API_TOKEN = 'test-token';
+  global.fetch = async (url) => {
+    if (String(url).includes('/kv')) {
+      return {
+        ok: true,
+        json: async () => ({ result: null })
+      };
+    }
+    throw new Error(`Unexpected fetch in buyer tradeoff fallback test: ${url}`);
+  };
+
+  const handler = loadFresh('../../api/ai/treatment-suggestion');
+  const token = buildSessionToken({
+    username: 'analyst',
+    role: 'user',
+    exp: Date.now() + 60_000
+  });
+  const res = createRes();
+
+  await handler({
+    method: 'POST',
+    body: JSON.stringify({
+      baselineAssessment: {
+        scenarioTitle: 'ERP supplier delay',
+        assessmentType: 'project_buyer',
+        narrative: 'The ERP supplier may miss go-live and delay business benefits.',
+        fairParams: {
+          tefLikely: 2,
+          controlStrLikely: 0.4,
+          biLikely: 300000
+        },
+        projectContext: {
+          projectRole: 'buyer',
+          projectStage: 'implementation'
+        },
+        projectExposure: {
+          projectExposureSummary: 'Delay and reprocurement exposure are relevant.',
+          projectInputQuality: {
+            unknownHighImpactInputs: ['delay cost per day']
+          },
+          missingInputs: [{
+            field: 'delayCostPerDay',
+            label: 'delay cost per day',
+            importance: 'high'
+          }]
+        }
+      },
+      improvementRequest: 'Add supplier contingency and earlier milestone escalation to reduce delay.'
+    }),
+    headers: {
+      origin: 'https://slackspac3.github.io',
+      'x-session-token': token
+    },
+    socket: { remoteAddress: '127.0.0.1' }
+  }, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.payload.mode, 'deterministic_fallback');
+  const option = res.payload.treatmentTradeoff.options[0];
+  assert.match(option.affectsProjectEconomics, /delay|reprocurement|recoveries/i);
+  assert.match(option.residualUncertainty, /Benefit cannot be quantified until delay cost per day is known\./);
+  assert.deepEqual(option.affectedUnknownDrivers, ['delay cost per day']);
+});
+
+test('treatment-suggestion fallback explains seller project tradeoff without treating unknown margin as zero', async () => {
+  process.env.ALLOWED_ORIGIN = 'https://slackspac3.github.io';
+  process.env.SESSION_SIGNING_SECRET = 'test-signing-secret';
+  process.env.KV_REST_API_URL = 'https://example.test/kv';
+  process.env.KV_REST_API_TOKEN = 'test-token';
+  global.fetch = async (url) => {
+    if (String(url).includes('/kv')) {
+      return {
+        ok: true,
+        json: async () => ({ result: null })
+      };
+    }
+    throw new Error(`Unexpected fetch in seller tradeoff fallback test: ${url}`);
+  };
+
+  const handler = loadFresh('../../api/ai/treatment-suggestion');
+  const token = buildSessionToken({
+    username: 'analyst',
+    role: 'user',
+    exp: Date.now() + 60_000
+  });
+  const res = createRes();
+
+  await handler({
+    method: 'POST',
+    body: JSON.stringify({
+      baselineAssessment: {
+        scenarioTitle: 'Managed service SLA exposure',
+        assessmentType: 'project_seller',
+        narrative: 'Delivery quality may trigger SLA credits and cost-to-cure work for a customer contract.',
+        fairParams: {
+          tefLikely: 2,
+          controlStrLikely: 0.45,
+          biLikely: 180000
+        },
+        projectContext: {
+          projectRole: 'seller',
+          projectStage: 'delivery'
+        },
+        sellerEconomicsMeta: {
+          grossMarginPct: { status: 'unknown' }
+        },
+        projectExposure: {
+          projectInputQuality: {
+            unknownHighImpactInputs: ['gross margin percentage']
+          },
+          missingInputs: [{
+            field: 'grossMarginPct',
+            label: 'gross margin percentage',
+            importance: 'high'
+          }]
+        }
+      },
+      improvementRequest: 'Add delivery quality controls and customer escalation to reduce SLA credits and cost to cure.'
+    }),
+    headers: {
+      origin: 'https://slackspac3.github.io',
+      'x-session-token': token
+    },
+    socket: { remoteAddress: '127.0.0.1' }
+  }, res);
+
+  assert.equal(res.statusCode, 200);
+  const option = res.payload.treatmentTradeoff.options[0];
+  assert.match(option.affectsProjectEconomics, /margin|cost-to-cure|LD\/SLA|termination|revenue/i);
+  assert.match(option.residualUncertainty, /Benefit cannot be quantified until gross margin percentage is known\./);
+  assert.equal(option.affectedUnknownDrivers.includes('gross margin percentage'), true);
 });
 
 test('treatment-suggestion route orchestrates live generation server-side', async () => {

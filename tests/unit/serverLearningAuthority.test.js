@@ -287,3 +287,51 @@ test('server learning authority discounts thin-signal profiles by 50 percent', a
     restore();
   }
 });
+
+test('server learning authority aggregates structured project correction feedback conservatively', async () => {
+  const now = Date.now();
+  const { learningAuthority, restore } = loadLearningAuthority({
+    userState: {
+      learningStore: {
+        aiFeedback: {
+          events: [],
+          structuredEvents: [
+            {
+              eventType: 'project_missing_value_provided',
+              targetType: 'project_exposure',
+              reasonCode: 'known_value_added',
+              buId: 'g42',
+              functionKey: 'technology',
+              lensKey: 'cyber',
+              assessmentType: 'project_buyer',
+              sourceStatusBefore: 'unknown',
+              sourceStatusAfter: 'known',
+              recordedAt: now,
+              submittedBy: 'sam'
+            }
+          ]
+        }
+      }
+    }
+  });
+
+  try {
+    const profile = await learningAuthority.resolveHierarchicalFeedbackProfile({
+      username: 'sam',
+      buId: 'g42',
+      functionKey: 'technology',
+      scenarioLensKey: 'cyber'
+    });
+
+    assert.equal(profile.structured.user.active, true);
+    assert.ok(profile.combined.topProjectCorrections.some(item => item.reason === 'known_value_added'));
+    assert.ok(profile.combined.topSourceTransitions.some(item => item.transition === 'unknown->known'));
+
+    const promptBlock = learningAuthority.buildFeedbackLearningPromptBlock(profile);
+    assert.match(promptBlock, /project-economics correction themes/i);
+    assert.match(promptBlock, /positive correction signal/i);
+    assert.match(promptBlock, /must not override/i);
+  } finally {
+    restore();
+  }
+});

@@ -2544,6 +2544,7 @@ const STEP1_RISK_REMOVAL_REASON_OPTIONS = Object.freeze([
     label: 'Incorrect risk',
     description: 'This risk does not belong in the current scenario and should count as AI correction.',
     aiFeedbackReason: 'included-unrelated-risks',
+    structuredReasonCode: 'wrong_event_path',
     tuningSignal: true
   },
   {
@@ -2551,6 +2552,7 @@ const STEP1_RISK_REMOVAL_REASON_OPTIONS = Object.freeze([
     label: 'Correct, but narrowing scope',
     description: 'This risk could matter, but I want a tighter scenario discussion right now.',
     aiFeedbackReason: '',
+    structuredReasonCode: 'not_material',
     tuningSignal: false
   },
   {
@@ -2558,8 +2560,33 @@ const STEP1_RISK_REMOVAL_REASON_OPTIONS = Object.freeze([
     label: 'Only partially relevant',
     description: 'This risk overlaps with the scenario, but it is not central enough to keep in scope.',
     aiFeedbackReason: '',
+    structuredReasonCode: 'too_generic',
     tuningSignal: false
   }
+]);
+
+const STEP1_RISK_REMOVAL_STRUCTURED_REASONS = Object.freeze([
+  { key: 'wrong_domain', label: 'Wrong domain' },
+  { key: 'too_generic', label: 'Too generic' },
+  { key: 'not_material', label: 'Not material' },
+  { key: 'duplicate', label: 'Duplicate' },
+  { key: 'missing_evidence', label: 'Missing evidence' },
+  { key: 'wrong_consequence', label: 'Wrong consequence' },
+  { key: 'wrong_event_path', label: 'Wrong event path' },
+  { key: 'wrong_project_economics', label: 'Wrong project economics' },
+  { key: 'other', label: 'Other' }
+]);
+
+const STEP1_PROJECT_EXPOSURE_CORRECTION_REASONS = Object.freeze([
+  { key: 'missing_project_value', label: 'Missing value' },
+  { key: 'known_value_added', label: 'Known value added' },
+  { key: 'wrong_proxy_assumption', label: 'Wrong proxy' },
+  { key: 'incorrect_financial_driver', label: 'Wrong driver' },
+  { key: 'not_applicable_field', label: 'Not applicable' },
+  { key: 'recovery_missing', label: 'Recovery missing' },
+  { key: 'cap_missing', label: 'Cap missing' },
+  { key: 'margin_missing', label: 'Margin missing' },
+  { key: 'double_counting_risk', label: 'Double counting' }
 ]);
 
 function normaliseStep1AiFeedbackReason(value = '') {
@@ -2570,6 +2597,14 @@ function normaliseStep1RiskRemovalReason(value = '') {
   return String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
 
+function normaliseStep1StructuredReason(value = '', targetType = 'project_exposure', eventType = '') {
+  if (typeof LearningStore !== 'undefined' && LearningStore && typeof LearningStore.normaliseStructuredAiFeedbackReason === 'function') {
+    return LearningStore.normaliseStructuredAiFeedbackReason(targetType, value, eventType);
+  }
+  const safe = String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  return safe || 'other';
+}
+
 function getStep1RiskRemovalReasonOption(reason = '') {
   const safeReason = normaliseStep1RiskRemovalReason(reason);
   return STEP1_RISK_REMOVAL_REASON_OPTIONS.find((option) => option.key === safeReason) || null;
@@ -2577,6 +2612,40 @@ function getStep1RiskRemovalReasonOption(reason = '') {
 
 function shouldRecordStep1RiskRemovalAsAiFeedback(reason = '') {
   return !!getStep1RiskRemovalReasonOption(reason)?.tuningSignal;
+}
+
+function getStep1StructuredFeedbackBase() {
+  const draft = AppState.draft || {};
+  return {
+    assessmentType: draft.assessmentType || 'enterprise_generic',
+    scenarioLens: draft.scenarioLens || null,
+    primaryFamily: draft.scenarioLens?.functionKey || '',
+    buId: draft.buId || '',
+    functionKey: draft.scenarioLens?.functionKey || '',
+    lensKey: draft.scenarioLens?.key || ''
+  };
+}
+
+function recordStep1StructuredAiFeedback(payload = {}) {
+  const username = AuthService.getCurrentUser()?.username || '';
+  const event = {
+    ...getStep1StructuredFeedbackBase(),
+    ...payload,
+    submittedBy: payload.submittedBy || username
+  };
+  if (typeof window !== 'undefined' && typeof window.recordStructuredAiFeedback === 'function') {
+    return window.recordStructuredAiFeedback(event);
+  }
+  if (username && typeof LearningStore !== 'undefined' && LearningStore && typeof LearningStore.recordStructuredAiFeedback === 'function') {
+    const saved = LearningStore.recordStructuredAiFeedback(username, event);
+    if (saved && typeof patchLearningStore === 'function' && typeof LearningStore.getLearningStore === 'function') {
+      try {
+        patchLearningStore({ aiFeedback: LearningStore.getLearningStore(username).aiFeedback });
+      } catch {}
+    }
+    return saved;
+  }
+  return null;
 }
 
 function getStep1AiRuntimeMode(draft = AppState.draft) {
@@ -2730,11 +2799,36 @@ function getStep1ScenarioMemoryNarrative(draft = AppState.draft) {
   ).trim();
 }
 
-function buildStep1ScenarioMemorySignature(query = '', matches = []) {
+function buildStep1ScenarioMemorySignature(query = '', matches = [], caseMatches = []) {
   return [
     String(query || '').trim().toLowerCase().slice(0, 240),
-    (Array.isArray(matches) ? matches : []).map(match => String(match?.id || '').trim()).filter(Boolean).join('|')
+    (Array.isArray(matches) ? matches : []).map(match => String(match?.id || '').trim()).filter(Boolean).join('|'),
+    (Array.isArray(caseMatches) ? caseMatches : []).map(match => String(match?.caseId || '').trim()).filter(Boolean).join('|')
   ].join('::');
+}
+
+function getStep1CaseMemoryMatches(draft = AppState.draft) {
+  try {
+    if (typeof LearningStore === 'undefined' || typeof LearningStore.findSimilarCaseMemories !== 'function') return [];
+    const username = AuthService.getCurrentUser?.()?.username || '';
+    const cachedMemories = Array.isArray(AppState.userStateCache?.learningStore?.caseMemories)
+      ? AppState.userStateCache.learningStore.caseMemories
+      : [];
+    const storeMemories = username && typeof LearningStore.getCaseMemories === 'function'
+      ? LearningStore.getCaseMemories(username, 80)
+      : [];
+    const memories = storeMemories.length ? storeMemories : cachedMemories;
+    const seed = typeof LearningStore.buildCaseMemoryFromAssessment === 'function'
+      ? LearningStore.buildCaseMemoryFromAssessment({
+          ...draft,
+          id: draft?.id || 'current-draft',
+          completedAt: Date.now()
+        })
+      : draft;
+    return LearningStore.findSimilarCaseMemories(seed || draft, memories, { limit: 3 });
+  } catch {
+    return [];
+  }
 }
 
 function ensureStep1ScenarioMemoryState(draft = AppState.draft) {
@@ -2752,11 +2846,13 @@ function ensureStep1ScenarioMemoryState(draft = AppState.draft) {
   const matchState = typeof findSimilarScenarioMemoryMatches === 'function'
     ? findSimilarScenarioMemoryMatches(currentScenario, { limit: 3 })
     : { query: '', totalMatches: 0, matches: [] };
-  const signature = buildStep1ScenarioMemorySignature(matchState.query, matchState.matches);
+  const caseMatches = getStep1CaseMemoryMatches(draft);
+  const signature = buildStep1ScenarioMemorySignature(matchState.query, matchState.matches, caseMatches);
   const previousSignature = String(draft?.scenarioMemorySignature || '').trim();
   const signatureChanged = signature !== previousSignature;
   draft.scenarioMemoryQuery = matchState.query;
   draft.scenarioMemoryMatches = Array.isArray(matchState.matches) ? matchState.matches : [];
+  draft.caseMemoryMatches = Array.isArray(caseMatches) ? caseMatches : [];
   draft.scenarioMemorySignature = signature;
   if (signatureChanged) {
     if (String(draft.scenarioMemoryPrecedentSignature || '').trim() !== signature) {
@@ -2768,6 +2864,9 @@ function ensureStep1ScenarioMemoryState(draft = AppState.draft) {
     if (!stillSelected) {
       draft.scenarioMemoryReferenceId = '';
     }
+    const caseStillSelected = draft.caseMemoryReferenceId
+      && draft.caseMemoryMatches.some(match => String(match?.caseId || '').trim() === String(draft.caseMemoryReferenceId || '').trim());
+    if (!caseStillSelected) draft.caseMemoryReferenceId = '';
     const nextComparisons = {};
     const currentComparisons = draft.scenarioMemoryComparisons && typeof draft.scenarioMemoryComparisons === 'object'
       ? draft.scenarioMemoryComparisons
@@ -2785,8 +2884,10 @@ function ensureStep1ScenarioMemoryState(draft = AppState.draft) {
     query: matchState.query,
     totalMatches: Number(matchState.totalMatches || 0),
     matches: draft.scenarioMemoryMatches,
+    caseMatches: draft.caseMemoryMatches,
     signature,
     reference: draft.scenarioMemoryMatches.find(match => String(match?.id || '').trim() === String(draft.scenarioMemoryReferenceId || '').trim()) || null,
+    caseReference: draft.caseMemoryMatches.find(match => String(match?.caseId || '').trim() === String(draft.caseMemoryReferenceId || '').trim()) || null,
     precedent: String(draft.scenarioMemoryPrecedent || '').trim(),
     precedentLoading: !!draft.scenarioMemoryPrecedentLoading,
     comparisons: draft.scenarioMemoryComparisons && typeof draft.scenarioMemoryComparisons === 'object'
@@ -2868,9 +2969,91 @@ function renderStep1ScenarioMemoryReferencePanel(reference = null, comparison = 
   </details>`;
 }
 
+function getStep1CaseMemoryStatusLabel(status = '') {
+  if (typeof LearningStore !== 'undefined' && typeof LearningStore.formatCaseMemorySourceStatus === 'function') {
+    return LearningStore.formatCaseMemorySourceStatus(status);
+  }
+  const raw = String(status || '').trim();
+  if (raw === 'known' || raw === 'derived' || raw === 'evidence_supported') return 'confirmed';
+  if (raw === 'estimated') return 'estimated';
+  if (raw === 'benchmark_proxy') return 'benchmark proxy';
+  return 'unknown / not reusable';
+}
+
+function getStep1CaseMemoryStatusTone(status = '') {
+  const raw = String(status || '').trim();
+  if (raw === 'known' || raw === 'derived' || raw === 'evidence_supported') return 'success';
+  if (raw === 'estimated') return 'gold';
+  if (raw === 'benchmark_proxy') return 'warning';
+  return 'neutral';
+}
+
+function renderStep1CaseMemoryMatchCard(match, draft = AppState.draft) {
+  const reusable = match?._caseMemory?.reusableValues || (
+    typeof LearningStore !== 'undefined' && typeof LearningStore.buildCaseReusableValues === 'function'
+      ? LearningStore.buildCaseReusableValues(match)
+      : {}
+  );
+  const assumptions = Array.isArray(reusable?.assumptions) ? reusable.assumptions.slice(0, 2) : [];
+  const treatments = Array.isArray(reusable?.treatments) ? reusable.treatments.slice(0, 2) : [];
+  const evidenceGaps = Array.isArray(reusable?.evidenceGaps) ? reusable.evidenceGaps.slice(0, 2) : [];
+  const statusChips = [
+    match.projectValueSourceStatus && match.assessmentType !== 'enterprise_generic'
+      ? { label: `Project value: ${getStep1CaseMemoryStatusLabel(match.projectValueSourceStatus)}`, status: match.projectValueSourceStatus }
+      : null,
+    match.marginSourceStatus && match.assessmentType === 'project_seller'
+      ? { label: `Margin: ${getStep1CaseMemoryStatusLabel(match.marginSourceStatus)}`, status: match.marginSourceStatus }
+      : null
+  ].filter(Boolean);
+  return `<div class="card org-related-card--compact" style="padding:var(--sp-4);background:var(--bg-canvas)">
+    <div class="context-panel-title">${escapeHtml(String(match.scenarioTitle || 'Untitled assessment'))}</div>
+    <div class="form-help" style="margin-top:6px">Completed ${escapeHtml(formatStep1ScenarioMemoryDate(match.completedAt))} · ${escapeHtml(String(match.assessmentType || 'enterprise_generic').replace(/_/g, ' '))}</div>
+    <div class="citation-chips" style="margin-top:10px">
+      ${match.decisionPosture ? `<span class="badge badge--neutral">${escapeHtml(String(match.decisionPosture).replace(/_/g, ' '))}</span>` : ''}
+      ${match.topLossDriver ? `<span class="badge badge--neutral">${escapeHtml(String(match.topLossDriver))}</span>` : ''}
+      ${statusChips.map(item => `<span class="badge badge--${escapeHtml(getStep1CaseMemoryStatusTone(item.status))}">${escapeHtml(item.label)}</span>`).join('')}
+    </div>
+    <div class="context-grid" style="grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:var(--sp-3)">
+      <div class="context-chip-panel">
+        <div class="context-panel-title">Reusable treatment</div>
+        <p class="context-panel-copy">${escapeHtml(treatments[0]?.label || treatments[0] || 'No prior treatment captured.')}</p>
+      </div>
+      <div class="context-chip-panel">
+        <div class="context-panel-title">Assumption to check</div>
+        <p class="context-panel-copy">${escapeHtml(assumptions[0]?.label || assumptions[0] || 'No weak assumption captured.')}</p>
+      </div>
+      <div class="context-chip-panel">
+        <div class="context-panel-title">Evidence gap</div>
+        <p class="context-panel-copy">${escapeHtml(evidenceGaps[0]?.label || evidenceGaps[0] || 'No evidence gap captured.')}</p>
+      </div>
+    </div>
+    <div class="admin-inline-actions" style="margin-top:var(--sp-4)">
+      <button class="btn btn--secondary btn--sm btn-case-memory-reference" data-case-memory-id="${escapeHtml(String(match.caseId || ''))}" type="button">${String(draft.caseMemoryReferenceId || '') === String(match.caseId || '') ? 'Reference selected' : 'Use as reference'}</button>
+    </div>
+  </div>`;
+}
+
+function renderStep1CaseMemorySection(draft = AppState.draft, state = {}) {
+  const matches = Array.isArray(state?.caseMatches) ? state.caseMatches : [];
+  if (!matches.length) return '';
+  return `<div class="card card--background" style="padding:var(--sp-4);margin-top:var(--sp-4)">
+    <div class="wizard-premium-head">
+      <div>
+        <div class="context-panel-title">Similar prior assessments</div>
+        <p class="context-panel-copy" style="margin-top:var(--sp-2)">Use prior assumptions, treatments, and evidence gaps as read-only reference. Proxy and unknown project values stay labelled.</p>
+      </div>
+      <span class="badge badge--gold">${matches.length} case${matches.length === 1 ? '' : 's'}</span>
+    </div>
+    <div class="risk-selection-grid" style="margin-top:var(--sp-4)">
+      ${matches.map(match => renderStep1CaseMemoryMatchCard(match, draft)).join('')}
+    </div>
+  </div>`;
+}
+
 function renderStep1ScenarioMemoryBand(draft = AppState.draft, state = ensureStep1ScenarioMemoryState(draft)) {
   const matches = Array.isArray(state?.matches) ? state.matches : [];
-  if (matches.length < 2) return '';
+  const caseMatches = Array.isArray(state?.caseMatches) ? state.caseMatches : [];
+  if (matches.length < 2 && !caseMatches.length) return '';
   return `<div class="card card--elevated anim-fade-in" style="padding:var(--sp-5);background:linear-gradient(180deg, rgba(93,212,176,0.08), rgba(255,255,255,0.02))">
     <div class="flex items-center justify-between" style="gap:var(--sp-3);flex-wrap:wrap">
       <div>
@@ -2878,10 +3061,10 @@ function renderStep1ScenarioMemoryBand(draft = AppState.draft, state = ensureSte
         <div class="form-help" style="margin-top:8px">The organisation has worked through related cases before. Use them as reference, not as a locked answer.</div>
       </div>
       <div class="citation-chips">
-        <span class="badge badge--gold">${state.totalMatches} match${state.totalMatches === 1 ? '' : 'es'}</span>
+        <span class="badge badge--gold">${state.totalMatches + caseMatches.length} match${state.totalMatches + caseMatches.length === 1 ? '' : 'es'}</span>
       </div>
     </div>
-    <div style="margin-top:var(--sp-4)">
+    ${matches.length >= 2 ? `<div style="margin-top:var(--sp-4)">
       ${renderStep1ScenarioMemoryPrecedent(state)}
     </div>
     <div style="display:grid;grid-template-columns:minmax(0,1.35fr) minmax(280px,0.9fr);gap:var(--sp-4);align-items:start">
@@ -2908,7 +3091,8 @@ function renderStep1ScenarioMemoryBand(draft = AppState.draft, state = ensureSte
           state.reference ? state.comparisonLoadingId === String(state.reference.id || '').trim() : false
         )}
       </div>
-    </div>
+    </div>` : ''}
+    ${renderStep1CaseMemorySection(draft, state)}
   </div>`;
 }
 
@@ -4485,6 +4669,11 @@ function renderStep1ProjectExposureMissingInputs(exposure = {}) {
         <div>
           <strong>${escapeHtml(item.label || field || 'Missing input')}</strong>
           <span>${escapeHtml(item.suggestedQuestion || item.whyItMatters || 'Confirm this value or mark it as not applicable.')}</span>
+          <div class="citation-chips mt-2" aria-label="Optional project exposure correction reason">
+            ${STEP1_PROJECT_EXPOSURE_CORRECTION_REASONS.slice(0, 5).map((reason) => `
+              <button type="button" class="btn btn--ghost btn--sm" data-project-exposure-correction-reason="${escapeHtml(reason.key)}" data-project-exposure-field="${escapeHtml(field)}" aria-pressed="false">${escapeHtml(reason.label)}</button>
+            `).join('')}
+          </div>
         </div>
         <div class="step1-project-exposure-missing__actions">
           <button type="button" class="btn btn--ghost btn--sm" data-project-exposure-missing-action="not_applicable" data-project-exposure-field="${escapeHtml(field)}">Not applicable</button>
@@ -4715,7 +4904,9 @@ function updateStep1FinancialField(scope, field, { forceStatus = '' } = {}) {
     if (input) input.value = '';
   }
   const status = getStep1FinancialStatusForValue(value, selectedStatus);
+  const previousValue = AppState.draft[config.economicsKey]?.[field];
   const previous = AppState.draft[config.metaKey]?.[field] || {};
+  const previousStatus = getStep1FinancialMeta(scope, field, AppState.draft).status;
   AppState.draft[config.economicsKey][field] = value;
   AppState.draft[config.metaKey][field] = {
     status,
@@ -4723,6 +4914,26 @@ function updateStep1FinancialField(scope, field, { forceStatus = '' } = {}) {
     source: status === 'known' || status === 'estimated' ? 'user' : 'not_provided',
     note: String(previous.note || '').trim()
   };
+  if (
+    value !== null
+    && previousValue == null
+    && ['unknown', 'not_applicable'].includes(previousStatus)
+    && ['known', 'estimated'].includes(status)
+  ) {
+    const fieldConfig = getStep1FinancialFieldConfig(scope, field);
+    recordStep1StructuredAiFeedback({
+      eventType: 'project_missing_value_provided',
+      targetType: 'project_exposure',
+      targetId: field,
+      reasonCode: status === 'known' ? 'known_value_added' : 'missing_project_value',
+      note: `${fieldConfig.label || field} supplied after being treated as ${previousStatus}.`,
+      before: { field, value: null, status: previousStatus },
+      after: { field, value, status },
+      projectExposureRefs: [field],
+      sourceStatusBefore: previousStatus,
+      sourceStatusAfter: status
+    });
+  }
   refreshStep1RouteKnownSummary(scope);
   updateStep1ProjectExposureAfterInput(scope);
   markDraftDirty();
@@ -4806,7 +5017,7 @@ async function generateStep1ProjectExposureMap(scope = 'buyer', button = null) {
   }
 }
 
-function setStep1MissingInputMeta(scope = 'buyer', field = '', status = 'unknown') {
+function setStep1MissingInputMeta(scope = 'buyer', field = '', status = 'unknown', reasonCode = '') {
   const safeScope = String(scope || '').trim() === 'seller' ? 'seller' : 'buyer';
   const fieldName = String(field || '').trim();
   if (!fieldName) return;
@@ -4815,6 +5026,7 @@ function setStep1MissingInputMeta(scope = 'buyer', field = '', status = 'unknown
   AppState.draft[config.economicsKey] = AppState.draft[config.economicsKey] && typeof AppState.draft[config.economicsKey] === 'object' ? AppState.draft[config.economicsKey] : {};
   AppState.draft[config.metaKey] = AppState.draft[config.metaKey] && typeof AppState.draft[config.metaKey] === 'object' ? AppState.draft[config.metaKey] : {};
   if (status === 'not_applicable') {
+    const previousMeta = getStep1FinancialMeta(safeScope, fieldName, AppState.draft);
     AppState.draft[config.economicsKey][fieldName] = null;
     AppState.draft[config.metaKey][fieldName] = {
       status: 'not_applicable',
@@ -4822,7 +5034,20 @@ function setStep1MissingInputMeta(scope = 'buyer', field = '', status = 'unknown
       source: 'not_provided',
       note: 'Marked not applicable from the project exposure map.'
     };
+    recordStep1StructuredAiFeedback({
+      eventType: 'project_exposure_missing_input_marked',
+      targetType: 'project_exposure',
+      targetId: fieldName,
+      reasonCode: normaliseStep1StructuredReason(reasonCode || 'not_applicable_field', 'project_exposure', 'project_exposure_missing_input_marked'),
+      note: `${fieldConfig.label || fieldName} marked not applicable from the exposure map.`,
+      before: { field: fieldName, status: previousMeta.status },
+      after: { field: fieldName, status: 'not_applicable' },
+      projectExposureRefs: [fieldName],
+      sourceStatusBefore: previousMeta.status,
+      sourceStatusAfter: 'not_applicable'
+    });
   } else if (status === 'estimated') {
+    const previousMeta = getStep1FinancialMeta(safeScope, fieldName, AppState.draft);
     AppState.draft[config.metaKey][fieldName] = {
       ...getStep1FinancialMeta(safeScope, fieldName, AppState.draft),
       status: 'estimated',
@@ -4830,6 +5055,18 @@ function setStep1MissingInputMeta(scope = 'buyer', field = '', status = 'unknown
       source: 'user',
       note: `Marked for estimate from the project exposure map${fieldConfig.label ? `: ${fieldConfig.label}` : ''}.`
     };
+    recordStep1StructuredAiFeedback({
+      eventType: 'project_exposure_missing_input_marked',
+      targetType: 'project_exposure',
+      targetId: fieldName,
+      reasonCode: normaliseStep1StructuredReason(reasonCode || 'missing_project_value', 'project_exposure', 'project_exposure_missing_input_marked'),
+      note: `${fieldConfig.label || fieldName} marked as requiring an estimate from the exposure map.`,
+      before: { field: fieldName, status: previousMeta.status },
+      after: { field: fieldName, status: 'estimated' },
+      projectExposureRefs: [fieldName],
+      sourceStatusBefore: previousMeta.status,
+      sourceStatusAfter: 'estimated'
+    });
   }
   markDraftDirty();
   saveDraft();
@@ -4885,9 +5122,22 @@ function bindStep1ProjectExposurePanelActions(root = document) {
         }
       });
     });
+    panel.querySelectorAll('[data-project-exposure-correction-reason][data-project-exposure-field]').forEach(button => {
+      button.addEventListener('click', () => {
+        const field = String(button.dataset.projectExposureField || '').trim();
+        panel.querySelectorAll(`[data-project-exposure-correction-reason][data-project-exposure-field="${field}"]`).forEach(peer => {
+          const active = peer === button && button.getAttribute('aria-pressed') !== 'true';
+          peer.setAttribute('aria-pressed', active ? 'true' : 'false');
+          peer.classList.toggle('btn--secondary', active);
+          peer.classList.toggle('btn--ghost', !active);
+        });
+      });
+    });
     panel.querySelectorAll('[data-project-exposure-missing-action][data-project-exposure-field]').forEach(button => {
       button.addEventListener('click', () => {
-        setStep1MissingInputMeta(scope, button.dataset.projectExposureField, button.dataset.projectExposureMissingAction);
+        const field = String(button.dataset.projectExposureField || '').trim();
+        const selectedReason = panel.querySelector(`[data-project-exposure-correction-reason][data-project-exposure-field="${field}"][aria-pressed="true"]`)?.dataset.projectExposureCorrectionReason || '';
+        setStep1MissingInputMeta(scope, field, button.dataset.projectExposureMissingAction, selectedReason);
       });
     });
   });
@@ -6745,7 +6995,21 @@ function bindStep1ScenarioCrossReferenceActions() {
 }
 
 function bindStep1ScenarioMemoryActions() {
+  document.querySelectorAll('.btn-case-memory-reference').forEach((button) => {
+    if (button.dataset.bound === 'true') return;
+    button.dataset.bound = 'true';
+    button.addEventListener('click', () => {
+      const targetId = String(button.dataset.caseMemoryId || '').trim();
+      if (!targetId) return;
+      AppState.draft.caseMemoryReferenceId = targetId;
+      markDraftDirty();
+      scheduleDraftAutosave();
+      refreshStep1ScenarioMemoryHost({ includeAi: false });
+    });
+  });
   document.querySelectorAll('.btn-scenario-memory-load').forEach((button) => {
+    if (button.dataset.bound === 'true') return;
+    button.dataset.bound = 'true';
     button.addEventListener('click', () => {
       const targetId = String(button.dataset.scenarioMemoryId || '').trim();
       if (!targetId) return;
@@ -7537,7 +7801,12 @@ function promptStep1RiskRemovalReason(risk = {}) {
       partial: 'partially-relevant',
       'partially-relevant': 'partially-relevant'
     };
-    return Promise.resolve(aliases[trimmed] || null);
+    const reasonKey = aliases[trimmed] || null;
+    const reasonOption = getStep1RiskRemovalReasonOption(reasonKey);
+    return Promise.resolve(reasonKey ? {
+      reasonKey,
+      structuredReasonCode: reasonOption?.structuredReasonCode || 'other'
+    } : null);
   }
   return new Promise((resolve) => {
     const modalKey = `risk-removal-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -7545,6 +7814,7 @@ function promptStep1RiskRemovalReason(risk = {}) {
     const confirmId = `${modalKey}-confirm`;
     const cancelId = `${modalKey}-cancel`;
     let selectedReason = '';
+    let selectedStructuredReason = '';
     let settled = false;
     const finish = (value = null) => {
       if (settled) return;
@@ -7570,8 +7840,21 @@ function promptStep1RiskRemovalReason(risk = {}) {
               </button>
             `).join('')}
           </div>
+          <div>
+            <div class="form-help" style="margin:4px 0 8px">Optional reason chips</div>
+            <div class="citation-chips">
+              ${STEP1_RISK_REMOVAL_STRUCTURED_REASONS.map((reason) => `
+                <button
+                  class="btn btn--ghost btn--sm"
+                  data-risk-removal-structured-reason="${escapeHtml(reason.key)}"
+                  type="button"
+                  aria-pressed="false"
+                >${escapeHtml(reason.label)}</button>
+              `).join('')}
+            </div>
+          </div>
           <div class="banner banner--neutral" role="note">
-            <span class="banner-text">Only <strong>Incorrect risk</strong> feeds shared AI tuning. Scope choices stay as analyst context only.</span>
+            <span class="banner-text">Feedback is optional. Only repeated live-AI patterns influence shared learning; single corrections stay as context.</span>
           </div>
         </div>
       `,
@@ -7585,6 +7868,8 @@ function promptStep1RiskRemovalReason(risk = {}) {
     const confirmButton = root?.querySelector(`#${confirmId}`);
     const updateSelection = (reasonKey = '') => {
       selectedReason = normaliseStep1RiskRemovalReason(reasonKey);
+      const option = getStep1RiskRemovalReasonOption(selectedReason);
+      selectedStructuredReason = selectedStructuredReason || option?.structuredReasonCode || '';
       Array.from(root?.querySelectorAll('[data-risk-removal-reason]') || []).forEach((button) => {
         const active = String(button.dataset.riskRemovalReason || '') === selectedReason;
         button.setAttribute('aria-pressed', active ? 'true' : 'false');
@@ -7593,13 +7878,29 @@ function promptStep1RiskRemovalReason(risk = {}) {
       });
       if (confirmButton) confirmButton.disabled = !selectedReason;
     };
+    const updateStructuredSelection = (reasonKey = '') => {
+      selectedStructuredReason = normaliseStep1StructuredReason(reasonKey, 'risk_card', 'risk_card_removed');
+      Array.from(root?.querySelectorAll('[data-risk-removal-structured-reason]') || []).forEach((button) => {
+        const active = String(button.dataset.riskRemovalStructuredReason || '') === selectedStructuredReason;
+        button.setAttribute('aria-pressed', active ? 'true' : 'false');
+        button.classList.toggle('btn--secondary', active);
+        button.classList.toggle('btn--ghost', !active);
+      });
+    };
     Array.from(root?.querySelectorAll('[data-risk-removal-reason]') || []).forEach((button) => {
       button.addEventListener('click', () => updateSelection(button.dataset.riskRemovalReason || ''));
+    });
+    Array.from(root?.querySelectorAll('[data-risk-removal-structured-reason]') || []).forEach((button) => {
+      button.addEventListener('click', () => updateStructuredSelection(button.dataset.riskRemovalStructuredReason || ''));
     });
     root?.querySelector(`#${cancelId}`)?.addEventListener('click', () => dialog.close());
     confirmButton?.addEventListener('click', () => {
       if (!selectedReason) return;
-      finish(selectedReason);
+      const option = getStep1RiskRemovalReasonOption(selectedReason);
+      finish({
+        reasonKey: selectedReason,
+        structuredReasonCode: selectedStructuredReason || option?.structuredReasonCode || 'other'
+      });
       dialog.close();
     });
   });
@@ -7607,13 +7908,39 @@ function promptStep1RiskRemovalReason(risk = {}) {
 
 async function applyStep1RiskRemoval(riskId = '', reason = '', {
   buList = getBUList(),
-  scenarioGeographies = getScenarioGeographies()
+  scenarioGeographies = getScenarioGeographies(),
+  structuredReasonCode = ''
 } = {}) {
   const safeRiskId = String(riskId || '').trim();
+  const reasonKey = typeof reason === 'object'
+    ? normaliseStep1RiskRemovalReason(reason.reasonKey || reason.reason || '')
+    : normaliseStep1RiskRemovalReason(reason);
+  const structuredCode = normaliseStep1StructuredReason(
+    structuredReasonCode || (typeof reason === 'object' ? reason.structuredReasonCode : '') || '',
+    'risk_card',
+    'risk_card_removed'
+  );
   const risk = getRiskCandidates().find((item) => String(item?.id || '').trim() === safeRiskId);
-  const reasonOption = getStep1RiskRemovalReasonOption(reason);
+  const reasonOption = getStep1RiskRemovalReasonOption(reasonKey);
   if (!risk || !reasonOption) return false;
   recordStep1RiskDecision(risk, 'remove', { reason: reasonOption.key });
+  recordStep1StructuredAiFeedback({
+    eventType: 'risk_card_removed',
+    targetType: 'risk_card',
+    targetId: safeRiskId,
+    reasonCode: structuredCode === 'other' ? reasonOption.structuredReasonCode || 'other' : structuredCode,
+    note: reasonOption.description || '',
+    before: {
+      title: risk.title || '',
+      category: risk.category || '',
+      source: risk.source || ''
+    },
+    after: {
+      selectedInAssessment: false
+    },
+    sourceStatusBefore: risk.source === 'ai' ? 'derived' : 'known',
+    sourceStatusAfter: 'not_applicable'
+  });
   if (shouldRecordStep1RiskRemovalAsAiFeedback(reasonOption.key) && isStep1GeneratedRiskFeedbackEligible(risk)) {
     await saveStep1AiRiskFeedback(safeRiskId, 1, {
       buList,
@@ -7893,11 +8220,13 @@ function bindRiskCardActions({ buList = getBUList() } = {}) {
   document.querySelectorAll('.btn-remove-risk').forEach(btn => {
     btn.addEventListener('click', async () => {
       const risk = getRiskCandidates().find(item => item.id === btn.dataset.riskId);
-      const reason = await promptStep1RiskRemovalReason(risk);
-      if (!reason) return;
+      const removalFeedback = await promptStep1RiskRemovalReason(risk);
+      if (!removalFeedback) return;
+      const reason = typeof removalFeedback === 'object' ? removalFeedback.reasonKey : removalFeedback;
       await applyStep1RiskRemoval(btn.dataset.riskId, reason, {
         buList,
-        scenarioGeographies: getScenarioGeographies()
+        scenarioGeographies: getScenarioGeographies(),
+        structuredReasonCode: typeof removalFeedback === 'object' ? removalFeedback.structuredReasonCode : ''
       });
     });
   });
