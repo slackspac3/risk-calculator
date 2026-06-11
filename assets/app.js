@@ -4652,10 +4652,12 @@ function launchGuidedAssessmentStart() {
   return null;
 }
 
-function launchPilotSampleAssessment() {
+async function launchPilotSampleAssessment() {
   resetDraft();
-  Router.navigate('/wizard/2');
-  window.setTimeout(() => {
+  try {
+    if (window.AppAssetLoader?.loadRouteAssets) {
+      await window.AppAssetLoader.loadRouteAssets('wizardStep1');
+    }
     // The sample path should feel relevant to the user’s current function rather than always loading the same generic case.
     const experienceModel = typeof getStep1ExampleExperienceModel === 'function'
       ? getStep1ExampleExperienceModel(getEffectiveSettings(), AppState.draft)
@@ -4663,7 +4665,8 @@ function launchPilotSampleAssessment() {
     const sampleScenario = experienceModel?.recommendedExamples?.[0]
       || (Array.isArray(STEP1_DRY_RUN_SCENARIOS) ? STEP1_DRY_RUN_SCENARIOS[0] : null);
     if (sampleScenario && typeof applyDryRunScenario === 'function') {
-      applyDryRunScenario(sampleScenario);
+      applyDryRunScenario(sampleScenario, { render: false, toast: false });
+      Router.navigate('/wizard/2');
       UI.toast(`Sample assessment path loaded for ${experienceModel?.functionLabel?.toLowerCase?.() || 'your workspace'}.`, 'info', 4500);
       return;
     }
@@ -4673,8 +4676,14 @@ function launchPilotSampleAssessment() {
     if (fallbackTemplate) {
       loadTemplate(fallbackTemplate);
       UI.toast('A sample assessment was loaded from the recommended template path.', 'info', 5000);
+      return;
     }
-  }, 0);
+    Router.navigate('/wizard/2');
+  } catch (error) {
+    console.error('launchPilotSampleAssessment failed:', error);
+    UI.toast('The sample assessment could not be loaded. Start a quick assessment instead.', 'warning', 5000);
+    Router.navigate('/wizard/1');
+  }
 }
 
 function getEffectiveSettings() {
@@ -9142,7 +9151,12 @@ async function parseRegisterFile(file) {
   const ext = getFileExtension(file.name);
   if (ext === 'xlsx' || ext === 'xls') {
     if (typeof XLSX === 'undefined') {
-      throw new Error('Spreadsheet parser not loaded. Refresh the page and try again.');
+      if (window.AppAssetLoader && typeof window.AppAssetLoader.loadRouteAssets === 'function') {
+        await window.AppAssetLoader.loadRouteAssets('xlsx');
+      }
+    }
+    if (typeof XLSX === 'undefined') {
+      throw new Error('Spreadsheet parser could not be loaded. Refresh the page and try again.');
     }
     const buffer = await file.arrayBuffer();
     const workbook = XLSX.read(buffer, { type: 'array' });
@@ -10088,6 +10102,23 @@ function renderCitationBlock(citations) {
   </div>`;
 }
 
+function attachCitationHandlers() {
+  document.querySelectorAll('.citation-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const docId = btn.dataset.docId;
+      const docTitle = btn.dataset.docTitle || '';
+      const docUrl = btn.dataset.docUrl || '';
+      const doc = getDocList().find(d => d.id === docId)
+        || AppState.draft.citations?.find(c => c.docId === docId)
+        || getDocList().find(d => String(d.title || '').trim() === docTitle)
+        || AppState.draft.citations?.find(c => String(c.title || '').trim() === docTitle)
+        || getDocList().find(d => String(d.url || '').trim() === docUrl)
+        || AppState.draft.citations?.find(c => String(c.url || '').trim() === docUrl);
+      if (doc) UI.citationModal({ title: doc.title, excerpt: doc.contentExcerpt || doc.excerpt, tags: doc.tags || [], lastUpdated: doc.lastUpdated, url: doc.url });
+    });
+  });
+}
+
 function renderWorkflowGuidanceBlock(items, title = 'AI Guidance Through the Workflow') {
   if (!items?.length) return '';
   return `<div class="card card--elevated anim-fade-in">
@@ -10163,6 +10194,52 @@ function renderInputProvenanceBlock(inputProvenance = []) {
       }).join('')}
     </div>
   </div>`;
+}
+
+function buildLiveInputSourceAssignments(draft) {
+  const base = Array.isArray(draft?.inputAssignments) ? draft.inputAssignments : [];
+  const origins = draft?.fairParamOrigins || {};
+  const groupToKeys = {
+    'event-frequency': ['tefMin', 'tefLikely', 'tefMax'],
+    'threat-capability': ['threatCapMin', 'threatCapLikely', 'threatCapMax'],
+    'control-strength': ['controlStrMin', 'controlStrLikely', 'controlStrMax'],
+    'incident-response': ['irMin', 'irLikely', 'irMax'],
+    'business-interruption': ['biMin', 'biLikely', 'biMax'],
+    'regulatory-legal': ['rlMin', 'rlLikely', 'rlMax']
+  };
+  return base.map(item => {
+    const keys = groupToKeys[item.id] || [];
+    const hasUserEdit = keys.some(key => origins[key] === 'user');
+    if (!hasUserEdit) return item;
+    return {
+      ...item,
+      origin: 'User edit',
+      sourceTypeLabel: 'User-entered value',
+      reason: 'This input group was changed after the AI starting point was loaded, so the current values reflect direct user judgement.',
+      freshnessLabel: '',
+      confidenceLabel: item.confidenceLabel || ''
+    };
+  });
+}
+
+function renderInputSourceAuditBlock(assignments = []) {
+  const items = Array.isArray(assignments) ? assignments.filter(Boolean) : [];
+  if (!items.length) return '';
+  return `<div class="card card--elevated anim-fade-in"><div class="context-panel-title">Current source of each key input</div><div style="display:flex;flex-direction:column;gap:var(--sp-3);margin-top:var(--sp-3)">${items.map(item => `<div style="background:var(--bg-elevated);padding:var(--sp-4);border-radius:var(--radius-lg)"><div style="display:flex;align-items:center;gap:var(--sp-2);flex-wrap:wrap"><strong style="font-size:.85rem;color:var(--text-primary)">${escapeHtml(String(item.label || 'Input'))}</strong><span class="badge badge--neutral">${escapeHtml(String(item.origin || 'Unknown'))}</span>${item.sourceTypeLabel ? `<span class="badge badge--gold">${escapeHtml(String(item.sourceTypeLabel))}</span>` : ''}</div><div class="context-panel-copy" style="margin-top:6px">${escapeHtml(String(item.reason || ''))}</div></div>`).join('')}</div></div>`;
+}
+
+function renderSimulationEquationFlow() {
+  return `<div class="card card--elevated anim-fade-in"><div class="context-panel-title">How the result is built</div><div class="context-panel-copy" style="margin-top:var(--sp-2)">AI, context, and source documents prepare FAIR inputs. Monte Carlo simulation then turns those inputs into conditional event loss and annualized loss ranges.</div><div class="citation-chips" style="margin-top:12px"><span class="badge badge--neutral">AI/context/docs</span><span class="badge badge--neutral">FAIR inputs</span><span class="badge badge--neutral">Monte Carlo</span><span class="badge badge--neutral">Results</span></div></div>`;
+}
+
+function renderPreRunChallengeBlock(draft) {
+  const items = [];
+  const missing = Array.isArray(draft?.missingInformation) ? draft.missingInformation : [];
+  if (missing[0]) items.push(missing[0]);
+  if ((draft?.fairParams?.controlStrLikely ?? 1) <= 0.55) items.push('Challenge whether current control strength is too optimistic before you run the simulation.');
+  if ((draft?.fairParams?.tefLikely || 0) >= 3) items.push('Challenge whether the event-frequency working case is supported by internal incident evidence.');
+  if (!items.length) items.push('Challenge the event frequency, control strength, and largest cost range before you rely on the output.');
+  return `<div class="card card--elevated anim-fade-in"><div class="context-panel-title">Challenge these 3 assumptions first</div><div style="display:flex;flex-direction:column;gap:var(--sp-3);margin-top:var(--sp-3)">${items.slice(0, 3).map((item, idx) => `<div style="display:flex;gap:var(--sp-3);align-items:flex-start"><span class="badge badge--gold" style="min-width:24px;justify-content:center">${idx + 1}</span><div class="context-panel-copy" style="margin:0">${escapeHtml(String(item))}</div></div>`).join('')}</div></div>`;
 }
 
 function renderEvidenceQualityBlock(confidenceLabel, evidenceQuality, evidenceSummary, missingInformation = [], title = 'AI Evidence Quality', evidenceBreakdown = null) {
@@ -12421,6 +12498,143 @@ function renderExecutiveDriversSummary(drivers, assessment) {
       ${regulations.length ? `<div class="results-chip-block">${regulations.map(tag => `<span class="badge badge--neutral">${tag}</span>`).join('')}</div>` : ''}
     </div>
   </div>`;
+}
+
+// ─── AUTH & SETTINGS ──────────────────────────────────────────
+const ADMIN_SECTION_STORAGE_KEY = 'rq_admin_active_section';
+
+function getPreferredAdminSection() {
+  try {
+    const value = String(localStorage.getItem(ADMIN_SECTION_STORAGE_KEY) || '').trim();
+    return ['org', 'company', 'defaults', 'governance', 'feedback', 'access', 'users', 'audit'].includes(value) ? value : 'org';
+  } catch {
+    return 'org';
+  }
+}
+
+function setPreferredAdminSection(section) {
+  const value = ['org', 'company', 'defaults', 'governance', 'feedback', 'access', 'users', 'audit'].includes(section) ? section : 'org';
+  try {
+    localStorage.setItem(ADMIN_SECTION_STORAGE_KEY, value);
+  } catch {}
+  return value;
+}
+
+function getDefaultRouteForCurrentUser() {
+  const user = AuthService.getCurrentUser();
+  // Global admins need a proper front door that separates assessment work from console administration.
+  return user?.role === 'admin' ? '/admin/home' : '/dashboard';
+}
+
+function userNeedsOrganisationSelection(user = AuthService.getCurrentUser(), settings = getAdminSettings()) {
+  if (!user || user.role === 'admin') return false;
+  const companyStructure = Array.isArray(settings.companyStructure) ? settings.companyStructure : [];
+  const companies = getCompanyEntities(companyStructure);
+  if (!companies.length) return false;
+  const storedSettings = getUserSettings();
+  const selection = resolveUserOrganisationSelection(user, storedSettings, settings);
+  const businessUnitEntityId = String(selection.businessUnitEntityId || '').trim();
+  const departmentEntityId = String(selection.departmentEntityId || '').trim();
+  if (!businessUnitEntityId) return true;
+  const departments = getDepartmentEntities(companyStructure, businessUnitEntityId);
+  return !!departments.length && !departmentEntityId;
+}
+
+function renderLoginOrganisationSelection(currentUser, existingSettings = getUserSettings()) {
+  const adminSettings = getAdminSettings();
+  const companyStructure = Array.isArray(adminSettings.companyStructure) ? adminSettings.companyStructure : [];
+  const companies = getCompanyEntities(companyStructure);
+  if (!companies.length) {
+    Router.navigate('/dashboard');
+    return;
+  }
+  const selection = resolveUserOrganisationSelection(currentUser, existingSettings, adminSettings);
+  const capability = getNonAdminCapabilityState(currentUser, existingSettings, adminSettings);
+  const canChooseDepartment = capability.canManageBusinessUnit && !capability.canManageDepartment;
+  let selectedBusinessId = selection.businessUnitEntityId || companies[0]?.id || '';
+  const ownedDefault = getDefaultOrgAssignmentForUser(currentUser.username, adminSettings);
+  if (!selectedBusinessId && ownedDefault.businessUnitEntityId) {
+    selectedBusinessId = ownedDefault.businessUnitEntityId;
+  }
+  const settings = {
+    ...existingSettings,
+    userProfile: typeof reconcileUserProfileToManagedScope === 'function'
+      ? reconcileUserProfileToManagedScope(existingSettings.userProfile, currentUser, adminSettings)
+      : normaliseUserProfile(existingSettings.userProfile, currentUser)
+  };
+
+  function renderSelectionStep() {
+    const departmentOptions = getDepartmentEntities(companyStructure, selectedBusinessId);
+    let selectedDepartmentId = String(selection.departmentEntityId || settings.userProfile.departmentEntityId || ownedDefault.departmentEntityId || '').trim();
+    if (!departmentOptions.some(option => option.id === selectedDepartmentId)) {
+      selectedDepartmentId = departmentOptions.find(option => option.ownerUsername === currentUser.username)?.id || departmentOptions[0]?.id || '';
+    }
+    settings.userProfile.departmentEntityId = selectedDepartmentId;
+
+    setPage(`
+      <main class="page">
+        <div class="container container--narrow" style="padding:var(--sp-16) var(--sp-6);max-width:760px">
+          <div class="card card--elevated">
+            <div class="landing-badge">Sign In</div>
+            <h2 style="margin-top:var(--sp-4)">Confirm your organisation context</h2>
+            <p style="margin-top:8px;color:var(--text-muted)">This confirms the business context used for this session. Admin-assigned scope stays fixed unless your ownership allows a department choice.</p>
+            <div class="form-group mt-6">
+              <label class="form-label" for="login-business-unit">Business unit / company</label>
+              <select class="form-select" id="login-business-unit" disabled>
+                ${companies.map(entity => `<option value="${entity.id}" ${entity.id === selectedBusinessId ? 'selected' : ''}>${entity.name}</option>`).join('')}
+              </select>
+            </div>
+            <div class="form-group mt-4">
+              <label class="form-label" for="login-department">Function / department</label>
+              <select class="form-select" id="login-department" ${departmentOptions.length && canChooseDepartment ? '' : 'disabled'}>
+                ${departmentOptions.length
+                  ? departmentOptions.map(entity => `<option value="${entity.id}" ${entity.id === selectedDepartmentId ? 'selected' : ''}>${entity.name}${entity.ownerUsername === currentUser.username ? ' · your department' : ''}</option>`).join('')
+                  : '<option value="">No functions configured yet</option>'}
+              </select>
+              <span class="form-help">${departmentOptions.length ? (canChooseDepartment ? 'Choose the function context you want to work within for this session.' : 'Your function context is fixed by your current assignment.') : 'No function has been configured beneath this business yet. Ask an admin or BU admin to add one before continuing.'}</span>
+            </div>
+            <div class="flex items-center justify-between mt-6" style="gap:var(--sp-4);flex-wrap:wrap">
+              <button class="btn btn--ghost" id="btn-login-switch-account">Switch Account</button>
+              <button class="btn btn--primary" id="btn-login-context-continue">Continue</button>
+            </div>
+          </div>
+        </div>
+      </main>`);
+
+    document.getElementById('btn-login-switch-account').addEventListener('click', () => {
+      performLogout({ renderLoginScreen: true });
+    });
+    document.getElementById('btn-login-context-continue').addEventListener('click', async () => {
+      const businessUnitEntityId = selectedBusinessId;
+      const departmentEntityId = canChooseDepartment ? document.getElementById('login-department').value : selectedDepartmentId;
+      const businessEntity = getEntityById(companyStructure, businessUnitEntityId);
+      const departmentEntity = getEntityById(companyStructure, departmentEntityId);
+      const availableDepartments = getDepartmentEntities(companyStructure, businessUnitEntityId);
+      if (!businessEntity) {
+        UI.toast('Choose a business unit first.', 'warning');
+        return;
+      }
+      if (availableDepartments.length && !departmentEntity) {
+        UI.toast('Choose a department or function for this sign-in session.', 'warning');
+        return;
+      }
+      saveUserSettings({
+        ...settings,
+        userProfile: {
+          ...settings.userProfile,
+          businessUnit: businessEntity.name,
+          businessUnitEntityId,
+          department: departmentEntity?.name || '',
+          departmentEntityId: departmentEntity?.id || ''
+        }
+      });
+      activateAuthenticatedState();
+      Router.navigate('/dashboard');
+    });
+  }
+
+  settings.userProfile.businessUnitEntityId = selectedBusinessId;
+  renderSelectionStep();
 }
 
 function renderAssessmentChallengeBlock(challenge) {
