@@ -1682,16 +1682,29 @@ function renderResultsCockpitStringList(title = '', items = [], emptyCopy = '') 
 function renderResultsAiJourneyStrip(aiJourney = {}) {
   if (!aiJourney || typeof aiJourney !== 'object' || !Array.isArray(aiJourney.outputs)) return '';
   const outputs = aiJourney.outputs.filter(item => item && (item.hasOutput || item.refreshRecommended)).slice(0, 6);
-  const needsAction = aiJourney.staleCount > 0 || aiJourney.emptyCount > 0;
-  return `<div class="ai-product-state-strip ${needsAction ? 'ai-product-state-strip--warning' : ''} results-decision-cockpit__ai-strip">
+  const hasCritical = Number(aiJourney.criticalStaleCount || 0) > 0;
+  const hasReview = Number(aiJourney.reviewStaleCount || 0) > 0 || Number(aiJourney.staleCount || 0) > 0;
+  const stripClass = hasCritical
+    ? 'ai-product-state-strip--danger'
+    : hasReview
+      ? 'ai-product-state-strip--warning'
+      : '';
+  const summaryLabel = aiJourney.summaryLabel || `${aiJourney.liveCount || 0} live · ${aiJourney.fallbackCount || 0} fallback · ${aiJourney.staleCount || 0} stale`;
+  return `<div class="ai-product-state-strip ${stripClass} results-decision-cockpit__ai-strip">
     <div>
       <strong>${escapeHtml(aiJourney.recommendedAction || 'Review AI support')}</strong>
-      <span>${escapeHtml(aiJourney.recommendedReason || `${aiJourney.modeLabel || 'AI support'} · ${aiJourney.liveCount || 0} live · ${aiJourney.fallbackCount || 0} fallback · ${aiJourney.staleCount || 0} stale`)}</span>
+      <span>${escapeHtml(aiJourney.recommendedReason || `${aiJourney.modeLabel || 'AI support'} · ${summaryLabel}`)}</span>
     </div>
     <div class="ai-product-state-strip__badges">
       <span class="badge badge--${normaliseResultsBadgeTone(aiJourney.tone || 'neutral')}">${escapeHtml(aiJourney.modeLabel || 'AI support')}</span>
-      ${outputs.map(item => `<span class="badge badge--${normaliseResultsBadgeTone(item.freshnessTone || 'neutral')}">${escapeHtml(item.label)}: ${escapeHtml(item.freshnessLabel || 'Saved')}</span>`).join('')}
+      <span class="badge badge--neutral">${escapeHtml(summaryLabel)}</span>
     </div>
+    ${outputs.length ? `<details class="ai-product-state-strip__details">
+      <summary>View AI support details</summary>
+      <div class="ai-product-state-strip__detail-grid">
+        ${outputs.map(item => `<span class="badge badge--${normaliseResultsBadgeTone(item.freshnessTone || 'neutral')}" title="${escapeHtml(item.refreshReason || '')}">${escapeHtml(item.label)}: ${escapeHtml(item.freshnessLabel || 'Saved')}</span>`).join('')}
+      </div>
+    </details>` : ''}
   </div>`;
 }
 

@@ -12,6 +12,7 @@ function loadResultsHelpers() {
 ;globalThis.__resultsRouteTest = {
   normaliseReviewerWorkflowMode,
   getReviewerWorkflowModePresentation,
+  renderResultsAiJourneyStrip,
   renderAssessmentChallengeResult,
   renderReviewMediationResult
 };`;
@@ -65,6 +66,34 @@ test('reviewer workflow helpers distinguish live, deterministic fallback, and ma
   });
   assert.equal(manualMeta.label, 'Manual mediation guidance');
   assert.equal(manualMeta.message, 'Keep the review manual.');
+});
+
+test('results AI journey strip defaults to compact summary with expandable details', () => {
+  const { renderResultsAiJourneyStrip } = loadResultsHelpers();
+
+  const html = renderResultsAiJourneyStrip({
+    modeLabel: 'Mixed AI/fallback',
+    tone: 'warning',
+    summaryLabel: '3 fresh · 1 stale · 2 not generated',
+    staleCount: 1,
+    criticalStaleCount: 0,
+    reviewStaleCount: 1,
+    liveCount: 1,
+    fallbackCount: 1,
+    emptyCount: 2,
+    recommendedAction: 'Review Evidence Map',
+    recommendedReason: 'Review Evidence Map because evidence changed.',
+    outputs: [
+      { label: 'Decision Brief', hasOutput: true, freshnessLabel: 'Fresh', freshnessTone: 'success' },
+      { label: 'Evidence Map', hasOutput: true, freshnessLabel: 'Review recommended', freshnessTone: 'warning', refreshReason: 'Review Evidence Map because evidence changed.' },
+      { label: 'Challenge Agent', hasOutput: false, refreshRecommended: true, freshnessLabel: 'No output', freshnessTone: 'neutral' }
+    ]
+  });
+
+  assert.match(html, /3 fresh · 1 stale · 2 not generated/);
+  assert.match(html, /View AI support details/);
+  assert.match(html, /Evidence Map: Review recommended/);
+  assert.ok(html.indexOf('3 fresh · 1 stale · 2 not generated') < html.indexOf('View AI support details'));
 });
 
 test('reviewer/challenge renderers show honest mode labels and hide manual-only actions', () => {

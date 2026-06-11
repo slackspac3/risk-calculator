@@ -248,9 +248,19 @@ test('missing input actions update economics metadata without treating blank as 
 
 test('project exposure panel shows smart refresh prompt for stale saved AI map', () => {
   const draft = baseDraft('project_buyer');
+  const context = loadStep1ProjectExposureHarness(draft);
+  const savedBreakdown = context.AiProductStateService.buildFingerprintBreakdown({
+    projectEconomics: {
+      projectContext: draft.projectContext,
+      buyerEconomics: { delayCostPerDay: 1000 },
+      buyerEconomicsMeta: { delayCostPerDay: { status: 'known', confidence: 'medium', source: 'user' } },
+      buyerProxyAnswers: draft.buyerProxyQuestions
+    }
+  });
   draft.projectExposure = {
     sourceMode: 'live',
-    inputFingerprint: 'old-project-fingerprint',
+    inputFingerprint: savedBreakdown.fingerprint,
+    inputFingerprintBreakdown: savedBreakdown,
     projectExposureSummary: 'Previous live map.',
     financialDrivers: [{ id: 'delay', label: 'Delay cost', driverStatus: 'unquantified_driver', likely: null }],
     capsAndOffsets: [],
@@ -259,11 +269,11 @@ test('project exposure panel shows smart refresh prompt for stale saved AI map',
     mapsToRiskParameters: {},
     generatedAt: '2026-06-10T00:00:00.000Z'
   };
-  const context = loadStep1ProjectExposureHarness(draft);
 
   const html = context.renderStep1ProjectExposurePanel('buyer', context.AppState.draft);
 
   assert.match(html, /Refresh Project exposure map/);
   assert.match(html, /Needs refresh/);
-  assert.match(html, /Smart prompt/);
+  assert.match(html, /project economics/i);
+  assert.match(html, /changed/i);
 });

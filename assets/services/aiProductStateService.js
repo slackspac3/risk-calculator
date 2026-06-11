@@ -23,6 +23,114 @@
     none: 'neutral'
   });
 
+  const STALE_CATEGORY_LABELS = Object.freeze({
+    scenario: 'scenario',
+    projectEconomics: 'project economics',
+    parameters: 'parameters',
+    simulation: 'simulation result',
+    evidence: 'evidence',
+    citations: 'citations',
+    dependentAiOutputs: 'related AI outputs',
+    businessContext: 'business context',
+    adminSettings: 'admin settings',
+    metadata: 'metadata'
+  });
+
+  const STALE_CATEGORY_SEVERITY = Object.freeze({
+    scenario: 'critical',
+    projectEconomics: 'critical',
+    parameters: 'critical',
+    simulation: 'critical',
+    evidence: 'review',
+    citations: 'review',
+    dependentAiOutputs: 'review',
+    businessContext: 'informational',
+    adminSettings: 'informational',
+    metadata: 'informational'
+  });
+
+  const SEVERITY_RANK = Object.freeze({
+    critical: 3,
+    review: 2,
+    informational: 1,
+    none: 0
+  });
+
+  const SEVERITY_PRESENTATION = Object.freeze({
+    critical: {
+      label: 'Needs refresh',
+      tone: 'danger',
+      actionVerb: 'Refresh'
+    },
+    review: {
+      label: 'Review recommended',
+      tone: 'warning',
+      actionVerb: 'Review'
+    },
+    informational: {
+      label: 'Context changed',
+      tone: 'neutral',
+      actionVerb: 'Review'
+    },
+    none: {
+      label: 'Saved',
+      tone: 'neutral',
+      actionVerb: 'Review'
+    }
+  });
+
+  const ARTIFACT_USEFUL_PATHS = Object.freeze({
+    projectexposure: [
+      'projectExposureSummary',
+      'financialDrivers',
+      'missingInputs',
+      'doubleCountingWarnings',
+      'capsAndOffsets'
+    ],
+    assumptionregister: [
+      'assumptions',
+      'missingEvidence',
+      'nextBestQuestions'
+    ],
+    parametercoach: [
+      'parameterRationales',
+      'missingHighImpactInputs',
+      'warnings'
+    ],
+    evidencemap: [
+      'supportedClaims',
+      'unsupportedClaims',
+      'contradictions',
+      'parameterEvidenceMap',
+      'projectFinancialEvidenceMap',
+      'citationQuality.strong',
+      'citationQuality.weak',
+      'citationQuality.decorative'
+    ],
+    decisionchallenge: [
+      'challengeSummary',
+      'decisionRisks',
+      'sensitivityFlags',
+      'recommendedStressTests',
+      'changedDecisionIf'
+    ],
+    challengeagent: [
+      'challengeSummary',
+      'decisionRisks',
+      'sensitivityFlags',
+      'recommendedStressTests',
+      'changedDecisionIf'
+    ],
+    decisionbrief: [
+      'recommendation',
+      'why',
+      'mainDrivers',
+      'nextAction.action',
+      'quantSummary.plainEnglish',
+      'projectQuantSummary.plainEnglish'
+    ]
+  });
+
   function isPlainObject(value) {
     return !!value && typeof value === 'object' && !Array.isArray(value);
   }
@@ -62,6 +170,108 @@
     return hashString(stableStringify(value));
   }
 
+  function normaliseArtifactKey(value = '') {
+    return cleanText(value).toLowerCase().replace(/[^a-z0-9]+/g, '');
+  }
+
+  function valueHasContent(value) {
+    if (Array.isArray(value)) return value.length > 0;
+    if (isPlainObject(value)) return Object.values(value).some(valueHasContent);
+    if (typeof value === 'string') return cleanText(value).length > 0;
+    return value !== null && value !== undefined;
+  }
+
+  function getPathValue(source = {}, path = '') {
+    return cleanText(path).split('.').filter(Boolean).reduce((current, key) => {
+      if (!current || typeof current !== 'object') return undefined;
+      return current[key];
+    }, source);
+  }
+
+  function buildFingerprintBreakdown(categories = {}) {
+    const source = isPlainObject(categories) ? categories : {};
+    const categoryFingerprints = {};
+    Object.keys(source).sort().forEach((key) => {
+      const cleanKey = cleanText(key);
+      if (!cleanKey) return;
+      categoryFingerprints[cleanKey] = buildFingerprint(source[key]);
+    });
+    return {
+      fingerprint: buildFingerprint(categoryFingerprints),
+      categories: categoryFingerprints
+    };
+  }
+
+  function normaliseFingerprintCategories(categories = {}) {
+    if (!isPlainObject(categories)) return {};
+    const output = {};
+    Object.entries(categories).forEach(([key, value]) => {
+      const cleanKey = cleanText(key);
+      const cleanValue = cleanText(value);
+      if (!cleanKey || !cleanValue) return;
+      output[cleanKey] = cleanValue;
+    });
+    return output;
+  }
+
+  function normaliseFingerprintSnapshot(value, fallbackFingerprint = '') {
+    if (isPlainObject(value)) {
+      const categories = normaliseFingerprintCategories(value.categories || value.breakdown || {});
+      const fingerprint = cleanText(value.fingerprint || value.inputFingerprint || '')
+        || (Object.keys(categories).length ? buildFingerprint(categories) : cleanText(fallbackFingerprint));
+      return { fingerprint, categories };
+    }
+    return {
+      fingerprint: cleanText(value || fallbackFingerprint),
+      categories: {}
+    };
+  }
+
+  function resolveChangedCategories(savedSnapshot = {}, currentSnapshot = {}) {
+    const savedCategories = normaliseFingerprintCategories(savedSnapshot.categories);
+    const currentCategories = normaliseFingerprintCategories(currentSnapshot.categories);
+    const savedKeys = Object.keys(savedCategories);
+    const currentKeys = Object.keys(currentCategories);
+    if (!savedKeys.length || !currentKeys.length) return [];
+    const keys = Array.from(new Set([...savedKeys, ...currentKeys])).sort();
+    return keys.filter((key) => cleanText(savedCategories[key]) !== cleanText(currentCategories[key]));
+  }
+
+  function resolveStaleSeverity(changedCategories = [], fallback = 'critical') {
+    const changes = Array.isArray(changedCategories) ? changedCategories : [];
+    return changes.reduce((current, category) => {
+      const next = STALE_CATEGORY_SEVERITY[category] || 'review';
+      return SEVERITY_RANK[next] > SEVERITY_RANK[current] ? next : current;
+    }, changes.length ? 'none' : fallback);
+  }
+
+  function labelChangedCategories(changedCategories = []) {
+    return (Array.isArray(changedCategories) ? changedCategories : [])
+      .map((category) => STALE_CATEGORY_LABELS[category] || humanizeCategory(category))
+      .filter(Boolean);
+  }
+
+  function humanizeCategory(value = '') {
+    return cleanText(value)
+      .replace(/([a-z])([A-Z])/g, '$1 $2')
+      .replace(/[_-]+/g, ' ')
+      .toLowerCase();
+  }
+
+  function buildStaleReason(outputLabel = 'AI output', severity = 'critical', changedLabels = []) {
+    const labels = Array.isArray(changedLabels) ? changedLabels.filter(Boolean) : [];
+    const subject = cleanText(outputLabel) || 'AI output';
+    if (labels.length) {
+      const listed = labels.length === 1
+        ? labels[0]
+        : `${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}`;
+      if (severity === 'critical') return `${subject} should be refreshed because ${listed} changed.`;
+      if (severity === 'review') return `Review ${subject} because ${listed} changed.`;
+      return `${subject} has newer context from ${listed}.`;
+    }
+    return `${subject} no longer matches the current inputs.`;
+  }
+
   function normaliseMode(value = '', { usedFallback = false, aiUnavailable = false, hasOutput = false } = {}) {
     const mode = cleanText(value).toLowerCase().replace(/[\s-]+/g, '_');
     if (aiUnavailable) return usedFallback || hasOutput ? 'deterministic_fallback' : 'unavailable';
@@ -95,9 +305,24 @@
     return date.toLocaleDateString('en-AE', { month: 'short', day: 'numeric' });
   }
 
-  function hasUsefulOutput(value) {
+  function hasUsefulOutput(value, artifactKey = '') {
     if (!isPlainObject(value)) return false;
-    const ignored = new Set(['mode', 'sourceMode', 'usedFallback', 'aiUnavailable', 'generatedAt', 'inputFingerprint']);
+    const usefulPaths = ARTIFACT_USEFUL_PATHS[normaliseArtifactKey(artifactKey)] || [];
+    if (usefulPaths.length) {
+      return usefulPaths.some((path) => valueHasContent(getPathValue(value, path)));
+    }
+    const ignored = new Set([
+      'mode',
+      'sourceMode',
+      'usedFallback',
+      'aiUnavailable',
+      'generatedAt',
+      'inputFingerprint',
+      'inputFingerprintBreakdown',
+      'fingerprintBreakdown',
+      'workflowFingerprint',
+      'sourceMetadata'
+    ]);
     return Object.entries(value).some(([key, item]) => {
       if (ignored.has(key)) return false;
       if (Array.isArray(item)) return item.length > 0;
@@ -107,7 +332,15 @@
     });
   }
 
-  function resolveFreshness({ hasOutput, savedFingerprint = '', currentFingerprint = '', sourceMode = '' } = {}) {
+  function resolveFreshness({
+    hasOutput,
+    savedFingerprint = '',
+    currentFingerprint = '',
+    savedFingerprintBreakdown = null,
+    currentFingerprintBreakdown = null,
+    sourceMode = '',
+    outputLabel = 'AI output'
+  } = {}) {
     if (!hasOutput) {
       return {
         status: 'empty',
@@ -116,14 +349,24 @@
         refreshRecommended: true
       };
     }
-    const saved = cleanText(savedFingerprint);
-    const current = cleanText(currentFingerprint);
+    const savedSnapshot = normaliseFingerprintSnapshot(savedFingerprintBreakdown, savedFingerprint);
+    const currentSnapshot = normaliseFingerprintSnapshot(currentFingerprintBreakdown, currentFingerprint);
+    const saved = cleanText(savedSnapshot.fingerprint || savedFingerprint);
+    const current = cleanText(currentSnapshot.fingerprint || currentFingerprint);
     if (saved && current && saved !== current) {
+      const staleCategories = resolveChangedCategories(savedSnapshot, currentSnapshot);
+      const freshnessSeverity = resolveStaleSeverity(staleCategories, 'critical');
+      const presentation = SEVERITY_PRESENTATION[freshnessSeverity] || SEVERITY_PRESENTATION.critical;
+      const staleCategoryLabels = labelChangedCategories(staleCategories);
       return {
         status: 'stale',
-        label: 'Needs refresh',
-        tone: 'warning',
-        refreshRecommended: true
+        label: presentation.label,
+        tone: presentation.tone,
+        refreshRecommended: true,
+        severity: freshnessSeverity,
+        staleCategories,
+        staleCategoryLabels,
+        refreshReason: buildStaleReason(outputLabel, freshnessSeverity, staleCategoryLabels)
       };
     }
     if (saved && current && saved === current) {
@@ -131,7 +374,10 @@
         status: 'fresh',
         label: 'Fresh',
         tone: 'success',
-        refreshRecommended: false
+        refreshRecommended: false,
+        severity: 'none',
+        staleCategories: [],
+        staleCategoryLabels: []
       };
     }
     if (sourceMode === 'deterministic_preview' || sourceMode === 'local_preview') {
@@ -139,14 +385,20 @@
         status: 'preview',
         label: 'Preview',
         tone: 'neutral',
-        refreshRecommended: false
+        refreshRecommended: false,
+        severity: 'none',
+        staleCategories: [],
+        staleCategoryLabels: []
       };
     }
     return {
       status: 'saved',
       label: 'Saved',
       tone: 'neutral',
-      refreshRecommended: false
+      refreshRecommended: false,
+      severity: 'none',
+      staleCategories: [],
+      staleCategoryLabels: []
     };
   }
 
@@ -156,11 +408,14 @@
     output = null,
     meta = null,
     currentFingerprint = '',
+    currentFingerprintBreakdown = null,
     hasOutput
   } = {}) {
     const outputObject = isPlainObject(output) ? output : {};
     const metaObject = isPlainObject(meta) ? meta : {};
-    const useful = typeof hasOutput === 'boolean' ? hasOutput : hasUsefulOutput(outputObject);
+    const outputLabel = cleanText(label || key || 'AI output');
+    const stateKey = cleanText(key || outputLabel).toLowerCase().replace(/[^a-z0-9]+/g, '_');
+    const useful = typeof hasOutput === 'boolean' ? hasOutput : hasUsefulOutput(outputObject, key || outputLabel);
     const usedFallback = outputObject.usedFallback === true || metaObject.usedFallback === true;
     const aiUnavailable = outputObject.aiUnavailable === true || metaObject.aiUnavailable === true;
     const mode = normaliseMode(outputObject.sourceMode || outputObject.mode || metaObject.mode || '', {
@@ -169,26 +424,32 @@
       hasOutput: useful
     });
     const savedFingerprint = cleanText(outputObject.inputFingerprint || metaObject.inputFingerprint || outputObject.workflowFingerprint || metaObject.workflowFingerprint || '');
+    const savedFingerprintBreakdown = outputObject.inputFingerprintBreakdown || metaObject.inputFingerprintBreakdown || outputObject.fingerprintBreakdown || metaObject.fingerprintBreakdown || null;
+    const currentSnapshot = isPlainObject(currentFingerprint)
+      ? currentFingerprint
+      : currentFingerprintBreakdown;
     const freshness = resolveFreshness({
       hasOutput: useful,
       savedFingerprint,
       currentFingerprint,
-      sourceMode: mode
+      savedFingerprintBreakdown,
+      currentFingerprintBreakdown: currentSnapshot,
+      sourceMode: mode,
+      outputLabel
     });
-    const outputLabel = cleanText(label || key || 'AI output');
     const generatedAt = cleanText(outputObject.generatedAt || metaObject.generatedAt || '');
     const recommendedAction = freshness.status === 'stale'
-      ? `Refresh ${outputLabel}`
+      ? `${(SEVERITY_PRESENTATION[freshness.severity] || SEVERITY_PRESENTATION.critical).actionVerb} ${outputLabel}`
       : !useful
         ? `Generate ${outputLabel}`
         : `Review ${outputLabel}`;
     const refreshReason = freshness.status === 'stale'
-      ? `${outputLabel} no longer matches the current inputs.`
+      ? (freshness.refreshReason || `${outputLabel} no longer matches the current inputs.`)
       : !useful
         ? `${outputLabel} has not been generated yet.`
         : '';
     return {
-      key: cleanText(key || outputLabel).toLowerCase().replace(/[^a-z0-9]+/g, '_'),
+      key: stateKey,
       label: outputLabel,
       hasOutput: useful,
       mode,
@@ -199,10 +460,15 @@
       generatedAt,
       generatedLabel: formatGeneratedAt(generatedAt),
       inputFingerprint: savedFingerprint,
-      currentFingerprint: cleanText(currentFingerprint),
+      inputFingerprintBreakdown: normaliseFingerprintSnapshot(savedFingerprintBreakdown, savedFingerprint),
+      currentFingerprint: cleanText(isPlainObject(currentFingerprint) ? currentFingerprint.fingerprint : currentFingerprint),
+      currentFingerprintBreakdown: normaliseFingerprintSnapshot(currentSnapshot, isPlainObject(currentFingerprint) ? currentFingerprint.fingerprint : currentFingerprint),
       freshnessStatus: freshness.status,
       freshnessLabel: freshness.label,
       freshnessTone: freshness.tone,
+      freshnessSeverity: freshness.severity || 'none',
+      staleCategories: freshness.staleCategories || [],
+      staleCategoryLabels: freshness.staleCategoryLabels || [],
       refreshRecommended: freshness.refreshRecommended,
       refreshReason,
       recommendedAction
@@ -217,7 +483,12 @@
     const live = states.filter((item) => item.mode === 'live');
     const fallback = states.filter((item) => item.mode === 'deterministic_fallback' || item.mode === 'fallback');
     const unavailable = states.filter((item) => item.aiUnavailable);
-    const recommended = stale[0] || empty[0] || states.find((item) => item.refreshRecommended) || null;
+    const criticalStale = stale.filter((item) => item.freshnessSeverity === 'critical');
+    const reviewStale = stale.filter((item) => item.freshnessSeverity === 'review');
+    const informationalStale = stale.filter((item) => item.freshnessSeverity === 'informational');
+    const fresh = states.filter((item) => item.freshnessStatus === 'fresh');
+    const saved = states.filter((item) => item.freshnessStatus === 'saved' || item.freshnessStatus === 'preview');
+    const recommended = criticalStale[0] || reviewStale[0] || stale[0] || empty[0] || states.find((item) => item.refreshRecommended) || null;
     const modeLabel = !hasOutput
       ? 'No AI outputs'
       : live.length && fallback.length
@@ -227,66 +498,93 @@
           : fallback.length
             ? 'Deterministic fallback'
             : 'Saved support outputs';
-    const tone = stale.length || unavailable.length || fallback.length ? 'warning' : live.length ? 'success' : 'neutral';
+    const tone = criticalStale.length ? 'danger' : stale.length || unavailable.length || fallback.length ? 'warning' : live.length ? 'success' : 'neutral';
+    const summaryLabel = `${fresh.length + saved.length} fresh · ${stale.length} stale · ${empty.length} not generated`;
     return {
       outputs: states,
       hasOutput,
       staleCount: stale.length,
+      criticalStaleCount: criticalStale.length,
+      reviewStaleCount: reviewStale.length,
+      informationalStaleCount: informationalStale.length,
       emptyCount: empty.length,
+      freshCount: fresh.length,
+      savedCount: saved.length,
       liveCount: live.length,
       fallbackCount: fallback.length,
       unavailableCount: unavailable.length,
       modeLabel,
       tone,
+      summaryLabel,
       recommendedAction: recommended?.recommendedAction || 'Review AI support',
       recommendedKey: recommended?.key || '',
       recommendedReason: recommended?.refreshReason || ''
     };
   }
 
+  function splitCurrentFingerprint(currentFingerprints = {}, key = '') {
+    const value = isPlainObject(currentFingerprints) ? currentFingerprints[key] : '';
+    if (isPlainObject(value)) {
+      return {
+        currentFingerprint: value.fingerprint || '',
+        currentFingerprintBreakdown: value
+      };
+    }
+    return {
+      currentFingerprint: value || '',
+      currentFingerprintBreakdown: null
+    };
+  }
+
   function buildAssessmentAiState(assessment = {}, { currentFingerprints = {} } = {}) {
+    const projectExposureFingerprint = splitCurrentFingerprint(currentFingerprints, 'projectExposure');
+    const assumptionRegisterFingerprint = splitCurrentFingerprint(currentFingerprints, 'assumptionRegister');
+    const parameterCoachFingerprint = splitCurrentFingerprint(currentFingerprints, 'parameterCoach');
+    const evidenceMapFingerprint = splitCurrentFingerprint(currentFingerprints, 'evidenceMap');
+    const decisionChallengeFingerprint = splitCurrentFingerprint(currentFingerprints, 'decisionChallenge');
+    const decisionBriefFingerprint = splitCurrentFingerprint(currentFingerprints, 'decisionBrief');
     const outputs = [
       buildAiOutputState({
         key: 'projectExposure',
         label: 'Project exposure map',
         output: assessment.projectExposure,
         meta: assessment.projectExposureMeta,
-        currentFingerprint: currentFingerprints.projectExposure
+        ...projectExposureFingerprint
       }),
       buildAiOutputState({
         key: 'assumptionRegister',
         label: 'Assumption Register',
         output: assessment.assumptionRegister,
         meta: assessment.assumptionRegisterMeta,
-        currentFingerprint: currentFingerprints.assumptionRegister
+        ...assumptionRegisterFingerprint
       }),
       buildAiOutputState({
         key: 'parameterCoach',
         label: 'Parameter Coach',
         output: assessment.parameterCoach,
         meta: assessment.parameterCoachMeta,
-        currentFingerprint: currentFingerprints.parameterCoach
+        ...parameterCoachFingerprint
       }),
       buildAiOutputState({
         key: 'evidenceMap',
         label: 'Evidence Map',
         output: assessment.evidenceMap,
         meta: assessment.evidenceMapMeta,
-        currentFingerprint: currentFingerprints.evidenceMap
+        ...evidenceMapFingerprint
       }),
       buildAiOutputState({
         key: 'decisionChallenge',
         label: 'Challenge Agent',
         output: assessment.decisionChallenge,
         meta: assessment.decisionChallengeMeta,
-        currentFingerprint: currentFingerprints.decisionChallenge
+        ...decisionChallengeFingerprint
       }),
       buildAiOutputState({
         key: 'decisionBrief',
         label: 'Decision Brief',
         output: assessment.decisionBrief,
         meta: assessment.decisionBriefMeta,
-        currentFingerprint: currentFingerprints.decisionBrief
+        ...decisionBriefFingerprint
       })
     ];
     return buildAiJourneyState(outputs);
@@ -294,10 +592,12 @@
 
   const api = {
     buildFingerprint,
+    buildFingerprintBreakdown,
     stableStringify,
     normaliseMode,
     getModeLabel,
     getModeTone,
+    hasUsefulOutput,
     buildAiOutputState,
     buildAiJourneyState,
     buildAssessmentAiState,

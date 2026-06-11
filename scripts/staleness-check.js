@@ -55,6 +55,8 @@ const step4Js = read('assets/wizard/step4.js');
 const appJs = read('assets/app.js');
 const assetLoaderJs = read('assets/services/assetLoader.js');
 const aiProductStateJs = read('assets/services/aiProductStateService.js');
+const resultsRouteJs = read('assets/results/resultsRoute.js');
+const resultsViewModelJs = read('assets/results/resultsViewModel.js');
 const assessmentStateJs = read('assets/state/assessmentState.js');
 const e2eSmokeSpecJs = read('tests/e2e/smoke.spec.js');
 
@@ -124,21 +126,46 @@ expect(
 );
 expect(
   aiProductStateJs.includes('buildAiOutputState')
+    && aiProductStateJs.includes('buildFingerprintBreakdown')
     && aiProductStateJs.includes('currentFingerprint')
+    && aiProductStateJs.includes('freshnessSeverity')
     && aiProductStateJs.includes('freshnessStatus')
     && aiProductStateJs.includes('stale'),
-  'AI product state helper must expose fingerprint-based stale output detection.'
+  'AI product state helper must expose category-aware fingerprint stale output detection.'
+);
+expect(
+  aiProductStateJs.includes('ARTIFACT_USEFUL_PATHS')
+    && aiProductStateJs.includes('decisionBrief')
+    && aiProductStateJs.includes('parameterRationales')
+    && aiProductStateJs.includes('supportedClaims'),
+  'AI product state helper must use artefact-specific useful-output checks instead of metadata-only detection.'
 );
 expect(
   step1Js.includes('savedAiState?.freshnessStatus === \'stale\'')
+    && step1Js.includes('inputFingerprintBreakdown')
     && step1Js.includes('Refresh exposure map'),
-  'Step 1 project exposure UI must show a refresh prompt when the saved AI map is stale.'
+  'Step 1 project exposure UI must show a category-aware refresh prompt when the saved AI map is stale.'
 );
 expect(
   step4Js.includes('buildStep4ParameterCoachFingerprint')
     && step4Js.includes('buildStep4EvidenceMapFingerprint')
+    && step4Js.includes('buildStep4ParameterCoachFingerprintBreakdown')
+    && step4Js.includes('buildStep4EvidenceMapFingerprintBreakdown')
+    && step4Js.includes('inputFingerprintBreakdown')
     && step4Js.includes('inputFingerprint'),
-  'Step 4 AI review outputs must persist input fingerprints for stale Parameter Coach and Evidence Map detection.'
+  'Step 4 AI review outputs must persist input fingerprint breakdowns for stale Parameter Coach and Evidence Map detection.'
+);
+expect(
+  resultsViewModelJs.includes('buildFingerprintBreakdown')
+    && resultsViewModelJs.includes('projectEconomics')
+    && resultsViewModelJs.includes('dependentAiOutputs'),
+  'Results view model must build category-level current fingerprints for AI support artefacts.'
+);
+expect(
+  resultsRouteJs.includes('summaryLabel')
+    && resultsRouteJs.includes('ai-product-state-strip__details')
+    && resultsRouteJs.includes('View AI support details'),
+  'Results AI journey strip must default to a compact summary with expandable artefact details.'
 );
 
 if (failures.length) {

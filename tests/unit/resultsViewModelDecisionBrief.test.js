@@ -177,6 +177,63 @@ test('results cockpit exposes unified AI journey state and stale prompts', () =>
   assert.ok(model.decisionCockpitModel.badges.some(item => item.label === 'AI mode'));
 });
 
+test('results cockpit explains project-economics stale reasons when fingerprint breakdowns exist', () => {
+  const ResultsViewModel = buildViewModel();
+  const savedBreakdown = AiProductStateService.buildFingerprintBreakdown({
+    scenario: {
+      assessmentType: 'project_buyer',
+      scenario: 'Supplier delay',
+      structuredScenario: {},
+      scenarioLens: {}
+    },
+    projectEconomics: {
+      assessmentType: 'project_buyer',
+      projectContext: { projectRole: 'buyer', projectName: 'ERP rollout' },
+      buyerEconomics: { approvedBudget: 1000000 },
+      buyerEconomicsMeta: { approvedBudget: { status: 'known', confidence: 'high', source: 'user' } },
+      sellerEconomics: {},
+      sellerEconomicsMeta: {},
+      buyerProxyQuestions: {},
+      sellerProxyQuestions: {}
+    },
+    citations: [],
+    businessContext: {
+      buId: '',
+      buName: 'Technology',
+      geography: 'United Arab Emirates',
+      geographies: [],
+      applicableRegulations: []
+    }
+  });
+  const model = ResultsViewModel.buildResultsRenderModel({
+    id: 'a-ai-breakdown',
+    assessmentType: 'project_buyer',
+    scenarioTitle: 'Supplier delay',
+    buName: 'Technology',
+    geography: 'United Arab Emirates',
+    createdAt: Date.now(),
+    projectContext: { projectRole: 'buyer', projectName: 'ERP rollout' },
+    buyerEconomics: { approvedBudget: 2000000 },
+    buyerEconomicsMeta: { approvedBudget: { status: 'known', confidence: 'high', source: 'user' } },
+    projectExposure: {
+      sourceMode: 'live',
+      inputFingerprint: savedBreakdown.fingerprint,
+      inputFingerprintBreakdown: savedBreakdown,
+      projectExposureSummary: 'Old project map.',
+      projectInputQuality: { score: 50, label: 'Partial project economics' },
+      financialDrivers: [{ id: 'delay', label: 'Delay cost' }]
+    },
+    results: buildResults()
+  });
+  const projectState = model.decisionCockpitModel.aiJourney.outputs.find(item => item.key === 'projectexposure' || item.key === 'project_exposure');
+
+  assert.ok(projectState);
+  assert.equal(projectState.freshnessStatus, 'stale');
+  assert.equal(projectState.freshnessSeverity, 'critical');
+  assert.ok(projectState.staleCategoryLabels.includes('project economics'));
+  assert.match(projectState.refreshReason, /project economics changed/);
+});
+
 test('results cockpit surfaces buyer sparse economics without zeroing unknowns', () => {
   const ResultsViewModel = buildViewModel();
   const model = ResultsViewModel.buildResultsRenderModel({

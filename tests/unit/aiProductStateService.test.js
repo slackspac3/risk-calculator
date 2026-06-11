@@ -43,6 +43,64 @@ test('AI product state marks mismatched fingerprints as stale', () => {
   assert.match(state.refreshReason, /no longer matches/);
 });
 
+test('AI product state explains critical stale categories', () => {
+  const saved = AiProductStateService.buildFingerprintBreakdown({
+    scenario: { title: 'Supplier delay' },
+    parameters: { businessInterruption: 10000 }
+  });
+  const current = AiProductStateService.buildFingerprintBreakdown({
+    scenario: { title: 'Supplier delay' },
+    parameters: { businessInterruption: 25000 }
+  });
+  const state = AiProductStateService.buildAiOutputState({
+    key: 'parameterCoach',
+    label: 'Parameter Coach',
+    output: {
+      mode: 'deterministic_fallback',
+      inputFingerprint: saved.fingerprint,
+      inputFingerprintBreakdown: saved,
+      parameterRationales: [{ parameterKey: 'businessInterruption' }]
+    },
+    currentFingerprint: current.fingerprint,
+    currentFingerprintBreakdown: current
+  });
+
+  assert.equal(state.freshnessStatus, 'stale');
+  assert.equal(state.freshnessSeverity, 'critical');
+  assert.deepEqual(state.staleCategories, ['parameters']);
+  assert.match(state.refreshReason, /parameters changed/);
+  assert.equal(state.recommendedAction, 'Refresh Parameter Coach');
+});
+
+test('AI product state treats evidence-only changes as review stale', () => {
+  const saved = AiProductStateService.buildFingerprintBreakdown({
+    scenario: { title: 'Supplier delay' },
+    evidence: { citations: ['Contract v1'] }
+  });
+  const current = AiProductStateService.buildFingerprintBreakdown({
+    scenario: { title: 'Supplier delay' },
+    evidence: { citations: ['Contract v2'] }
+  });
+  const state = AiProductStateService.buildAiOutputState({
+    key: 'evidenceMap',
+    label: 'Evidence Map',
+    output: {
+      mode: 'live',
+      inputFingerprint: saved.fingerprint,
+      inputFingerprintBreakdown: saved,
+      supportedClaims: [{ claim: 'Budget is approved.' }]
+    },
+    currentFingerprint: current.fingerprint,
+    currentFingerprintBreakdown: current
+  });
+
+  assert.equal(state.freshnessStatus, 'stale');
+  assert.equal(state.freshnessSeverity, 'review');
+  assert.equal(state.freshnessLabel, 'Review recommended');
+  assert.equal(state.recommendedAction, 'Review Evidence Map');
+  assert.match(state.refreshReason, /evidence changed/);
+});
+
 test('AI product state treats empty outputs as generate prompts', () => {
   const state = AiProductStateService.buildAiOutputState({
     key: 'decisionBrief',
@@ -53,6 +111,20 @@ test('AI product state treats empty outputs as generate prompts', () => {
   assert.equal(state.hasOutput, false);
   assert.equal(state.freshnessStatus, 'empty');
   assert.equal(state.recommendedAction, 'Generate Decision Brief');
+});
+
+test('AI product state does not treat metadata-only objects as useful artefacts', () => {
+  const state = AiProductStateService.buildAiOutputState({
+    key: 'decisionBrief',
+    label: 'Decision Brief',
+    output: {
+      sourceMetadata: { confidence: 'unknown' },
+      generatedAt: '2026-06-10T00:00:00.000Z'
+    }
+  });
+
+  assert.equal(state.hasOutput, false);
+  assert.equal(state.freshnessStatus, 'empty');
 });
 
 test('AI journey state aggregates live, fallback, stale, and empty outputs', () => {
@@ -81,6 +153,8 @@ test('AI journey state aggregates live, fallback, stale, and empty outputs', () 
   assert.equal(journey.liveCount, 1);
   assert.equal(journey.fallbackCount, 1);
   assert.equal(journey.staleCount, 1);
+  assert.equal(journey.criticalStaleCount, 1);
   assert.equal(journey.emptyCount, 1);
   assert.equal(journey.recommendedAction, 'Refresh Evidence Map');
+  assert.match(journey.summaryLabel, /stale/);
 });
