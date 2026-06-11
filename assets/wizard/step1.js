@@ -4685,6 +4685,16 @@ function renderStep1ProjectExposureMissingInputs(exposure = {}) {
 }
 
 function renderStep1ProjectExposurePanel(scope = 'buyer', draft = AppState.draft || {}) {
+  const storedExposure = draft.projectExposure && typeof draft.projectExposure === 'object' ? draft.projectExposure : {};
+  const currentFingerprint = buildStep1ProjectExposureFingerprint(scope, draft);
+  const savedAiState = typeof AiProductStateService !== 'undefined' && AiProductStateService?.buildAiOutputState
+    ? AiProductStateService.buildAiOutputState({
+        key: 'projectExposure',
+        label: 'Project exposure map',
+        output: storedExposure,
+        currentFingerprint
+      })
+    : null;
   const exposure = ensureStep1ProjectExposurePreview(scope, draft, { persist: false }) || {};
   const quality = exposure.projectInputQuality && typeof exposure.projectInputQuality === 'object' ? exposure.projectInputQuality : {};
   const currency = draft.projectContext?.currency || 'USD';
@@ -4701,6 +4711,10 @@ function renderStep1ProjectExposurePanel(scope = 'buyer', draft = AppState.draft
         ? 'Benchmark proxy'
         : 'Deterministic preview';
   const hasAiMap = sourceMode === 'live' || sourceMode === 'deterministic_fallback';
+  const savedMapStale = savedAiState?.freshnessStatus === 'stale';
+  const savedMapFreshness = savedAiState?.hasOutput
+    ? `<span class="badge badge--${savedAiState.freshnessTone || 'neutral'}">${escapeHtml(savedAiState.freshnessLabel)}</span>`
+    : '';
   return `<section class="step1-project-exposure card" data-project-exposure-panel="${escapeHtml(scope)}">
     <div class="step1-project-exposure__head">
       <div>
@@ -4710,9 +4724,18 @@ function renderStep1ProjectExposurePanel(scope = 'buyer', draft = AppState.draft
       </div>
       <div class="step1-project-exposure__badges">
         <span class="badge badge--neutral">${escapeHtml(sourceLabel)}</span>
+        ${savedMapFreshness}
+        ${savedAiState?.generatedLabel ? `<span class="badge badge--neutral">${escapeHtml(savedAiState.generatedLabel)}</span>` : ''}
         ${exposure.aiUnavailable ? '<span class="badge badge--warning">AI unavailable</span>' : ''}
       </div>
     </div>
+    ${savedMapStale ? `<div class="ai-product-state-strip ai-product-state-strip--warning">
+      <div>
+        <strong>${escapeHtml(savedAiState.recommendedAction)}</strong>
+        <span>${escapeHtml(savedAiState.refreshReason || 'Project inputs changed since the saved AI map was generated.')}</span>
+      </div>
+      <span class="badge badge--warning">Smart prompt</span>
+    </div>` : ''}
     <div class="step1-project-exposure__quality">
       <div>
         <span>Input quality</span>
@@ -4743,7 +4766,7 @@ function renderStep1ProjectExposurePanel(scope = 'buyer', draft = AppState.draft
       ${renderStep1ProjectExposureMissingInputs(exposure)}
     </div>
     <div class="step1-project-exposure__actions">
-      <button type="button" class="btn btn--primary btn--sm" data-project-exposure-action="generate">${hasAiMap ? 'Refresh exposure map' : 'Generate AI exposure map'}</button>
+      <button type="button" class="btn btn--primary btn--sm" data-project-exposure-action="generate">${savedMapStale || hasAiMap ? 'Refresh exposure map' : 'Generate AI exposure map'}</button>
       <button type="button" class="btn btn--secondary btn--sm" data-project-exposure-action="continue">Continue with uncertainty</button>
       <button type="button" class="btn btn--ghost btn--sm" data-project-exposure-action="details">Add more details</button>
       <button type="button" class="btn btn--ghost btn--sm" data-project-exposure-action="benchmarks">Use benchmark proxies where available</button>
@@ -7539,7 +7562,7 @@ function renderWizard1() {
       : '';
   const projectExposureFingerprintBefore = String(draft.projectExposure?.inputFingerprint || '');
   if (projectExposureScope) {
-    ensureStep1ProjectExposurePreview(projectExposureScope, draft, { persist: true });
+    ensureStep1ProjectExposurePreview(projectExposureScope, draft, { persist: false });
   }
   const intakeSequence = buildStep1IntakeSequenceModel(draft);
   const isBasicExperience = typeof isAdvancedExperienceMode === 'function' ? !isAdvancedExperienceMode() : false;

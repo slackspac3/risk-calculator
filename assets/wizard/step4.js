@@ -626,6 +626,60 @@ function getStep4ParameterCoachState(draft = AppState.draft) {
   return hasContent ? coach : null;
 }
 
+function buildStep4AiFingerprint(value = {}) {
+  if (typeof AiProductStateService !== 'undefined' && AiProductStateService?.buildFingerprint) {
+    return AiProductStateService.buildFingerprint(value);
+  }
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return '';
+  }
+}
+
+function buildStep4ParameterCoachFingerprint(draft = AppState.draft, validation = {}) {
+  return buildStep4AiFingerprint(buildStep4ParameterCoachPayload(draft, validation));
+}
+
+function buildStep4EvidenceMapFingerprint(draft = AppState.draft) {
+  return buildStep4AiFingerprint(buildStep4EvidenceMapPayload(draft));
+}
+
+function buildStep4AiOutputState({ key = '', label = '', output = null, currentFingerprint = '' } = {}) {
+  if (typeof AiProductStateService !== 'undefined' && AiProductStateService?.buildAiOutputState) {
+    return AiProductStateService.buildAiOutputState({ key, label, output, currentFingerprint });
+  }
+  const hasOutput = !!output;
+  return {
+    key,
+    label,
+    hasOutput,
+    modeLabel: hasOutput ? 'Saved output' : 'No output',
+    modeTone: 'neutral',
+    freshnessStatus: hasOutput ? 'saved' : 'empty',
+    freshnessLabel: hasOutput ? 'Saved' : 'No output',
+    freshnessTone: 'neutral',
+    refreshRecommended: !hasOutput,
+    recommendedAction: hasOutput ? `Review ${label}` : `Generate ${label}`,
+    refreshReason: ''
+  };
+}
+
+function renderStep4AiStateStrip(state = {}) {
+  if (!state || !state.label) return '';
+  const needsRefresh = state.freshnessStatus === 'stale';
+  return `<div class="ai-product-state-strip ${needsRefresh ? 'ai-product-state-strip--warning' : ''}">
+    <div>
+      <strong>${escapeHtml(needsRefresh ? state.recommendedAction : `${state.label} status`)}</strong>
+      <span>${escapeHtml(needsRefresh ? state.refreshReason : `${state.modeLabel} · ${state.freshnessLabel}${state.generatedLabel ? ` · ${state.generatedLabel}` : ''}`)}</span>
+    </div>
+    <div class="ai-product-state-strip__badges">
+      <span class="badge badge--${escapeHtml(state.modeTone || 'neutral')}">${escapeHtml(state.modeLabel || 'AI output')}</span>
+      <span class="badge badge--${escapeHtml(state.freshnessTone || 'neutral')}">${escapeHtml(state.freshnessLabel || 'Saved')}</span>
+    </div>
+  </div>`;
+}
+
 function formatParameterCoachRange(range) {
   if (!range || typeof range !== 'object') return 'Not quantified';
   const min = Number(range.min ?? range.low);
@@ -713,12 +767,17 @@ function renderStep4ParameterCoachRationaleCard(rationale = {}, index = 0) {
 function renderStep4ParameterCoachPanel(draft, validation) {
   const coach = getStep4ParameterCoachState(draft);
   const loading = !!AppState.step4ParameterCoachLoading;
+  const aiState = buildStep4AiOutputState({
+    key: 'parameterCoach',
+    label: 'Parameter Coach',
+    output: coach,
+    currentFingerprint: buildStep4ParameterCoachFingerprint(draft, validation)
+  });
   const rationales = Array.isArray(coach?.parameterRationales) ? coach.parameterRationales.slice(0, 8) : [];
   const missingInputs = Array.isArray(coach?.missingHighImpactInputs) ? coach.missingHighImpactInputs.slice(0, 3) : [];
   const warnings = Array.isArray(coach?.warnings) ? coach.warnings.filter(Boolean).slice(0, 4) : [];
   const suggestedChangesCount = Number.isFinite(Number(coach?.suggestedChangesCount)) ? Number(coach.suggestedChangesCount) : 0;
-  const mode = String(coach?.mode || '').trim();
-  const statusLabel = loading ? 'Generating' : coach ? (mode === 'live' ? 'Live AI' : 'Fallback ready') : 'Optional';
+  const statusLabel = loading ? 'Generating' : coach ? aiState.freshnessLabel : 'Optional';
   return UI.disclosureSection({
     title: 'AI Parameter Coach',
     badgeLabel: statusLabel,
@@ -737,8 +796,9 @@ function renderStep4ParameterCoachPanel(draft, validation) {
         ${validation?.valid === false ? '<span class="badge badge--warning">Validation warnings</span>' : ''}
       </div>
     </div>
+    ${renderStep4AiStateStrip(aiState)}
     <div class="flex items-center gap-2 mt-4" style="flex-wrap:wrap">
-      <button type="button" class="btn btn--secondary btn--sm" data-step4-parameter-coach-refresh ${loading ? 'disabled' : ''}>${loading ? 'Generating coach...' : coach ? 'Refresh Parameter Coach' : 'Generate Parameter Coach'}</button>
+      <button type="button" class="btn btn--secondary btn--sm" data-step4-parameter-coach-refresh ${loading ? 'disabled' : ''}>${loading ? 'Generating coach...' : coach ? (aiState.freshnessStatus === 'stale' ? 'Refresh recommended' : 'Refresh Parameter Coach') : 'Generate Parameter Coach'}</button>
       <span class="form-help">Unknown project values remain gaps or stress-case candidates, not zero-value ranges.</span>
     </div>
     ${warnings.length ? `<div class="banner banner--warning mt-4"><span class="banner-icon">!</span><span class="banner-text">${warnings.map(escapeHtml).join(' ')}</span></div>` : ''}
@@ -791,6 +851,7 @@ async function requestStep4ParameterCoach() {
     return;
   }
   const validation = validateFairParams(buildSimulationRunPayload(), { toast: false });
+  const inputFingerprint = buildStep4ParameterCoachFingerprint(AppState.draft, validation);
   AppState.step4ParameterCoachLoading = true;
   renderWizard4();
   try {
@@ -801,7 +862,8 @@ async function requestStep4ParameterCoach() {
       mode: result?.mode || coach.mode || 'deterministic_fallback',
       usedFallback: !!result?.usedFallback,
       aiUnavailable: !!result?.aiUnavailable,
-      generatedAt: result?.generatedAt || new Date().toISOString()
+      generatedAt: result?.generatedAt || new Date().toISOString(),
+      inputFingerprint
     };
     saveDraft();
     UI.toast(result?.usedFallback ? 'Deterministic Parameter Coach is ready.' : 'AI Parameter Coach is ready.', result?.usedFallback ? 'info' : 'success');
@@ -961,6 +1023,12 @@ function renderStep4EvidenceQualityChips(quality = {}) {
 function renderStep4EvidenceMapPanel(draft) {
   const evidenceMap = getStep4EvidenceMapState(draft);
   const loading = !!AppState.step4EvidenceMapLoading;
+  const aiState = buildStep4AiOutputState({
+    key: 'evidenceMap',
+    label: 'Evidence Map',
+    output: evidenceMap,
+    currentFingerprint: buildStep4EvidenceMapFingerprint(draft)
+  });
   const projectFinancial = Array.isArray(evidenceMap?.projectFinancialEvidenceMap) ? evidenceMap.projectFinancialEvidenceMap : [];
   const foundValues = projectFinancial.filter(item => item.status === 'found').slice(0, 4);
   const missingValues = projectFinancial.filter(item => item.status === 'not_found' || item.status === 'unclear').slice(0, 4);
@@ -968,7 +1036,7 @@ function renderStep4EvidenceMapPanel(draft) {
   const unsupported = Array.isArray(evidenceMap?.unsupportedClaims) ? evidenceMap.unsupportedClaims.slice(0, 3) : [];
   const supported = Array.isArray(evidenceMap?.supportedClaims) ? evidenceMap.supportedClaims.slice(0, 3) : [];
   const quality = evidenceMap?.citationQuality && typeof evidenceMap.citationQuality === 'object' ? evidenceMap.citationQuality : {};
-  const statusLabel = loading ? 'Generating' : evidenceMap ? (evidenceMap.mode === 'live' ? 'Live AI' : 'Fallback ready') : 'Optional';
+  const statusLabel = loading ? 'Generating' : evidenceMap ? aiState.freshnessLabel : 'Optional';
   return UI.disclosureSection({
     title: 'Evidence Map',
     badgeLabel: statusLabel,
@@ -987,8 +1055,9 @@ function renderStep4EvidenceMapPanel(draft) {
         <span class="badge badge--${contradictions.length ? 'warning' : 'neutral'}">${contradictions.length} contradiction${contradictions.length === 1 ? '' : 's'}</span>
       </div>
     </div>
+    ${renderStep4AiStateStrip(aiState)}
     <div class="flex items-center gap-2 mt-4" style="flex-wrap:wrap">
-      <button type="button" class="btn btn--secondary btn--sm" data-step4-evidence-map-refresh ${loading ? 'disabled' : ''}>${loading ? 'Generating map...' : evidenceMap ? 'Refresh Evidence Map' : 'Generate Evidence Map'}</button>
+      <button type="button" class="btn btn--secondary btn--sm" data-step4-evidence-map-refresh ${loading ? 'disabled' : ''}>${loading ? 'Generating map...' : evidenceMap ? (aiState.freshnessStatus === 'stale' ? 'Refresh recommended' : 'Refresh Evidence Map') : 'Generate Evidence Map'}</button>
       <span class="form-help">This does not change RAG storage or assessment values.</span>
     </div>
     ${renderStep4EvidenceQualityChips(quality)}
@@ -1053,6 +1122,7 @@ async function requestStep4EvidenceMap() {
     UI.toast('Evidence Map is not available in this session.', 'warning');
     return;
   }
+  const inputFingerprint = buildStep4EvidenceMapFingerprint(AppState.draft);
   AppState.step4EvidenceMapLoading = true;
   renderWizard4();
   try {
@@ -1063,7 +1133,8 @@ async function requestStep4EvidenceMap() {
       mode: result?.mode || evidenceMap.mode || 'deterministic_fallback',
       usedFallback: !!result?.usedFallback,
       aiUnavailable: !!result?.aiUnavailable,
-      generatedAt: result?.generatedAt || new Date().toISOString()
+      generatedAt: result?.generatedAt || new Date().toISOString(),
+      inputFingerprint
     };
     saveDraft();
     UI.toast(result?.usedFallback ? 'Deterministic Evidence Map is ready.' : 'AI Evidence Map is ready.', result?.usedFallback ? 'info' : 'success');

@@ -11040,6 +11040,52 @@ canvas { display: block; width: 100%; }
   flex-wrap: wrap;
   gap: 8px;
 }
+
+.ai-product-state-strip {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 16px;
+  background: rgba(0,0,0,0.18);
+}
+
+.ai-product-state-strip--warning {
+  border-color: rgba(242,251,90,0.22);
+  background:
+    linear-gradient(90deg, rgba(242,251,90,0.08), rgba(115,255,224,0.035)),
+    rgba(0,0,0,0.18);
+}
+
+.ai-product-state-strip strong,
+.ai-product-state-strip span {
+  display: block;
+}
+
+.ai-product-state-strip strong {
+  color: rgba(248,250,249,0.94);
+  font-size: 0.9rem;
+  line-height: 1.25;
+}
+
+.ai-product-state-strip span {
+  margin-top: 4px;
+  color: rgba(214,222,218,0.72);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.ai-product-state-strip__badges {
+  display: flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
+  min-width: 0;
+}
 .step1-project-exposure__quality {
   display: flex;
   align-items: center;
