@@ -6840,6 +6840,7 @@ function renderResults(id, isShared) {
     copy: 'Open this when you need the full AI brief, project exposure map, project-horizon detail, or saved challenge stress cases behind the cockpit.',
     badge: 'Decision support',
     body: `
+      ${executiveCommandDeck}
       ${decisionBriefPanel}
       ${executiveCockpit}
       ${projectHorizonPanel}
@@ -6855,7 +6856,6 @@ function renderResults(id, isShared) {
       ${decisionCockpit}
       <div id="results-assumption-explainer-host" style="display:none"></div>
       ${reviewSubmitBanner}
-      ${executiveCommandDeck}
       ${detailedDecisionSupportDisclosure}
       ${resultsChallengeStory && typeof renderAssessmentChallengeStory === 'function'
         ? renderAssessmentChallengeStory(resultsChallengeStory)
