@@ -6,6 +6,7 @@ const DEFAULT_VERCEL_URL = 'https://risk-calculator-eight.vercel.app/';
 
 const pagesUrl = normaliseBaseUrl(process.env.ONLINE_SMOKE_PAGES_URL || DEFAULT_PAGES_URL);
 const vercelUrl = normaliseBaseUrl(process.env.ONLINE_SMOKE_VERCEL_URL || DEFAULT_VERCEL_URL);
+const pagesOrigin = getOrigin(pagesUrl);
 const sessionToken = String(process.env.ONLINE_SMOKE_SESSION_TOKEN || '').trim();
 const strictAi = /^(1|true|yes)$/i.test(String(process.env.ONLINE_SMOKE_STRICT_AI || ''));
 
@@ -19,6 +20,14 @@ function normaliseBaseUrl(value) {
 
 function absoluteUrl(baseUrl, assetPath) {
   return new URL(String(assetPath || '').replace(/^\.\//, ''), baseUrl).toString();
+}
+
+function getOrigin(baseUrl) {
+  try {
+    return new URL(baseUrl).origin;
+  } catch {
+    return normaliseBaseUrl(baseUrl).replace(/\/$/, '');
+  }
 }
 
 async function fetchWithTimeout(url, options = {}) {
@@ -95,7 +104,7 @@ async function checkProtectedAiStatus() {
   const statusUrl = absoluteUrl(vercelUrl, 'api/ai/status?probe=0');
   const response = await fetchWithTimeout(statusUrl, {
     headers: {
-      origin: pagesUrl.replace(/\/$/, '')
+      origin: pagesOrigin
     }
   });
   await check(response.status === 401, `AI status without session should return 401, got ${response.status}`);
@@ -109,7 +118,7 @@ async function checkAuthenticatedAiStatus() {
   const statusUrl = absoluteUrl(vercelUrl, 'api/ai/status?probe=1&ragProbe=1');
   const response = await fetchWithTimeout(statusUrl, {
     headers: {
-      origin: pagesUrl.replace(/\/$/, ''),
+      origin: pagesOrigin,
       'x-session-token': sessionToken
     },
     timeoutMs: 25000
