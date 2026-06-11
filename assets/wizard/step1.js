@@ -4785,7 +4785,7 @@ function renderStep1EnterpriseInputs(draft = AppState.draft || {}) {
       </div>
       <p class="form-help">Use the scenario text area below. Business unit, function, geography, controls, evidence, and obligations can stay blank when unknown.</p>
     </section>
-    <details class="wizard-disclosure wizard-disclosure--compact step1-route-level" open>
+    <details class="wizard-disclosure wizard-disclosure--compact step1-route-level">
       <summary>Level 2 optional context <span class="badge badge--neutral">Optional</span></summary>
       <div class="wizard-disclosure-body step1-route-grid">
         ${renderStep1TextField({ id: 'enterprise-affected-area', label: 'Affected process, system, supplier, obligation, or asset', value: enterprise.affectedArea, placeholder: 'Example: payments platform, supplier onboarding, regulatory reporting', dataAttrs: 'data-enterprise-context-field="affectedArea"' })}
@@ -7647,7 +7647,6 @@ function renderWizard1() {
           ${!isBasicExperience && managerModel && typeof renderAssessmentManagerPanel === 'function'
             ? renderAssessmentManagerPanel(managerModel, { compact: true, title: 'Assessment Manager' })
             : ''}
-          ${renderStep1RouteSpecificInputs(draft)}
           <section class="step1-primary-zone">
             ${renderStep1PathContent(draft.step1Path, {
               draft,
@@ -7663,6 +7662,7 @@ function renderWizard1() {
               featuredDryRun
             })}
           </section>
+          ${renderStep1RouteSpecificInputs(draft)}
           ${supportSection}
           ${riskReviewSection}
         </div>
