@@ -251,106 +251,36 @@
   function buildCockpitCurrentFingerprints(assessment = {}, r = {}) {
     const service = global.AiProductStateService;
     if (!service || typeof service.buildFingerprint !== 'function') return {};
-    const buildSnapshot = typeof service.buildFingerprintBreakdown === 'function'
-      ? service.buildFingerprintBreakdown
-      : (value) => ({ fingerprint: service.buildFingerprint(value), categories: {} });
-    const scenario = {
+    const fallbackSnapshot = (value) => ({ fingerprint: service.buildFingerprint(value), categories: {} });
+    const buildProjectExposure = service.buildProjectExposureFingerprintSnapshot || fallbackSnapshot;
+    const buildAssumptionRegister = service.buildAssumptionRegisterFingerprintSnapshot || fallbackSnapshot;
+    const buildParameterCoach = service.buildParameterCoachFingerprintSnapshot || fallbackSnapshot;
+    const buildEvidenceMap = service.buildEvidenceMapFingerprintSnapshot || fallbackSnapshot;
+    const buildDecisionChallenge = service.buildDecisionChallengeFingerprintSnapshot || fallbackSnapshot;
+    const buildDecisionBrief = service.buildDecisionBriefFingerprintSnapshot || fallbackSnapshot;
+    const context = {
+      ...assessment,
       assessmentType: assessment?.assessmentType || 'enterprise_generic',
       scenario: assessment?.enhancedNarrative || assessment?.narrative || assessment?.scenarioTitle || '',
-      structuredScenario: assessment?.structuredScenario || {},
-      scenarioLens: assessment?.scenarioLens || {}
-    };
-    const project = {
-      assessmentType: assessment?.assessmentType || 'enterprise_generic',
-      projectContext: assessment?.projectContext || {},
-      buyerEconomics: assessment?.buyerEconomics || {},
-      buyerEconomicsMeta: assessment?.buyerEconomicsMeta || {},
-      sellerEconomics: assessment?.sellerEconomics || {},
-      sellerEconomicsMeta: assessment?.sellerEconomicsMeta || {},
-      buyerProxyQuestions: assessment?.buyerProxyQuestions || {},
-      sellerProxyQuestions: assessment?.sellerProxyQuestions || {}
-    };
-    const parameters = assessment?.fairParams || r?.inputs || {};
-    const simulation = {
-      eventLoss: r?.eventLoss || r?.lm || {},
-      annualLoss: r?.annualLoss || r?.ale || {},
-      projectHorizon: r?.projectHorizon || {}
-    };
-    const evidence = {
+      parameters: assessment?.fairParams || r?.inputs || {},
+      simulationResult: r || {},
+      results: r || {},
+      projectExposure: assessment?.projectExposure || {},
+      assumptionRegister: assessment?.assumptionRegister || {},
+      parameterCoach: assessment?.parameterCoach || {},
+      evidenceMap: assessment?.evidenceMap || {},
+      decisionChallenge: assessment?.decisionChallenge || {},
       citations: assessment?.citations || [],
       primaryGrounding: assessment?.primaryGrounding || [],
       supportingReferences: assessment?.supportingReferences || []
     };
-    const businessContext = {
-      buId: assessment?.buId || '',
-      buName: assessment?.buName || '',
-      geography: assessment?.geography || '',
-      geographies: assessment?.geographies || [],
-      applicableRegulations: assessment?.applicableRegulations || []
-    };
-    const projectExposure = assessment?.projectExposure || {};
-    const assumptionRegister = assessment?.assumptionRegister || {};
-    const parameterCoach = assessment?.parameterCoach || {};
-    const evidenceMap = assessment?.evidenceMap || {};
-    const decisionChallenge = assessment?.decisionChallenge || {};
     return {
-      projectExposure: buildSnapshot({
-        scenario,
-        projectEconomics: project,
-        citations: assessment?.citations || [],
-        businessContext
-      }),
-      assumptionRegister: buildSnapshot({
-        scenario,
-        projectEconomics: project,
-        parameters,
-        results: simulation,
-        evidence,
-        dependentAiOutputs: {
-          projectExposure
-        }
-      }),
-      parameterCoach: buildSnapshot({
-        scenario,
-        projectEconomics: project,
-        parameters,
-        evidence,
-        dependentAiOutputs: {
-          projectExposure,
-          assumptionRegister,
-          evidenceMap
-        }
-      }),
-      evidenceMap: buildSnapshot({
-        scenario,
-        projectEconomics: project,
-        evidence,
-        businessContext
-      }),
-      decisionChallenge: buildSnapshot({
-        scenario,
-        projectEconomics: project,
-        parameters,
-        simulation,
-        dependentAiOutputs: {
-          projectExposure,
-          assumptionRegister,
-          parameterCoach,
-          evidenceMap
-        }
-      }),
-      decisionBrief: buildSnapshot({
-        scenario,
-        projectEconomics: project,
-        simulation,
-        dependentAiOutputs: {
-          projectExposure,
-          assumptionRegister,
-          parameterCoach,
-          evidenceMap,
-          decisionChallenge
-        }
-      })
+      projectExposure: buildProjectExposure(context),
+      assumptionRegister: buildAssumptionRegister(context),
+      parameterCoach: buildParameterCoach(context),
+      evidenceMap: buildEvidenceMap(context),
+      decisionChallenge: buildDecisionChallenge(context),
+      decisionBrief: buildDecisionBrief(context)
     };
   }
 

@@ -4520,6 +4520,7 @@ function buildStep1ProjectExposurePayload(scope = 'buyer', draft = AppState.draf
     buyerEconomicsMeta: draft.buyerEconomicsMeta && typeof draft.buyerEconomicsMeta === 'object' ? { ...draft.buyerEconomicsMeta } : {},
     sellerEconomics: draft.sellerEconomics && typeof draft.sellerEconomics === 'object' ? { ...draft.sellerEconomics } : {},
     sellerEconomicsMeta: draft.sellerEconomicsMeta && typeof draft.sellerEconomicsMeta === 'object' ? { ...draft.sellerEconomicsMeta } : {},
+    projectRouteDetails: draft.projectRouteDetails && typeof draft.projectRouteDetails === 'object' ? { ...draft.projectRouteDetails } : {},
     buyerProxyAnswers: draft.buyerProxyQuestions && typeof draft.buyerProxyQuestions === 'object' ? { ...draft.buyerProxyQuestions } : {},
     sellerProxyAnswers: draft.sellerProxyQuestions && typeof draft.sellerProxyQuestions === 'object' ? { ...draft.sellerProxyQuestions } : {},
     businessUnit: bu || (draft.buId || draft.buName ? {
@@ -4537,6 +4538,9 @@ function buildStep1ProjectExposurePayload(scope = 'buyer', draft = AppState.draf
 
 function buildStep1ProjectExposureFingerprint(scope = 'buyer', draft = AppState.draft || {}) {
   const payload = buildStep1ProjectExposurePayload(scope, draft);
+  if (typeof AiProductStateService !== 'undefined' && AiProductStateService?.buildProjectExposureFingerprintSnapshot) {
+    return AiProductStateService.buildProjectExposureFingerprintSnapshot(payload).fingerprint;
+  }
   return step1StableProjectStringify({
     assessmentType: payload.assessmentType,
     riskStatement: payload.riskStatement,
@@ -4554,29 +4558,8 @@ function buildStep1ProjectExposureFingerprint(scope = 'buyer', draft = AppState.
 
 function buildStep1ProjectExposureFingerprintBreakdown(scope = 'buyer', draft = AppState.draft || {}) {
   const payload = buildStep1ProjectExposurePayload(scope, draft);
-  const categories = {
-    scenario: {
-      assessmentType: payload.assessmentType,
-      riskStatement: payload.riskStatement
-    },
-    projectEconomics: {
-      projectContext: payload.projectContext,
-      buyerEconomics: payload.assessmentType === 'project_buyer' ? payload.buyerEconomics : {},
-      buyerEconomicsMeta: payload.assessmentType === 'project_buyer' ? payload.buyerEconomicsMeta : {},
-      sellerEconomics: payload.assessmentType === 'project_seller' ? payload.sellerEconomics : {},
-      sellerEconomicsMeta: payload.assessmentType === 'project_seller' ? payload.sellerEconomicsMeta : {},
-      buyerProxyAnswers: payload.assessmentType === 'project_buyer' ? payload.buyerProxyAnswers : {},
-      sellerProxyAnswers: payload.assessmentType === 'project_seller' ? payload.sellerProxyAnswers : {}
-    },
-    citations: payload.citations,
-    businessContext: {
-      geography: payload.geography,
-      applicableRegulations: payload.applicableRegulations,
-      businessUnit: payload.businessUnit
-    }
-  };
-  if (typeof AiProductStateService !== 'undefined' && AiProductStateService?.buildFingerprintBreakdown) {
-    return AiProductStateService.buildFingerprintBreakdown(categories);
+  if (typeof AiProductStateService !== 'undefined' && AiProductStateService?.buildProjectExposureFingerprintSnapshot) {
+    return AiProductStateService.buildProjectExposureFingerprintSnapshot(payload);
   }
   return {
     fingerprint: buildStep1ProjectExposureFingerprint(scope, draft),

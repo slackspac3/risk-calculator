@@ -1177,6 +1177,61 @@ function buildDecisionChallengePayload(assessment = {}, r = {}, technicalInputs 
   };
 }
 
+function buildResultsAiSnapshotContext(assessment = {}, r = {}, technicalInputs = {}, runMetadata = {}, payload = {}) {
+  return {
+    ...assessment,
+    ...payload,
+    assessmentType: payload.assessmentType || assessment.assessmentType || 'enterprise_generic',
+    scenario: payload.scenario || assessment.enhancedNarrative || assessment.narrative || assessment.scenarioTitle || '',
+    structuredScenario: payload.structuredScenario || assessment.structuredScenario || {},
+    scenarioLens: payload.scenarioLens || assessment.scenarioLens || {},
+    projectContext: payload.projectContext || assessment.projectContext || {},
+    projectExposure: payload.projectExposure || assessment.projectExposure || {},
+    buyerEconomics: assessment.buyerEconomics || {},
+    buyerEconomicsMeta: assessment.buyerEconomicsMeta || {},
+    sellerEconomics: assessment.sellerEconomics || {},
+    sellerEconomicsMeta: assessment.sellerEconomicsMeta || {},
+    buyerProxyQuestions: assessment.buyerProxyQuestions || {},
+    sellerProxyQuestions: assessment.sellerProxyQuestions || {},
+    projectRouteDetails: assessment.projectRouteDetails || {},
+    parameters: payload.parameters || buildSensitivitySimulationParams(technicalInputs, r, runMetadata),
+    simulationResult: payload.simulationResult || r || {},
+    results: r || {},
+    assumptionRegister: payload.assumptionRegister || assessment.assumptionRegister || {},
+    parameterCoach: payload.parameterCoach || assessment.parameterCoach || {},
+    evidenceMap: payload.evidenceMap || assessment.evidenceMap || {},
+    decisionChallenge: payload.decisionChallenge || assessment.decisionChallenge || {},
+    citations: assessment.citations || [],
+    primaryGrounding: assessment.primaryGrounding || [],
+    supportingReferences: assessment.supportingReferences || [],
+    ragMatches: assessment.ragMatches || [],
+    buId: assessment.buId || '',
+    buName: assessment.buName || '',
+    geography: assessment.geography || '',
+    geographies: assessment.geographies || [],
+    applicableRegulations: assessment.applicableRegulations || []
+  };
+}
+
+function buildResultsAiFingerprintSnapshot(kind = '', assessment = {}, r = {}, technicalInputs = {}, runMetadata = {}, payload = {}) {
+  const service = typeof AiProductStateService !== 'undefined' ? AiProductStateService : null;
+  const context = buildResultsAiSnapshotContext(assessment, r, technicalInputs, runMetadata, payload);
+  const fallback = () => ({
+    fingerprint: service?.buildFingerprint ? service.buildFingerprint(payload || context) : JSON.stringify(payload || context),
+    categories: {}
+  });
+  if (kind === 'decisionChallenge' && service?.buildDecisionChallengeFingerprintSnapshot) {
+    return service.buildDecisionChallengeFingerprintSnapshot(context);
+  }
+  if (kind === 'decisionBrief' && service?.buildDecisionBriefFingerprintSnapshot) {
+    return service.buildDecisionBriefFingerprintSnapshot(context);
+  }
+  if (kind === 'assumptionRegister' && service?.buildAssumptionRegisterFingerprintSnapshot) {
+    return service.buildAssumptionRegisterFingerprintSnapshot(context);
+  }
+  return fallback();
+}
+
 function runDecisionChallengeStressComparison({
   assessment,
   technicalInputs,
@@ -5644,6 +5699,7 @@ function bindResultsInteractions({
     button.addEventListener('click', async () => {
       const latest = getAssessmentById(assessment.id) || assessment;
       const requestPayload = buildDecisionBriefPayload(latest, r, technicalInputs, runMetadata);
+      const inputFingerprintBreakdown = buildResultsAiFingerprintSnapshot('decisionBrief', latest, r, technicalInputs, runMetadata, requestPayload);
       const feedbackReason = getSelectedDecisionBriefFeedbackReason();
       const previousBrief = readSavedDecisionBrief(latest);
       if (guardResultsAiActionCooldown({
@@ -5685,6 +5741,8 @@ function bindResultsInteractions({
               mode: String(result?.mode || '').trim().toLowerCase(),
               usedFallback: result?.usedFallback === true,
               aiUnavailable: result?.aiUnavailable === true,
+              inputFingerprint: inputFingerprintBreakdown.fingerprint,
+              inputFingerprintBreakdown,
               fallbackReasonMessage: String(result?.fallbackReasonMessage || '').trim(),
               fallbackReasonTitle: String(result?.fallbackReasonTitle || '').trim(),
               generatedAt: String(result?.generatedAt || new Date().toISOString())
@@ -5714,6 +5772,7 @@ function bindResultsInteractions({
     button.addEventListener('click', async () => {
       const latest = getAssessmentById(assessment.id) || assessment;
       const requestPayload = buildDecisionChallengePayload(latest, r, technicalInputs, runMetadata);
+      const inputFingerprintBreakdown = buildResultsAiFingerprintSnapshot('decisionChallenge', latest, r, technicalInputs, runMetadata, requestPayload);
       if (guardResultsAiActionCooldown({
         button,
         actionKey: 'decision-challenge',
@@ -5737,6 +5796,8 @@ function bindResultsInteractions({
               mode: String(result?.mode || '').trim().toLowerCase(),
               usedFallback: result?.usedFallback === true,
               aiUnavailable: result?.aiUnavailable === true,
+              inputFingerprint: inputFingerprintBreakdown.fingerprint,
+              inputFingerprintBreakdown,
               fallbackReasonMessage: String(result?.fallbackReasonMessage || '').trim(),
               fallbackReasonTitle: String(result?.fallbackReasonTitle || '').trim(),
               generatedAt: String(result?.generatedAt || new Date().toISOString())
