@@ -28,6 +28,9 @@
     projectEconomics: 'project economics',
     projectFinancialValues: 'project financial values',
     projectFinancialMetadata: 'project financial metadata',
+    projectFinancialStatusSource: 'project financial status/source',
+    projectFinancialConfidence: 'project financial confidence',
+    projectFinancialNotes: 'project financial notes',
     projectProxyAnswers: 'project proxy answers',
     projectContext: 'project context',
     projectNarrativeContext: 'project narrative context',
@@ -47,6 +50,9 @@
     projectEconomics: 'critical',
     projectFinancialValues: 'critical',
     projectFinancialMetadata: 'review',
+    projectFinancialStatusSource: 'critical',
+    projectFinancialConfidence: 'review',
+    projectFinancialNotes: 'informational',
     projectProxyAnswers: 'review',
     projectContext: 'review',
     projectNarrativeContext: 'informational',
@@ -296,9 +302,40 @@
     const source = isPlainObject(context) ? context : {};
     const output = {};
     (Array.isArray(keys) ? keys : []).forEach((key) => {
-      output[key] = isPlainObject(source[key]) ? source[key] : {};
+      output[key] = buildDependencyOutputSnapshot(source[key], key);
     });
     return output;
+  }
+
+  function buildDependencyOutputSnapshot(value, artifactKey = '') {
+    if (!isPlainObject(value)) return {};
+    const usefulPaths = ARTIFACT_USEFUL_PATHS[normaliseArtifactKey(artifactKey)] || [];
+    const output = {};
+    const fingerprint = cleanText(value.inputFingerprint || value.workflowFingerprint || value.inputFingerprintBreakdown?.fingerprint || '');
+    if (fingerprint) output.inputFingerprint = fingerprint;
+    usefulPaths.forEach((path) => {
+      const item = getPathValue(value, path);
+      if (valueHasContent(item)) output[path] = item;
+    });
+    if (Object.keys(output).length) return output;
+    return compactObject(value);
+  }
+
+  function splitEconomicsMeta(source = {}) {
+    const input = isPlainObject(source) ? source : {};
+    const statusSource = {};
+    const confidence = {};
+    const notes = {};
+    Object.keys(input).sort().forEach((field) => {
+      const meta = isPlainObject(input[field]) ? input[field] : {};
+      const statusSourcePart = compactObject(pickFields(meta, ['status', 'source', 'sourceStatus']));
+      const confidencePart = compactObject(pickFields(meta, ['confidence']));
+      const notePart = compactObject(pickFields(meta, ['note', 'notes', 'rationale', 'evidenceRef', 'evidenceRefs']));
+      if (Object.keys(statusSourcePart).length) statusSource[field] = statusSourcePart;
+      if (Object.keys(confidencePart).length) confidence[field] = confidencePart;
+      if (Object.keys(notePart).length) notes[field] = notePart;
+    });
+    return { statusSource, confidence, notes };
   }
 
   function resolveProjectFingerprintCategories(context = {}) {
@@ -311,14 +348,24 @@
     const sellerProxy = isPlainObject(source.sellerProxyQuestions)
       ? source.sellerProxyQuestions
       : (isPlainObject(source.sellerProxyAnswers) ? source.sellerProxyAnswers : {});
+    const buyerMeta = splitEconomicsMeta(source.buyerEconomicsMeta);
+    const sellerMeta = splitEconomicsMeta(source.sellerEconomicsMeta);
     return {
       projectFinancialValues: {
         buyerEconomics: compactObject(source.buyerEconomics),
         sellerEconomics: compactObject(source.sellerEconomics)
       },
-      projectFinancialMetadata: {
-        buyerEconomicsMeta: compactObject(source.buyerEconomicsMeta),
-        sellerEconomicsMeta: compactObject(source.sellerEconomicsMeta)
+      projectFinancialStatusSource: {
+        buyerEconomicsMeta: buyerMeta.statusSource,
+        sellerEconomicsMeta: sellerMeta.statusSource
+      },
+      projectFinancialConfidence: {
+        buyerEconomicsMeta: buyerMeta.confidence,
+        sellerEconomicsMeta: sellerMeta.confidence
+      },
+      projectFinancialNotes: {
+        buyerEconomicsMeta: buyerMeta.notes,
+        sellerEconomicsMeta: sellerMeta.notes
       },
       projectProxyAnswers: {
         buyerProxyQuestions: compactObject(buyerProxy),
@@ -416,6 +463,146 @@
       simulation: resolveSimulationInput(context),
       dependentAiOutputs: resolveDependentAiOutputs(context, ['projectExposure', 'assumptionRegister', 'parameterCoach', 'evidenceMap', 'decisionChallenge'])
     });
+  }
+
+  /**
+   * @typedef {Object} AiArtifactMeta
+   * @property {string} mode
+   * @property {boolean} usedFallback
+   * @property {boolean} aiUnavailable
+   * @property {string} generatedAt
+   * @property {string} inputFingerprint
+   * @property {{fingerprint:string,categories:Object<string,string>}} inputFingerprintBreakdown
+   */
+  const AI_ARTIFACTS = Object.freeze({
+    projectExposure: Object.freeze({
+      key: 'projectExposure',
+      normalisedKey: 'projectexposure',
+      label: 'Project exposure map',
+      modeField: 'sourceMode',
+      usefulPaths: ARTIFACT_USEFUL_PATHS.projectexposure,
+      buildSnapshot: buildProjectExposureFingerprintSnapshot
+    }),
+    assumptionRegister: Object.freeze({
+      key: 'assumptionRegister',
+      normalisedKey: 'assumptionregister',
+      label: 'Assumption Register',
+      modeField: 'mode',
+      usefulPaths: ARTIFACT_USEFUL_PATHS.assumptionregister,
+      buildSnapshot: buildAssumptionRegisterFingerprintSnapshot
+    }),
+    parameterCoach: Object.freeze({
+      key: 'parameterCoach',
+      normalisedKey: 'parametercoach',
+      label: 'Parameter Coach',
+      modeField: 'mode',
+      usefulPaths: ARTIFACT_USEFUL_PATHS.parametercoach,
+      buildSnapshot: buildParameterCoachFingerprintSnapshot
+    }),
+    evidenceMap: Object.freeze({
+      key: 'evidenceMap',
+      normalisedKey: 'evidencemap',
+      label: 'Evidence Map',
+      modeField: 'mode',
+      usefulPaths: ARTIFACT_USEFUL_PATHS.evidencemap,
+      buildSnapshot: buildEvidenceMapFingerprintSnapshot
+    }),
+    decisionChallenge: Object.freeze({
+      key: 'decisionChallenge',
+      normalisedKey: 'decisionchallenge',
+      label: 'Challenge Agent',
+      modeField: 'mode',
+      usefulPaths: ARTIFACT_USEFUL_PATHS.decisionchallenge,
+      buildSnapshot: buildDecisionChallengeFingerprintSnapshot
+    }),
+    decisionBrief: Object.freeze({
+      key: 'decisionBrief',
+      normalisedKey: 'decisionbrief',
+      label: 'Decision Brief',
+      modeField: 'mode',
+      usefulPaths: ARTIFACT_USEFUL_PATHS.decisionbrief,
+      buildSnapshot: buildDecisionBriefFingerprintSnapshot
+    })
+  });
+
+  function getAiArtifactDefinition(artifactKey = '') {
+    const key = normaliseArtifactKey(artifactKey);
+    return Object.values(AI_ARTIFACTS).find(definition => definition.normalisedKey === key || normaliseArtifactKey(definition.key) === key) || null;
+  }
+
+  function buildAiArtifactMeta({
+    artifactKey = '',
+    result = {},
+    artifact = {},
+    fingerprintSnapshot = null,
+    now = '',
+    extra = {}
+  } = {}) {
+    const safeResult = isPlainObject(result) ? result : {};
+    const safeArtifact = isPlainObject(artifact) ? artifact : {};
+    const usedFallback = safeResult.usedFallback === true || safeArtifact.usedFallback === true;
+    const aiUnavailable = safeResult.aiUnavailable === true || safeArtifact.aiUnavailable === true;
+    const hasOutput = hasUsefulOutput(safeArtifact, artifactKey);
+    const mode = normaliseMode(safeResult.mode || safeArtifact.mode || safeArtifact.sourceMode || '', {
+      usedFallback,
+      aiUnavailable,
+      hasOutput
+    });
+    const snapshot = normaliseFingerprintSnapshot(
+      fingerprintSnapshot || safeArtifact.inputFingerprintBreakdown || safeResult.inputFingerprintBreakdown || null,
+      safeArtifact.inputFingerprint || safeResult.inputFingerprint || ''
+    );
+    return {
+      ...(isPlainObject(extra) ? extra : {}),
+      mode,
+      usedFallback,
+      aiUnavailable,
+      generatedAt: cleanText(safeResult.generatedAt || safeArtifact.generatedAt || now || new Date().toISOString()),
+      inputFingerprint: snapshot.fingerprint,
+      inputFingerprintBreakdown: snapshot
+    };
+  }
+
+  function buildAiArtifactRecord({
+    artifactKey = '',
+    result = {},
+    artifact = {},
+    fingerprintSnapshot = null,
+    now = '',
+    extra = {}
+  } = {}) {
+    const safeArtifact = isPlainObject(artifact) ? artifact : {};
+    const definition = getAiArtifactDefinition(artifactKey);
+    const meta = buildAiArtifactMeta({ artifactKey, result, artifact: safeArtifact, fingerprintSnapshot, now, extra });
+    if (definition?.modeField && definition.modeField !== 'mode') {
+      const { mode, ...restMeta } = meta;
+      return {
+        ...safeArtifact,
+        ...restMeta,
+        [definition.modeField]: mode
+      };
+    }
+    return {
+      ...safeArtifact,
+      ...meta
+    };
+  }
+
+  function saveAiArtifact({
+    target = null,
+    artifactKey = '',
+    result = {},
+    artifact = {},
+    fingerprintSnapshot = null,
+    now = '',
+    extra = {}
+  } = {}) {
+    const record = buildAiArtifactRecord({ artifactKey, result, artifact, fingerprintSnapshot, now, extra });
+    const definition = getAiArtifactDefinition(artifactKey);
+    if (target && typeof target === 'object' && definition?.key) {
+      target[definition.key] = record;
+    }
+    return record;
   }
 
   function normaliseFingerprintCategories(categories = {}) {
@@ -523,7 +710,8 @@
 
   function hasUsefulOutput(value, artifactKey = '') {
     if (!isPlainObject(value)) return false;
-    const usefulPaths = ARTIFACT_USEFUL_PATHS[normaliseArtifactKey(artifactKey)] || [];
+    const definition = getAiArtifactDefinition(artifactKey);
+    const usefulPaths = definition?.usefulPaths || ARTIFACT_USEFUL_PATHS[normaliseArtifactKey(artifactKey)] || [];
     if (usefulPaths.length) {
       return usefulPaths.some((path) => valueHasContent(getPathValue(value, path)));
     }
@@ -807,6 +995,7 @@
   }
 
   const api = {
+    AI_ARTIFACTS,
     buildFingerprint,
     buildFingerprintBreakdown,
     buildProjectExposureFingerprintSnapshot,
@@ -815,6 +1004,10 @@
     buildEvidenceMapFingerprintSnapshot,
     buildDecisionChallengeFingerprintSnapshot,
     buildDecisionBriefFingerprintSnapshot,
+    getAiArtifactDefinition,
+    buildAiArtifactMeta,
+    buildAiArtifactRecord,
+    saveAiArtifact,
     stableStringify,
     normaliseMode,
     getModeLabel,
