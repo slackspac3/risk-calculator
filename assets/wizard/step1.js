@@ -4588,11 +4588,25 @@ function buildStep1DeterministicProjectExposure(scope = 'buyer', draft = AppStat
     sellerProxyQuestions: payload.sellerProxyAnswers,
     projectExposure: draft.projectExposure && typeof draft.projectExposure === 'object' ? draft.projectExposure : {}
   });
+  const inputFingerprintBreakdown = buildStep1ProjectExposureFingerprintBreakdown(scope, draft);
+  if (typeof AiProductStateService !== 'undefined' && AiProductStateService?.buildAiArtifactRecord) {
+    return AiProductStateService.buildAiArtifactRecord({
+      artifactKey: 'projectExposure',
+      artifact: exposure,
+      result: {
+        mode: 'deterministic_preview',
+        usedFallback: true,
+        aiUnavailable: false,
+        generatedAt: new Date().toISOString()
+      },
+      fingerprintSnapshot: inputFingerprintBreakdown
+    });
+  }
   return {
     ...exposure,
     sourceMode: 'deterministic_preview',
-    inputFingerprint: buildStep1ProjectExposureFingerprint(scope, draft),
-    inputFingerprintBreakdown: buildStep1ProjectExposureFingerprintBreakdown(scope, draft),
+    inputFingerprint: inputFingerprintBreakdown.fingerprint || buildStep1ProjectExposureFingerprint(scope, draft),
+    inputFingerprintBreakdown,
     generatedAt: new Date().toISOString(),
     usedFallback: true,
     aiUnavailable: false
@@ -5017,19 +5031,30 @@ function applyStep1ProjectExposureResult(scope = 'buyer', result = {}) {
     ? result.projectExposure
     : null;
   if (!exposure) return false;
-  AppState.draft.projectExposure = {
-    ...exposure,
-    sourceMode: String(result.mode || '').trim() === 'live'
-      ? 'live'
-      : String(result.mode || '').trim() === 'deterministic_fallback'
-        ? 'deterministic_fallback'
-        : (exposure.sourceMode || 'live'),
-    inputFingerprint: buildStep1ProjectExposureFingerprint(scope, AppState.draft),
-    inputFingerprintBreakdown: buildStep1ProjectExposureFingerprintBreakdown(scope, AppState.draft),
-    generatedAt: result.generatedAt || new Date().toISOString(),
-    usedFallback: result.usedFallback === true,
-    aiUnavailable: result.aiUnavailable === true
-  };
+  const inputFingerprintBreakdown = buildStep1ProjectExposureFingerprintBreakdown(scope, AppState.draft);
+  if (typeof AiProductStateService !== 'undefined' && AiProductStateService?.saveAiArtifact) {
+    AiProductStateService.saveAiArtifact({
+      target: AppState.draft,
+      artifactKey: 'projectExposure',
+      result,
+      artifact: exposure,
+      fingerprintSnapshot: inputFingerprintBreakdown
+    });
+  } else {
+    AppState.draft.projectExposure = {
+      ...exposure,
+      sourceMode: String(result.mode || '').trim() === 'live'
+        ? 'live'
+        : String(result.mode || '').trim() === 'deterministic_fallback'
+          ? 'deterministic_fallback'
+          : (exposure.sourceMode || 'live'),
+      inputFingerprint: inputFingerprintBreakdown.fingerprint || buildStep1ProjectExposureFingerprint(scope, AppState.draft),
+      inputFingerprintBreakdown,
+      generatedAt: result.generatedAt || new Date().toISOString(),
+      usedFallback: result.usedFallback === true,
+      aiUnavailable: result.aiUnavailable === true
+    };
+  }
   markDraftDirty();
   saveDraft();
   refreshStep1ProjectExposurePanel(scope);

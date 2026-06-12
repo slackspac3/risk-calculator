@@ -1232,6 +1232,27 @@ function buildResultsAiFingerprintSnapshot(kind = '', assessment = {}, r = {}, t
   return fallback();
 }
 
+function buildResultsAiArtifactMeta(kind = '', result = {}, artifact = {}, fingerprintSnapshot = {}, extra = {}) {
+  if (typeof AiProductStateService !== 'undefined' && AiProductStateService?.buildAiArtifactMeta) {
+    return AiProductStateService.buildAiArtifactMeta({
+      artifactKey: kind,
+      result,
+      artifact,
+      fingerprintSnapshot,
+      extra
+    });
+  }
+  return {
+    ...(extra && typeof extra === 'object' ? extra : {}),
+    mode: String(result?.mode || '').trim().toLowerCase(),
+    usedFallback: result?.usedFallback === true,
+    aiUnavailable: result?.aiUnavailable === true,
+    inputFingerprint: fingerprintSnapshot?.fingerprint || '',
+    inputFingerprintBreakdown: fingerprintSnapshot || null,
+    generatedAt: String(result?.generatedAt || new Date().toISOString())
+  };
+}
+
 function runDecisionChallengeStressComparison({
   assessment,
   technicalInputs,
@@ -5737,16 +5758,10 @@ function bindResultsInteractions({
           const next = {
             ...current,
             decisionBrief,
-            decisionBriefMeta: {
-              mode: String(result?.mode || '').trim().toLowerCase(),
-              usedFallback: result?.usedFallback === true,
-              aiUnavailable: result?.aiUnavailable === true,
-              inputFingerprint: inputFingerprintBreakdown.fingerprint,
-              inputFingerprintBreakdown,
+            decisionBriefMeta: buildResultsAiArtifactMeta('decisionBrief', result, decisionBrief, inputFingerprintBreakdown, {
               fallbackReasonMessage: String(result?.fallbackReasonMessage || '').trim(),
-              fallbackReasonTitle: String(result?.fallbackReasonTitle || '').trim(),
-              generatedAt: String(result?.generatedAt || new Date().toISOString())
-            }
+              fallbackReasonTitle: String(result?.fallbackReasonTitle || '').trim()
+            })
           };
           return {
             ...next,
@@ -5792,16 +5807,10 @@ function bindResultsInteractions({
           const next = {
             ...current,
             decisionChallenge,
-            decisionChallengeMeta: {
-              mode: String(result?.mode || '').trim().toLowerCase(),
-              usedFallback: result?.usedFallback === true,
-              aiUnavailable: result?.aiUnavailable === true,
-              inputFingerprint: inputFingerprintBreakdown.fingerprint,
-              inputFingerprintBreakdown,
+            decisionChallengeMeta: buildResultsAiArtifactMeta('decisionChallenge', result, decisionChallenge, inputFingerprintBreakdown, {
               fallbackReasonMessage: String(result?.fallbackReasonMessage || '').trim(),
-              fallbackReasonTitle: String(result?.fallbackReasonTitle || '').trim(),
-              generatedAt: String(result?.generatedAt || new Date().toISOString())
-            }
+              fallbackReasonTitle: String(result?.fallbackReasonTitle || '').trim()
+            })
           };
           return {
             ...next,

@@ -911,15 +911,22 @@ async function requestStep4ParameterCoach() {
   try {
     const result = await LLMService.generateParameterCoach(buildStep4ParameterCoachPayload(AppState.draft, validation));
     const coach = result?.parameterCoach && typeof result.parameterCoach === 'object' ? result.parameterCoach : {};
-    AppState.draft.parameterCoach = {
-      ...coach,
-      mode: result?.mode || coach.mode || 'deterministic_fallback',
-      usedFallback: !!result?.usedFallback,
-      aiUnavailable: !!result?.aiUnavailable,
-      generatedAt: result?.generatedAt || new Date().toISOString(),
-      inputFingerprint,
-      inputFingerprintBreakdown
-    };
+    AppState.draft.parameterCoach = typeof AiProductStateService !== 'undefined' && AiProductStateService?.buildAiArtifactRecord
+      ? AiProductStateService.buildAiArtifactRecord({
+          artifactKey: 'parameterCoach',
+          result,
+          artifact: coach,
+          fingerprintSnapshot: inputFingerprintBreakdown
+        })
+      : {
+          ...coach,
+          mode: result?.mode || coach.mode || 'deterministic_fallback',
+          usedFallback: !!result?.usedFallback,
+          aiUnavailable: !!result?.aiUnavailable,
+          generatedAt: result?.generatedAt || new Date().toISOString(),
+          inputFingerprint,
+          inputFingerprintBreakdown
+        };
     saveDraft();
     UI.toast(result?.usedFallback ? 'Deterministic Parameter Coach is ready.' : 'AI Parameter Coach is ready.', result?.usedFallback ? 'info' : 'success');
   } catch (error) {
@@ -1185,15 +1192,22 @@ async function requestStep4EvidenceMap() {
   try {
     const result = await LLMService.generateEvidenceMap(buildStep4EvidenceMapPayload(AppState.draft));
     const evidenceMap = result?.evidenceMap && typeof result.evidenceMap === 'object' ? result.evidenceMap : {};
-    AppState.draft.evidenceMap = {
-      ...evidenceMap,
-      mode: result?.mode || evidenceMap.mode || 'deterministic_fallback',
-      usedFallback: !!result?.usedFallback,
-      aiUnavailable: !!result?.aiUnavailable,
-      generatedAt: result?.generatedAt || new Date().toISOString(),
-      inputFingerprint,
-      inputFingerprintBreakdown
-    };
+    AppState.draft.evidenceMap = typeof AiProductStateService !== 'undefined' && AiProductStateService?.buildAiArtifactRecord
+      ? AiProductStateService.buildAiArtifactRecord({
+          artifactKey: 'evidenceMap',
+          result,
+          artifact: evidenceMap,
+          fingerprintSnapshot: inputFingerprintBreakdown
+        })
+      : {
+          ...evidenceMap,
+          mode: result?.mode || evidenceMap.mode || 'deterministic_fallback',
+          usedFallback: !!result?.usedFallback,
+          aiUnavailable: !!result?.aiUnavailable,
+          generatedAt: result?.generatedAt || new Date().toISOString(),
+          inputFingerprint,
+          inputFingerprintBreakdown
+        };
     saveDraft();
     UI.toast(result?.usedFallback ? 'Deterministic Evidence Map is ready.' : 'AI Evidence Map is ready.', result?.usedFallback ? 'info' : 'success');
   } catch (error) {

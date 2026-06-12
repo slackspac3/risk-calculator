@@ -140,7 +140,13 @@ expect(
     && aiProductStateJs.includes('buildDecisionChallengeFingerprintSnapshot')
     && aiProductStateJs.includes('buildDecisionBriefFingerprintSnapshot')
     && aiProductStateJs.includes('projectFinancialValues')
+    && aiProductStateJs.includes('projectFinancialStatusSource')
+    && aiProductStateJs.includes('projectFinancialNotes')
     && aiProductStateJs.includes('projectNarrativeContext')
+    && aiProductStateJs.includes('buildDependencyOutputSnapshot')
+    && aiProductStateJs.includes('AI_ARTIFACTS')
+    && aiProductStateJs.includes('buildAiArtifactRecord')
+    && aiProductStateJs.includes('saveAiArtifact')
     && aiProductStateJs.includes('currentFingerprint')
     && aiProductStateJs.includes('freshnessSeverity')
     && aiProductStateJs.includes('freshnessStatus')
@@ -168,6 +174,7 @@ expect(
     && step4Js.includes('buildStep4EvidenceMapFingerprintBreakdown')
     && step4Js.includes('buildParameterCoachFingerprintSnapshot')
     && step4Js.includes('buildEvidenceMapFingerprintSnapshot')
+    && step4Js.includes('buildAiArtifactRecord')
     && step4Js.includes('inputFingerprintBreakdown')
     && step4Js.includes('inputFingerprint'),
   'Step 4 AI review outputs must persist input fingerprint breakdowns for stale Parameter Coach and Evidence Map detection.'
@@ -181,6 +188,13 @@ expect(
   'Results view model must use shared snapshot builders for category-level current fingerprints.'
 );
 expect(
+  resultsRouteJs.includes('buildResultsAiArtifactMeta')
+    && resultsRouteJs.includes('buildAiArtifactMeta')
+    && resultsRouteJs.includes('decisionBriefMeta')
+    && resultsRouteJs.includes('decisionChallengeMeta'),
+  'Results AI actions must use the shared AI artifact meta helper for Decision Brief and Challenge Agent persistence.'
+);
+expect(
   resultsRouteJs.includes('summaryLabel')
     && resultsRouteJs.includes('ai-product-state-strip__details')
     && resultsRouteJs.includes('View AI support details'),
@@ -189,13 +203,19 @@ expect(
 expect(
   aiProductStateTestJs.includes('project financial value changes as critical stale')
     && aiProductStateTestJs.includes('project narrative-only changes as non-critical stale')
+    && aiProductStateTestJs.includes('project financial status/source metadata as critical stale')
+    && aiProductStateTestJs.includes('project financial note-only metadata changes as informational stale')
+    && aiProductStateTestJs.includes('ignores dependency timestamp churn')
+    && aiProductStateTestJs.includes('AI artifact registry exposes labels')
+    && aiProductStateTestJs.includes('AI artifact persistence helper writes canonical metadata')
     && aiProductStateTestJs.includes('breakdowns even when flat fingerprint is absent'),
-  'AI product state unit tests must cover granular project categories, breakdown-only freshness, and flat fingerprint compatibility.'
+  'AI product state unit tests must cover granular project categories, sanitized dependencies, breakdown-only freshness, and flat fingerprint compatibility.'
 );
 expect(
   step1ProjectExposureTestJs.includes('project financial values')
+    && step1ProjectExposureTestJs.includes('live AI result persists category fingerprint breakdown')
     && step1ProjectExposureTestJs.includes('Refresh Project exposure map'),
-  'Step 1 project exposure tests must cover stale project financial value refresh prompts.'
+  'Step 1 project exposure tests must cover live fingerprint persistence and stale project financial value refresh prompts.'
 );
 expect(
   step4AiFreshnessTestJs.includes('Parameter Coach is critical-stale after FAIR parameter changes')

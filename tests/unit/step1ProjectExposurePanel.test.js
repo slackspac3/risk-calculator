@@ -214,6 +214,34 @@ test('seller project exposure panel persists missing margin as unknown, not zero
   assert.doesNotMatch(html, /\$0/);
 });
 
+test('project exposure live AI result persists category fingerprint breakdown', () => {
+  const context = loadStep1ProjectExposureHarness(baseDraft('project_buyer'));
+
+  const applied = context.applyStep1ProjectExposureResult('buyer', {
+    mode: 'live',
+    usedFallback: false,
+    aiUnavailable: false,
+    generatedAt: '2026-06-11T00:00:00.000Z',
+    projectExposure: {
+      valuationMode: 'hybrid',
+      projectExposureSummary: 'Live map linked to buyer project delay.',
+      financialDrivers: [{ id: 'delay', label: 'Delay cost', driverStatus: 'unquantified_driver' }],
+      capsAndOffsets: [],
+      doubleCountingWarnings: [],
+      missingInputs: [{ field: 'delayCostPerDay', label: 'Delay cost per day' }],
+      mapsToRiskParameters: {}
+    }
+  });
+
+  assert.equal(applied, true);
+  assert.equal(context.AppState.draft.projectExposure.sourceMode, 'live');
+  assert.equal(context.AppState.draft.projectExposure.inputFingerprint, context.AppState.draft.projectExposure.inputFingerprintBreakdown.fingerprint);
+  assert.ok(context.AppState.draft.projectExposure.inputFingerprintBreakdown.categories.projectFinancialValues);
+  assert.ok(context.AppState.draft.projectExposure.inputFingerprintBreakdown.categories.projectFinancialStatusSource);
+  assert.equal(context.AppState.draft.projectExposure.usedFallback, false);
+  assert.equal(context.saved, true);
+});
+
 test('generic enterprise path does not render or build project exposure panel', () => {
   const draft = baseDraft('enterprise_generic');
   draft.projectExposure = {};
