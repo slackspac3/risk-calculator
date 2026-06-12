@@ -710,6 +710,7 @@ function resetDraft() {
       mapsToRiskParameters: {},
       sourceMode: '',
       inputFingerprint: '',
+      inputFingerprintBreakdown: null,
       generatedAt: '',
       usedFallback: false,
       aiUnavailable: false

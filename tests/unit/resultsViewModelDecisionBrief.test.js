@@ -179,31 +179,14 @@ test('results cockpit exposes unified AI journey state and stale prompts', () =>
 
 test('results cockpit explains project-economics stale reasons when fingerprint breakdowns exist', () => {
   const ResultsViewModel = buildViewModel();
-  const savedBreakdown = AiProductStateService.buildFingerprintBreakdown({
-    scenario: {
-      assessmentType: 'project_buyer',
-      scenario: 'Supplier delay',
-      structuredScenario: {},
-      scenarioLens: {}
-    },
-    projectEconomics: {
-      assessmentType: 'project_buyer',
-      projectContext: { projectRole: 'buyer', projectName: 'ERP rollout' },
-      buyerEconomics: { approvedBudget: 1000000 },
-      buyerEconomicsMeta: { approvedBudget: { status: 'known', confidence: 'high', source: 'user' } },
-      sellerEconomics: {},
-      sellerEconomicsMeta: {},
-      buyerProxyQuestions: {},
-      sellerProxyQuestions: {}
-    },
-    citations: [],
-    businessContext: {
-      buId: '',
-      buName: 'Technology',
-      geography: 'United Arab Emirates',
-      geographies: [],
-      applicableRegulations: []
-    }
+  const savedBreakdown = AiProductStateService.buildProjectExposureFingerprintSnapshot({
+    assessmentType: 'project_buyer',
+    scenario: 'Supplier delay',
+    projectContext: { projectRole: 'buyer', projectName: 'ERP rollout' },
+    buyerEconomics: { approvedBudget: 1000000 },
+    buyerEconomicsMeta: { approvedBudget: { status: 'known', confidence: 'high', source: 'user' } },
+    buName: 'Technology',
+    geography: 'United Arab Emirates'
   });
   const model = ResultsViewModel.buildResultsRenderModel({
     id: 'a-ai-breakdown',
@@ -230,8 +213,57 @@ test('results cockpit explains project-economics stale reasons when fingerprint 
   assert.ok(projectState);
   assert.equal(projectState.freshnessStatus, 'stale');
   assert.equal(projectState.freshnessSeverity, 'critical');
-  assert.ok(projectState.staleCategoryLabels.includes('project economics'));
-  assert.match(projectState.refreshReason, /project economics changed/);
+  assert.ok(projectState.staleCategoryLabels.includes('project financial values'));
+  assert.match(projectState.refreshReason, /project financial values changed/);
+});
+
+test('results cockpit marks Decision Brief critical-stale after simulation result changes', () => {
+  const ResultsViewModel = buildViewModel();
+  const savedBreakdown = AiProductStateService.buildDecisionBriefFingerprintSnapshot({
+    assessmentType: 'project_buyer',
+    scenario: 'Supplier delay',
+    projectContext: { projectRole: 'buyer', projectName: 'ERP rollout' },
+    buyerEconomics: { approvedBudget: 1000000 },
+    simulationResult: buildResults({ annualLoss: { mean: 50000, p50: 30000, p90: 90000 } }),
+    projectExposure: { projectExposureSummary: 'Delay exposure mapped.' },
+    assumptionRegister: { assumptions: [{ statement: 'Delay cost is unknown.' }] },
+    parameterCoach: { parameterRationales: [{ parameterKey: 'businessInterruption' }] },
+    evidenceMap: { supportedClaims: [{ claim: 'Budget exists.' }] },
+    decisionChallenge: { challengeSummary: 'Confirm delay impact.' }
+  });
+  const model = ResultsViewModel.buildResultsRenderModel({
+    id: 'a-decision-brief-simulation-stale',
+    assessmentType: 'project_buyer',
+    scenarioTitle: 'Supplier delay',
+    buName: 'Technology',
+    geography: 'United Arab Emirates',
+    createdAt: Date.now(),
+    projectContext: { projectRole: 'buyer', projectName: 'ERP rollout' },
+    buyerEconomics: { approvedBudget: 1000000 },
+    projectExposure: { projectExposureSummary: 'Delay exposure mapped.' },
+    assumptionRegister: { assumptions: [{ statement: 'Delay cost is unknown.' }] },
+    parameterCoach: { parameterRationales: [{ parameterKey: 'businessInterruption' }] },
+    evidenceMap: { supportedClaims: [{ claim: 'Budget exists.' }] },
+    decisionChallenge: { challengeSummary: 'Confirm delay impact.' },
+    decisionBrief: {
+      recommendation: 'Proceed with controls.',
+      why: 'The prior simulation was within tolerance.'
+    },
+    decisionBriefMeta: {
+      mode: 'live',
+      inputFingerprint: savedBreakdown.fingerprint,
+      inputFingerprintBreakdown: savedBreakdown,
+      generatedAt: '2026-06-10T00:00:00.000Z'
+    },
+    results: buildResults({ annualLoss: { mean: 150000, p50: 90000, p90: 280000 } })
+  });
+  const briefState = model.decisionCockpitModel.aiJourney.outputs.find(item => item.key === 'decisionbrief');
+
+  assert.ok(briefState);
+  assert.equal(model.decisionCockpitModel.aiJourney.criticalStaleCount > 0, true);
+  assert.equal(briefState.freshnessSeverity, 'critical');
+  assert.equal(briefState.recommendedAction, 'Refresh Decision Brief');
+  assert.match(briefState.refreshReason, /simulation result changed/);
 });
 
 test('results cockpit surfaces buyer sparse economics without zeroing unknowns', () => {

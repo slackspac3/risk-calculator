@@ -26,8 +26,14 @@
   const STALE_CATEGORY_LABELS = Object.freeze({
     scenario: 'scenario',
     projectEconomics: 'project economics',
+    projectFinancialValues: 'project financial values',
+    projectFinancialMetadata: 'project financial metadata',
+    projectProxyAnswers: 'project proxy answers',
+    projectContext: 'project context',
+    projectNarrativeContext: 'project narrative context',
     parameters: 'parameters',
     simulation: 'simulation result',
+    results: 'simulation result',
     evidence: 'evidence',
     citations: 'citations',
     dependentAiOutputs: 'related AI outputs',
@@ -39,8 +45,14 @@
   const STALE_CATEGORY_SEVERITY = Object.freeze({
     scenario: 'critical',
     projectEconomics: 'critical',
+    projectFinancialValues: 'critical',
+    projectFinancialMetadata: 'review',
+    projectProxyAnswers: 'review',
+    projectContext: 'review',
+    projectNarrativeContext: 'informational',
     parameters: 'critical',
     simulation: 'critical',
+    results: 'critical',
     evidence: 'review',
     citations: 'review',
     dependentAiOutputs: 'review',
@@ -200,6 +212,210 @@
       fingerprint: buildFingerprint(categoryFingerprints),
       categories: categoryFingerprints
     };
+  }
+
+  function pickFields(source = {}, keys = []) {
+    const input = isPlainObject(source) ? source : {};
+    const output = {};
+    (Array.isArray(keys) ? keys : []).forEach((key) => {
+      if (Object.prototype.hasOwnProperty.call(input, key)) output[key] = input[key];
+    });
+    return output;
+  }
+
+  function compactObject(source = {}) {
+    const input = isPlainObject(source) ? source : {};
+    const output = {};
+    Object.keys(input).sort().forEach((key) => {
+      const value = input[key];
+      if (value === undefined) return;
+      if (typeof value === 'function') return;
+      output[key] = value;
+    });
+    return output;
+  }
+
+  function resolveScenarioInput(context = {}) {
+    const source = isPlainObject(context) ? context : {};
+    return {
+      assessmentType: source.assessmentType || 'enterprise_generic',
+      scenario: source.scenario || source.riskStatement || source.enhancedNarrative || source.narrative || source.scenarioTitle || '',
+      structuredScenario: isPlainObject(source.structuredScenario) ? source.structuredScenario : {},
+      scenarioLens: isPlainObject(source.scenarioLens) ? source.scenarioLens : {}
+    };
+  }
+
+  function resolveBusinessContextInput(context = {}) {
+    const source = isPlainObject(context) ? context : {};
+    const businessUnit = isPlainObject(source.businessUnit)
+      ? source.businessUnit
+      : {
+          id: source.buId || '',
+          name: source.buName || ''
+        };
+    return {
+      businessUnit,
+      geography: source.geography || '',
+      geographies: Array.isArray(source.geographies) ? source.geographies : [],
+      applicableRegulations: Array.isArray(source.applicableRegulations) ? source.applicableRegulations : []
+    };
+  }
+
+  function resolveEvidenceInput(context = {}) {
+    const source = isPlainObject(context) ? context : {};
+    return {
+      citations: Array.isArray(source.citations) ? source.citations : [],
+      primaryGrounding: Array.isArray(source.primaryGrounding) ? source.primaryGrounding : [],
+      supportingReferences: Array.isArray(source.supportingReferences) ? source.supportingReferences : [],
+      ragMatches: Array.isArray(source.ragMatches) ? source.ragMatches : []
+    };
+  }
+
+  function resolveParametersInput(context = {}) {
+    const source = isPlainObject(context) ? context : {};
+    return {
+      parameters: isPlainObject(source.parameters) ? source.parameters : (isPlainObject(source.fairParams) ? source.fairParams : {}),
+      validation: isPlainObject(source.validation) ? source.validation : {}
+    };
+  }
+
+  function resolveSimulationInput(context = {}) {
+    const source = isPlainObject(context) ? context : {};
+    const result = isPlainObject(source.simulationResult) ? source.simulationResult : (isPlainObject(source.results) ? source.results : source);
+    return {
+      eventLoss: result.eventLoss || result.lm || {},
+      annualLoss: result.annualLoss || result.ale || {},
+      projectHorizon: result.projectHorizon || {},
+      toleranceDetail: result.toleranceDetail || {},
+      annualReviewDetail: result.annualReviewDetail || {},
+      runMetadata: result.runMetadata || source.runMetadata || {}
+    };
+  }
+
+  function resolveDependentAiOutputs(context = {}, keys = []) {
+    const source = isPlainObject(context) ? context : {};
+    const output = {};
+    (Array.isArray(keys) ? keys : []).forEach((key) => {
+      output[key] = isPlainObject(source[key]) ? source[key] : {};
+    });
+    return output;
+  }
+
+  function resolveProjectFingerprintCategories(context = {}) {
+    const source = isPlainObject(context) ? context : {};
+    const projectContext = isPlainObject(source.projectContext) ? source.projectContext : {};
+    const routeDetails = isPlainObject(source.projectRouteDetails) ? source.projectRouteDetails : {};
+    const buyerProxy = isPlainObject(source.buyerProxyQuestions)
+      ? source.buyerProxyQuestions
+      : (isPlainObject(source.buyerProxyAnswers) ? source.buyerProxyAnswers : {});
+    const sellerProxy = isPlainObject(source.sellerProxyQuestions)
+      ? source.sellerProxyQuestions
+      : (isPlainObject(source.sellerProxyAnswers) ? source.sellerProxyAnswers : {});
+    return {
+      projectFinancialValues: {
+        buyerEconomics: compactObject(source.buyerEconomics),
+        sellerEconomics: compactObject(source.sellerEconomics)
+      },
+      projectFinancialMetadata: {
+        buyerEconomicsMeta: compactObject(source.buyerEconomicsMeta),
+        sellerEconomicsMeta: compactObject(source.sellerEconomicsMeta)
+      },
+      projectProxyAnswers: {
+        buyerProxyQuestions: compactObject(buyerProxy),
+        sellerProxyQuestions: compactObject(sellerProxy)
+      },
+      projectContext: pickFields(projectContext, [
+        'projectRole',
+        'projectStage',
+        'contractType',
+        'currency',
+        'projectDurationMonths',
+        'projectHorizonYears',
+        'criticalMilestoneDate',
+        'strategicImportance'
+      ]),
+      projectNarrativeContext: {
+        ...pickFields(projectContext, [
+          'projectName',
+          'projectDescription',
+          'supplierName',
+          'vendorName',
+          'contractorName',
+          'customerName',
+          'mainConsequence',
+          'notes'
+        ]),
+        ...pickFields(routeDetails, [
+          'supplierName',
+          'vendorName',
+          'contractorName',
+          'customerName',
+          'mainConsequence',
+          'notes'
+        ])
+      }
+    };
+  }
+
+  function buildProjectExposureFingerprintSnapshot(context = {}) {
+    return buildFingerprintBreakdown({
+      scenario: resolveScenarioInput(context),
+      ...resolveProjectFingerprintCategories(context),
+      citations: Array.isArray(context?.citations) ? context.citations : [],
+      businessContext: resolveBusinessContextInput(context)
+    });
+  }
+
+  function buildAssumptionRegisterFingerprintSnapshot(context = {}) {
+    return buildFingerprintBreakdown({
+      scenario: resolveScenarioInput(context),
+      ...resolveProjectFingerprintCategories(context),
+      parameters: resolveParametersInput(context),
+      simulation: resolveSimulationInput(context),
+      evidence: resolveEvidenceInput(context),
+      dependentAiOutputs: resolveDependentAiOutputs(context, ['projectExposure'])
+    });
+  }
+
+  function buildParameterCoachFingerprintSnapshot(context = {}) {
+    return buildFingerprintBreakdown({
+      scenario: resolveScenarioInput(context),
+      ...resolveProjectFingerprintCategories(context),
+      parameters: resolveParametersInput(context),
+      evidence: resolveEvidenceInput(context),
+      dependentAiOutputs: resolveDependentAiOutputs(context, ['projectExposure', 'assumptionRegister', 'evidenceMap']),
+      businessContext: resolveBusinessContextInput(context)
+    });
+  }
+
+  function buildEvidenceMapFingerprintSnapshot(context = {}) {
+    return buildFingerprintBreakdown({
+      scenario: resolveScenarioInput(context),
+      ...resolveProjectFingerprintCategories(context),
+      parameters: resolveParametersInput(context),
+      evidence: resolveEvidenceInput(context),
+      dependentAiOutputs: resolveDependentAiOutputs(context, ['assumptionRegister']),
+      businessContext: resolveBusinessContextInput(context)
+    });
+  }
+
+  function buildDecisionChallengeFingerprintSnapshot(context = {}) {
+    return buildFingerprintBreakdown({
+      scenario: resolveScenarioInput(context),
+      ...resolveProjectFingerprintCategories(context),
+      parameters: resolveParametersInput(context),
+      simulation: resolveSimulationInput(context),
+      dependentAiOutputs: resolveDependentAiOutputs(context, ['projectExposure', 'assumptionRegister', 'parameterCoach', 'evidenceMap'])
+    });
+  }
+
+  function buildDecisionBriefFingerprintSnapshot(context = {}) {
+    return buildFingerprintBreakdown({
+      scenario: resolveScenarioInput(context),
+      ...resolveProjectFingerprintCategories(context),
+      simulation: resolveSimulationInput(context),
+      dependentAiOutputs: resolveDependentAiOutputs(context, ['projectExposure', 'assumptionRegister', 'parameterCoach', 'evidenceMap', 'decisionChallenge'])
+    });
   }
 
   function normaliseFingerprintCategories(categories = {}) {
@@ -593,6 +809,12 @@
   const api = {
     buildFingerprint,
     buildFingerprintBreakdown,
+    buildProjectExposureFingerprintSnapshot,
+    buildAssumptionRegisterFingerprintSnapshot,
+    buildParameterCoachFingerprintSnapshot,
+    buildEvidenceMapFingerprintSnapshot,
+    buildDecisionChallengeFingerprintSnapshot,
+    buildDecisionBriefFingerprintSnapshot,
     stableStringify,
     normaliseMode,
     getModeLabel,

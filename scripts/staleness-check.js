@@ -59,6 +59,12 @@ const resultsRouteJs = read('assets/results/resultsRoute.js');
 const resultsViewModelJs = read('assets/results/resultsViewModel.js');
 const assessmentStateJs = read('assets/state/assessmentState.js');
 const e2eSmokeSpecJs = read('tests/e2e/smoke.spec.js');
+const aiProductStateTestJs = read('tests/unit/aiProductStateService.test.js');
+const step1ProjectExposureTestJs = read('tests/unit/step1ProjectExposurePanel.test.js');
+const resultsViewModelDecisionBriefTestJs = read('tests/unit/resultsViewModelDecisionBrief.test.js');
+const step4AiFreshnessTestJs = fs.existsSync(path.join(root, 'tests/unit/step4AiFreshness.test.js'))
+  ? read('tests/unit/step4AiFreshness.test.js')
+  : '';
 
 expect(
   !/Object\.keys\(\s*(sessionStorage|localStorage)\s*\)/.test(e2eSmokeSpecJs),
@@ -127,11 +133,19 @@ expect(
 expect(
   aiProductStateJs.includes('buildAiOutputState')
     && aiProductStateJs.includes('buildFingerprintBreakdown')
+    && aiProductStateJs.includes('buildProjectExposureFingerprintSnapshot')
+    && aiProductStateJs.includes('buildAssumptionRegisterFingerprintSnapshot')
+    && aiProductStateJs.includes('buildParameterCoachFingerprintSnapshot')
+    && aiProductStateJs.includes('buildEvidenceMapFingerprintSnapshot')
+    && aiProductStateJs.includes('buildDecisionChallengeFingerprintSnapshot')
+    && aiProductStateJs.includes('buildDecisionBriefFingerprintSnapshot')
+    && aiProductStateJs.includes('projectFinancialValues')
+    && aiProductStateJs.includes('projectNarrativeContext')
     && aiProductStateJs.includes('currentFingerprint')
     && aiProductStateJs.includes('freshnessSeverity')
     && aiProductStateJs.includes('freshnessStatus')
     && aiProductStateJs.includes('stale'),
-  'AI product state helper must expose category-aware fingerprint stale output detection.'
+  'AI product state helper must expose shared category-aware snapshot builders and stale output detection.'
 );
 expect(
   aiProductStateJs.includes('ARTIFACT_USEFUL_PATHS')
@@ -142,6 +156,7 @@ expect(
 );
 expect(
   step1Js.includes('savedAiState?.freshnessStatus === \'stale\'')
+    && step1Js.includes('buildProjectExposureFingerprintSnapshot')
     && step1Js.includes('inputFingerprintBreakdown')
     && step1Js.includes('Refresh exposure map'),
   'Step 1 project exposure UI must show a category-aware refresh prompt when the saved AI map is stale.'
@@ -151,21 +166,48 @@ expect(
     && step4Js.includes('buildStep4EvidenceMapFingerprint')
     && step4Js.includes('buildStep4ParameterCoachFingerprintBreakdown')
     && step4Js.includes('buildStep4EvidenceMapFingerprintBreakdown')
+    && step4Js.includes('buildParameterCoachFingerprintSnapshot')
+    && step4Js.includes('buildEvidenceMapFingerprintSnapshot')
     && step4Js.includes('inputFingerprintBreakdown')
     && step4Js.includes('inputFingerprint'),
   'Step 4 AI review outputs must persist input fingerprint breakdowns for stale Parameter Coach and Evidence Map detection.'
 );
 expect(
-  resultsViewModelJs.includes('buildFingerprintBreakdown')
-    && resultsViewModelJs.includes('projectEconomics')
-    && resultsViewModelJs.includes('dependentAiOutputs'),
-  'Results view model must build category-level current fingerprints for AI support artefacts.'
+  resultsViewModelJs.includes('buildProjectExposureFingerprintSnapshot')
+    && resultsViewModelJs.includes('buildParameterCoachFingerprintSnapshot')
+    && resultsViewModelJs.includes('buildEvidenceMapFingerprintSnapshot')
+    && resultsViewModelJs.includes('buildDecisionBriefFingerprintSnapshot')
+    && resultsViewModelJs.includes('simulationResult'),
+  'Results view model must use shared snapshot builders for category-level current fingerprints.'
 );
 expect(
   resultsRouteJs.includes('summaryLabel')
     && resultsRouteJs.includes('ai-product-state-strip__details')
     && resultsRouteJs.includes('View AI support details'),
   'Results AI journey strip must default to a compact summary with expandable artefact details.'
+);
+expect(
+  aiProductStateTestJs.includes('project financial value changes as critical stale')
+    && aiProductStateTestJs.includes('project narrative-only changes as non-critical stale')
+    && aiProductStateTestJs.includes('breakdowns even when flat fingerprint is absent'),
+  'AI product state unit tests must cover granular project categories, breakdown-only freshness, and flat fingerprint compatibility.'
+);
+expect(
+  step1ProjectExposureTestJs.includes('project financial values')
+    && step1ProjectExposureTestJs.includes('Refresh Project exposure map'),
+  'Step 1 project exposure tests must cover stale project financial value refresh prompts.'
+);
+expect(
+  step4AiFreshnessTestJs.includes('Parameter Coach is critical-stale after FAIR parameter changes')
+    && step4AiFreshnessTestJs.includes('Evidence Map is review-stale after evidence changes')
+    && step4AiFreshnessTestJs.includes('parameters changed')
+    && step4AiFreshnessTestJs.includes('evidence changed'),
+  'Step 4 tests must cover Parameter Coach critical stale and Evidence Map review stale UI behavior.'
+);
+expect(
+  resultsViewModelDecisionBriefTestJs.includes('Decision Brief critical-stale after simulation result changes')
+    && resultsViewModelDecisionBriefTestJs.includes('simulation result changed'),
+  'Results view model tests must cover Decision Brief stale reason after simulation result changes.'
 );
 
 if (failures.length) {

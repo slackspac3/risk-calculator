@@ -101,6 +101,66 @@ test('AI product state treats evidence-only changes as review stale', () => {
   assert.match(state.refreshReason, /evidence changed/);
 });
 
+test('AI product state treats project financial value changes as critical stale', () => {
+  const saved = AiProductStateService.buildProjectExposureFingerprintSnapshot({
+    assessmentType: 'project_buyer',
+    scenario: 'Supplier delay',
+    buyerEconomics: { approvedBudget: 1000000 },
+    buyerEconomicsMeta: { approvedBudget: { status: 'known', confidence: 'high', source: 'user' } }
+  });
+  const current = AiProductStateService.buildProjectExposureFingerprintSnapshot({
+    assessmentType: 'project_buyer',
+    scenario: 'Supplier delay',
+    buyerEconomics: { approvedBudget: 2000000 },
+    buyerEconomicsMeta: { approvedBudget: { status: 'known', confidence: 'high', source: 'user' } }
+  });
+  const state = AiProductStateService.buildAiOutputState({
+    key: 'projectExposure',
+    label: 'Project exposure map',
+    output: {
+      sourceMode: 'live',
+      inputFingerprintBreakdown: saved,
+      projectExposureSummary: 'Mapped.'
+    },
+    currentFingerprintBreakdown: current
+  });
+
+  assert.equal(state.freshnessStatus, 'stale');
+  assert.equal(state.freshnessSeverity, 'critical');
+  assert.deepEqual(state.staleCategories, ['projectFinancialValues']);
+  assert.match(state.refreshReason, /project financial values changed/);
+});
+
+test('AI product state treats project narrative-only changes as non-critical stale', () => {
+  const saved = AiProductStateService.buildProjectExposureFingerprintSnapshot({
+    assessmentType: 'project_buyer',
+    scenario: 'Supplier delay',
+    projectContext: { projectName: 'ERP rollout', projectDescription: 'Initial wording' },
+    buyerEconomics: { approvedBudget: 1000000 }
+  });
+  const current = AiProductStateService.buildProjectExposureFingerprintSnapshot({
+    assessmentType: 'project_buyer',
+    scenario: 'Supplier delay',
+    projectContext: { projectName: 'ERP rollout', projectDescription: 'Updated wording' },
+    buyerEconomics: { approvedBudget: 1000000 }
+  });
+  const state = AiProductStateService.buildAiOutputState({
+    key: 'projectExposure',
+    label: 'Project exposure map',
+    output: {
+      sourceMode: 'live',
+      inputFingerprintBreakdown: saved,
+      projectExposureSummary: 'Mapped.'
+    },
+    currentFingerprintBreakdown: current
+  });
+
+  assert.equal(state.freshnessStatus, 'stale');
+  assert.equal(state.freshnessSeverity, 'informational');
+  assert.notEqual(state.freshnessTone, 'danger');
+  assert.deepEqual(state.staleCategories, ['projectNarrativeContext']);
+});
+
 test('AI product state treats empty outputs as generate prompts', () => {
   const state = AiProductStateService.buildAiOutputState({
     key: 'decisionBrief',
@@ -111,6 +171,33 @@ test('AI product state treats empty outputs as generate prompts', () => {
   assert.equal(state.hasOutput, false);
   assert.equal(state.freshnessStatus, 'empty');
   assert.equal(state.recommendedAction, 'Generate Decision Brief');
+});
+
+test('AI product state works with breakdowns even when flat fingerprint is absent', () => {
+  const saved = AiProductStateService.buildParameterCoachFingerprintSnapshot({
+    assessmentType: 'project_buyer',
+    scenario: 'Supplier delay',
+    parameters: { biLikely: 10000 }
+  });
+  const current = AiProductStateService.buildParameterCoachFingerprintSnapshot({
+    assessmentType: 'project_buyer',
+    scenario: 'Supplier delay',
+    parameters: { biLikely: 10000 }
+  });
+  const state = AiProductStateService.buildAiOutputState({
+    key: 'parameterCoach',
+    label: 'Parameter Coach',
+    output: {
+      mode: 'live',
+      inputFingerprintBreakdown: saved,
+      parameterRationales: [{ parameterKey: 'businessInterruption' }]
+    },
+    currentFingerprintBreakdown: current
+  });
+
+  assert.equal(state.hasOutput, true);
+  assert.equal(state.freshnessStatus, 'fresh');
+  assert.equal(state.inputFingerprint, '');
 });
 
 test('AI product state does not treat metadata-only objects as useful artefacts', () => {

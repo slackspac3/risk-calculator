@@ -270,6 +270,24 @@
     return output;
   }
 
+  function normaliseInputFingerprintBreakdown(value) {
+    if (!isPlainObject(value)) return null;
+    const categoriesSource = isPlainObject(readField(value, 'categories'))
+      ? readField(value, 'categories')
+      : (isPlainObject(readField(value, 'breakdown')) ? readField(value, 'breakdown') : {});
+    const categories = {};
+    Object.keys(categoriesSource).slice(0, MAX_PROJECT_EXPOSURE_MAP_KEYS).forEach(rawKey => {
+      const key = normaliseText(rawKey, MAX_PROJECT_EXPOSURE_SHORT_TEXT_LENGTH);
+      const item = normaliseText(readField(categoriesSource, rawKey), MAX_PROJECT_EXPOSURE_SHORT_TEXT_LENGTH);
+      if (!key || !item) return;
+      categories[key] = item;
+    });
+    return {
+      fingerprint: normaliseText(readField(value, 'fingerprint') || readField(value, 'inputFingerprint'), MAX_PROJECT_EXPOSURE_SHORT_TEXT_LENGTH),
+      categories
+    };
+  }
+
   function normaliseProjectInputQuality(value = {}) {
     const source = isPlainObject(value) ? value : {};
     const score = normaliseFiniteNumber(readField(source, 'score'));
@@ -446,6 +464,7 @@
       mapsToRiskParameters: normaliseRiskParameterMap(readField(source, 'mapsToRiskParameters')),
       sourceMode: normaliseText(readField(source, 'sourceMode')),
       inputFingerprint: normaliseText(readField(source, 'inputFingerprint')),
+      inputFingerprintBreakdown: normaliseInputFingerprintBreakdown(readField(source, 'inputFingerprintBreakdown')),
       generatedAt: normaliseText(readField(source, 'generatedAt')),
       usedFallback: readField(source, 'usedFallback') === true,
       aiUnavailable: readField(source, 'aiUnavailable') === true

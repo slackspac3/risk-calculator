@@ -637,75 +637,59 @@ function buildStep4AiFingerprint(value = {}) {
   }
 }
 
-function buildStep4AiFingerprintBreakdown(categories = {}) {
-  if (typeof AiProductStateService !== 'undefined' && AiProductStateService?.buildFingerprintBreakdown) {
-    return AiProductStateService.buildFingerprintBreakdown(categories);
+function buildStep4AiSnapshotContext(draft = AppState.draft, payload = {}) {
+  return {
+    ...payload,
+    assessmentType: payload.assessmentType || draft?.assessmentType || '',
+    scenario: payload.scenario || draft?.enhancedNarrative || draft?.narrative || draft?.scenarioTitle || '',
+    projectContext: payload.projectContext || draft?.projectContext || {},
+    projectExposure: payload.projectExposure || draft?.projectExposure || {},
+    buyerEconomics: draft?.buyerEconomics || {},
+    buyerEconomicsMeta: draft?.buyerEconomicsMeta || {},
+    sellerEconomics: draft?.sellerEconomics || {},
+    sellerEconomicsMeta: draft?.sellerEconomicsMeta || {},
+    buyerProxyQuestions: draft?.buyerProxyQuestions || {},
+    sellerProxyQuestions: draft?.sellerProxyQuestions || {},
+    projectRouteDetails: draft?.projectRouteDetails || {},
+    fairParams: draft?.fairParams || {},
+    results: draft?.results || {},
+    citations: Array.isArray(payload.citations) ? payload.citations : (Array.isArray(draft?.citations) ? draft.citations : []),
+    primaryGrounding: Array.isArray(draft?.primaryGrounding) ? draft.primaryGrounding : [],
+    supportingReferences: Array.isArray(draft?.supportingReferences) ? draft.supportingReferences : [],
+    ragMatches: Array.isArray(payload.ragMatches) ? payload.ragMatches : (Array.isArray(draft?.ragMatches) ? draft.ragMatches : [])
+  };
+}
+
+function buildStep4ParameterCoachFingerprintBreakdown(draft = AppState.draft, validation = {}) {
+  const payload = buildStep4ParameterCoachPayload(draft, validation);
+  const context = buildStep4AiSnapshotContext(draft, payload);
+  if (typeof AiProductStateService !== 'undefined' && AiProductStateService?.buildParameterCoachFingerprintSnapshot) {
+    return AiProductStateService.buildParameterCoachFingerprintSnapshot(context);
   }
   return {
-    fingerprint: buildStep4AiFingerprint(categories),
+    fingerprint: buildStep4AiFingerprint(payload),
     categories: {}
   };
 }
 
 function buildStep4ParameterCoachFingerprint(draft = AppState.draft, validation = {}) {
-  return buildStep4AiFingerprint(buildStep4ParameterCoachPayload(draft, validation));
-}
-
-function buildStep4ParameterCoachFingerprintBreakdown(draft = AppState.draft, validation = {}) {
-  const payload = buildStep4ParameterCoachPayload(draft, validation);
-  return buildStep4AiFingerprintBreakdown({
-    scenario: {
-      assessmentType: payload.assessmentType,
-      scenario: payload.scenario,
-      structuredScenario: payload.structuredScenario,
-      scenarioLens: payload.scenarioLens
-    },
-    projectEconomics: {
-      projectContext: payload.projectContext,
-      projectExposure: payload.projectExposure
-    },
-    parameters: {
-      parameters: payload.parameters,
-      validation: payload.validation
-    },
-    evidence: {
-      citations: payload.citations,
-      evidenceMap: payload.evidenceMap
-    },
-    dependentAiOutputs: {
-      assumptionRegister: payload.assumptionRegister
-    },
-    businessContext: payload.businessContext
-  });
+  return buildStep4ParameterCoachFingerprintBreakdown(draft, validation).fingerprint;
 }
 
 function buildStep4EvidenceMapFingerprint(draft = AppState.draft) {
-  return buildStep4AiFingerprint(buildStep4EvidenceMapPayload(draft));
+  return buildStep4EvidenceMapFingerprintBreakdown(draft).fingerprint;
 }
 
 function buildStep4EvidenceMapFingerprintBreakdown(draft = AppState.draft) {
   const payload = buildStep4EvidenceMapPayload(draft);
-  return buildStep4AiFingerprintBreakdown({
-    scenario: {
-      assessmentType: payload.assessmentType,
-      scenario: payload.scenario,
-      structuredScenario: payload.structuredScenario,
-      riskStatement: payload.riskStatement
-    },
-    projectEconomics: {
-      projectContext: payload.projectContext,
-      projectExposure: payload.projectExposure
-    },
-    parameters: payload.parameters,
-    evidence: {
-      citations: payload.citations,
-      ragMatches: payload.ragMatches
-    },
-    dependentAiOutputs: {
-      assumptions: payload.assumptions
-    },
-    businessContext: payload.businessContext
-  });
+  const context = buildStep4AiSnapshotContext(draft, payload);
+  if (typeof AiProductStateService !== 'undefined' && AiProductStateService?.buildEvidenceMapFingerprintSnapshot) {
+    return AiProductStateService.buildEvidenceMapFingerprintSnapshot(context);
+  }
+  return {
+    fingerprint: buildStep4AiFingerprint(payload),
+    categories: {}
+  };
 }
 
 function buildStep4AiOutputState({ key = '', label = '', output = null, currentFingerprint = '', currentFingerprintBreakdown = null } = {}) {

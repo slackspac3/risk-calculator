@@ -124,7 +124,15 @@ test('buyer assessment normalises project context and buyer economics without de
       valuationMode: 'project_linked',
       projectExposureSummary: '  Linked to approved project budget ',
       financialDrivers: ['  reprocurement premium ', { label: ' delay ', amount: '5000' }],
-      mapsToRiskParameters: { sle: '  expectedSpend ', ale: 25000 }
+      mapsToRiskParameters: { sle: '  expectedSpend ', ale: 25000 },
+      inputFingerprint: ' fp123 ',
+      inputFingerprintBreakdown: {
+        fingerprint: ' fp123 ',
+        categories: {
+          projectFinancialValues: ' cat-a ',
+          parameters: ' cat-b '
+        }
+      }
     }
   });
 
@@ -146,6 +154,14 @@ test('buyer assessment normalises project context and buyer economics without de
   assert.deepEqual(state.projectExposure.financialDrivers[0], 'reprocurement premium');
   assert.deepEqual(state.projectExposure.financialDrivers[1], { label: 'delay', amount: '5000' });
   assert.deepEqual(state.projectExposure.mapsToRiskParameters, { sle: 'expectedSpend', ale: 25000 });
+  assert.equal(state.projectExposure.inputFingerprint, 'fp123');
+  assert.deepEqual(state.projectExposure.inputFingerprintBreakdown, {
+    fingerprint: 'fp123',
+    categories: {
+      projectFinancialValues: 'cat-a',
+      parameters: 'cat-b'
+    }
+  });
 });
 
 test('seller assessment normalises project context and seller economics', () => {
