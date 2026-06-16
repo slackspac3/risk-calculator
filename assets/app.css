@@ -15002,7 +15002,7 @@ html[data-experience-mode="basic"] .wizard-layout--guide {
 }
 
 .step1-guide-stage__hero {
-  grid-template-columns: minmax(0, 1fr) minmax(260px, 0.36fr);
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 340px);
   gap: clamp(16px, 2vw, 24px);
   align-items: stretch;
 }
@@ -17177,7 +17177,7 @@ html[data-experience-mode="basic"] .wizard-layout--guide {
 }
 
 .step1-guide-stage__hero {
-  grid-template-columns: minmax(0, 1fr) minmax(260px, 0.36fr);
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 340px);
   gap: clamp(16px, 2vw, 24px);
   align-items: stretch;
 }
@@ -17222,8 +17222,17 @@ html[data-experience-mode="basic"] .wizard-layout--guide {
 
 .step1-guide-route-detail {
   min-height: 100%;
+  min-width: 0;
   padding: 20px;
   border-radius: 12px;
+}
+
+.step1-guide-stage__cta {
+  min-width: 0;
+  padding-inline: 16px;
+  white-space: normal;
+  line-height: 1.15;
+  text-align: center;
 }
 
 .step1-required-context-band,

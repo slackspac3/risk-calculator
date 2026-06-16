@@ -65,7 +65,7 @@ Latest active-context update on 2026-06-16 in `/Users/bhavuk.arora/risk-calculat
 - Step 1 now keeps the assessment-type cards in the main hero with a selected-journey summary, preserving existing assessment-type bindings and navigation.
 - Step 2 Basic keeps the existing two-prompt intake, required-context behavior, provenance, and AI build bindings while adopting the darker Stitch workbench treatment.
 - The broader pass adds scoped page classes and a Stitch-derived dark workbench CSS layer for public/login, dashboard, Step 3, Step 4, Step 5, results, and admin BU/settings surfaces while preserving existing IDs, controls, route bindings, and role semantics.
-- Asset stamp is now `20260616v2`; build stamp is `2026-06-16-stitch-all-screens`.
+- Asset stamp is now `20260616v3`; build stamp is `2026-06-16-stitch-overflow-fix`.
 - Validation after the broader pass passed:
   - `npm run check:syntax`
   - `npm run check:staleness`
