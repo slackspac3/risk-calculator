@@ -142,6 +142,77 @@ const AiWorkflowClient = (() => {
       .slice(0, maxItems);
   }
 
+  function normaliseEvidenceRagMatch(item = {}) {
+    if (!isPlainObject(item)) return undefined;
+    return compactValue({
+      id: normaliseInlineText(item.id || ''),
+      evidenceId: normaliseInlineText(item.evidenceId || ''),
+      documentId: normaliseInlineText(item.documentId || ''),
+      chunkId: normaliseInlineText(item.chunkId || ''),
+      title: normaliseInlineText(item.title || item.sourceTitle || item.name || ''),
+      sourceTitle: normaliseInlineText(item.sourceTitle || ''),
+      fileName: normaliseInlineText(item.fileName || ''),
+      excerpt: normaliseBlockText(item.excerpt || item.text || item.content || item.chunkText || item.snippet || ''),
+      text: normaliseBlockText(item.text || item.snippet || item.excerpt || ''),
+      url: normaliseUrlLike(item.url || item.sourceUrl || item.link || ''),
+      relevanceReason: normaliseBlockText(item.relevanceReason || item.reason || ''),
+      score: normaliseNumber(item.score),
+      citation: isPlainObject(item.citation) ? compactValue({
+        evidenceId: normaliseInlineText(item.citation.evidenceId || ''),
+        chunkId: normaliseInlineText(item.citation.chunkId || ''),
+        title: normaliseInlineText(item.citation.title || '')
+      }) : undefined,
+      metadata: isPlainObject(item.metadata) ? normaliseLooseWorkflowObject(item.metadata) : undefined
+    });
+  }
+
+  function normaliseEvidenceDocument(item = {}) {
+    if (!isPlainObject(item)) return undefined;
+    return compactValue({
+      evidenceId: normaliseInlineText(item.evidenceId || item.id || item.documentId || ''),
+      documentId: normaliseInlineText(item.documentId || item.evidenceId || item.id || ''),
+      title: normaliseInlineText(item.title || item.name || ''),
+      fileName: normaliseInlineText(item.fileName || item.name || ''),
+      text: normaliseBlockText(item.text || item.content || ''),
+      summary: normaliseBlockText(item.summary || ''),
+      excerpt: normaliseBlockText(item.excerpt || item.snippet || ''),
+      sourceType: normaliseInlineText(item.sourceType || ''),
+      extractionStatus: normaliseInlineText(item.extractionStatus || ''),
+      documentType: normaliseInlineText(item.documentType || ''),
+      tags: normaliseStringList(item.tags, { maxItems: 16 }),
+      domains: normaliseStringList(item.domains, { maxItems: 16 })
+    });
+  }
+
+  function normaliseEvidenceIndexPayload(source = {}) {
+    const documents = Array.isArray(source.documents)
+      ? source.documents.map(normaliseEvidenceDocument).filter(Boolean).slice(0, 24)
+      : undefined;
+    return compactValue({
+      caseId: normaliseInlineText(source.caseId || ''),
+      documents,
+      evidenceId: normaliseInlineText(source.evidenceId || ''),
+      title: normaliseInlineText(source.title || ''),
+      fileName: normaliseInlineText(source.fileName || ''),
+      text: normaliseBlockText(source.text || ''),
+      summary: normaliseBlockText(source.summary || ''),
+      excerpt: normaliseBlockText(source.excerpt || ''),
+      sourceType: normaliseInlineText(source.sourceType || ''),
+      extractionStatus: normaliseInlineText(source.extractionStatus || ''),
+      purpose: normaliseInlineText(source.purpose || '')
+    }) || {};
+  }
+
+  function normaliseEvidenceSearchPayload(source = {}) {
+    return compactValue({
+      caseId: normaliseInlineText(source.caseId || ''),
+      query: normaliseBlockText(source.query || ''),
+      topK: normaliseNumber(source.topK),
+      limit: normaliseNumber(source.limit),
+      purpose: normaliseInlineText(source.purpose || '')
+    }) || {};
+  }
+
   function normaliseResolvedObligationEntry(item = {}) {
     if (!isPlainObject(item)) return undefined;
     return compactValue({
@@ -361,17 +432,7 @@ const AiWorkflowClient = (() => {
       parameters: normaliseFairParams(source.parameters || source.fairParams),
       citations: normaliseCitations(source.citations, { maxItems: 20 }),
       ragMatches: Array.isArray(source.ragMatches)
-        ? source.ragMatches.slice(0, 20).map((item) => {
-            if (!isPlainObject(item)) return undefined;
-            return compactValue({
-              title: normaliseInlineText(item.title || item.sourceTitle || item.name || ''),
-              sourceTitle: normaliseInlineText(item.sourceTitle || ''),
-              excerpt: normaliseBlockText(item.excerpt || item.text || item.content || item.chunkText || ''),
-              url: normaliseUrlLike(item.url || item.sourceUrl || item.link || ''),
-              relevanceReason: normaliseBlockText(item.relevanceReason || item.reason || ''),
-              score: normaliseNumber(item.score)
-            });
-          }).filter(Boolean)
+        ? source.ragMatches.slice(0, 20).map(normaliseEvidenceRagMatch).filter(Boolean)
         : undefined,
       businessContext: normaliseLooseWorkflowObject(source.businessContext),
       adminSettings: normaliseAdminSettings(source.adminSettings),
@@ -701,6 +762,10 @@ const AiWorkflowClient = (() => {
         return normaliseDecisionChallengePayload(source);
       case '/api/ai/decision-brief':
         return normaliseDecisionBriefPayload(source);
+      case '/api/evidence/index':
+        return normaliseEvidenceIndexPayload(source);
+      case '/api/evidence/search':
+        return normaliseEvidenceSearchPayload(source);
       case '/api/ai/manual-intake-assist':
       case '/api/ai/manual-draft-refinement':
       case '/api/ai/manual-shortlist':
@@ -1042,6 +1107,12 @@ const AiWorkflowClient = (() => {
       getEvidenceMapUrl() {
         return buildUrl('/api/ai/evidence-map');
       },
+      getEvidenceIndexUrl() {
+        return buildUrl('/api/evidence/index');
+      },
+      getEvidenceSearchUrl() {
+        return buildUrl('/api/evidence/search');
+      },
       getDecisionChallengeUrl() {
         return buildUrl('/api/ai/decision-challenge');
       },
@@ -1092,6 +1163,12 @@ const AiWorkflowClient = (() => {
       },
       generateEvidenceMap(payload = {}) {
         return postWorkflow(buildUrl('/api/ai/evidence-map'), payload);
+      },
+      indexEvidence(payload = {}) {
+        return postWorkflow(buildUrl('/api/evidence/index'), payload);
+      },
+      searchEvidence(payload = {}) {
+        return postWorkflow(buildUrl('/api/evidence/search'), payload, { nullOnError: true });
       },
       generateDecisionChallenge(payload = {}) {
         return postWorkflow(buildUrl('/api/ai/decision-challenge'), payload);

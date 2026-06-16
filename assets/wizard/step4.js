@@ -1099,6 +1099,8 @@ function renderStep4EvidenceMapPanel(draft) {
   const unsupported = Array.isArray(evidenceMap?.unsupportedClaims) ? evidenceMap.unsupportedClaims.slice(0, 3) : [];
   const supported = Array.isArray(evidenceMap?.supportedClaims) ? evidenceMap.supportedClaims.slice(0, 3) : [];
   const quality = evidenceMap?.citationQuality && typeof evidenceMap.citationQuality === 'object' ? evidenceMap.citationQuality : {};
+  const ragSearch = draft?.evidenceRagSearch && typeof draft.evidenceRagSearch === 'object' ? draft.evidenceRagSearch : {};
+  const ragMatchCount = Array.isArray(draft?.ragMatches) ? draft.ragMatches.length : 0;
   const statusLabel = loading ? 'Generating' : evidenceMap ? aiState.freshnessLabel : 'Optional';
   return UI.disclosureSection({
     title: 'Evidence Map',
@@ -1116,13 +1118,16 @@ function renderStep4EvidenceMapPanel(draft) {
         <span class="badge badge--neutral">${supported.length} supported</span>
         <span class="badge badge--warning">${unsupported.length} unsupported</span>
         <span class="badge badge--${contradictions.length ? 'warning' : 'neutral'}">${contradictions.length} contradiction${contradictions.length === 1 ? '' : 's'}</span>
+        <span class="badge badge--neutral">${ragMatchCount} retrieved</span>
       </div>
     </div>
     ${renderStep4AiStateStrip(aiState)}
     <div class="flex items-center gap-2 mt-4" style="flex-wrap:wrap">
       <button type="button" class="btn btn--secondary btn--sm" data-step4-evidence-map-refresh ${loading ? 'disabled' : ''}>${loading ? 'Generating map...' : evidenceMap ? (aiState.freshnessStatus === 'stale' ? 'Refresh recommended' : 'Refresh Evidence Map') : 'Generate Evidence Map'}</button>
-      <span class="form-help">This does not change RAG storage or assessment values.</span>
+      <span class="form-help">This searches server-side evidence first when a scoped evidence index exists; it does not change RAG storage or assessment values.</span>
     </div>
+    ${ragSearch?.skipped ? `<div class="form-help mt-2">Evidence search skipped: ${escapeHtml(ragSearch.reason || 'No indexed evidence was available for this case.')}</div>` : ''}
+    ${ragSearch && !ragSearch.skipped && ragSearch.searchedAt ? `<div class="form-help mt-2">Retrieved ${Number(ragSearch.retainedMatchCount || ragMatchCount || 0)} evidence match${Number(ragSearch.retainedMatchCount || ragMatchCount || 0) === 1 ? '' : 'es'} for this Evidence Map.</div>` : ''}
     ${renderStep4EvidenceQualityChips(quality)}
     ${contradictions.length ? `<div class="banner banner--warning mt-4"><span class="banner-icon">!</span><span class="banner-text">${contradictions.map(item => escapeHtml(item.claim || item.conflictingEvidence || 'Contradiction found')).join(' ')}</span></div>` : ''}
     ${(foundValues.length || missingValues.length) ? `<div class="context-chip-grid mt-4">
@@ -1180,16 +1185,214 @@ function buildStep4EvidenceMapPayload(draft = AppState.draft) {
   };
 }
 
+function normaliseStep4RagText(value = '', maxChars = 420) {
+  return String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, maxChars);
+}
+
+function addStep4EvidenceQuery(queries, value = '') {
+  const text = normaliseStep4RagText(value, 420);
+  if (!text) return;
+  const key = text.toLowerCase();
+  if (queries.some(item => item.toLowerCase() === key)) return;
+  if (queries.length < 4) queries.push(text);
+}
+
+function resolveStep4EvidenceCaseId(draft = AppState.draft) {
+  return normaliseStep4RagText(
+    draft?.evidenceCaseId || draft?.caseId || draft?.id || draft?.assessmentId || '',
+    160
+  );
+}
+
+function buildStep4EvidenceRagQueries(draft = AppState.draft) {
+  const queries = [];
+  const scenario = normaliseStep4RagText(
+    draft?.enhancedNarrative || draft?.sourceNarrative || draft?.narrative || draft?.scenarioTitle || '',
+    360
+  );
+  const projectName = normaliseStep4RagText(draft?.projectContext?.projectName || '', 100);
+  const projectRole = normaliseStep4RagText(draft?.projectContext?.projectRole || draft?.assessmentType || '', 80);
+  const projectStage = normaliseStep4RagText(draft?.projectContext?.projectStage || '', 80);
+  const consequence = normaliseStep4RagText(draft?.projectRouteDetails?.mainConsequence || '', 160);
+  const supplierOrCustomer = normaliseStep4RagText(
+    draft?.projectRouteDetails?.supplierName || draft?.projectRouteDetails?.vendorName || draft?.projectRouteDetails?.customerName || '',
+    120
+  );
+  const missingInputs = Array.isArray(draft?.projectExposure?.missingInputs)
+    ? draft.projectExposure.missingInputs
+        .map(item => normaliseStep4RagText(item?.label || item?.field || '', 80))
+        .filter(Boolean)
+        .slice(0, 6)
+    : [];
+  const projectPrefix = [projectName, supplierOrCustomer, projectStage].filter(Boolean).join(' ');
+
+  addStep4EvidenceQuery(queries, [scenario, projectPrefix].filter(Boolean).join(' '));
+  if (String(draft?.assessmentType || '').includes('project_buyer')) {
+    addStep4EvidenceQuery(queries, [
+      projectPrefix,
+      'budget spend delay cost go-live milestone reprocurement replacement supplier recoveries liquidated damages recovery cap',
+      consequence,
+      missingInputs.join(' ')
+    ].filter(Boolean).join(' '));
+  } else if (String(draft?.assessmentType || '').includes('project_seller')) {
+    addStep4EvidenceQuery(queries, [
+      projectPrefix,
+      'contract value revenue margin delivery cost liquidated damages SLA credits liability cap termination cost to cure',
+      consequence,
+      missingInputs.join(' ')
+    ].filter(Boolean).join(' '));
+  } else {
+    addStep4EvidenceQuery(queries, [
+      scenario,
+      'evidence assumption control recovery impact owner obligation',
+      missingInputs.join(' ')
+    ].filter(Boolean).join(' '));
+  }
+  if (projectRole || missingInputs.length) {
+    addStep4EvidenceQuery(queries, [
+      projectRole,
+      projectPrefix,
+      'missing financial evidence',
+      missingInputs.join(' ')
+    ].filter(Boolean).join(' '));
+  }
+  return queries;
+}
+
+function normaliseStep4RagMatch(match = {}, query = '') {
+  if (!match || typeof match !== 'object') return null;
+  const title = normaliseStep4RagText(match.title || match.sourceTitle || match.fileName || 'Retrieved evidence', 180);
+  const excerpt = normaliseStep4RagText(match.excerpt || match.text || match.snippet || match.content || '', 900);
+  if (!title && !excerpt) return null;
+  return {
+    id: normaliseStep4RagText(match.id || match.chunkId || '', 180),
+    evidenceId: normaliseStep4RagText(match.evidenceId || match.citation?.evidenceId || '', 180),
+    documentId: normaliseStep4RagText(match.documentId || match.evidenceId || '', 180),
+    chunkId: normaliseStep4RagText(match.chunkId || match.citation?.chunkId || '', 180),
+    title,
+    sourceTitle: title,
+    fileName: normaliseStep4RagText(match.fileName || match.metadata?.fileName || '', 180),
+    excerpt,
+    text: excerpt,
+    score: Number.isFinite(Number(match.score)) ? Number(match.score) : undefined,
+    relevanceReason: normaliseStep4RagText(match.relevanceReason || `Retrieved for: ${query}`, 260),
+    sourceType: normaliseStep4RagText(match.metadata?.sourceType || match.sourceType || 'server_side_evidence_rag', 80),
+    citation: {
+      evidenceId: normaliseStep4RagText(match.citation?.evidenceId || match.evidenceId || '', 180),
+      chunkId: normaliseStep4RagText(match.citation?.chunkId || match.chunkId || '', 180),
+      title
+    }
+  };
+}
+
+function buildStep4RagMatchKey(match = {}) {
+  return [
+    match.evidenceId || '',
+    match.documentId || '',
+    match.chunkId || '',
+    match.title || '',
+    match.excerpt || match.text || ''
+  ].map(value => String(value || '').trim().toLowerCase()).filter(Boolean).join('|');
+}
+
+function mergeStep4RagMatches(...groups) {
+  const byKey = new Map();
+  groups.flat().forEach((item) => {
+    const match = item && typeof item === 'object' ? item : null;
+    if (!match) return;
+    const key = buildStep4RagMatchKey(match);
+    if (!key) return;
+    const existing = byKey.get(key);
+    if (!existing || Number(match.score || 0) > Number(existing.score || 0)) {
+      byKey.set(key, match);
+    }
+  });
+  return Array.from(byKey.values())
+    .sort((left, right) => Number(right.score || 0) - Number(left.score || 0))
+    .slice(0, 20);
+}
+
+async function retrieveStep4EvidenceRagMatches(draft = AppState.draft) {
+  const searchedAt = new Date().toISOString();
+  if (typeof LLMService === 'undefined' || !LLMService || typeof LLMService.searchEvidence !== 'function') {
+    draft.evidenceRagSearch = {
+      skipped: true,
+      reason: 'Server-side evidence search is not available in this session.',
+      searchedAt
+    };
+    return [];
+  }
+  const caseId = resolveStep4EvidenceCaseId(draft);
+  if (!caseId) {
+    draft.evidenceRagSearch = {
+      skipped: true,
+      reason: 'No assessment case id is available for scoped evidence search.',
+      searchedAt
+    };
+    return [];
+  }
+  const queries = buildStep4EvidenceRagQueries(draft);
+  if (!queries.length) {
+    draft.evidenceRagSearch = {
+      skipped: true,
+      reason: 'No evidence search query could be built from the current assessment.',
+      caseId,
+      searchedAt
+    };
+    return [];
+  }
+
+  const retrieved = [];
+  const errors = [];
+  for (const query of queries) {
+    try {
+      const result = await LLMService.searchEvidence({
+        caseId,
+        query,
+        topK: 6,
+        purpose: 'step4_evidence_map'
+      });
+      (Array.isArray(result?.matches) ? result.matches : [])
+        .map(match => normaliseStep4RagMatch(match, query))
+        .filter(Boolean)
+        .forEach(match => retrieved.push(match));
+    } catch (error) {
+      errors.push(error?.message || 'Evidence search failed.');
+    }
+  }
+
+  const merged = mergeStep4RagMatches(
+    retrieved,
+    Array.isArray(draft?.ragMatches) ? draft.ragMatches : []
+  );
+  draft.ragMatches = merged;
+  draft.evidenceRagSearch = {
+    provider: 'server_side_evidence_rag',
+    caseId,
+    queryCount: queries.length,
+    matchCount: retrieved.length,
+    retainedMatchCount: merged.length,
+    searchedAt,
+    skipped: false,
+    errors: errors.slice(0, 3)
+  };
+  return retrieved;
+}
+
 async function requestStep4EvidenceMap() {
   if (typeof LLMService === 'undefined' || !LLMService || typeof LLMService.generateEvidenceMap !== 'function') {
     UI.toast('Evidence Map is not available in this session.', 'warning');
     return;
   }
-  const inputFingerprint = buildStep4EvidenceMapFingerprint(AppState.draft);
-  const inputFingerprintBreakdown = buildStep4EvidenceMapFingerprintBreakdown(AppState.draft);
   AppState.step4EvidenceMapLoading = true;
   renderWizard4();
   try {
+    await retrieveStep4EvidenceRagMatches(AppState.draft);
+    const inputFingerprint = buildStep4EvidenceMapFingerprint(AppState.draft);
+    const inputFingerprintBreakdown = buildStep4EvidenceMapFingerprintBreakdown(AppState.draft);
     const result = await LLMService.generateEvidenceMap(buildStep4EvidenceMapPayload(AppState.draft));
     const evidenceMap = result?.evidenceMap && typeof result.evidenceMap === 'object' ? result.evidenceMap : {};
     AppState.draft.evidenceMap = typeof AiProductStateService !== 'undefined' && AiProductStateService?.buildAiArtifactRecord

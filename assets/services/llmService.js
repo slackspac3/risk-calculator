@@ -338,6 +338,18 @@ const LLMService = (() => {
     return _workflowClient ? _workflowClient.getEvidenceMapUrl() : '';
   }
 
+  function _getEvidenceIndexUrl() {
+    return _workflowClient && typeof _workflowClient.getEvidenceIndexUrl === 'function'
+      ? _workflowClient.getEvidenceIndexUrl()
+      : '';
+  }
+
+  function _getEvidenceSearchUrl() {
+    return _workflowClient && typeof _workflowClient.getEvidenceSearchUrl === 'function'
+      ? _workflowClient.getEvidenceSearchUrl()
+      : '';
+  }
+
   function _getDecisionChallengeUrl() {
     return _workflowClient ? _workflowClient.getDecisionChallengeUrl() : '';
   }
@@ -4595,6 +4607,40 @@ ${businessUnit.selectedDepartmentContext}` : ''
     return _postServerAiWorkflow(_getEvidenceMapUrl(), payload);
   }
 
+  async function indexEvidence(input = {}) {
+    const payload = {
+      caseId: typeof input.caseId === 'string' ? input.caseId : '',
+      documents: Array.isArray(input.documents) ? input.documents : [],
+      evidenceId: typeof input.evidenceId === 'string' ? input.evidenceId : '',
+      title: typeof input.title === 'string' ? input.title : '',
+      fileName: typeof input.fileName === 'string' ? input.fileName : '',
+      text: typeof input.text === 'string' ? input.text : '',
+      summary: typeof input.summary === 'string' ? input.summary : '',
+      excerpt: typeof input.excerpt === 'string' ? input.excerpt : '',
+      sourceType: typeof input.sourceType === 'string' ? input.sourceType : '',
+      extractionStatus: typeof input.extractionStatus === 'string' ? input.extractionStatus : '',
+      purpose: typeof input.purpose === 'string' ? input.purpose : ''
+    };
+    if (_workflowClient && typeof _workflowClient.indexEvidence === 'function') {
+      return _workflowClient.indexEvidence(payload);
+    }
+    return _postServerAiWorkflow(_getEvidenceIndexUrl(), payload);
+  }
+
+  async function searchEvidence(input = {}) {
+    const payload = {
+      caseId: typeof input.caseId === 'string' ? input.caseId : '',
+      query: typeof input.query === 'string' ? input.query : '',
+      topK: Number.isFinite(Number(input.topK)) ? Number(input.topK) : undefined,
+      limit: Number.isFinite(Number(input.limit)) ? Number(input.limit) : undefined,
+      purpose: typeof input.purpose === 'string' ? input.purpose : ''
+    };
+    if (_workflowClient && typeof _workflowClient.searchEvidence === 'function') {
+      return _workflowClient.searchEvidence(payload);
+    }
+    return _postServerAiWorkflow(_getEvidenceSearchUrl(), payload, { nullOnError: true });
+  }
+
   async function generateDecisionChallenge(input = {}) {
     const payload = {
       assessmentType: typeof input.assessmentType === 'string' ? input.assessmentType : '',
@@ -7275,6 +7321,8 @@ Keep the numbers realistic, internally ordered, and anchored to the user's own h
     generateProjectExposureMap,
     generateParameterCoach,
     generateEvidenceMap,
+    indexEvidence,
+    searchEvidence,
     generateDecisionChallenge,
     generateDecisionBrief,
     buildManualIntakeAssist,
