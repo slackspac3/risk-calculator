@@ -61,18 +61,18 @@ If this file conflicts with the code, git history, or GitHub workflow files, tru
 Latest active-context update on 2026-06-16 in `/Users/bhavuk.arora/risk-calculator`:
 
 - Stitch project `305203100423572651` is the active design source for the redesigned screens.
-- First implemented slice targets the named redesigned `Journey Selection` and `Assessment Intake` screens only.
+- Current implemented pass targets all named redesigned Stitch screens at the app-shell level: Platform Landing Page, PoC Access Login, Risk Dashboard, Journey Selection, Assessment Intake, Scenario Refinement, Estimation Workspace, Simulation Review, Assessment Report, and BU Context Management.
 - Step 1 now keeps the assessment-type cards in the main hero with a selected-journey summary, preserving existing assessment-type bindings and navigation.
 - Step 2 Basic keeps the existing two-prompt intake, required-context behavior, provenance, and AI build bindings while adopting the darker Stitch workbench treatment.
-- Asset stamp is now `20260616v1`; build stamp is `2026-06-16-stitch-step12`.
-- Validation passed:
+- The broader pass adds scoped page classes and a Stitch-derived dark workbench CSS layer for public/login, dashboard, Step 3, Step 4, Step 5, results, and admin BU/settings surfaces while preserving existing IDs, controls, route bindings, and role semantics.
+- Asset stamp is now `20260616v2`; build stamp is `2026-06-16-stitch-all-screens`.
+- Validation after the broader pass passed:
   - `npm run check:syntax`
-  - `npm run check:smoke`
   - `npm run check:staleness`
   - `git diff --check`
-  - `npm run test:e2e:smoke -- -g "wizard assessment type router stores selection before intake"`
-  - `npm run test:e2e:smoke -- -g "wizard step 2 basic mode"`
-- Full smoke was also run once: `50/51` passed; `repeated login submits keep the PoC warning acknowledgement clickable` timed out once during navigation to `#/login`, then passed on isolated rerun.
+  - `npm run check:smoke`
+  - `npm run test:e2e:smoke` (`51` tests)
+  - Playwright visual capture across landing, login, dashboard, Step 3, Step 4, Step 5, results, and admin BU context screens.
 
 Latest active-context update on 2026-06-09 in `/Users/bhavuk.arora/risk-calculator`:
 

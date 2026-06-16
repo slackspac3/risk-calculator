@@ -490,8 +490,8 @@ function renderWizard2() {
     buId: draft.buId
   });
   setPage(`
-    <main class="page" aria-label="Step 3: Refine the Scenario">
-      <div class="wizard-layout container container--narrow">
+    <main class="page page--wizard-stitch page--scenario-refinement" aria-label="Step 3: Refine the Scenario">
+      <div class="wizard-layout wizard-layout--scenario-refinement container container--narrow">
         <div class="wizard-header">
           ${UI.renderStepper(3)}
           <h2 class="wizard-step-title">Refine the Scenario</h2>
@@ -517,7 +517,7 @@ function renderWizard2() {
           ${UI.wizardInputSection({
             title: 'Risk scenario narrative <span class="required">*</span>',
             description: 'This is the one required task on this step. Keep the wording to one coherent assessment scope so the estimate stays credible.',
-            className: 'card anim-fade-in',
+            className: 'card anim-fade-in scenario-narrative-card',
             headerExtras: UI.sectionStatusBadge('Required', 'gold'),
             body: `<div class="form-group"><textarea class="form-textarea" id="narrative" rows="5" placeholder="Describe the risk: What could happen? Who might cause it? What assets are at risk? What are the potential impacts?" style="min-height:160px">${escapeHtml(String(draft.enhancedNarrative || draft.narrative || ''))}</textarea><div id="narrative-diff-panel" class="narrative-diff-panel hidden" aria-live="polite"></div><button type="button" class="btn btn--ghost btn--sm" id="btn-toggle-diff" style="display:none;margin-top:8px">Show what changed</button></div>`
           })}

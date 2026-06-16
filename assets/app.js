@@ -8,11 +8,11 @@
 const TOLERANCE_THRESHOLD = 5_000_000;
 const DEFAULT_FX_RATE = 3.6725;
 const DEFAULT_COMPASS_PROXY_URL = resolveCompassProxyUrl();
-const APP_ASSET_VERSION = '20260616v1';
+const APP_ASSET_VERSION = '20260616v2';
 const APP_RELEASE = Object.freeze((typeof window !== 'undefined' && window.__RISK_CALCULATOR_RELEASE__) || {
   version: '0.10.0-pilot.1',
   channel: 'pilot',
-  build: '2026-06-16-stitch-step12',
+  build: '2026-06-16-stitch-all-screens',
   assetVersion: APP_ASSET_VERSION,
   apiOrigin: globalThis?.ApiOriginResolver ? globalThis.ApiOriginResolver.DEFAULT_API_ORIGIN : ''
 });
@@ -9763,7 +9763,7 @@ function buildPublicSiteFooter() {
 
 function renderPublicInfoPage({ eyebrow = '', title = '', intro = '', sections = [] } = {}) {
   setPage(`
-    <main class="page">
+    <main class="page public-page public-page--info">
       <div class="container container--narrow public-info-page">
         <section class="public-info-hero card card--elevated">
           ${eyebrow ? `<div class="landing-badge">${escapeHtml(eyebrow)}</div>` : ''}
@@ -9856,20 +9856,29 @@ function renderPublicContactPage() {
 function renderLanding() {
   const learningStore = getLearningStore();
   setPage(`
-    <main class="page">
-      <div class="container">
-        <section class="landing-hero">
-          <div class="landing-badge">Pilot environment · public overview</div>
-          <h1>Risk Intelligence Platform</h1>
-          <p class="landing-subtitle">A guided proof of concept for turning plain-English risk scenarios into structured assessments and FAIR-style quant analysis. Start here to understand the workflow before opening the restricted demo workspace.</p>
-          <div class="flex items-center gap-4" style="flex-wrap:wrap">
-            <a class="btn btn--primary btn--lg" id="btn-open-poc-access" href="#/login">Open PoC Access</a>
-            <button class="btn btn--secondary" id="btn-show-templates" type="button">See example scenarios</button>
+    <main class="page public-page public-page--landing">
+      <div class="container public-landing-shell">
+        <section class="landing-hero public-landing-hero">
+          <div class="public-landing-hero__copy">
+            <div class="landing-badge">Pilot environment · public overview</div>
+            <h1>Risk Intelligence Platform</h1>
+            <p class="landing-subtitle">A guided proof of concept for turning plain-English risk scenarios into structured assessments and FAIR-style quant analysis. Start here to understand the workflow before opening the restricted demo workspace.</p>
+            <div class="flex items-center gap-4" style="flex-wrap:wrap">
+              <a class="btn btn--primary btn--lg" id="btn-open-poc-access" href="#/login">Open PoC Access</a>
+              <button class="btn btn--secondary" id="btn-show-templates" type="button">See example scenarios</button>
+            </div>
+            <div class="flex items-center gap-4 mt-4" style="flex-wrap:wrap">
+              <span style="font-size:.78rem;color:var(--text-muted)">Need a quick orientation first?</span>
+              <button class="btn btn--ghost btn--sm" id="btn-how-it-works" type="button">Open quick guide →</button>
+              <a class="btn btn--ghost btn--sm" href="#/about">Read about this pilot</a>
+            </div>
           </div>
-          <div class="flex items-center gap-4 mt-4" style="flex-wrap:wrap">
-            <span style="font-size:.78rem;color:var(--text-muted)">Need a quick orientation first?</span>
-            <button class="btn btn--ghost btn--sm" id="btn-how-it-works" type="button">Open quick guide →</button>
-            <a class="btn btn--ghost btn--sm" href="#/about">Read about this pilot</a>
+          <div class="public-landing-hero__visual" aria-hidden="true">
+            <span class="public-landing-hero__core"></span>
+            <span class="public-landing-hero__node public-landing-hero__node--one"></span>
+            <span class="public-landing-hero__node public-landing-hero__node--two"></span>
+            <span class="public-landing-hero__node public-landing-hero__node--three"></span>
+            <span class="public-landing-hero__node public-landing-hero__node--four"></span>
           </div>
         </section>
 
@@ -9966,6 +9975,11 @@ function renderLanding() {
             `).join('')}
           </div>
         </div>
+
+        <section class="public-capabilities-head">
+          <h2>Key Features &amp; Capabilities</h2>
+          <p>Start with a governed scenario, then move through quantification, challenge, evidence, and decision support without leaving the pilot workflow.</p>
+        </section>
 
         <div class="landing-grid">
           <div class="feature-card anim-fade-in anim-delay-1">
@@ -12702,15 +12716,15 @@ function renderLogin() {
     return;
   }
   setPage(`
-    <main class="page">
-      <div class="container container--narrow" style="padding:var(--sp-16) var(--sp-6);max-width:760px">
-        <div class="banner banner--poc mb-6"><span class="banner-icon">⚠</span><span class="banner-text"><strong>PoC Notice:</strong> Pilot environment only. Use approved test credentials and dummy scenarios only.</span></div>
-        <div class="flex items-center gap-3 mb-6" style="flex-wrap:wrap">
+    <main class="page public-page public-page--login">
+      <div class="container container--narrow login-access-shell">
+        <div class="banner banner--poc login-access-notice"><span class="banner-icon">⚠</span><span class="banner-text"><strong>PoC Notice:</strong> Pilot environment only. Use approved test credentials and dummy scenarios only.</span></div>
+        <div class="login-access-links">
           <a class="btn btn--ghost btn--sm" href="#/">Back to overview</a>
           <a class="btn btn--ghost btn--sm" href="#/privacy">Privacy</a>
           <a class="btn btn--ghost btn--sm" href="#/contact">Contact</a>
         </div>
-        <div class="card card--elevated">
+        <div class="card card--elevated login-access-card">
           <div class="ui-eyebrow" style="margin-bottom:var(--sp-3)"><span class="ui-eyebrow-mark" aria-hidden="true">•</span>Restricted demo workspace</div>
           <h1 style="margin-bottom:var(--sp-2);font-size:var(--text-4xl)">PoC Access</h1>
           <p style="margin-bottom:var(--sp-6);color:var(--text-muted)">Use the approved test credentials for this pilot workspace. Do not enter real company, customer, or incident data. This access path exists only for invited demo and review sessions.</p>
@@ -12827,7 +12841,7 @@ function renderLogin() {
 }
 
 function adminLayout(active, content, activeSettingsSection = 'org') {
-  return `<div class="admin-shell">
+  return `<div class="admin-shell admin-shell--stitch">
     <nav class="admin-sidebar">
       <div class="admin-sidebar-head">
         <div class="admin-sidebar-kicker">Admin</div>

@@ -1497,8 +1497,8 @@ function renderWizard4() {
     : null;
   const draftFreshnessWarning = buildDraftFreshnessWarning(draft);
   setPage(`
-    <main class="page" aria-label="Step 5: Review and Run Simulation">
-      <div class="wizard-layout container container--narrow">
+    <main class="page page--wizard-stitch page--simulation-review" aria-label="Step 5: Review and Run Simulation">
+      <div class="wizard-layout wizard-layout--simulation-review container container--narrow">
         <div class="wizard-header">
           ${UI.renderStepper(5)}
           <h2 class="wizard-step-title">Review &amp; Run Simulation</h2>

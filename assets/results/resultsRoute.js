@@ -7056,8 +7056,8 @@ function renderResults(id, isShared) {
         .challenge-grid { grid-template-columns:1fr; }
       }
     </style>
-    <main class="page">
-      <div class="container container--wide" style="padding:var(--sp-8) var(--sp-6)">
+    <main class="page page--results-stitch">
+      <div class="container container--wide results-shell" style="padding:var(--sp-8) var(--sp-6)">
         ${sharedBanner}
         <div class="flex items-center justify-between mb-6 anim-fade-in results-header-bar" style="gap:var(--sp-4);flex-wrap:wrap">
           <div>
