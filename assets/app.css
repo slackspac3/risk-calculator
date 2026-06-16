@@ -14978,6 +14978,296 @@ html[data-experience-mode="basic"] .wizard-layout--step1 .wizard-summary-stack {
   }
 }
 
+/* Stitch project 305203100423572651: Step 1/2 visual alignment */
+html[data-experience-mode="basic"] .wizard-layout--guide {
+  max-width: 1180px;
+}
+
+.wizard-header--guide.step1-guide-stage {
+  gap: var(--sp-5);
+  padding: clamp(22px, 3vw, 32px);
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at 16% 0%, rgba(0, 255, 213, 0.08), transparent 30%),
+    linear-gradient(180deg, rgba(15, 21, 22, 0.98), rgba(8, 15, 12, 0.98));
+}
+
+.wizard-header--guide.step1-guide-stage::before,
+.wizard-header--guide.step1-guide-stage::after {
+  opacity: 0.12;
+}
+
+.step1-guide-stage__topline {
+  min-height: 34px;
+}
+
+.step1-guide-stage__hero {
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 0.36fr);
+  gap: clamp(16px, 2vw, 24px);
+  align-items: stretch;
+}
+
+.step1-guide-stage__copy {
+  display: grid;
+  align-content: start;
+  gap: var(--sp-4);
+}
+
+.step1-guide-stage .wizard-step-title {
+  max-width: none;
+  margin: 0;
+  font-size: clamp(1.85rem, 3vw, 2.45rem);
+  letter-spacing: 0;
+  line-height: 1.08;
+}
+
+.step1-guide-stage .wizard-step-desc {
+  max-width: 72ch;
+  margin: 0;
+  font-size: 0.94rem;
+  line-height: 1.55;
+}
+
+.step1-guide-stage__copy .step1-assessment-router__options {
+  gap: 14px;
+  margin-top: var(--sp-1);
+}
+
+.step1-guide-stage__copy .step1-guide-lane-option {
+  min-height: 228px;
+  padding: 18px;
+  border-radius: 12px;
+  border-color: rgba(246, 243, 242, 0.08);
+  background:
+    radial-gradient(circle at 24px 24px, rgba(115, 255, 224, 0.09), transparent 38px),
+    rgba(246, 243, 242, 0.035);
+}
+
+.step1-guide-stage__copy .step1-guide-lane-option[aria-pressed="true"] {
+  border-color: rgba(0, 255, 213, 0.58);
+  background:
+    radial-gradient(circle at 28px 28px, rgba(0, 255, 213, 0.18), transparent 48px),
+    rgba(0, 255, 213, 0.06);
+  box-shadow: 0 0 0 1px rgba(0, 255, 213, 0.08), 0 0 28px rgba(0, 255, 213, 0.12);
+}
+
+.step1-guide-lane-option__icon {
+  display: block;
+  width: 46px;
+  height: 46px;
+  border-radius: 999px;
+  border: 1px solid rgba(115, 255, 224, 0.16);
+  background:
+    linear-gradient(135deg, rgba(0, 255, 213, 0.18), rgba(246, 243, 242, 0.04)),
+    rgba(0, 0, 0, 0.18);
+  box-shadow: inset 0 1px 0 rgba(246, 243, 242, 0.06);
+}
+
+.step1-guide-stage__copy .step1-guide-lane-option__index {
+  position: absolute;
+  top: auto;
+  right: 16px;
+  bottom: 16px;
+  color: rgba(198, 206, 201, 0.34);
+  font-size: 1rem;
+}
+
+.step1-guide-stage__copy .step1-guide-lane-option__eyebrow {
+  margin-top: 16px;
+  letter-spacing: 0.08em;
+}
+
+.step1-guide-stage__copy .step1-guide-lane-option strong {
+  margin-top: 8px;
+  font-size: clamp(1rem, 1.3vw, 1.18rem);
+  line-height: 1.16;
+}
+
+.step1-guide-stage__copy .step1-guide-lane-option__copy {
+  font-size: 0.84rem;
+}
+
+.step1-guide-stage__copy .step1-guide-lane-option__signal {
+  top: 16px;
+  right: 16px;
+  bottom: auto;
+  padding-top: 5px;
+  border-color: rgba(0, 255, 213, 0.16);
+  background: rgba(0, 255, 213, 0.08);
+  color: rgba(115, 255, 224, 0.86);
+}
+
+.step1-guide-route-detail {
+  min-height: 100%;
+  padding: 20px;
+  border-radius: 12px;
+  border-color: rgba(246, 243, 242, 0.08);
+  background: rgba(246, 243, 242, 0.035);
+}
+
+.step1-guide-route-detail__progress {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: var(--sp-4);
+}
+
+.step1-guide-route-detail__progress span {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(246, 243, 242, 0.08);
+}
+
+.step1-guide-route-detail__progress span:first-child {
+  background: rgba(0, 255, 213, 0.82);
+  box-shadow: 0 0 18px rgba(0, 255, 213, 0.28);
+}
+
+.step1-guide-route-detail__copy h3 {
+  font-size: 1rem;
+  line-height: 1.25;
+  letter-spacing: 0;
+}
+
+.step1-guide-route-detail__copy p,
+.step1-guide-route-detail__context p {
+  font-size: 0.82rem;
+}
+
+.step1-guide-route-detail__steps {
+  margin-top: var(--sp-3);
+}
+
+.step1-guide-route-detail__step {
+  min-height: 30px;
+}
+
+.step1-guide-route-detail__step span {
+  width: 24px;
+  height: 24px;
+  font-size: 0.78rem;
+}
+
+.step1-guide-route-detail__step strong {
+  font-size: 0.82rem;
+}
+
+.step1-guide-route-detail__handoff {
+  padding: 10px 12px;
+  border-radius: 8px;
+}
+
+.step1-guide-stage__cta {
+  min-height: 48px;
+  border-radius: 999px;
+}
+
+.step1-required-context-band,
+.step1-basic-intake--conversation {
+  border-radius: 10px;
+  border-color: rgba(246, 243, 242, 0.1);
+  background:
+    radial-gradient(circle at 90% 0%, rgba(0, 255, 213, 0.065), transparent 30%),
+    linear-gradient(180deg, rgba(37, 39, 44, 0.98), rgba(31, 33, 38, 0.98));
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.26), inset 0 1px 0 rgba(246, 243, 242, 0.05);
+}
+
+.step1-required-context-band--ready {
+  border-color: rgba(115, 255, 224, 0.16);
+}
+
+.step1-required-context-band::before {
+  width: 3px;
+  background: linear-gradient(180deg, rgba(0, 255, 213, 0.88), rgba(115, 255, 224, 0.42));
+}
+
+.step1-required-context-band__head h3,
+.step1-basic-intake__head h3 {
+  font-size: clamp(1.35rem, 2.6vw, 1.9rem);
+  letter-spacing: 0;
+}
+
+.step1-required-context-band__body {
+  max-width: none;
+}
+
+.step1-basic-intake--conversation {
+  max-width: 960px;
+}
+
+.step1-basic-intake--conversation .step1-basic-intake__head {
+  max-width: none;
+}
+
+.step1-basic-intake__steps {
+  gap: 8px;
+}
+
+.step1-basic-intake__step {
+  min-height: 36px;
+  padding: 7px 9px;
+  border-radius: 999px;
+  background: transparent;
+}
+
+.step1-basic-intake__step span {
+  width: 24px;
+  height: 24px;
+}
+
+.step1-conversation-thread--simple,
+.step1-conversation-compose {
+  border-radius: 8px;
+  border-color: rgba(246, 243, 242, 0.1);
+  background: rgba(12, 14, 18, 0.32);
+}
+
+.step1-conversation-compose__message {
+  min-height: 156px;
+  border-radius: 7px;
+}
+
+.step1-basic-intake--conversation .step1-basic-intake__action {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.step1-basic-intake--conversation .step1-guided-cta {
+  width: 100%;
+  min-height: 46px;
+  border-radius: 7px;
+}
+
+.step1-basic-intake__action div {
+  padding: 0 2px;
+}
+
+.step1-basic-intake--conversation .step1-basic-intake__draft {
+  border-radius: 8px;
+  border-color: rgba(246, 243, 242, 0.1);
+  background: rgba(12, 14, 18, 0.28);
+}
+
+@media (max-width: 980px) {
+  .step1-guide-stage__hero {
+    grid-template-columns: 1fr;
+  }
+
+  .step1-guide-stage__copy .step1-assessment-router__options {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .step1-basic-intake__steps {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 680px) {
   .wizard-step-bar {
     padding: 10px var(--sp-4) 14px;
@@ -16372,5 +16662,92 @@ html[data-experience-mode="basic"] .wizard-layout--step1 .wizard-summary-stack {
   .step1-basic-intake__agent-viz > span.is-armed,
   .step1-support-tabs__panel {
     animation: none !important;
+  }
+}
+
+/* Final Stitch Step 1/2 overrides; keep after the cockpit consolidation block. */
+.wizard-header--guide.step1-guide-stage {
+  gap: var(--sp-5);
+  padding: clamp(22px, 3vw, 32px);
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at 16% 0%, rgba(0, 255, 213, 0.08), transparent 30%),
+    linear-gradient(180deg, rgba(15, 21, 22, 0.98), rgba(8, 15, 12, 0.98));
+}
+
+.step1-guide-stage__hero {
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 0.36fr);
+  gap: clamp(16px, 2vw, 24px);
+  align-items: stretch;
+}
+
+.step1-guide-stage .wizard-step-title {
+  max-width: none;
+  margin: 0;
+  font-size: clamp(1.85rem, 3vw, 2.45rem);
+  letter-spacing: 0;
+  line-height: 1.08;
+}
+
+.step1-guide-stage .wizard-step-desc {
+  max-width: 72ch;
+  margin: 0;
+  font-size: 0.94rem;
+  line-height: 1.55;
+}
+
+.step1-guide-stage__copy .step1-assessment-router__options {
+  gap: 14px;
+  margin-top: var(--sp-1);
+}
+
+.step1-guide-stage__copy .step1-guide-lane-option {
+  min-height: 228px;
+  padding: 18px;
+  border-radius: 12px;
+}
+
+.step1-guide-stage__copy .step1-guide-lane-option__index {
+  top: auto;
+  right: 16px;
+  bottom: 16px;
+  font-size: 1rem;
+}
+
+.step1-guide-stage__copy .step1-guide-lane-option strong {
+  font-size: clamp(1rem, 1.3vw, 1.18rem);
+  letter-spacing: 0;
+}
+
+.step1-guide-route-detail {
+  min-height: 100%;
+  padding: 20px;
+  border-radius: 12px;
+}
+
+.step1-required-context-band,
+.step1-basic-intake--conversation {
+  border-radius: 10px;
+  background:
+    radial-gradient(circle at 90% 0%, rgba(0, 255, 213, 0.065), transparent 30%),
+    linear-gradient(180deg, rgba(37, 39, 44, 0.98), rgba(31, 33, 38, 0.98));
+}
+
+.step1-basic-intake--conversation .step1-basic-intake__action {
+  grid-template-columns: minmax(0, 1fr);
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.step1-basic-intake--conversation .step1-guided-cta {
+  width: 100%;
+  border-radius: 7px;
+}
+
+@media (max-width: 980px) {
+  .step1-guide-stage__hero,
+  .step1-guide-stage__copy .step1-assessment-router__options {
+    grid-template-columns: 1fr;
   }
 }
