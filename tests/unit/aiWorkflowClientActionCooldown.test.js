@@ -302,6 +302,91 @@ test('generateEvidenceMap posts the normalized evidence map request shape', asyn
   assert.equal(Object.prototype.hasOwnProperty.call(captured.body, 'unexpectedLocalOnly'), false);
 });
 
+test('searchEvidence posts the normalized server-side RAG search request shape', async () => {
+  let captured = null;
+  const clientApi = loadAiWorkflowClient({
+    fetchImpl: async (url, options) => {
+      captured = { url, options, body: JSON.parse(options.body) };
+      return {
+        ok: true,
+        json: async () => ({
+          ok: true,
+          matches: [{
+            evidenceId: 'DOC-1',
+            chunkId: 'DOC-1_CHUNK_001',
+            title: 'Contract clause',
+            snippet: 'Liquidated damages cap is USD 100,000.',
+            score: 0.91
+          }]
+        })
+      };
+    }
+  });
+  const client = clientApi.createClient({
+    defaultBaseUrl: 'https://risk-calculator.example',
+    getSessionToken: () => 'session-token'
+  });
+
+  const result = await client.searchEvidence({
+    caseId: ' case-123 ',
+    query: '  LD cap and recovery rights  ',
+    topK: '6',
+    purpose: ' step4_evidence_map ',
+    unexpectedLocalOnly: 'drop me'
+  });
+
+  assert.equal(captured.url, 'https://risk-calculator.example/api/evidence/search');
+  assert.equal(captured.options.method, 'POST');
+  assert.equal(captured.options.headers['x-session-token'], 'session-token');
+  assert.equal(captured.body.caseId, 'case-123');
+  assert.equal(captured.body.query, 'LD cap and recovery rights');
+  assert.equal(captured.body.topK, 6);
+  assert.equal(captured.body.purpose, 'step4_evidence_map');
+  assert.equal(Object.prototype.hasOwnProperty.call(captured.body, 'unexpectedLocalOnly'), false);
+  assert.equal(result.matches[0].evidenceId, 'DOC-1');
+});
+
+test('indexEvidence posts the normalized server-side RAG indexing request shape', async () => {
+  let captured = null;
+  const clientApi = loadAiWorkflowClient({
+    fetchImpl: async (url, options) => {
+      captured = { url, options, body: JSON.parse(options.body) };
+      return {
+        ok: true,
+        json: async () => ({
+          ok: true,
+          index: { chunkCount: 1 }
+        })
+      };
+    }
+  });
+  const client = clientApi.createClient({
+    defaultBaseUrl: 'https://risk-calculator.example',
+    getSessionToken: () => 'session-token'
+  });
+
+  await client.indexEvidence({
+    caseId: ' case-123 ',
+    documents: [{
+      evidenceId: ' DOC-1 ',
+      title: ' Contract ',
+      text: '  Project budget is USD 1,000,000.  ',
+      tags: [' contract ', ' contract ', ' budget ']
+    }],
+    unexpectedLocalOnly: 'drop me'
+  });
+
+  assert.equal(captured.url, 'https://risk-calculator.example/api/evidence/index');
+  assert.equal(captured.options.method, 'POST');
+  assert.equal(captured.options.headers['x-session-token'], 'session-token');
+  assert.equal(captured.body.caseId, 'case-123');
+  assert.equal(captured.body.documents[0].evidenceId, 'DOC-1');
+  assert.equal(captured.body.documents[0].title, 'Contract');
+  assert.equal(captured.body.documents[0].text, 'Project budget is USD 1,000,000.');
+  assert.deepEqual(captured.body.documents[0].tags, ['contract', 'budget']);
+  assert.equal(Object.prototype.hasOwnProperty.call(captured.body, 'unexpectedLocalOnly'), false);
+});
+
 test('generateDecisionChallenge posts the normalized challenge request shape', async () => {
   let captured = null;
   const clientApi = loadAiWorkflowClient({
