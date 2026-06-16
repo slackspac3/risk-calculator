@@ -15268,6 +15268,507 @@ html[data-experience-mode="basic"] .wizard-layout--guide {
   }
 }
 
+/* Stitch project 305203100423572651: full-screen redesign pass */
+.public-page,
+.page--dashboard-stitch,
+.page--wizard-stitch,
+.page--results-stitch {
+  position: relative;
+  overflow-x: clip;
+}
+
+.public-page::before,
+.page--dashboard-stitch::before,
+.page--wizard-stitch::before,
+.page--results-stitch::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 18% 8%, rgba(0, 255, 213, 0.065), transparent 30%),
+    radial-gradient(circle at 86% 16%, rgba(242, 251, 90, 0.04), transparent 28%),
+    linear-gradient(180deg, rgba(3, 12, 12, 0.28), rgba(1, 8, 10, 0.42));
+  opacity: 0.86;
+  z-index: 0;
+}
+
+.public-page > *,
+.page--dashboard-stitch > *,
+.page--wizard-stitch > *,
+.page--results-stitch > * {
+  position: relative;
+  z-index: 1;
+}
+
+.public-landing-shell {
+  max-width: 1180px;
+}
+
+.public-landing-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.62fr);
+  gap: clamp(24px, 5vw, 72px);
+  align-items: center;
+  min-height: min(640px, calc(100vh - 104px));
+  padding: clamp(56px, 8vw, 96px) 0 clamp(44px, 6vw, 76px);
+}
+
+.public-landing-hero__copy {
+  min-width: 0;
+}
+
+.public-landing-hero h1 {
+  max-width: 11ch;
+  font-size: clamp(3rem, 7vw, 5.6rem);
+  letter-spacing: 0;
+  line-height: 0.96;
+}
+
+.public-landing-hero .landing-subtitle {
+  max-width: 58ch;
+  color: rgba(246, 251, 244, 0.78);
+}
+
+.public-landing-hero__visual {
+  position: relative;
+  min-height: 360px;
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at 50% 48%, rgba(0, 255, 213, 0.44), transparent 9%),
+    radial-gradient(circle at 50% 48%, rgba(0, 255, 213, 0.14), transparent 26%),
+    linear-gradient(90deg, rgba(0, 255, 213, 0.14) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(0, 255, 213, 0.10) 1px, transparent 1px);
+  background-size: auto, auto, 54px 54px, 54px 54px;
+  mask-image: radial-gradient(circle at 50% 50%, black 0 58%, transparent 78%);
+}
+
+.public-landing-hero__visual::before,
+.public-landing-hero__visual::after,
+.public-landing-hero__core {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.public-landing-hero__visual::before {
+  width: 92%;
+  height: 92%;
+  background:
+    linear-gradient(28deg, transparent 0 45%, rgba(0, 255, 213, 0.48) 45% 46%, transparent 46% 100%),
+    linear-gradient(152deg, transparent 0 46%, rgba(0, 255, 213, 0.35) 46% 47%, transparent 47% 100%),
+    linear-gradient(0deg, transparent 0 49%, rgba(0, 255, 213, 0.34) 49% 50%, transparent 50% 100%),
+    linear-gradient(90deg, transparent 0 49%, rgba(0, 255, 213, 0.34) 49% 50%, transparent 50% 100%);
+  filter: drop-shadow(0 0 22px rgba(0, 255, 213, 0.22));
+  animation: stitchHeroTrace 9s ease-in-out infinite;
+}
+
+.public-landing-hero__visual::after {
+  width: 140px;
+  height: 180px;
+  border: 1px solid rgba(0, 255, 213, 0.38);
+  border-radius: 38% 38% 46% 46%;
+  background:
+    radial-gradient(circle at 50% 18%, rgba(255, 255, 255, 0.18), transparent 16%),
+    linear-gradient(180deg, rgba(0, 255, 213, 0.16), rgba(0, 255, 213, 0.02));
+  box-shadow: 0 0 42px rgba(0, 255, 213, 0.25), inset 0 1px 0 rgba(246, 243, 242, 0.12);
+}
+
+.public-landing-hero__core {
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: rgb(0, 255, 213);
+  box-shadow: 0 0 0 10px rgba(0, 255, 213, 0.12), 0 0 36px rgba(0, 255, 213, 0.72);
+  animation: manager-pulse 2.4s ease-in-out infinite;
+}
+
+.public-landing-hero__node {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(115, 255, 224, 0.92);
+  box-shadow: 0 0 18px rgba(0, 255, 213, 0.72);
+}
+
+.public-landing-hero__node--one { left: 18%; top: 38%; }
+.public-landing-hero__node--two { left: 72%; top: 24%; }
+.public-landing-hero__node--three { left: 80%; top: 66%; }
+.public-landing-hero__node--four { left: 28%; top: 72%; }
+
+.public-capabilities-head {
+  margin: var(--sp-12) auto var(--sp-5);
+  text-align: center;
+}
+
+.public-capabilities-head h2 {
+  font-size: clamp(1.7rem, 3vw, 2.4rem);
+  letter-spacing: 0;
+}
+
+.public-capabilities-head p {
+  max-width: 62ch;
+  margin: var(--sp-3) auto 0;
+  color: rgba(246, 251, 244, 0.66);
+  line-height: 1.7;
+}
+
+.public-page--landing .feature-card,
+.public-page--landing .public-trust-card {
+  border-radius: 10px;
+  border-color: rgba(246, 243, 242, 0.10);
+  background:
+    radial-gradient(circle at 86% 100%, rgba(0, 255, 213, 0.10), transparent 42%),
+    linear-gradient(180deg, rgba(246, 243, 242, 0.052), rgba(246, 243, 242, 0.018));
+}
+
+.public-page--landing .feature-icon {
+  border-radius: 10px;
+  background: rgba(0, 255, 213, 0.10);
+  border: 1px solid rgba(0, 255, 213, 0.16);
+  box-shadow: 0 0 22px rgba(0, 255, 213, 0.10);
+}
+
+.login-access-shell {
+  max-width: 860px;
+  min-height: calc(100vh - 72px);
+  display: grid;
+  align-content: start;
+  justify-items: center;
+  padding: clamp(48px, 8vh, 92px) var(--sp-6) var(--sp-12);
+}
+
+.public-page--login::after {
+  content: "";
+  position: fixed;
+  inset: 12% -8% auto -8%;
+  height: 360px;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 20% 45%, rgba(0, 255, 213, 0.16), transparent 38%),
+    repeating-radial-gradient(ellipse at 18% 58%, rgba(0, 255, 213, 0.12) 0 1px, transparent 1px 8px);
+  transform: rotate(-7deg);
+  opacity: 0.42;
+  z-index: 0;
+}
+
+.login-access-notice {
+  width: min(100%, 480px);
+  margin-bottom: var(--sp-4);
+  border-color: rgba(242, 251, 90, 0.34);
+  background: rgba(93, 67, 8, 0.44);
+}
+
+.login-access-links {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--sp-4);
+}
+
+.login-access-card {
+  width: min(100%, 480px);
+  padding: clamp(var(--sp-6), 4vw, var(--sp-8));
+  border-radius: 10px;
+  text-align: center;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(0, 255, 213, 0.12), transparent 42%),
+    linear-gradient(180deg, rgba(36, 49, 45, 0.94), rgba(15, 25, 22, 0.92));
+  border-color: rgba(246, 243, 242, 0.12);
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(246, 243, 242, 0.06);
+}
+
+.login-access-card .form-label {
+  text-align: left;
+}
+
+.login-access-card .form-input {
+  text-align: left;
+  background: rgba(8, 15, 13, 0.72);
+}
+
+.login-access-shell .public-site-footer {
+  width: min(100%, 760px);
+}
+
+.page--dashboard-stitch .dashboard-shell,
+.page--wizard-stitch .wizard-layout,
+.page--results-stitch .results-shell {
+  max-width: 1180px;
+}
+
+.page--dashboard-stitch .dashboard-hero,
+.page--dashboard-stitch .dashboard-section-card,
+.page--dashboard-stitch .dashboard-glance-stat,
+.page--dashboard-stitch .dashboard-history-panel,
+.page--dashboard-stitch .living-register-row,
+.page--wizard-stitch .wizard-header,
+.page--wizard-stitch .wizard-primary-card,
+.page--wizard-stitch .estimate-stage-card,
+.page--wizard-stitch .wizard-disclosure,
+.page--results-stitch .results-executive-cockpit,
+.page--results-stitch .assessment-decision-stack,
+.admin-shell--stitch .settings-shell__header,
+.admin-shell--stitch .settings-section,
+.admin-shell--stitch .admin-workbench-strip,
+.admin-shell--stitch .admin-overview-card,
+.admin-shell--stitch .org-accordion {
+  border-radius: 10px;
+}
+
+.page--dashboard-stitch .dashboard-hero {
+  padding: clamp(var(--sp-6), 4vw, var(--sp-8));
+  background:
+    radial-gradient(circle at 82% 18%, rgba(0, 255, 213, 0.12), transparent 30%),
+    linear-gradient(180deg, rgba(11, 28, 25, 0.98), rgba(7, 17, 15, 0.98));
+}
+
+.page--dashboard-stitch .dashboard-section-card,
+.page--dashboard-stitch .dashboard-glance-stat {
+  background:
+    radial-gradient(circle at 92% 0%, rgba(0, 255, 213, 0.055), transparent 36%),
+    linear-gradient(180deg, rgba(246, 243, 242, 0.042), rgba(246, 243, 242, 0.012));
+  border-color: rgba(246, 243, 242, 0.09);
+}
+
+.page--dashboard-stitch .dashboard-primary-band--register .dashboard-section-card {
+  border-color: rgba(0, 255, 213, 0.14);
+}
+
+.page--dashboard-stitch .data-table,
+.page--dashboard-stitch table {
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.page--wizard-stitch .wizard-layout {
+  padding-top: var(--sp-8);
+}
+
+.wizard-layout--scenario-refinement,
+.wizard-layout--estimate-workspace,
+.wizard-layout--simulation-review {
+  max-width: 1180px;
+}
+
+.page--wizard-stitch .wizard-header {
+  padding: clamp(var(--sp-5), 3vw, var(--sp-7));
+  border: 1px solid rgba(246, 243, 242, 0.08);
+  background:
+    radial-gradient(circle at 88% 0%, rgba(0, 255, 213, 0.08), transparent 32%),
+    linear-gradient(180deg, rgba(14, 23, 23, 0.96), rgba(8, 14, 15, 0.94));
+}
+
+.page--scenario-refinement .scenario-narrative-card {
+  min-height: 420px;
+  border-color: rgba(0, 255, 213, 0.16);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(0, 255, 213, 0.07), transparent 34%),
+    linear-gradient(180deg, rgba(17, 24, 25, 0.96), rgba(12, 18, 19, 0.94));
+}
+
+.page--scenario-refinement #narrative {
+  min-height: 270px;
+  border-color: rgba(0, 255, 213, 0.24);
+  background: rgba(8, 14, 15, 0.66);
+  color: rgba(246, 251, 244, 0.94);
+}
+
+.page--scenario-refinement .wizard-readiness-strip,
+.page--scenario-refinement .assessment-workflow-strip {
+  border-radius: 10px;
+}
+
+.page--estimate-workspace .estimate-command-deck,
+.page--estimate-workspace .estimate-stage-card,
+.page--estimate-workspace .wizard-cost-group {
+  border-radius: 10px;
+}
+
+.page--estimate-workspace .estimate-stage-card {
+  border-color: rgba(246, 243, 242, 0.10);
+  background:
+    radial-gradient(circle at 92% 0%, rgba(0, 255, 213, 0.06), transparent 30%),
+    linear-gradient(180deg, rgba(24, 36, 39, 0.96), rgba(15, 24, 27, 0.94));
+}
+
+.page--estimate-workspace .range-group {
+  gap: var(--sp-3);
+}
+
+.page--estimate-workspace .fair-input {
+  min-height: 48px;
+}
+
+.page--estimate-workspace .range-group .form-group:nth-child(2) .fair-input {
+  border-color: rgba(0, 255, 213, 0.30);
+  background:
+    linear-gradient(180deg, rgba(0, 255, 213, 0.18), rgba(0, 255, 213, 0.11)),
+    rgba(6, 18, 17, 0.78);
+  box-shadow: 0 0 22px rgba(0, 255, 213, 0.10);
+}
+
+.page--simulation-review .wizard-layout {
+  max-width: 980px;
+}
+
+.page--simulation-review .decision-readiness-card {
+  align-items: center;
+  text-align: center;
+  padding: clamp(var(--sp-6), 4vw, var(--sp-9));
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 50% 34%, rgba(0, 255, 213, 0.12), transparent 38%),
+    linear-gradient(180deg, rgba(12, 24, 18, 0.96), rgba(7, 14, 12, 0.98));
+}
+
+.page--simulation-review .decision-readiness-card__head {
+  justify-content: center;
+  text-align: center;
+}
+
+.page--simulation-review .decision-readiness-card__score {
+  width: clamp(150px, 24vw, 240px);
+  height: clamp(150px, 24vw, 240px);
+  padding-top: clamp(52px, 8vw, 84px);
+  margin: var(--sp-2) auto var(--sp-5);
+  box-shadow: 0 0 64px rgba(0, 255, 213, 0.20);
+}
+
+.page--simulation-review .decision-readiness-card__score span {
+  font-size: clamp(3rem, 8vw, 5.8rem);
+}
+
+.page--simulation-review .wizard-run-band,
+.page--simulation-review .sim-progress-card {
+  border-radius: 10px;
+}
+
+.page--results-stitch .results-header-bar {
+  padding: var(--sp-5);
+  border: 1px solid rgba(246, 243, 242, 0.08);
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, rgba(18, 27, 36, 0.88), rgba(9, 15, 20, 0.94));
+}
+
+.page--results-stitch .results-executive-cockpit {
+  border-color: rgba(246, 243, 242, 0.10);
+}
+
+.page--results-stitch .results-executive-cockpit--danger {
+  background:
+    radial-gradient(circle at 88% 0%, rgba(255, 132, 47, 0.16), transparent 34%),
+    linear-gradient(135deg, rgba(101, 25, 20, 0.96), rgba(30, 18, 24, 0.98));
+}
+
+.page--results-stitch .results-tabbar {
+  padding: 6px;
+  border: 1px solid rgba(246, 243, 242, 0.08);
+  border-radius: 10px;
+  background: rgba(246, 243, 242, 0.035);
+}
+
+.admin-shell--stitch .admin-sidebar {
+  width: 292px;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(0, 255, 213, 0.06), transparent 34%),
+    linear-gradient(180deg, rgba(24, 30, 34, 0.98), rgba(14, 20, 24, 0.98));
+}
+
+.admin-shell--stitch .admin-nav-link {
+  border-radius: 8px;
+}
+
+.admin-shell--stitch .admin-nav-link.active {
+  background: rgba(0, 255, 213, 0.12);
+  color: rgba(115, 255, 224, 0.96);
+  border-color: rgba(0, 255, 213, 0.20);
+}
+
+.admin-shell--stitch .admin-content-shell {
+  background:
+    radial-gradient(circle at 90% 0%, rgba(0, 255, 213, 0.04), transparent 30%),
+    linear-gradient(180deg, rgba(13, 18, 22, 0.94), rgba(7, 11, 14, 0.98));
+}
+
+.admin-shell--stitch .settings-shell {
+  max-width: 1040px;
+}
+
+.admin-shell--stitch .settings-section__summary,
+.admin-shell--stitch .settings-section__body {
+  background: rgba(246, 243, 242, 0.025);
+}
+
+.admin-shell--stitch .admin-workbench-strip {
+  border-color: rgba(0, 255, 213, 0.16);
+  background:
+    radial-gradient(circle at 92% 0%, rgba(0, 255, 213, 0.10), transparent 36%),
+    linear-gradient(180deg, rgba(246, 243, 242, 0.045), rgba(246, 243, 242, 0.015));
+}
+
+.admin-shell--stitch .org-accordion,
+.admin-shell--stitch .org-related-card {
+  border-color: rgba(246, 243, 242, 0.09);
+  background:
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--org-accent, #14b8a6) 14%, transparent), transparent 34%),
+    linear-gradient(180deg, rgba(246, 243, 242, 0.036), rgba(246, 243, 242, 0.012));
+}
+
+@keyframes stitchHeroTrace {
+  0%, 100% { opacity: 0.58; transform: translate(-50%, -50%) scale(0.98); }
+  50% { opacity: 1; transform: translate(-50%, -50%) scale(1.02); }
+}
+
+@media (max-width: 980px) {
+  .public-landing-hero {
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+
+  .public-landing-hero__visual {
+    min-height: 260px;
+    order: -1;
+  }
+
+  .admin-shell--stitch .admin-sidebar {
+    width: 236px;
+  }
+}
+
+@media (max-width: 760px) {
+  .public-landing-hero h1 {
+    font-size: clamp(2.6rem, 14vw, 4rem);
+  }
+
+  .login-access-shell {
+    padding-inline: var(--sp-4);
+  }
+
+  .admin-shell--stitch {
+    flex-direction: column;
+  }
+
+  .admin-shell--stitch .admin-sidebar {
+    width: 100%;
+    min-height: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .public-landing-hero__visual::before,
+  .public-landing-hero__core {
+    animation: none !important;
+  }
+}
+
 @media (max-width: 680px) {
   .wizard-step-bar {
     padding: 10px var(--sp-4) 14px;

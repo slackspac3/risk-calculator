@@ -1622,7 +1622,7 @@ function renderUserDashboard() {
     </div>` : '';
 
   setPage(`
-    <main class="page">
+    <main class="page page--dashboard-stitch">
       <div class="container container--wide dashboard-shell">
         <section class="card card--elevated dashboard-hero ${isOversightUser ? '' : 'dashboard-hero--start'}">
           <div class="dashboard-hero-grid ${isOversightUser ? 'dashboard-hero-grid--single' : 'dashboard-hero-grid--balanced'}">

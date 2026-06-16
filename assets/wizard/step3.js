@@ -1875,8 +1875,8 @@ function renderWizard3() {
   const v = (key, def) => p[key] != null ? p[key] : def;
 
   setPage(`
-    <main class="page" aria-label="Step 4: Estimate the Scenario">
-      <div class="wizard-layout container container--narrow">
+    <main class="page page--wizard-stitch page--estimate-workspace" aria-label="Step 4: Estimate the Scenario">
+      <div class="wizard-layout wizard-layout--estimate-workspace container container--narrow">
         <div class="wizard-header wizard-header--estimate">
           <div class="flex items-center justify-between">
             <div>
