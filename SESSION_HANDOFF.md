@@ -6,7 +6,7 @@ If this file conflicts with the code, git history, or GitHub workflow files, tru
 
 ## Last Updated
 
-- Date: 2026-06-09
+- Date: 2026-06-16
 - Updated by: Codex session in local repo `/Users/bhavuk.arora/risk-calculator`
 
 ## Read First
@@ -57,6 +57,22 @@ If this file conflicts with the code, git history, or GitHub workflow files, tru
 - Do not force-push or rewrite shared branch history unless explicitly approved.
 
 ## Verified Baseline Through 2026-04-25
+
+Latest active-context update on 2026-06-16 in `/Users/bhavuk.arora/risk-calculator`:
+
+- Stitch project `305203100423572651` is the active design source for the redesigned screens.
+- First implemented slice targets the named redesigned `Journey Selection` and `Assessment Intake` screens only.
+- Step 1 now keeps the assessment-type cards in the main hero with a selected-journey summary, preserving existing assessment-type bindings and navigation.
+- Step 2 Basic keeps the existing two-prompt intake, required-context behavior, provenance, and AI build bindings while adopting the darker Stitch workbench treatment.
+- Asset stamp is now `20260616v1`; build stamp is `2026-06-16-stitch-step12`.
+- Validation passed:
+  - `npm run check:syntax`
+  - `npm run check:smoke`
+  - `npm run check:staleness`
+  - `git diff --check`
+  - `npm run test:e2e:smoke -- -g "wizard assessment type router stores selection before intake"`
+  - `npm run test:e2e:smoke -- -g "wizard step 2 basic mode"`
+- Full smoke was also run once: `50/51` passed; `repeated login submits keep the PoC warning acknowledgement clickable` timed out once during navigation to `#/login`, then passed on isolated rerun.
 
 Latest active-context update on 2026-06-09 in `/Users/bhavuk.arora/risk-calculator`:
 

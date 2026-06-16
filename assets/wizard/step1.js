@@ -4066,6 +4066,7 @@ function renderStep1AssessmentTypeRouter(activeType = 'enterprise_generic', { co
   return `<section class="${className}" aria-label="Assessment type">
     <div class="step1-guide-lane-switch__options step1-assessment-router__options" role="list" aria-label="Assessment type">
       ${cards.map((card) => `<button type="button" class="step1-guide-lane-option step1-assessment-type-card" data-assessment-type="${escapeHtml(card.assessmentType)}" aria-pressed="${active === card.assessmentType ? 'true' : 'false'}">
+        <span class="step1-guide-lane-option__icon" aria-hidden="true"></span>
         <span class="step1-guide-lane-option__index">${String(card.index || 1).padStart(2, '0')}</span>
         <span class="step1-guide-lane-option__eyebrow">${escapeHtml(card.label || '')}</span>
         <strong>${renderStep1AssessmentTitleHtml(card.title)}</strong>
@@ -4074,36 +4075,6 @@ function renderStep1AssessmentTypeRouter(activeType = 'enterprise_generic', { co
       </button>`).join('')}
     </div>
   </section>`;
-}
-
-function renderStep1AssessmentTypeRunway({
-  assessmentType = AppState.draft?.assessmentType,
-  hasDraftSignal = false
-} = {}) {
-  const card = getStep1AssessmentTypeCard(assessmentType);
-  const nodes = [
-    { label: 'Journey', value: card.label || 'Enterprise', state: 'live' },
-    { label: 'Basis', value: 'Economic nature', state: 'live' },
-    { label: 'Inputs', value: hasDraftSignal ? 'Resume' : 'Next', state: hasDraftSignal ? 'live' : 'next' }
-  ];
-  return `<div class="step1-guide-runway" aria-label="Selected assessment journey">
-    <div class="step1-guide-runway__head">
-      <span>Assessment type</span>
-      <strong>${renderStep1AssessmentTitleHtml(card.title)}</strong>
-    </div>
-    <div class="step1-guide-runway__track" aria-hidden="true">
-      <span class="step1-guide-runway__beam"></span>
-      ${nodes.map((node, index) => `<span class="step1-guide-runway__node step1-guide-runway__node--${escapeHtml(node.state)}" style="--route-node:${index}"></span>`).join('')}
-      <span class="step1-guide-runway__packet step1-guide-runway__packet--one"></span>
-      <span class="step1-guide-runway__packet step1-guide-runway__packet--two"></span>
-    </div>
-    <div class="step1-guide-runway__metrics">
-      ${nodes.map(node => `<div>
-        <span>${escapeHtml(node.label)}</span>
-        <strong>${escapeHtml(node.value)}</strong>
-      </div>`).join('')}
-    </div>
-  </div>`;
 }
 
 function renderStep1AssessmentTypeRouteDetail({
@@ -4118,6 +4089,11 @@ function renderStep1AssessmentTypeRouteDetail({
       ? ['Confirm seller role', 'Describe delivery or revenue commitment', 'Add contract economics when available']
       : ['Use enterprise context', 'Describe event and impact', 'Estimate the risk'];
   return `<section class="step1-guide-route-detail step1-assessment-route-detail" aria-label="Selected assessment type details">
+    <div class="step1-guide-route-detail__progress" aria-hidden="true">
+      <span></span>
+      <span></span>
+      <span></span>
+    </div>
     <div class="step1-guide-route-detail__copy">
       <div class="wizard-summary-band__label">Selected journey</div>
       <h3>${renderStep1AssessmentTitleHtml(card.title)}</h3>
@@ -7480,17 +7456,13 @@ function renderWizardGuide() {
             <div class="step1-guide-stage__copy">
               <h2 class="wizard-step-title">What are you assessing?</h2>
               <p class="wizard-step-desc">Choose the journey before entering risk details. This is based on project economics and exposure, not on the user&apos;s department.</p>
-              ${renderStep1AssessmentTypeRunway({ assessmentType: activeAssessmentType, hasDraftSignal })}
+              ${renderStep1AssessmentTypeRouter(activeAssessmentType)}
             </div>
             ${renderStep1AssessmentTypeRouteDetail({
               assessmentType: activeAssessmentType,
               hasDraftSignal,
               startButtonLabel
             })}
-          </div>
-
-          <div class="step1-guide-stage__decision">
-            ${renderStep1AssessmentTypeRouter(activeAssessmentType)}
           </div>
         </section>
       </div>
