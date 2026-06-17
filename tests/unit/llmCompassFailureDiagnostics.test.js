@@ -163,6 +163,50 @@ test('entity context refinement accepts structured function-call arguments', asy
   assert.equal(result.aiUnavailable, undefined);
 });
 
+test('entity context refinement requests JSON mode with enough completion budget', async () => {
+  const requests = [];
+  const service = loadLlmService({
+    origin: 'http://127.0.0.1:8080',
+    fetchImpl: async (...args) => {
+      requests.push(JSON.parse(args[1].body));
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  geography: 'UAE',
+                  contextSummary: 'Healthcare operations in the UAE, including hospitals, clinics, diagnostics, genomics, digital health, and Diaverum.',
+                  riskAppetiteStatement: 'Low appetite for ADHICS, patient-safety, regulated data, and continuity failures.',
+                  applicableRegulations: ['ADHICS'],
+                  aiInstructions: 'Use ADHICS and UAE healthcare operations as grounding context.',
+                  benchmarkStrategy: 'Benchmark against healthcare continuity, privacy, and regulated clinical operations.',
+                  responseMessage: 'Updated the context with UAE healthcare operations and ADHICS obligations.'
+                })
+              }
+            }
+          ]
+        })
+      };
+    }
+  });
+
+  configureLocalDirectCompass(service);
+
+  await service.refineEntityContext({
+    entity: { name: 'M42 UAE', type: 'Business Unit' },
+    currentContext: { geography: 'UAE', contextSummary: 'Healthcare business.' },
+    userPrompt: 'It has frontline clinics, hospitals, diagnostics labs, genomics, digital health, Diaverum, and is subject to ADHICS.'
+  });
+
+  assert.equal(requests.length, 1);
+  assert.deepEqual(requests[0].response_format, { type: 'json_object' });
+  assert.equal(requests[0].temperature, 0);
+  assert.equal(requests[0].max_completion_tokens >= 1400, true);
+});
+
 test('failed AI audit rows capture truncation status and raised prompt limit', async () => {
   const auditEvents = [];
   const service = loadLlmService({

@@ -2073,6 +2073,7 @@ Return corrected JSON only.`;
             signal: controller?.signal,
             body: JSON.stringify({
               ...(_isLocalDevRuntimeConfigAllowed() ? { model: _compassModel } : {}),
+              ...(options.responseFormat && typeof options.responseFormat === 'object' ? { response_format: options.responseFormat } : {}),
               max_completion_tokens: maxCompletionTokens,
               temperature: Number(options.temperature ?? 0.3),
               messages: [
@@ -6272,7 +6273,7 @@ ${evidenceMeta.promptBlock}`;
           entityType: String(input.entity?.type || '').trim()
         }
       });
-      const raw = await _callLLM(systemPrompt, userPrompt, { maxCompletionTokens: 700, timeoutMs: 12000, maxPromptChars: AI_DEFAULT_MAX_PROMPT_CHARS, taskName: 'refineEntityContext' });
+      const raw = await _callLLM(systemPrompt, userPrompt, { maxCompletionTokens: 1600, timeoutMs: 12000, maxPromptChars: AI_DEFAULT_MAX_PROMPT_CHARS, taskName: 'refineEntityContext', temperature: 0, responseFormat: { type: 'json_object' } });
       if (!raw) {
         return {
           ...currentContext,
