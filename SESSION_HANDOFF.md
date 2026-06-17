@@ -65,23 +65,16 @@ Latest active-context update on 2026-06-17 in `/Users/bhavuk.arora/risk-calculat
 - Step 1 now keeps the assessment-type cards in the main hero with a selected-journey summary, preserving existing assessment-type bindings and navigation.
 - Step 2 Basic keeps the existing two-prompt intake, required-context behavior, provenance, and AI build bindings while adopting the darker Stitch workbench treatment.
 - The broader pass adds scoped page classes and a Stitch-derived dark workbench CSS layer for public/login, dashboard, Step 3, Step 4, Step 5, results, and admin BU/settings surfaces while preserving existing IDs, controls, route bindings, and role semantics.
-- The exported AI Studio/Stitch React app at `/Users/bhavuk.arora/Downloads/risk-intelligence-dashboard` was used only as a visual reference; no React, Tailwind, Motion, or Gemini scaffold was imported. Its darker cyan/emerald cockpit treatment now informs the final scoped CSS override layer.
-- Asset stamp is now `20260617v2`; build stamp is `2026-06-17-stitch-export-polish`.
+- The exported AI Studio/Stitch React app at `/Users/bhavuk.arora/Downloads/risk-intelligence-dashboard` was used only as a visual reference; no React, Tailwind, Motion, or Gemini scaffold was imported. Its darker cyan/emerald cockpit treatment now informs the final CSS override layer across app shell, dashboard, wizard, results, settings, and admin surfaces.
+- Asset stamp is now `20260617v3`; build stamp is `2026-06-17-stitch-full-redesign`.
 - Entity context follow-up refinement now shows an explicit AI update in the modal history, lists changed draft fields, and reminds the user that `Save Context` is still required.
-- Validation after the export-guided CSS polish passed:
+- Validation after the full export-guided redesign passed:
   - `npm run check:syntax`
   - `npm run check:smoke`
   - `npm run check:staleness`
   - `git diff --check`
-  - `npm run test:e2e:smoke -- --grep "authenticated user dashboard renders|wizard assessment type router stores selection"` (`2` tests)
-- Validation after the broader pass passed:
-  - `npm run check:syntax`
-  - `npm run check:staleness`
-  - `git diff --check`
-  - `npm run check:smoke`
   - `npm run test:e2e:smoke` (`51` tests)
-  - Playwright visual capture across landing, login, dashboard, Step 3, Step 4, Step 5, results, and admin BU context screens.
-
+  - Playwright visual capture across landing, login, dashboard, Step 1 guide, Step 2 intake, Step 3, Step 4, Step 5, results, and admin home in `/tmp/stitch-full-redesign-screens`.
 Latest active-context update on 2026-06-09 in `/Users/bhavuk.arora/risk-calculator`:
 
 - Results now distinguish financial appetite status from critical control or incident-response gates.
