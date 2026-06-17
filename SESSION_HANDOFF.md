@@ -66,7 +66,8 @@ Latest active-context update on 2026-06-17 in `/Users/bhavuk.arora/risk-calculat
 - Step 2 Basic keeps the existing two-prompt intake, required-context behavior, provenance, and AI build bindings while adopting the darker Stitch workbench treatment.
 - The broader pass adds scoped page classes and a Stitch-derived dark workbench CSS layer for public/login, dashboard, Step 3, Step 4, Step 5, results, and admin BU/settings surfaces while preserving existing IDs, controls, route bindings, and role semantics.
 - The exported AI Studio/Stitch React app at `/Users/bhavuk.arora/Downloads/risk-intelligence-dashboard` was used only as a visual reference; no React, Tailwind, Motion, or Gemini scaffold was imported. Its darker cyan/emerald cockpit treatment now informs the final CSS override layer across app shell, dashboard, wizard, results, settings, and admin surfaces.
-- Asset stamp is now `20260617v3`; build stamp is `2026-06-17-stitch-full-redesign`.
+- Asset stamp is now `20260617v4`; build stamp is `2026-06-17-context-refinement-copy`.
+- Context follow-up copy now treats live-AI-unavailable unchanged results as unchanged, rather than saying AI updated fields when no visible field changed.
 - Entity context follow-up refinement now shows an explicit AI update in the modal history, lists changed draft fields, and reminds the user that `Save Context` is still required.
 - Validation after the full export-guided redesign passed:
   - `npm run check:syntax`
