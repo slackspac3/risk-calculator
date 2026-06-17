@@ -2,7 +2,7 @@
    G42 RISK QUANTIFIER — MAIN STYLES
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap');
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -17259,5 +17259,680 @@ html[data-experience-mode="basic"] .wizard-layout--guide {
   .step1-guide-stage__hero,
   .step1-guide-stage__copy .step1-assessment-router__options {
     grid-template-columns: 1fr;
+  }
+}
+
+/* AI Studio export visual guide: apply as styling only, keep app structure intact. */
+:root {
+  --stitch-cyber-canvas: #030712;
+  --stitch-cyber-panel: rgba(17, 24, 39, 0.72);
+  --stitch-cyber-well: rgba(2, 6, 23, 0.78);
+  --stitch-cyber-cyan: #22d3ee;
+  --stitch-cyber-emerald: #10b981;
+  --stitch-cyber-lime: #a3e635;
+  --stitch-cyber-border: rgba(34, 211, 238, 0.16);
+}
+
+.page--dashboard-stitch::before,
+.page--wizard-stitch::before,
+.page--results-stitch::before {
+  background:
+    radial-gradient(circle at 50% 0%, rgba(34, 211, 238, 0.10), transparent 34%),
+    radial-gradient(circle at 82% 14%, rgba(16, 185, 129, 0.065), transparent 28%),
+    radial-gradient(circle at 12% 80%, rgba(163, 230, 53, 0.035), transparent 28%),
+    linear-gradient(180deg, rgba(3, 7, 18, 0.62), rgba(3, 7, 18, 0.92));
+}
+
+.page--dashboard-stitch .dashboard-hero,
+.page--dashboard-stitch .dashboard-section-card,
+.page--dashboard-stitch .dashboard-glance-stat,
+.page--dashboard-stitch .dashboard-history-panel,
+.page--wizard-stitch .wizard-header,
+.page--wizard-stitch .wizard-primary-card,
+.page--wizard-stitch .estimate-stage-card,
+.page--wizard-stitch .wizard-disclosure,
+.page--results-stitch .results-header-bar,
+.page--results-stitch .results-executive-cockpit,
+.page--results-stitch .assessment-decision-stack,
+.admin-shell--stitch .settings-section,
+.admin-shell--stitch .admin-workbench-strip,
+.admin-shell--stitch .admin-overview-card,
+.admin-shell--stitch .org-accordion {
+  border-color: var(--stitch-cyber-border);
+  background:
+    radial-gradient(circle at 92% 0%, rgba(34, 211, 238, 0.075), transparent 34%),
+    linear-gradient(180deg, var(--stitch-cyber-panel), rgba(3, 7, 18, 0.72));
+  box-shadow:
+    0 22px 54px rgba(0, 0, 0, 0.26),
+    inset 0 1px 0 rgba(255, 255, 255, 0.045);
+}
+
+.page--dashboard-stitch .dashboard-hero {
+  background:
+    radial-gradient(circle at 12% 0%, rgba(34, 211, 238, 0.11), transparent 30%),
+    radial-gradient(circle at 86% 16%, rgba(16, 185, 129, 0.08), transparent 32%),
+    linear-gradient(180deg, rgba(8, 20, 28, 0.94), rgba(3, 7, 18, 0.9));
+}
+
+.page--simulation-review .decision-readiness-card {
+  background:
+    radial-gradient(circle at 50% 36%, rgba(34, 211, 238, 0.13), transparent 38%),
+    linear-gradient(180deg, rgba(8, 20, 28, 0.94), rgba(3, 7, 18, 0.94));
+}
+
+.page--dashboard-stitch :is(.dashboard-shell, .dashboard-section-card, .dashboard-glance-stat, .dashboard-history-panel),
+.page--wizard-stitch :is(.wizard-layout, .wizard-header, .wizard-primary-card, .estimate-stage-card, .wizard-disclosure, .step1-guide-route-detail),
+.page--results-stitch :is(.results-shell, .results-header-bar, .results-executive-cockpit, .assessment-decision-stack),
+.admin-shell--stitch :is(.settings-shell, .settings-section, .admin-workbench-strip, .admin-overview-card, .org-accordion) {
+  min-width: 0;
+}
+
+.page--dashboard-stitch :is(.btn, button, .badge, summary),
+.page--wizard-stitch :is(.btn, button, .badge, summary),
+.page--results-stitch :is(.btn, button, .badge, summary, .results-tab),
+.admin-shell--stitch :is(.btn, button, .badge, summary, .admin-nav-link) {
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.page--wizard-stitch .step1-guide-stage__cta {
+  display: inline-flex;
+  width: 100%;
+  min-height: 52px;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 18px;
+  white-space: normal;
+  line-height: 1.18;
+  text-align: center;
+}
+
+.page--wizard-stitch .step1-guide-stage__cta::after {
+  pointer-events: none;
+}
+
+.page--wizard-stitch .step1-guide-route-detail__handoff,
+.page--wizard-stitch .step1-guide-route-detail__context,
+.page--wizard-stitch .step1-guide-route-detail__copy,
+.page--wizard-stitch .step1-guide-route-detail__step,
+.page--wizard-stitch .step1-guide-route-detail__step strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.page--wizard-stitch .step1-guide-route-detail__progress span:first-child,
+.page--wizard-stitch .sim-progress-fill,
+.page--results-stitch .results-threshold-fill:not(.results-threshold-fill--danger):not(.results-threshold-fill--warning):not(.results-threshold-fill--success),
+.page--results-stitch .results-impact-mix-bar span {
+  background: linear-gradient(90deg, var(--stitch-cyber-cyan), var(--stitch-cyber-emerald));
+  box-shadow: 0 0 18px rgba(34, 211, 238, 0.24);
+}
+
+.page--wizard-stitch :is(.form-input, .fair-input, textarea, select),
+.admin-shell--stitch :is(.form-input, textarea, select) {
+  background: var(--stitch-cyber-well);
+  border-color: rgba(148, 163, 184, 0.16);
+}
+
+.page--wizard-stitch :is(.form-input, .fair-input, textarea, select):focus,
+.admin-shell--stitch :is(.form-input, textarea, select):focus {
+  border-color: rgba(34, 211, 238, 0.72);
+  box-shadow: 0 0 0 4px rgba(34, 211, 238, 0.10);
+}
+
+/* Full Stitch export redesign pass: visual system only, existing controls and routes preserved. */
+:root {
+  color-scheme: dark;
+  --font-display: "Space Grotesk", "Syne", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-body: "Space Grotesk", "DM Sans", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --ops-canvas-0: #020617;
+  --ops-canvas-1: #030712;
+  --ops-panel: rgba(8, 15, 26, 0.88);
+  --ops-panel-strong: rgba(5, 12, 22, 0.94);
+  --ops-panel-soft: rgba(15, 23, 42, 0.68);
+  --ops-well: rgba(2, 6, 23, 0.82);
+  --ops-line: rgba(103, 232, 249, 0.18);
+  --ops-line-strong: rgba(34, 211, 238, 0.42);
+  --ops-cyan: #22d3ee;
+  --ops-cyan-strong: #67e8f9;
+  --ops-emerald: #2dd4bf;
+  --ops-lime: #bef264;
+  --ops-amber: #facc15;
+  --ops-danger: #fb7185;
+  --ops-text: #f8fafc;
+  --ops-text-soft: #cbd5e1;
+  --ops-text-muted: #94a3b8;
+  --ops-radius: 14px;
+  --ops-radius-sm: 10px;
+  --ops-shadow: 0 24px 70px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.055);
+  --ops-shadow-live: 0 24px 70px rgba(0, 0, 0, 0.42), 0 0 34px rgba(34, 211, 238, 0.13), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+
+html,
+body {
+  background: var(--ops-canvas-0);
+}
+
+body {
+  background:
+    radial-gradient(circle at 18% -8%, rgba(34, 211, 238, 0.16), transparent 34%),
+    radial-gradient(circle at 88% 10%, rgba(45, 212, 191, 0.11), transparent 28%),
+    radial-gradient(circle at 36% 96%, rgba(190, 242, 100, 0.055), transparent 30%),
+    linear-gradient(180deg, #020617 0%, #030712 44%, #050a13 100%);
+  color: var(--ops-text);
+  letter-spacing: 0;
+}
+
+body::before {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  content: "";
+  background:
+    linear-gradient(rgba(103, 232, 249, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(103, 232, 249, 0.03) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.72), transparent 82%);
+}
+
+#app,
+.app-shell {
+  background: transparent;
+}
+
+#app-bar {
+  border-bottom: 1px solid rgba(34, 211, 238, 0.24);
+  background:
+    linear-gradient(90deg, rgba(34, 211, 238, 0.075), transparent 34%, rgba(45, 212, 191, 0.065)),
+    rgba(2, 6, 23, 0.92);
+  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.42), 0 0 24px rgba(34, 211, 238, 0.08);
+  backdrop-filter: blur(18px) saturate(150%);
+}
+
+#app-bar::before {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  content: "";
+  background:
+    linear-gradient(90deg, transparent, rgba(103, 232, 249, 0.13), transparent),
+    linear-gradient(rgba(103, 232, 249, 0.035) 1px, transparent 1px);
+  background-size: 220px 100%, 100% 18px;
+  opacity: 0.7;
+  animation: stitchSignalDrift 12s linear infinite;
+}
+
+#app-bar::after {
+  box-shadow: 0 0 18px rgba(34, 211, 238, 0.32);
+}
+
+#app-bar .bar-inner {
+  position: relative;
+  z-index: 1;
+}
+
+.bar-logo {
+  gap: 12px;
+}
+
+.bar-logo-mark {
+  width: 42px;
+  height: 42px;
+  border: 1px solid rgba(34, 211, 238, 0.38);
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at 50% 22%, rgba(34, 211, 238, 0.28), transparent 42%),
+    linear-gradient(180deg, rgba(8, 47, 73, 0.42), rgba(2, 6, 23, 0.84));
+  box-shadow: 0 0 22px rgba(34, 211, 238, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.bar-logo-text,
+.bar-logo-text span {
+  font-family: var(--font-display);
+  letter-spacing: 0;
+}
+
+.bar-logo-text span {
+  color: var(--ops-cyan-strong);
+  text-shadow: 0 0 18px rgba(34, 211, 238, 0.35);
+}
+
+.bar-nav {
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 999px;
+  background: rgba(2, 6, 23, 0.46);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.bar-nav-link {
+  position: relative;
+  color: var(--ops-text-muted);
+}
+
+.bar-nav-link.active,
+.bar-nav-link[aria-current="page"] {
+  color: var(--ops-text);
+  background: rgba(34, 211, 238, 0.11);
+  box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.18);
+}
+
+.bar-nav-link.active::after,
+.bar-nav-link[aria-current="page"]::after {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: 5px;
+  height: 2px;
+  border-radius: 999px;
+  content: "";
+  background: linear-gradient(90deg, var(--ops-cyan), var(--ops-emerald));
+  box-shadow: 0 0 14px rgba(34, 211, 238, 0.5);
+}
+
+.notif-bell,
+.btn-open-help,
+.currency-toggle,
+.experience-toggle,
+.bar-poc-tag {
+  border-color: rgba(34, 211, 238, 0.22);
+  background: rgba(2, 6, 23, 0.62);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+main.page,
+.page--dashboard-stitch,
+.page--wizard-stitch,
+.page--results-stitch,
+.page--admin-stitch,
+.admin-shell--stitch,
+.settings-shell {
+  background:
+    radial-gradient(circle at 10% 0%, rgba(34, 211, 238, 0.09), transparent 32%),
+    radial-gradient(circle at 86% 4%, rgba(45, 212, 191, 0.08), transparent 28%),
+    linear-gradient(180deg, rgba(2, 6, 23, 0.22), rgba(2, 6, 23, 0.72));
+}
+
+.card,
+.panel,
+.dashboard-section-card,
+.dashboard-glance-stat,
+.dashboard-history-panel,
+.dashboard-start-module,
+.dashboard-start-primary,
+.dashboard-start-secondary,
+.dashboard-start-tertiary,
+.wizard-header,
+.wizard-primary-card,
+.wizard-disclosure,
+.estimate-command-deck,
+.estimate-stage-card,
+.wizard-run-band,
+.decision-readiness-card,
+.results-header-bar,
+.results-executive-cockpit,
+.assessment-decision-stack,
+.results-brief-card,
+.results-impact-card,
+.results-summary-card,
+.results-priority-card,
+.settings-section,
+.admin-workbench-strip,
+.admin-overview-card,
+.admin-table-card,
+.org-accordion,
+.org-related-card,
+.data-table,
+table {
+  border-color: var(--ops-line);
+  border-radius: var(--ops-radius);
+  background:
+    radial-gradient(circle at 92% 0%, rgba(34, 211, 238, 0.09), transparent 32%),
+    linear-gradient(180deg, var(--ops-panel), rgba(2, 6, 23, 0.82));
+  box-shadow: var(--ops-shadow);
+}
+
+.dashboard-hero,
+.wizard-header,
+.results-header-bar,
+.results-executive-cockpit,
+.admin-workbench-strip,
+.settings-shell__header {
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(34, 211, 238, 0.28);
+  background:
+    linear-gradient(135deg, rgba(34, 211, 238, 0.16), transparent 34%),
+    radial-gradient(circle at 82% 12%, rgba(45, 212, 191, 0.15), transparent 30%),
+    linear-gradient(180deg, rgba(8, 15, 26, 0.96), rgba(2, 6, 23, 0.9));
+  box-shadow: var(--ops-shadow-live);
+}
+
+.dashboard-hero::before,
+.wizard-header::before,
+.results-header-bar::before,
+.results-executive-cockpit::before,
+.admin-workbench-strip::before,
+.settings-shell__header::before {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  content: "";
+  background:
+    linear-gradient(90deg, transparent, rgba(103, 232, 249, 0.12), transparent),
+    linear-gradient(rgba(103, 232, 249, 0.035) 1px, transparent 1px);
+  background-size: 260px 100%, 100% 22px;
+  opacity: 0.68;
+  animation: stitchOpsScan 9s linear infinite;
+}
+
+.dashboard-hero > *,
+.wizard-header > *,
+.results-header-bar > *,
+.results-executive-cockpit > *,
+.admin-workbench-strip > *,
+.settings-shell__header > * {
+  position: relative;
+  z-index: 1;
+}
+
+h1,
+h2,
+h3,
+h4,
+.wizard-step-title,
+.dashboard-hero h2,
+.results-executive-cockpit__title {
+  font-family: var(--font-display);
+  letter-spacing: 0;
+  color: var(--ops-text);
+}
+
+.dashboard-hero h2,
+.wizard-step-title,
+.results-executive-cockpit__title {
+  text-shadow: 0 0 24px rgba(34, 211, 238, 0.17);
+}
+
+p,
+li,
+.muted,
+.dashboard-hero-copy,
+.wizard-step-desc,
+.results-executive-cockpit__copy {
+  color: var(--ops-text-soft);
+}
+
+.landing-badge,
+.badge,
+.status-pill,
+.dashboard-signal-pill,
+.results-pill,
+.results-executive-cockpit__eyebrow,
+.wizard-meta-pill,
+.settings-section__eyebrow {
+  border-color: rgba(34, 211, 238, 0.24);
+  background: rgba(34, 211, 238, 0.095);
+  color: var(--ops-cyan-strong);
+  letter-spacing: 0.08em;
+}
+
+.btn,
+button {
+  letter-spacing: 0;
+}
+
+.btn--primary,
+.primary-action,
+.dashboard-start-primary .btn,
+.step1-guide-stage__cta,
+.step1-guided-cta,
+.run-simulation-btn {
+  border-color: rgba(103, 232, 249, 0.62);
+  background: linear-gradient(135deg, var(--ops-cyan), var(--ops-emerald) 58%, var(--ops-lime));
+  color: #011015;
+  box-shadow: 0 16px 36px rgba(34, 211, 238, 0.2), 0 0 26px rgba(45, 212, 191, 0.14);
+}
+
+.btn--primary:hover:not(:disabled),
+.primary-action:hover:not(:disabled),
+.dashboard-start-primary .btn:hover:not(:disabled),
+.step1-guide-stage__cta:hover:not(:disabled),
+.step1-guided-cta:hover:not(:disabled),
+.run-simulation-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 20px 44px rgba(34, 211, 238, 0.27), 0 0 34px rgba(45, 212, 191, 0.18);
+}
+
+.btn--secondary,
+.btn--ghost,
+.ghost-button,
+.secondary-action,
+.results-tab,
+.admin-nav-link,
+summary {
+  border-color: rgba(103, 232, 249, 0.16);
+  background: rgba(2, 6, 23, 0.48);
+  color: var(--ops-text-soft);
+}
+
+.btn--secondary:hover:not(:disabled),
+.btn--ghost:hover:not(:disabled),
+.ghost-button:hover:not(:disabled),
+.secondary-action:hover:not(:disabled),
+.admin-nav-link:hover,
+summary:hover {
+  border-color: rgba(103, 232, 249, 0.34);
+  background: rgba(34, 211, 238, 0.09);
+  color: var(--ops-text);
+}
+
+:is(.form-input, .form-select, .form-textarea, .fair-input, input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]), textarea, select) {
+  color: var(--ops-text);
+  border-color: rgba(148, 163, 184, 0.18);
+  background: rgba(2, 6, 23, 0.76);
+}
+
+:is(.form-input, .form-select, .form-textarea, .fair-input, input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]), textarea, select)::placeholder {
+  color: rgba(203, 213, 225, 0.58);
+}
+
+:is(.form-input, .form-select, .form-textarea, .fair-input, input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]), textarea, select):focus,
+:is(.form-input, .form-select, .form-textarea, .fair-input, input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]), textarea, select):focus-visible {
+  border-color: rgba(103, 232, 249, 0.76);
+  box-shadow: 0 0 0 4px rgba(34, 211, 238, 0.12), 0 0 24px rgba(34, 211, 238, 0.13);
+  outline: 0;
+}
+
+.dashboard-start-module,
+.dashboard-history-panel,
+.dashboard-assessment-row,
+.living-register-row,
+.watchlist-row,
+.dashboard-side-summary-item,
+.dashboard-glance-stat,
+.step1-guide-lane-option,
+.step1-guide-route-detail,
+.step1-basic-intake--conversation,
+.step1-conversation-thread,
+.step1-conversation-compose,
+.scenario-quality-card,
+.estimate-stage-card,
+.results-cockpit-metric,
+.results-decision-card,
+.results-command-card,
+.settings-field-card,
+.admin-home-card {
+  border-color: rgba(103, 232, 249, 0.16);
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.74), rgba(2, 6, 23, 0.72));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045), 0 18px 42px rgba(0, 0, 0, 0.22);
+}
+
+.dashboard-start-primary,
+.step1-guide-lane-option[aria-pressed="true"],
+.step1-guide-lane-option.is-selected,
+.results-tab.active,
+.results-tab[aria-selected="true"],
+.admin-nav-link.active,
+.admin-nav-link[aria-current="page"] {
+  border-color: rgba(34, 211, 238, 0.48);
+  background:
+    radial-gradient(circle at 18% 0%, rgba(34, 211, 238, 0.16), transparent 34%),
+    linear-gradient(180deg, rgba(8, 47, 73, 0.46), rgba(2, 6, 23, 0.78));
+  box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.08), 0 20px 46px rgba(0, 0, 0, 0.24), 0 0 24px rgba(34, 211, 238, 0.14);
+}
+
+.dashboard-glance-stat::before,
+.dashboard-start-module::before,
+.step1-guide-lane-option::before,
+.results-cockpit-metric::before,
+.settings-section::before,
+.admin-overview-card::before {
+  background: linear-gradient(90deg, var(--ops-cyan), var(--ops-emerald), transparent);
+  opacity: 0.72;
+}
+
+.dashboard-assessment-row:hover,
+.living-register-row:hover,
+.watchlist-row:hover,
+.step1-guide-lane-option:hover,
+.results-tab:hover {
+  border-color: rgba(103, 232, 249, 0.38);
+  background:
+    radial-gradient(circle at 12% 0%, rgba(34, 211, 238, 0.12), transparent 30%),
+    linear-gradient(180deg, rgba(15, 23, 42, 0.86), rgba(2, 6, 23, 0.82));
+}
+
+.step1-guide-stage,
+.wizard-header--guide.step1-guide-stage {
+  border-color: rgba(103, 232, 249, 0.28);
+  background:
+    radial-gradient(circle at 14% 0%, rgba(34, 211, 238, 0.18), transparent 34%),
+    radial-gradient(circle at 86% 12%, rgba(45, 212, 191, 0.14), transparent 30%),
+    linear-gradient(180deg, rgba(8, 15, 26, 0.98), rgba(2, 6, 23, 0.9));
+}
+
+.step1-guide-stage__visual,
+.step1-guide-stage__board,
+.step1-guide-route-detail__handoff,
+.step1-guide-route-detail__context,
+.step1-guide-route-detail__step,
+.step1-route-support,
+.step1-ai-draft-preview,
+.wizard-manager-strip,
+.assessment-manager-card,
+.quality-coach-card,
+.evidence-gap-card {
+  border-color: rgba(103, 232, 249, 0.15);
+  background:
+    radial-gradient(circle at 90% 0%, rgba(34, 211, 238, 0.08), transparent 28%),
+    linear-gradient(180deg, rgba(15, 23, 42, 0.78), rgba(2, 6, 23, 0.75));
+}
+
+.step1-guide-stage__signal-stream span,
+.step1-guide-stage__pathline .is-active,
+.step1-guide-route-detail__progress span:first-child,
+.sim-progress-fill,
+.results-impact-mix-bar span,
+.results-threshold-fill:not(.results-threshold-fill--danger):not(.results-threshold-fill--warning):not(.results-threshold-fill--success) {
+  background: linear-gradient(180deg, var(--ops-cyan), var(--ops-emerald));
+  box-shadow: 0 0 18px rgba(34, 211, 238, 0.34);
+}
+
+.results-executive-cockpit__signal .results-signal-ring,
+.decision-readiness-ring,
+.confidence-ring,
+.dashboard-signal-ring {
+  border-color: rgba(34, 211, 238, 0.38);
+  box-shadow: 0 0 34px rgba(34, 211, 238, 0.18), inset 0 0 22px rgba(34, 211, 238, 0.08);
+  animation: stitchOpsPulse 4.8s ease-in-out infinite;
+}
+
+.results-tabbar {
+  border-color: rgba(103, 232, 249, 0.16);
+  background: rgba(2, 6, 23, 0.62);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045);
+}
+
+.results-cockpit-metrics,
+.results-decision-grid,
+.results-summary-grid,
+.results-recommendations-grid,
+.dashboard-grid,
+.wizard-content-grid,
+.settings-grid,
+.admin-overview-grid {
+  min-width: 0;
+}
+
+.modal,
+.modal-card,
+.modal-content,
+.context-modal,
+.settings-modal {
+  border-color: rgba(103, 232, 249, 0.2);
+  background:
+    radial-gradient(circle at 90% 0%, rgba(34, 211, 238, 0.1), transparent 34%),
+    linear-gradient(180deg, rgba(8, 15, 26, 0.98), rgba(2, 6, 23, 0.95));
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.56), 0 0 44px rgba(34, 211, 238, 0.11);
+}
+
+table,
+.data-table {
+  overflow: hidden;
+}
+
+th {
+  color: var(--ops-cyan-strong);
+  background: rgba(34, 211, 238, 0.08);
+}
+
+td {
+  border-color: rgba(148, 163, 184, 0.1);
+  color: var(--ops-text-soft);
+}
+
+tr:hover td {
+  background: rgba(34, 211, 238, 0.045);
+}
+
+.page--dashboard-stitch :is(.btn, button, .badge, summary, .dashboard-assessment-row, .living-register-row),
+.page--wizard-stitch :is(.btn, button, .badge, summary, .wizard-primary-card, .step1-guide-lane-option, .step1-guide-route-detail),
+.page--results-stitch :is(.btn, button, .badge, summary, .results-tab, .results-cockpit-metric, .results-brief-card),
+.admin-shell--stitch :is(.btn, button, .badge, summary, .admin-nav-link, .settings-section, .org-accordion) {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@keyframes stitchOpsScan {
+  0% { background-position: -260px 0, 0 0; }
+  100% { background-position: 260px 0, 0 22px; }
+}
+
+@keyframes stitchOpsPulse {
+  0%, 100% { box-shadow: 0 0 28px rgba(34, 211, 238, 0.13), inset 0 0 18px rgba(34, 211, 238, 0.07); }
+  50% { box-shadow: 0 0 42px rgba(34, 211, 238, 0.26), inset 0 0 28px rgba(45, 212, 191, 0.11); }
+}
+
+@keyframes stitchSignalDrift {
+  0% { background-position: -220px 0, 0 0; }
+  100% { background-position: 220px 0, 0 18px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #app-bar::before,
+  .dashboard-hero::before,
+  .wizard-header::before,
+  .results-header-bar::before,
+  .results-executive-cockpit::before,
+  .admin-workbench-strip::before,
+  .settings-shell__header::before,
+  .results-executive-cockpit__signal .results-signal-ring,
+  .decision-readiness-ring,
+  .confidence-ring,
+  .dashboard-signal-ring {
+    animation: none;
   }
 }

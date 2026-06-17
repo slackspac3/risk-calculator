@@ -8,11 +8,11 @@
 const TOLERANCE_THRESHOLD = 5_000_000;
 const DEFAULT_FX_RATE = 3.6725;
 const DEFAULT_COMPASS_PROXY_URL = resolveCompassProxyUrl();
-const APP_ASSET_VERSION = '20260616v3';
+const APP_ASSET_VERSION = '20260617v3';
 const APP_RELEASE = Object.freeze((typeof window !== 'undefined' && window.__RISK_CALCULATOR_RELEASE__) || {
   version: '0.10.0-pilot.1',
   channel: 'pilot',
-  build: '2026-06-16-stitch-overflow-fix',
+  build: '2026-06-17-stitch-full-redesign',
   assetVersion: APP_ASSET_VERSION,
   apiOrigin: globalThis?.ApiOriginResolver ? globalThis.ApiOriginResolver.DEFAULT_API_ORIGIN : ''
 });
@@ -6681,7 +6681,7 @@ function openEntityContextLayerEditor({ entity, settings = getAdminSettings(), o
         buttonId: 'btn-entity-layer-refine',
         buttonLabel: 'Apply Follow-Up Now',
         statusId: 'entity-layer-refine-status',
-        statusText: 'The current context fields above will be updated in place each time you refine.',
+        statusText: 'AI analyses each follow-up, updates the draft fields above, and saves only when you press Save Context.',
         className: 'card mt-4',
         style: 'padding:var(--sp-4);background:var(--bg-elevated)'
       })}`,
@@ -6734,6 +6734,39 @@ function openEntityContextLayerEditor({ entity, settings = getAdminSettings(), o
     if (nextBenchmarkStrategy) benchmarkEl.value = nextBenchmarkStrategy;
   }
 
+  function getChangedContextFields(beforeDraft, afterDraft) {
+    const fields = [
+      ['contextSummary', 'Context summary'],
+      ['geography', 'Geography'],
+      ['riskAppetiteStatement', 'Risk appetite'],
+      ['applicableRegulations', 'Regulations'],
+      ['aiInstructions', 'AI guidance'],
+      ['benchmarkStrategy', 'Benchmark strategy']
+    ];
+    return fields
+      .filter(([key]) => {
+        const beforeValue = Array.isArray(beforeDraft[key]) ? beforeDraft[key].join('|') : String(beforeDraft[key] || '').trim();
+        const afterValue = Array.isArray(afterDraft[key]) ? afterDraft[key].join('|') : String(afterDraft[key] || '').trim();
+        return beforeValue !== afterValue;
+      })
+      .map(([, label]) => label);
+  }
+
+  function buildContextRefinementMessage(result, beforeDraft, afterDraft, { continuityOnly = false, degraded = false } = {}) {
+    if (continuityOnly) {
+      return result?.responseMessage || 'Live AI was unavailable, so the current context draft was kept unchanged.';
+    }
+    const changedFields = getChangedContextFields(beforeDraft, afterDraft);
+    const lead = degraded
+      ? 'Fallback support analysed your follow-up and updated the draft fields above.'
+      : 'AI analysed your follow-up and updated the draft fields above.';
+    const changedCopy = changedFields.length
+      ? `Updated fields: ${changedFields.join(', ')}.`
+      : 'No visible field changed; review the current draft before saving.';
+    const response = result?.responseMessage || 'The context draft was refined from your latest prompt.';
+    return `${lead}\n${changedCopy}\n${response}\nSave Context is still required to keep this draft.`;
+  }
+
   function renderRefinementHistory() {
     if (!historyEl) return;
     if (!refinementHistory.length) {
@@ -6743,7 +6776,7 @@ function openEntityContextLayerEditor({ entity, settings = getAdminSettings(), o
     historyEl.innerHTML = refinementHistory.map(entry => `
       <div class="card" style="padding:var(--sp-3);background:${entry.role === 'user' ? 'var(--bg-canvas)' : 'rgba(244,193,90,.08)'};border-color:${entry.role === 'user' ? 'var(--border-subtle)' : 'rgba(244,193,90,.18)'}">
         <div style="font-size:.68rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted)">${entry.role === 'user' ? 'Your prompt' : 'AI update'}</div>
-        <div class="context-panel-copy" style="margin-top:6px">${entry.text}</div>
+        <div class="context-panel-copy" style="margin-top:6px;white-space:pre-wrap">${escapeHtml(entry.text)}</div>
       </div>`).join('');
     historyEl.scrollTop = historyEl.scrollHeight;
   }
@@ -6873,16 +6906,24 @@ function openEntityContextLayerEditor({ entity, settings = getAdminSettings(), o
       });
       const continuityOnly = result?.continuityOnly === true;
       const degraded = result?.aiUnavailable === true || result?.usedFallback === true;
+      const beforeDraft = getCurrentContextDraft();
       applyContextResult(result);
+      const afterDraft = getCurrentContextDraft();
       applyEntityContextGroundingCard(groundingEl, result.groundingAssessment);
       renderLayerContextReviewState();
-      refinementHistory.push({ role: 'assistant', text: result.responseMessage || 'I refined the context based on your latest prompt.' });
+      const changedFields = getChangedContextFields(beforeDraft, afterDraft);
+      refinementHistory.push({
+        role: 'assistant',
+        text: buildContextRefinementMessage(result, beforeDraft, afterDraft, { continuityOnly, degraded })
+      });
       renderRefinementHistory();
       followupEl.value = '';
       if (refineStatusEl) {
         refineStatusEl.textContent = continuityOnly
           ? 'Live AI was unavailable, so the current draft was kept unchanged.'
-          : 'Latest follow-up applied. Keep iterating until you are comfortable with the context.';
+          : changedFields.length
+            ? `AI analysed and updated: ${changedFields.join(', ')}. Review the fields above, then Save Context.`
+            : 'AI analysed the follow-up, but no visible field changed. Review the draft above before saving.';
       }
       UI.toast(
         continuityOnly
