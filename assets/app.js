@@ -8,14 +8,15 @@
 const TOLERANCE_THRESHOLD = 5_000_000;
 const DEFAULT_FX_RATE = 3.6725;
 const DEFAULT_COMPASS_PROXY_URL = resolveCompassProxyUrl();
-const APP_ASSET_VERSION = '20260617v6';
+const APP_ASSET_VERSION = '20260617v7';
 const APP_RELEASE = Object.freeze((typeof window !== 'undefined' && window.__RISK_CALCULATOR_RELEASE__) || {
   version: '0.10.0-pilot.1',
   channel: 'pilot',
-  build: '2026-06-17-structured-ai-json-mode',
+  build: '2026-06-17-context-json-mode-modal-guard',
   assetVersion: APP_ASSET_VERSION,
   apiOrigin: globalThis?.ApiOriginResolver ? globalThis.ApiOriginResolver.DEFAULT_API_ORIGIN : ''
 });
+let activePersistenceConflictModal = null;
 const PUBLIC_REPO_URL = 'https://github.com/slackspac3/risk-calculator';
 const PUBLIC_ISSUES_URL = `${PUBLIC_REPO_URL}/issues`;
 const GLOBAL_ADMIN_STORAGE_KEY = 'rq_admin_settings';
@@ -2733,12 +2734,16 @@ function readDraftRecoverySnapshot(username = getCurrentWorkspaceUsername()) {
 }
 
 function showPersistenceConflictDialog({ message = '', onReloadLatest, onRetry } = {}) {
+  if (activePersistenceConflictModal && typeof activePersistenceConflictModal.close === 'function') {
+    activePersistenceConflictModal.close();
+  }
   const footer = `
     <button type="button" class="btn btn--ghost" data-persistence-action="cancel">Keep Current Screen</button>
     <button type="button" class="btn btn--secondary" data-persistence-action="reload">Load Latest</button>
     <button type="button" class="btn btn--primary" data-persistence-action="retry">Try Again</button>
   `;
-  const modal = UI.modal({
+  let modal = null;
+  modal = UI.modal({
     title: 'Latest version available',
     body: `
       <p style="margin:0;color:var(--text-secondary);line-height:1.7">
@@ -2748,8 +2753,12 @@ function showPersistenceConflictDialog({ message = '', onReloadLatest, onRetry }
         Load the latest version first, or try your save again if you want to keep working with your current copy.
       </p>
     `,
-    footer
+    footer,
+    onClose: () => {
+      if (activePersistenceConflictModal === modal) activePersistenceConflictModal = null;
+    }
   });
+  activePersistenceConflictModal = modal;
   const root = document.querySelector('.modal-backdrop:last-of-type');
   if (!root) return;
   root.querySelector('[data-persistence-action="cancel"]')?.addEventListener('click', () => modal.close());
