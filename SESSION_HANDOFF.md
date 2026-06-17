@@ -6,7 +6,7 @@ If this file conflicts with the code, git history, or GitHub workflow files, tru
 
 ## Last Updated
 
-- Date: 2026-06-16
+- Date: 2026-06-17
 - Updated by: Codex session in local repo `/Users/bhavuk.arora/risk-calculator`
 
 ## Read First
@@ -58,14 +58,22 @@ If this file conflicts with the code, git history, or GitHub workflow files, tru
 
 ## Verified Baseline Through 2026-04-25
 
-Latest active-context update on 2026-06-16 in `/Users/bhavuk.arora/risk-calculator`:
+Latest active-context update on 2026-06-17 in `/Users/bhavuk.arora/risk-calculator`:
 
 - Stitch project `305203100423572651` is the active design source for the redesigned screens.
 - Current implemented pass targets all named redesigned Stitch screens at the app-shell level: Platform Landing Page, PoC Access Login, Risk Dashboard, Journey Selection, Assessment Intake, Scenario Refinement, Estimation Workspace, Simulation Review, Assessment Report, and BU Context Management.
 - Step 1 now keeps the assessment-type cards in the main hero with a selected-journey summary, preserving existing assessment-type bindings and navigation.
 - Step 2 Basic keeps the existing two-prompt intake, required-context behavior, provenance, and AI build bindings while adopting the darker Stitch workbench treatment.
 - The broader pass adds scoped page classes and a Stitch-derived dark workbench CSS layer for public/login, dashboard, Step 3, Step 4, Step 5, results, and admin BU/settings surfaces while preserving existing IDs, controls, route bindings, and role semantics.
-- Asset stamp is now `20260616v3`; build stamp is `2026-06-16-stitch-overflow-fix`.
+- The exported AI Studio/Stitch React app at `/Users/bhavuk.arora/Downloads/risk-intelligence-dashboard` was used only as a visual reference; no React, Tailwind, Motion, or Gemini scaffold was imported. Its darker cyan/emerald cockpit treatment now informs the final scoped CSS override layer.
+- Asset stamp is now `20260617v2`; build stamp is `2026-06-17-stitch-export-polish`.
+- Entity context follow-up refinement now shows an explicit AI update in the modal history, lists changed draft fields, and reminds the user that `Save Context` is still required.
+- Validation after the export-guided CSS polish passed:
+  - `npm run check:syntax`
+  - `npm run check:smoke`
+  - `npm run check:staleness`
+  - `git diff --check`
+  - `npm run test:e2e:smoke -- --grep "authenticated user dashboard renders|wizard assessment type router stores selection"` (`2` tests)
 - Validation after the broader pass passed:
   - `npm run check:syntax`
   - `npm run check:staleness`
