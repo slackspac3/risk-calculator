@@ -8,11 +8,11 @@
 const TOLERANCE_THRESHOLD = 5_000_000;
 const DEFAULT_FX_RATE = 3.6725;
 const DEFAULT_COMPASS_PROXY_URL = resolveCompassProxyUrl();
-const APP_ASSET_VERSION = '20260617v7';
+const APP_ASSET_VERSION = '20260617v8';
 const APP_RELEASE = Object.freeze((typeof window !== 'undefined' && window.__RISK_CALCULATOR_RELEASE__) || {
   version: '0.10.0-pilot.1',
   channel: 'pilot',
-  build: '2026-06-17-context-json-mode-modal-guard',
+  build: '2026-06-17-admin-conflict-autosave-guard',
   assetVersion: APP_ASSET_VERSION,
   apiOrigin: globalThis?.ApiOriginResolver ? globalThis.ApiOriginResolver.DEFAULT_API_ORIGIN : ''
 });
@@ -4343,10 +4343,12 @@ function applyManagedAccountAssignmentToSettings(account, updates = {}, baseSett
 let adminSettingsSaveQueue = Promise.resolve(false);
 let adminSettingsSaveTailSnapshot = '';
 let adminSettingsSaveTailPromise = null;
+let adminSettingsWriteConflictPending = false;
 
 async function saveAdminSettings(settings, options = {}) {
   const merged = normaliseAdminSettings(settings);
   const requestedSnapshot = buildComparableAdminSettingsSnapshot(merged);
+  if (adminSettingsWriteConflictPending && !options.allowDuringConflict) return false;
   if (adminSettingsSaveTailPromise && requestedSnapshot && requestedSnapshot === adminSettingsSaveTailSnapshot) {
     return adminSettingsSaveTailPromise;
   }
@@ -4354,6 +4356,7 @@ async function saveAdminSettings(settings, options = {}) {
     const expectedRenderToken = Number(options.renderToken || 0);
     const isStaleRenderContext = () => expectedRenderToken > 0 && expectedRenderToken !== activeAdminSettingsRenderToken;
     if (isStaleRenderContext()) return false;
+    if (adminSettingsWriteConflictPending && !options.allowDuringConflict) return false;
     const currentSettings = getAdminSettings();
     if (buildComparableAdminSettingsSnapshot(currentSettings) === requestedSnapshot) return true;
     if (AuthService.getAdminApiSecret() || AuthService.getApiSessionToken()) {
@@ -4366,6 +4369,7 @@ async function saveAdminSettings(settings, options = {}) {
         if (result?.settings) {
           applySharedSettingsLocally(result.settings);
         }
+        adminSettingsWriteConflictPending = false;
       } catch (error) {
         if (isStaleRenderContext()) return false;
         const latestSnapshot = error?.latestSettings
@@ -4373,15 +4377,18 @@ async function saveAdminSettings(settings, options = {}) {
           : '';
         if (error?.code === 'WRITE_CONFLICT' && latestSnapshot && latestSnapshot === requestedSnapshot) {
           applySharedSettingsLocally(error.latestSettings);
+          adminSettingsWriteConflictPending = false;
           return true;
         }
         if (error?.code === 'WRITE_CONFLICT') {
+          adminSettingsWriteConflictPending = true;
           showPersistenceConflictDialog({
             message: 'These platform settings were updated in another session before this save finished.',
             onReloadLatest: async () => {
               if (expectedRenderToken > 0) activeAdminSettingsRenderToken += 1;
               if (error?.latestSettings) applySharedSettingsLocally(error.latestSettings);
               else await loadSharedAdminSettings();
+              adminSettingsWriteConflictPending = false;
               Router.navigate(window.location.hash.replace(/^#/, '') || '/admin/settings/org');
               UI.toast('Loaded the latest platform settings.', 'info');
             },
@@ -4389,7 +4396,7 @@ async function saveAdminSettings(settings, options = {}) {
               if (error?.latestSettings) applySharedSettingsLocally(error.latestSettings);
               else await loadSharedAdminSettings();
               await new Promise(resolve => window.setTimeout(resolve, getSafeRetryAfterMs(error)));
-              await saveAdminSettings(settings, options);
+              await saveAdminSettings(settings, { ...options, allowDuringConflict: true });
             }
           });
           return false;
@@ -4399,6 +4406,7 @@ async function saveAdminSettings(settings, options = {}) {
       }
     } else {
       applySharedSettingsLocally(merged);
+      adminSettingsWriteConflictPending = false;
     }
     AppCrossTabSync.broadcastSettingsChanged({
       revision: Number(getAdminSettings()._meta?.revision || 0),
