@@ -8,11 +8,11 @@
 const TOLERANCE_THRESHOLD = 5_000_000;
 const DEFAULT_FX_RATE = 3.6725;
 const DEFAULT_COMPASS_PROXY_URL = resolveCompassProxyUrl();
-const APP_ASSET_VERSION = '20260617v3';
+const APP_ASSET_VERSION = '20260617v4';
 const APP_RELEASE = Object.freeze((typeof window !== 'undefined' && window.__RISK_CALCULATOR_RELEASE__) || {
   version: '0.10.0-pilot.1',
   channel: 'pilot',
-  build: '2026-06-17-stitch-full-redesign',
+  build: '2026-06-17-context-refinement-copy',
   assetVersion: APP_ASSET_VERSION,
   apiOrigin: globalThis?.ApiOriginResolver ? globalThis.ApiOriginResolver.DEFAULT_API_ORIGIN : ''
 });
@@ -6406,13 +6406,14 @@ function openOrgEntityEditor({ structure = [], existingNode = null, seed = {}, o
         applyEntityContextGroundingCard(contextGroundingEl, result.groundingAssessment);
         latestDerivedDepartmentContext = result;
         contextRefinementHistory.push({ role: 'assistant', text: result.responseMessage || 'I refined the function context based on your latest prompt.' });
+        const continuityDisplay = continuityOnly || isContextRefinementUnchangedBecauseAiUnavailable(result);
         if (contextRefineStatusEl) {
-          contextRefineStatusEl.textContent = continuityOnly
+          contextRefineStatusEl.textContent = continuityDisplay
             ? 'Live AI was unavailable, so the current draft was kept unchanged.'
             : 'Latest follow-up applied. Keep iterating until the context feels right.';
         }
         UI.toast(
-          continuityOnly
+          continuityDisplay
             ? 'Live AI was unavailable. The current function context stayed unchanged.'
             : degraded
               ? 'Function context updated with fallback support. Review it carefully.'
@@ -6445,13 +6446,14 @@ function openOrgEntityEditor({ structure = [], existingNode = null, seed = {}, o
         contextRefinementHistory.push({ role: 'assistant', text: result.responseMessage || 'I refined the company context based on your latest prompt.' });
         const continuityOnly = result?.continuityOnly === true;
         const degraded = result?.aiUnavailable === true || result?.usedFallback === true;
+        const continuityDisplay = continuityOnly || isContextRefinementUnchangedBecauseAiUnavailable(result);
         if (contextRefineStatusEl) {
-          contextRefineStatusEl.textContent = continuityOnly
+          contextRefineStatusEl.textContent = continuityDisplay
             ? 'Live AI was unavailable, so the current company context was kept unchanged.'
             : 'Latest follow-up applied. Keep iterating until the context feels right.';
         }
         UI.toast(
-          continuityOnly
+          continuityDisplay
             ? 'Live AI was unavailable. The current company context stayed unchanged.'
             : degraded
               ? 'Company context updated with fallback support. Review it carefully.'
@@ -6753,17 +6755,20 @@ function openEntityContextLayerEditor({ entity, settings = getAdminSettings(), o
   }
 
   function buildContextRefinementMessage(result, beforeDraft, afterDraft, { continuityOnly = false, degraded = false } = {}) {
-    if (continuityOnly) {
-      return result?.responseMessage || 'Live AI was unavailable, so the current context draft was kept unchanged.';
-    }
     const changedFields = getChangedContextFields(beforeDraft, afterDraft);
+    const response = result?.responseMessage || 'The context draft was refined from your latest prompt.';
+    if (continuityOnly || isContextRefinementUnchangedBecauseAiUnavailable(result, changedFields)) {
+      const changedCopy = changedFields.length
+        ? `Updated fields: ${changedFields.join(', ')}.`
+        : 'No visible field changed; review the current draft before saving.';
+      return `${response}\n${changedCopy}\nSave Context is still required to keep this draft.`;
+    }
     const lead = degraded
       ? 'Fallback support analysed your follow-up and updated the draft fields above.'
       : 'AI analysed your follow-up and updated the draft fields above.';
     const changedCopy = changedFields.length
       ? `Updated fields: ${changedFields.join(', ')}.`
       : 'No visible field changed; review the current draft before saving.';
-    const response = result?.responseMessage || 'The context draft was refined from your latest prompt.';
     return `${lead}\n${changedCopy}\n${response}\nSave Context is still required to keep this draft.`;
   }
 
@@ -6912,21 +6917,22 @@ function openEntityContextLayerEditor({ entity, settings = getAdminSettings(), o
       applyEntityContextGroundingCard(groundingEl, result.groundingAssessment);
       renderLayerContextReviewState();
       const changedFields = getChangedContextFields(beforeDraft, afterDraft);
+      const continuityDisplay = continuityOnly || isContextRefinementUnchangedBecauseAiUnavailable(result, changedFields);
       refinementHistory.push({
         role: 'assistant',
-        text: buildContextRefinementMessage(result, beforeDraft, afterDraft, { continuityOnly, degraded })
+        text: buildContextRefinementMessage(result, beforeDraft, afterDraft, { continuityOnly: continuityDisplay, degraded })
       });
       renderRefinementHistory();
       followupEl.value = '';
       if (refineStatusEl) {
-        refineStatusEl.textContent = continuityOnly
+        refineStatusEl.textContent = continuityDisplay
           ? 'Live AI was unavailable, so the current draft was kept unchanged.'
           : changedFields.length
             ? `AI analysed and updated: ${changedFields.join(', ')}. Review the fields above, then Save Context.`
             : 'AI analysed the follow-up, but no visible field changed. Review the draft above before saving.';
       }
       UI.toast(
-        continuityOnly
+        continuityDisplay
           ? `Live AI was unavailable. The current context for ${entity.name} stayed unchanged.`
           : degraded
             ? `Context updated with fallback support for ${entity.name}. Review it carefully.`
@@ -7400,6 +7406,13 @@ function openEntityObligationManager({ entity, settings = getAdminSettings(), on
   return modal;
 }
 
+function isContextRefinementUnchangedBecauseAiUnavailable(result = {}, changedFields = []) {
+  if (Array.isArray(changedFields) && changedFields.length) return false;
+  const response = String(result?.responseMessage || '').trim();
+  return result?.continuityOnly === true
+    || (result?.aiUnavailable === true && result?.preserveExistingReviewMeta === true)
+    || (/live ai was unavailable/i.test(response) && /(kept|stayed) unchanged/i.test(response));
+}
 
 function buildLocalEntityContextFallback(refineInput = {}) {
   const current = refineInput.currentContext || {};
