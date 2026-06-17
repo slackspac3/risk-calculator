@@ -1426,6 +1426,7 @@ function applyUserStateSnapshotLocally(username, state = {}) {
   };
   updateUserStateCache(nextCache);
   AppState.userSettingsSavedAt = Number(nextCache._meta?.updatedAt || AppState.userSettingsSavedAt || 0);
+  AppState.userStateLastConflict = null;
   clearWorkspaceStaleNotice({
     username: safeUsername,
     revision: Number(nextCache._meta?.revision || 0)
@@ -3497,6 +3498,7 @@ async function handleUserStateConflict(error, retry) {
 function queueSharedUserStateSync(patch = {}, username = getCurrentWorkspaceUsername(), options = {}) {
   const safeUsername = String(username || '').trim().toLowerCase();
   if (!safeUsername) return;
+  if (AppState.userStateLastConflict?.code === 'WRITE_CONFLICT' && !options.allowDuringConflict) return;
   // Queue a cloned patch so later draft/settings mutations cannot rewrite the pending sync payload in place.
   const safePatch = patch && typeof patch === 'object' ? cloneSerializableState(patch, { ...(patch || {}) }) : {};
   applyWorkspaceRuntimeState(applyWorkspaceSyncQueuedTransition(AppState, safePatch));
@@ -3543,7 +3545,7 @@ function queueSharedUserStateSync(patch = {}, username = getCurrentWorkspaceUser
         updateWizardSaveState();
         updateWorkspaceSyncState();
         if (error?.code === 'WRITE_CONFLICT') {
-          await handleUserStateConflict(error, () => queueSharedUserStateSync(pendingPatch, safeUsername, options));
+          await handleUserStateConflict(error, () => queueSharedUserStateSync(pendingPatch, safeUsername, { ...options, allowDuringConflict: true }));
           return;
         }
         console.warn('queueSharedUserStateSync failed:', error.message);

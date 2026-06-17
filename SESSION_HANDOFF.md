@@ -68,7 +68,7 @@ Latest active-context update on 2026-06-17 in `/Users/bhavuk.arora/risk-calculat
 - The exported AI Studio/Stitch React app at `/Users/bhavuk.arora/Downloads/risk-intelligence-dashboard` was used only as a visual reference; no React, Tailwind, Motion, or Gemini scaffold was imported. Its darker cyan/emerald cockpit treatment now informs the final CSS override layer across app shell, dashboard, wizard, results, settings, and admin surfaces.
 - Asset stamp is now `20260617v7`; build stamp is `2026-06-17-context-json-mode-modal-guard`.
 - AI response extraction now accepts OpenAI-compatible structured `function_call.arguments` / `tool_calls[].function.arguments` envelopes, and entity-context refinement now requests JSON mode with a larger completion budget so live AI returns usable structured output instead of falling back when JSON is not in `message.content`.
-- Persistence conflict handling now keeps only one `Latest version available` modal open at a time so duplicate autosave conflicts cannot stack and block the `Load Latest` action.
+- Persistence conflict handling now keeps only one `Latest version available` modal open at a time and pauses normal autosave queueing while a `WRITE_CONFLICT` is unresolved, so duplicate autosave conflicts cannot stack or block the `Load Latest` action.
 - Context follow-up copy now treats live-AI-unavailable unchanged results as unchanged, rather than saying AI updated fields when no visible field changed.
 - Entity context follow-up refinement now shows an explicit AI update in the modal history, lists changed draft fields, and reminds the user that `Save Context` is still required.
 - Validation after the full export-guided redesign passed:
