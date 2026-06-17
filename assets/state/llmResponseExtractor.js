@@ -82,6 +82,12 @@
     return null;
   }
 
+  function coerceToolArguments(value) {
+    if (typeof value === 'string') return value;
+    if (value && typeof value === 'object') return JSON.stringify(value);
+    return coerceTextContent(value);
+  }
+
   function describeLlmResponse(data = {}) {
     const choices = Array.isArray(data?.choices) ? data.choices : [];
     for (const choice of choices) {
@@ -89,6 +95,24 @@
       if (directMessage) return {
         text: directMessage,
         diagnostic: 'assistant message content found'
+      };
+
+      const functionArguments = coerceToolArguments(choice?.message?.function_call?.arguments);
+      if (functionArguments) return {
+        text: functionArguments,
+        diagnostic: 'function call arguments found'
+      };
+
+      const toolArguments = Array.isArray(choice?.message?.tool_calls)
+        ? choice.message.tool_calls
+            .map((toolCall) => coerceToolArguments(toolCall?.function?.arguments || toolCall?.arguments))
+            .filter(Boolean)
+            .join('\n')
+            .trim()
+        : '';
+      if (toolArguments) return {
+        text: toolArguments,
+        diagnostic: 'tool call arguments found'
       };
 
       const directOutput = coerceTextContent(choice?.content);

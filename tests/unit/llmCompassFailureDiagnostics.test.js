@@ -114,6 +114,55 @@ test('structured-response failures are captured with raw preview and repair diag
   assert.ok(repairTransportEntry, 'expected the repair transport failure to be logged');
 });
 
+test('entity context refinement accepts structured function-call arguments', async () => {
+  const payload = {
+    geography: 'UAE',
+    contextSummary: 'Healthcare operations covering clinics, hospitals, diagnostics, genomics, digital health, and Diaverum in the UAE.',
+    riskAppetiteStatement: 'Maintain low appetite for patient safety, regulated health data, continuity, and ADHICS compliance failures.',
+    applicableRegulations: ['ADHICS'],
+    aiInstructions: 'Ground future assessments in UAE healthcare operations, regulated health data, and ADHICS obligations.',
+    benchmarkStrategy: 'Use healthcare continuity, privacy, diagnostics, and regulated clinical operations as benchmark anchors.',
+    responseMessage: 'Added the UAE healthcare mix, Diaverum ownership, and ADHICS obligation to the retained context.'
+  };
+  const service = loadLlmService({
+    origin: 'http://127.0.0.1:8080',
+    fetchImpl: async () => ({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({
+        choices: [
+          {
+            message: {
+              function_call: {
+                name: 'refine_entity_context',
+                arguments: JSON.stringify(payload)
+              }
+            }
+          }
+        ]
+      })
+    })
+  });
+
+  configureLocalDirectCompass(service);
+
+  const result = await service.refineEntityContext({
+    entity: { name: 'M42 UAE', type: 'Business Unit' },
+    currentContext: {
+      geography: 'UAE',
+      contextSummary: 'Healthcare business.',
+      applicableRegulations: []
+    },
+    userPrompt: 'It has frontline clinics, hospitals, diagnostics labs, genomics, digital health, Diaverum, and is subject to ADHICS.'
+  });
+
+  assert.equal(result.geography, 'UAE');
+  assert.match(result.contextSummary, /Diaverum/i);
+  assert.deepEqual(result.applicableRegulations, ['ADHICS']);
+  assert.match(result.aiInstructions, /ADHICS/i);
+  assert.equal(result.aiUnavailable, undefined);
+});
+
 test('failed AI audit rows capture truncation status and raised prompt limit', async () => {
   const auditEvents = [];
   const service = loadLlmService({
