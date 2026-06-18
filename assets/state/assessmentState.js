@@ -187,10 +187,8 @@ function archiveCurrentDraft() {
       })
     : String(AppState.draft?.scenarioTitle || AppState.draft?.narrative || '').trim();
   if (!draftTitle) return null;
-  let archivedDraft = null;
-  try {
-    archivedDraft = JSON.parse(JSON.stringify(AppState.draft));
-  } catch {
+  let archivedDraft = cloneDraftStateSnapshot(AppState.draft);
+  if (!archivedDraft) {
     // Fallback keeps archive available if one transient field cannot be serialized.
     archivedDraft = { ...AppState.draft };
   }
@@ -216,10 +214,8 @@ function deleteCurrentDraft() {
 function restoreArchivedDraftToWorkspace(id) {
   const archived = getAssessmentById(id);
   if (!archived || hasResults(archived)) return null;
-  let restored = null;
-  try {
-    restored = JSON.parse(JSON.stringify(archived));
-  } catch {
+  let restored = cloneDraftStateSnapshot(archived);
+  if (!restored) {
     // Fallback to a shallow copy if stored draft metadata is malformed but still recoverable.
     restored = { ...archived };
   }
@@ -241,10 +237,8 @@ function getAssessmentById(id) {
 function duplicateAssessmentToDraft(id) {
   const source = getAssessmentById(id);
   if (!source) return null;
-  let duplicate = null;
-  try {
-    duplicate = JSON.parse(JSON.stringify(source));
-  } catch {
+  let duplicate = cloneDraftStateSnapshot(source);
+  if (!duplicate) {
     // Fallback keeps duplication available even if one saved field cannot be serialized cleanly.
     duplicate = { ...source };
   }
@@ -427,7 +421,7 @@ function recordLearningFromAssessment(draft) {
 
 function applyLearnedTemplateDraft(tmpl) {
   const profile = getTemplateLearningProfile(tmpl?.id);
-  const draft = JSON.parse(JSON.stringify(tmpl?.draft || {}));
+  const draft = cloneDraftStateSnapshot(tmpl?.draft || {}, {});
   if (!profile || profile.completed < 2 || !draft.fairParams) {
     return { draft, note: '' };
   }

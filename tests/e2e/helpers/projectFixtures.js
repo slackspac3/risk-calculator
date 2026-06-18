@@ -22,6 +22,28 @@ const SPARSE_BUYER_USER_SETTINGS = Object.freeze({
   _overrideKeys: []
 });
 
+const SPARSE_SELLER_USER = Object.freeze({
+  username: 'sparse.project.seller',
+  displayName: 'Sparse Seller Tester',
+  role: 'user',
+  businessUnitEntityId: '',
+  departmentEntityId: ''
+});
+
+const SPARSE_SELLER_USER_SETTINGS = Object.freeze({
+  userProfile: {
+    fullName: 'Sparse Seller Tester',
+    jobTitle: 'Commercial Risk Manager',
+    businessUnit: 'G42',
+    department: 'Commercial',
+    focusAreas: ['Project delivery risk'],
+    preferredOutputs: 'Commercial decision summaries',
+    workingContext: 'Validate sparse seller economics without treating unknown margin as zero.'
+  },
+  onboardedAt: '2026-06-12T00:00:00.000Z',
+  _overrideKeys: []
+});
+
 const DEFAULT_E2E_ADMIN_SETTINGS = Object.freeze({
   geography: 'United Arab Emirates',
   applicableRegulations: ['UAE PDPL'],
@@ -122,9 +144,101 @@ function buildSparseBuyerExposureResponse() {
   };
 }
 
+function buildSparseSellerExposureResponse() {
+  return {
+    mode: 'live',
+    usedFallback: false,
+    aiUnavailable: false,
+    generatedAt: '2026-06-12T08:00:00.000Z',
+    trace: { traceLabel: 'Seller project exposure map' },
+    projectExposure: {
+      valuationMode: 'hybrid',
+      projectExposureSummary: 'Seller project exposure maps margin at risk and delivery recovery as relevant, but gross margin remains unknown.',
+      projectInputQuality: {
+        score: 32,
+        label: 'Thin project economics',
+        knownHighImpactInputs: ['Expected revenue'],
+        estimatedHighImpactInputs: [],
+        unknownHighImpactInputs: ['Gross margin %', 'Cost to cure', 'Liability cap', 'Termination exposure'],
+        canProceed: true,
+        recommendedNextInput: {
+          field: 'grossMarginPct',
+          why: 'Gross margin is needed before seller margin at risk can be quantified.',
+          whoMightKnow: 'Commercial finance or deal desk',
+          suggestedQuestion: 'What gross margin percentage is expected for this delivery commitment?'
+        }
+      },
+      financialDrivers: [
+        {
+          id: 'seller-margin-at-risk',
+          label: 'Margin at risk',
+          driverType: 'margin_at_risk',
+          driverStatus: 'unquantified_driver',
+          formula: '',
+          low: null,
+          likely: null,
+          high: null,
+          mapsTo: 'reputationContract',
+          confidence: 'low',
+          source: 'unknown',
+          missingInputs: ['grossMarginPct'],
+          rationale: 'Revenue is known, but gross margin is unknown and is not treated as zero.'
+        },
+        {
+          id: 'seller-cost-to-cure',
+          label: 'Cost to cure',
+          driverType: 'cost_to_cure',
+          driverStatus: 'unquantified_driver',
+          formula: '',
+          low: null,
+          likely: null,
+          high: null,
+          mapsTo: 'incidentResponse',
+          confidence: 'low',
+          source: 'unknown',
+          missingInputs: ['costToCure'],
+          rationale: 'Extra delivery recovery appears likely, but the cost to cure is unknown.'
+        }
+      ],
+      capsAndOffsets: [],
+      doubleCountingWarnings: [
+        'Do not treat total contract value as economic loss without margin logic.',
+        'Do not treat unknown insurance or recoveries as zero recovery.'
+      ],
+      missingInputs: [
+        {
+          field: 'grossMarginPct',
+          label: 'Gross margin %',
+          importance: 'high',
+          whyItMatters: 'This converts revenue at risk into margin at risk without using gross revenue as loss.',
+          whoMightKnow: 'Commercial finance or deal desk',
+          suggestedQuestion: 'What gross margin percentage is expected for this delivery commitment?',
+          mapsTo: 'reputationContract'
+        },
+        {
+          field: 'costToCure',
+          label: 'Cost to cure',
+          importance: 'high',
+          whyItMatters: 'This is needed before recovery delivery effort can be quantified.',
+          whoMightKnow: 'Delivery owner or project finance',
+          suggestedQuestion: 'What extra delivery cost would be needed to recover the commitment?',
+          mapsTo: 'incidentResponse'
+        }
+      ],
+      mapsToRiskParameters: {
+        reputationContract: ['seller-margin-at-risk'],
+        incidentResponse: ['seller-cost-to-cure']
+      }
+    }
+  };
+}
+
 module.exports = {
   DEFAULT_E2E_ADMIN_SETTINGS,
   SPARSE_BUYER_USER,
   SPARSE_BUYER_USER_SETTINGS,
-  buildSparseBuyerExposureResponse
+  SPARSE_SELLER_USER,
+  SPARSE_SELLER_USER_SETTINGS,
+  buildSparseBuyerExposureResponse,
+  buildSparseSellerExposureResponse
 };

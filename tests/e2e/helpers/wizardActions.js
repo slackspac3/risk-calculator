@@ -11,6 +11,17 @@ async function startBuyerProjectAssessment(page, expect) {
   return active;
 }
 
+async function startSellerProjectAssessment(page, expect) {
+  await page.goto('/#/wizard/1');
+  await expect(page.getByRole('heading', { name: /what are you assessing/i })).toBeVisible({ timeout: 10000 });
+  const current = page.locator('.app-stage-shell.is-current');
+  await current.locator('[data-assessment-type="project_seller"]').click();
+  await expect(page).toHaveURL(/#\/wizard\/2$/);
+  const active = page.locator('.app-stage-shell.is-current');
+  await expect(active.locator('.step1-route-inputs--seller')).toBeVisible({ timeout: 10000 });
+  return active;
+}
+
 async function fillSparseBuyerProjectIntake(active) {
   await active.locator('#guided-event').fill('The implementation partner may miss the go-live date for a customer onboarding platform.');
   await active.locator('#guided-impact').fill('Delayed customer launch, operational workarounds, and replacement supplier pressure.');
@@ -25,10 +36,27 @@ async function fillSparseBuyerProjectIntake(active) {
   await active.locator('#step1-buyer-proxy-criticalPath').selectOption('yes');
 }
 
-async function generateProjectExposureMap(active, expect, { requestCount }) {
-  const exposurePanel = active.locator('[data-project-exposure-panel="buyer"]');
+async function fillSparseSellerProjectIntake(active) {
+  await active.locator('#guided-event').fill('A fixed-price delivery commitment may slip and require extra delivery effort before customer acceptance.');
+  await active.locator('#guided-impact').fill('Margin erosion, delayed revenue recognition, and possible customer credits.');
+  await active.locator('#project-name').fill('Managed analytics platform delivery');
+  await active.locator('#project-customer').fill('Enterprise customer');
+  await active.locator('#project-stage').fill('Delivery');
+  await active.locator('#project-contract-type').fill('Fixed-price milestone contract');
+  await active.locator('#project-description').fill('Delivery of a managed analytics platform for a regulated customer.');
+  await active.locator('#project-main-consequence').fill('Delivery effort increases and margin may erode before acceptance.');
+  await active.locator('#step1-seller-expectedRevenue').fill('500000');
+  await active.locator('#step1-seller-proxy-mainImpact').selectOption('margin_erosion');
+  await active.locator('#step1-seller-proxy-expectedMargin').selectOption('low');
+  await active.locator('#step1-seller-proxy-penaltiesOrCredits').selectOption('yes');
+  await active.locator('#step1-seller-proxy-extraDeliveryCost').selectOption('high');
+  await active.locator('#step1-seller-proxy-commercialModel').selectOption('fixed_price');
+}
+
+async function generateProjectExposureMap(active, expect, { requestCount, scope = 'buyer', missingLabel = /Delay cost per day/i } = {}) {
+  const exposurePanel = active.locator(`[data-project-exposure-panel="${scope}"]`);
   await expect(exposurePanel).toContainText(/Unknown high-impact inputs/i);
-  await expect(exposurePanel).toContainText(/Delay cost per day/i);
+  await expect(exposurePanel).toContainText(missingLabel);
   const generateButton = exposurePanel.locator('[data-project-exposure-action="generate"]');
   await generateButton.scrollIntoViewIfNeeded();
   await generateButton.click();
@@ -57,6 +85,8 @@ async function continueToReviewAndRun(page, expect, exposurePanel) {
 module.exports = {
   continueToReviewAndRun,
   fillSparseBuyerProjectIntake,
+  fillSparseSellerProjectIntake,
   generateProjectExposureMap,
-  startBuyerProjectAssessment
+  startBuyerProjectAssessment,
+  startSellerProjectAssessment
 };

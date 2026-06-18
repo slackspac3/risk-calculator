@@ -6,7 +6,7 @@ If this file conflicts with the code, git history, or GitHub workflow files, tru
 
 ## Last Updated
 
-- Date: 2026-06-17
+- Date: 2026-06-19
 - Updated by: Codex session in local repo `/Users/bhavuk.arora/risk-calculator`
 
 ## Read First
@@ -57,6 +57,23 @@ If this file conflicts with the code, git history, or GitHub workflow files, tru
 - Do not force-push or rewrite shared branch history unless explicitly approved.
 
 ## Verified Baseline Through 2026-04-25
+
+Latest active-context update on 2026-06-19 in `/Users/bhavuk.arora/risk-calculator`:
+
+- Maintenance backlog pass completed on `master` after the Ponytail audit follow-up.
+- Local Stitch artifacts are ignored via `.gitignore` entries for `output/` and `.stitch/`; the scratch `DESIGN.md` file remains untracked and should not be committed unless intentionally promoted to docs.
+- Smoke e2e setup now reuses shared helpers; sparse project buyer assertions moved into `tests/e2e/helpers/sparseProjectAssertions.js`; sparse seller and stale project exposure e2e coverage were added.
+- `api/ai/manual-intake-assist.js` now uses the shared `createAiJsonRouteHandler` route shell, while preserving request/response behavior.
+- Shared AI workflow normalizer helpers now live in `api/_aiWorkflowSupport.js`; HTML escaping and rounded currency formatting have central UI helpers.
+- Step 1 project exposure rendering moved to `assets/wizard/step1ProjectExposurePanel.js`; Step 5 AI panels moved to `assets/wizard/step4AiPanels.js`; asset loading and freshness tests were updated.
+- Conservative UI cleanup only: duplicate CSS declarations removed, Basic mode no longer renders current-stage decorative ambient shell markup, and draft snapshot clone call sites now use the existing JSON-safe helper instead of inline JSON clones.
+- Validation passed:
+  - `npm run check:syntax`
+  - `npm run test:unit` (`747` tests)
+  - `npm run test:e2e -- tests/e2e/smoke.spec.js` (`51` tests)
+  - `npm run test:e2e -- tests/e2e/sparse-project-buyer.spec.js tests/e2e/sparse-project-seller.spec.js` (`3` tests)
+  - focused unit checks for assessment state, Step 1 project exposure panel, and Step 4 AI freshness
+  - `git diff --check`
 
 Latest active-context update on 2026-06-17 in `/Users/bhavuk.arora/risk-calculator`:
 

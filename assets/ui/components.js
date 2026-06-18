@@ -3,15 +3,21 @@
  */
 
 const UI = (() => {
+  function escapeHtml(value = '') {
+    return String(value || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function escapeAttr(value = '') {
+    return escapeHtml(value);
+  }
+
   function safeHtml(value = '') {
-    return typeof escapeHtml === 'function'
-      ? escapeHtml(String(value || ''))
-      : String(value || '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
+    return escapeHtml(value);
   }
 
   function safeHref(value = '') {
@@ -103,7 +109,7 @@ const UI = (() => {
   }
 
   function openAiTraceModal(trace = null, { confidenceBasis = '' } = {}) {
-    const safe = (value = '') => typeof escapeHtml === 'function' ? escapeHtml(String(value || '')) : String(value || '');
+    const safe = escapeHtml;
     const entry = trace && typeof trace === 'object' ? trace : {};
     const sources = Array.isArray(entry.sources) ? entry.sources.filter(Boolean) : [];
     const promptSummary = String(entry.promptSummary || '').trim();
@@ -452,8 +458,13 @@ const UI = (() => {
   }
 
 
-  function _getCurrencyPrefix(currency) {
+  function getCurrencyPrefix(currency) {
     return currency === 'AED' ? 'AED ' : '$';
+  }
+
+  function formatCurrency(usdValue, currency = 'USD', fxRate = 3.6725) {
+    const displayValue = Math.round(currency === 'AED' ? Number(usdValue || 0) * fxRate : Number(usdValue || 0));
+    return `${getCurrencyPrefix(currency)}${displayValue.toLocaleString(currency === 'AED' ? 'en-AE' : 'en-US')}`;
   }
 
   // ─── Chart: Histogram ────────────────────────────────────
@@ -650,9 +661,8 @@ const UI = (() => {
   }
 
   function _fmtShort(v, currency) {
-    const displayValue = Math.round(Number(v || 0));
-    return `${_getCurrencyPrefix(currency)}${displayValue.toLocaleString(currency === 'AED' ? 'en-AE' : 'en-US')}`;
+    return formatCurrency(v, currency, 1);
   }
 
-  return { toast, modal, citationModal, openAiTraceModal, renderStepper, skeletonBlock, skeletonCard, wizardAssistSkeleton, adminSectionHeader, adminTableCard, dashboardOverviewCard, dashboardSectionCard, dashboardAssessmentRow, resultsVisualCard, resultsBriefCard, resultsSectionBlock, resultsSummaryCard, resultsDetailDisclosure, wizardInputSection, sectionStatusBadge, disclosureSection, contextInfoPanel, contextInfoGrid, aiAssistCard, aiRefinementCard, tagInput, confirm, drawHistogram, drawLEC, sectionEyebrow };
+  return { escapeHtml, escapeAttr, getCurrencyPrefix, formatCurrency, toast, modal, citationModal, openAiTraceModal, renderStepper, skeletonBlock, skeletonCard, wizardAssistSkeleton, adminSectionHeader, adminTableCard, dashboardOverviewCard, dashboardSectionCard, dashboardAssessmentRow, resultsVisualCard, resultsBriefCard, resultsSectionBlock, resultsSummaryCard, resultsDetailDisclosure, wizardInputSection, sectionStatusBadge, disclosureSection, contextInfoPanel, contextInfoGrid, aiAssistCard, aiRefinementCard, tagInput, confirm, drawHistogram, drawLEC, sectionEyebrow };
 })();

@@ -1,6 +1,62 @@
 'use strict';
 
-const { buildTraceEntry, normaliseAiError } = require('./_aiOrchestrator');
+const { buildTraceEntry, normaliseAiError, sanitizeAiText } = require('./_aiOrchestrator');
+
+function isPlainObject(value) {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function compactObject(value) {
+  if (!isPlainObject(value)) return {};
+  return Object.keys(value).reduce((output, key) => {
+    const item = value[key];
+    if (item !== undefined) output[key] = item;
+    return output;
+  }, {});
+}
+
+function cleanText(value = '', maxChars = 600) {
+  return sanitizeAiText(String(value ?? '').replace(/\s+/g, ' ').trim(), { maxChars });
+}
+
+function cleanBlock(value = '', maxChars = 4000) {
+  return sanitizeAiText(String(value ?? '').replace(/\r\n?/g, '\n').trim(), { maxChars });
+}
+
+function finiteNumber(value) {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'string' && !value.trim()) return null;
+  const next = Number(value);
+  return Number.isFinite(next) ? next : null;
+}
+
+function normaliseLooseValue(value, depth = 0) {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string' || typeof value === 'bigint') return cleanText(value, 1200);
+  if (Array.isArray(value)) {
+    if (depth >= 3) return [];
+    return value.slice(0, 30).map(item => normaliseLooseValue(item, depth + 1)).filter(item => item !== undefined && item !== '');
+  }
+  if (isPlainObject(value)) {
+    if (depth >= 3) return {};
+    const output = {};
+    Object.keys(value).slice(0, 30).forEach((key) => {
+      const cleanKey = cleanText(key, 120);
+      if (!cleanKey) return;
+      const item = normaliseLooseValue(value[key], depth + 1);
+      if (item !== undefined && item !== '') output[cleanKey] = item;
+    });
+    return output;
+  }
+  return null;
+}
+
+function normaliseLooseObject(value = {}) {
+  const result = normaliseLooseValue(value);
+  return isPlainObject(result) ? result : {};
+}
 
 function normaliseTimeoutValue(value, fallback) {
   const parsed = Number(value);
@@ -115,5 +171,12 @@ module.exports = {
   buildDeterministicFallbackResult,
   buildFallbackFromError,
   buildManualModeResult,
-  buildWorkflowTimeoutProfile
+  buildWorkflowTimeoutProfile,
+  cleanBlock,
+  cleanText,
+  compactObject,
+  finiteNumber,
+  isPlainObject,
+  normaliseLooseObject,
+  normaliseLooseValue
 };

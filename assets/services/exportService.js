@@ -12,13 +12,25 @@
  */
 
 const ExportService = (() => {
-  function _getCurrencyPrefix(currency) {
-    return currency === 'AED' ? 'AED ' : '$';
+  function _formatCurrency(value, currency, fxRate) {
+    if (typeof UI !== 'undefined' && typeof UI.formatCurrency === 'function') {
+      return UI.formatCurrency(value, currency, fxRate);
+    }
+    const displayValue = Math.round(currency === 'AED' ? Number(value || 0) * fxRate : Number(value || 0));
+    const prefix = currency === 'AED' ? 'AED ' : '$';
+    return `${prefix}${displayValue.toLocaleString(currency === 'AED' ? 'en-AE' : 'en-US')}`;
   }
 
-  function _formatCurrency(value, currency, fxRate) {
-    const displayValue = Math.round(currency === 'AED' ? Number(value || 0) * fxRate : Number(value || 0));
-    return `${_getCurrencyPrefix(currency)}${displayValue.toLocaleString(currency === 'AED' ? 'en-AE' : 'en-US')}`;
+  function _escapeHtml(value = '') {
+    const text = String(value ?? '');
+    if (typeof UI !== 'undefined' && typeof UI.escapeHtml === 'function') return UI.escapeHtml(text);
+    if (typeof escapeHtml === 'function') return escapeHtml(text);
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   function _cleanExecutiveNarrativeText(value) {
@@ -475,7 +487,7 @@ const ExportService = (() => {
   function exportDecisionMemo(assessment, currency = 'USD', fxRate = 3.6725, { includeAppendix = false } = {}) {
     const memo = buildDecisionMemoModel(assessment, currency, fxRate, { includeAppendix });
     const fmt = v => _formatCurrency(v, currency, fxRate);
-    const safeHtml = value => (typeof escapeHtml === 'function' ? escapeHtml(String(value ?? '')) : String(value ?? ''));
+    const safeHtml = _escapeHtml;
     const projectMemoSection = _renderProjectMemoSection(memo.projectResultsModel, safeHtml);
     const decisionSupportMemoSection = _renderDecisionSupportMemoSection(memo.decisionSupportSummary, safeHtml);
     const decisionBrief = memo.decisionBrief;
@@ -818,7 +830,7 @@ const ExportService = (() => {
     const decisionBrief = assessment.decisionBrief && typeof assessment.decisionBrief === 'object'
       ? _normaliseDecisionBriefForExport(assessment.decisionBrief)
       : null;
-    const safeHtml = value => (typeof escapeHtml === 'function' ? escapeHtml(String(value ?? '')) : String(value ?? ''));
+    const safeHtml = _escapeHtml;
     const projectMemoSection = _renderProjectMemoSection(projectResultsModel, safeHtml);
     const decisionSupportSummary = _buildDecisionSupportExportSummary(assessment, projectResultsModel, decisionBrief, confidenceFrame, intelligence);
     const decisionSupportMemoSection = _renderDecisionSupportMemoSection(decisionSupportSummary, safeHtml);
@@ -1529,12 +1541,7 @@ const ExportService = (() => {
   }
 
   function _buildLivingRiskRegisterHtml(model) {
-    const safe = value => String(value || '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
+    const safe = _escapeHtml;
     const summaryCards = [
       ['Rows', model.summary.total || 0],
       ['Above tolerance', model.summary.aboveTolerance || 0],
@@ -1789,9 +1796,7 @@ const ExportService = (() => {
   }
 
   function buildBoardNoteHtml(memo) {
-    const safe = value => (typeof escapeHtml === 'function'
-      ? escapeHtml(String(value ?? ''))
-      : String(value ?? ''));
+    const safe = _escapeHtml;
     const postureBadge = memo.executiveDecision?.criticalCondition
       ? 'Critical gate — review required'
       : memo.postureTone === 'danger'
@@ -2443,9 +2448,7 @@ body {
   }
 
   function buildPortfolioBoardBriefHtml(model = {}) {
-    const safe = value => (typeof escapeHtml === 'function'
-      ? escapeHtml(String(value ?? ''))
-      : String(value ?? ''));
+    const safe = _escapeHtml;
     const topRisks = Array.isArray(model?.topRisks) ? model.topRisks : [];
     const scopeLabel = String(model?.scopeLabel || 'Portfolio scope not stated').trim();
     const generatedLabel = String(model?.generatedLabel || new Date().toLocaleDateString('en-AE')).trim();

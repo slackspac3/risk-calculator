@@ -93,12 +93,7 @@
   }
 
   function escapeShellText(value) {
-    return String(value || '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
+    return UI.escapeHtml(value);
   }
 
   function resolveStageTransition(route = '', routeMeta = null) {
@@ -252,9 +247,10 @@
   function buildStageMarkup(html, route = '', runtimeModel = null) {
     const surface = getRouteSurface(route);
     const transition = resolveStageTransition(route);
+    const ambientMarkup = isBasicExperienceMode() ? '' : buildStageAmbientMarkup(surface);
     const hasRail = !!(runtimeModel && runtimeModel.visible);
     return `<div class="app-stage-shell app-stage-shell--${escapeShellText(surface)} app-stage-shell--${escapeShellText(transition)} app-stage-shell--entering${hasRail ? ' app-stage-shell--with-rail' : ''}" data-route-surface="${escapeShellText(surface)}" data-transition="${escapeShellText(transition)}">
-      ${buildStageAmbientMarkup(surface)}
+      ${ambientMarkup}
       <div class="app-stage__content${hasRail ? ' app-stage__content--with-rail' : ''}">
         <div class="app-stage__page-slot">${html}</div>
         ${buildAgenticRailMarkup(runtimeModel)}

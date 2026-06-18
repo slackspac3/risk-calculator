@@ -324,12 +324,7 @@ function buildDefaultLearningStoreState() {
 
 
 function escapeHtml(value = '') {
-  return String(value || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/\"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+  return UI.escapeHtml(value);
 }
 
 function formatSourceBasisSummary(value = null) {
@@ -7670,8 +7665,7 @@ async function maybeWarnPilotAiExpectation() {
 }
 
 function fmtCurrency(usdValue, currency = AppState.currency, fxRate = AppState.fxRate) {
-  const displayValue = Math.round(currency === 'AED' ? Number(usdValue || 0) * fxRate : Number(usdValue || 0));
-  return `${getCurrencyPrefix(currency)}${displayValue.toLocaleString(currency === 'AED' ? 'en-AE' : 'en-US')}`;
+  return UI.formatCurrency(usdValue, currency, fxRate);
 }
 
 function parseFlexibleNumber(value) {
@@ -7699,7 +7693,7 @@ function formatGroupedNumber(value) {
 }
 
 function getCurrencyPrefix(currency = AppState.currency) {
-  return currency === 'AED' ? 'AED ' : '$';
+  return UI.getCurrencyPrefix(currency);
 }
 
 function convertUsdToDisplayCurrency(value, currency = AppState.currency) {

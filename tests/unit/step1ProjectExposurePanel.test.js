@@ -13,6 +13,7 @@ function loadStep1ProjectExposureHarness(draft) {
     '../../assets/services/projectExposureService.js',
     '../../assets/services/scenarioTaxonomyProjectionData.js',
     '../../assets/services/scenarioTaxonomyProjection.js',
+    '../../assets/wizard/step1ProjectExposurePanel.js',
     '../../assets/wizard/step1.js'
   ];
   const noopStorage = {

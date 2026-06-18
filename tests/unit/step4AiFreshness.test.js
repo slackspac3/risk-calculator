@@ -16,6 +16,7 @@ function escapeHtml(value) {
 
 function loadStep4Harness(draft, options = {}) {
   const aiProductStateSource = fs.readFileSync(path.resolve(__dirname, '../../assets/services/aiProductStateService.js'), 'utf8');
+  const step4AiPanelsSource = fs.readFileSync(path.resolve(__dirname, '../../assets/wizard/step4AiPanels.js'), 'utf8');
   const step4Source = fs.readFileSync(path.resolve(__dirname, '../../assets/wizard/step4.js'), 'utf8');
   const saves = [];
   const renders = [];
@@ -89,6 +90,7 @@ function loadStep4Harness(draft, options = {}) {
   vm.createContext(context);
   vm.runInContext(aiProductStateSource, context, { filename: 'aiProductStateService.js' });
   context.AiProductStateService = context.window.AiProductStateService;
+  vm.runInContext(step4AiPanelsSource, context, { filename: 'step4AiPanels.js' });
   vm.runInContext(`${step4Source}
     ;renderWizard4 = function () { globalThis.__recordStep4Render(); };
     ;globalThis.__step4AiFreshnessTest = {

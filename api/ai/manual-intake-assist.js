@@ -1,11 +1,11 @@
 'use strict';
 
-const { requireSession } = require('../_apiAuth');
-const { applyCorsHeaders, enforceJsonPostBody, getUnexpectedFields, isAllowedOrigin, isPlainObject, parseRequestBody } = require('../_request');
-const { checkRateLimit } = require('../_rateLimit');
-const { buildManualIntakeAssistWorkflow, normaliseManualStep1Input } = require('../_manualStep1Workflow');
-const { recordAiRouteReuse, withAiRouteMetrics } = require('../_aiRouteMetrics');
-const { withWorkflowReuse } = require('../_workflowReuse');
+const { createAiJsonRouteHandler } = require('../_aiJsonRoute');
+const { isPlainObject } = require('../_request');
+const {
+  buildManualIntakeAssistWorkflow,
+  normaliseManualStep1Input
+} = require('../_manualStep1Workflow');
 
 const ALLOWED_FIELDS = [
   'riskStatement',
@@ -21,63 +21,8 @@ const ALLOWED_FIELDS = [
   'priorMessages'
 ];
 
-function getRateLimitKey(req, session) {
-  return `ai-manual-intake-assist::${String(session?.username || 'anonymous').trim().toLowerCase()}::${String(req.socket?.remoteAddress || 'unknown')}`;
-}
-
-module.exports = async function handler(req, res) {
-  applyCorsHeaders(req, res, {
-    methods: 'POST,OPTIONS',
-    headers: 'content-type,x-session-token'
-  });
-
-  if (req.method === 'OPTIONS') {
-    res.status(204).end();
-    return;
-  }
-
-  if (req.method !== 'POST') {
-    res.status(405).json({ error: 'Method not allowed' });
-    return;
-  }
-
-  const origin = req.headers.origin;
-  if (!origin || !isAllowedOrigin(origin)) {
-    res.status(403).json({ error: 'Origin not allowed' });
-    return;
-  }
-  if (!enforceJsonPostBody(req, res, { maxBodyChars: 180000 })) return;
-
-  const session = await requireSession(req, res);
-  if (!session) return;
-
-  const rateLimit = await checkRateLimit(getRateLimitKey(req, session), {
-    maxPerWindow: 40,
-    windowMs: 60000
-  });
-  if (!rateLimit.allowed) {
-    res.setHeader('Retry-After', String(rateLimit.retryAfterSeconds));
-    res.status(rateLimit.unavailable ? 503 : 429).json({
-      error: rateLimit.unavailable ? 'Request throttling is temporarily unavailable' : 'Rate limit exceeded'
-    });
-    return;
-  }
-
-  const body = parseRequestBody(req);
-  if (!isPlainObject(body)) {
-    res.status(400).json({ error: 'Invalid JSON body' });
-    return;
-  }
-  const unexpectedFields = getUnexpectedFields(body, ALLOWED_FIELDS);
-  if (unexpectedFields.length) {
-    res.status(400).json({
-      error: 'Unexpected request fields',
-      fields: unexpectedFields
-    });
-    return;
-  }
-
-  const normalisedInput = normaliseManualStep1Input({
+function normaliseInput(body = {}) {
+  return normaliseManualStep1Input({
     riskStatement: typeof body.riskStatement === 'string' ? body.riskStatement : '',
     registerText: typeof body.registerText === 'string' ? body.registerText : '',
     registerMeta: isPlainObject(body.registerMeta) ? body.registerMeta : null,
@@ -90,18 +35,16 @@ module.exports = async function handler(req, res) {
     traceLabel: typeof body.traceLabel === 'string' ? body.traceLabel : '',
     priorMessages: Array.isArray(body.priorMessages) ? body.priorMessages : []
   });
-  const routeName = 'manual-intake-assist';
-  const result = await withAiRouteMetrics(routeName, () => withWorkflowReuse({
-    workflow: routeName,
-    scopeKey: String(session?.username || 'anonymous').trim().toLowerCase(),
-    fingerprintInput: normalisedInput,
-    observeReuseEvent: (event) => recordAiRouteReuse(routeName, event),
-    compute: () => buildManualIntakeAssistWorkflow({
-      ...normalisedInput,
-      session
-    }, {
-      traceLabelDefault: 'Step 2 intake assist'
-    })
-  }));
-  res.status(200).json(result);
-};
+}
+
+module.exports = createAiJsonRouteHandler({
+  routeName: 'manual-intake-assist',
+  maxBodyChars: 180000,
+  rateLimit: { maxPerWindow: 40, windowMs: 60000 },
+  allowedFields: ALLOWED_FIELDS,
+  validationSchema: {},
+  normaliseInput,
+  buildWorkflow: (input) => buildManualIntakeAssistWorkflow(input, {
+    traceLabelDefault: 'Step 2 intake assist'
+  })
+});
