@@ -61,7 +61,7 @@ If this file conflicts with the code, git history, or GitHub workflow files, tru
 Latest active-context update on 2026-06-19 in `/Users/bhavuk.arora/risk-calculator`:
 
 - Maintenance backlog pass completed on `master` after the Ponytail audit follow-up.
-- Local Stitch artifacts are ignored via `.gitignore` entries for `output/` and `.stitch/`; the scratch `DESIGN.md` file remains untracked and should not be committed unless intentionally promoted to docs.
+- Local Stitch artifacts are ignored via `.gitignore` entries for `output/` and `.stitch/`; `DESIGN.md` is now intentionally committed as the current design-system reference.
 - Smoke e2e setup now reuses shared helpers; sparse project buyer assertions moved into `tests/e2e/helpers/sparseProjectAssertions.js`; sparse seller and stale project exposure e2e coverage were added.
 - `api/ai/manual-intake-assist.js` now uses the shared `createAiJsonRouteHandler` route shell, while preserving request/response behavior.
 - Shared AI workflow normalizer helpers now live in `api/_aiWorkflowSupport.js`; HTML escaping and rounded currency formatting have central UI helpers.

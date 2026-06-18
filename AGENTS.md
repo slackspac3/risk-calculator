@@ -241,10 +241,12 @@
 
 ### Wizard steps
 - `assets/wizard/step1.js`: Step 1 guide plus Step 2 intake, context, path selection, shortlist creation.
+- `assets/wizard/step1ProjectExposurePanel.js`: Step 1/2 project exposure panel rendering and display-only project exposure helpers.
 - `assets/wizard/step1Assist.js`: Step 2 intake AI assist, RAG checks, AI trace links.
 - `assets/wizard/step2.js`: Step 3 narrative refinement, trust, quality coach, evidence plan.
 - `assets/wizard/step3.js`: Step 4 FAIR parameter entry, smart prefill, advanced mode, treatment lane.
 - `assets/wizard/step4.js`: Step 5 Review & Run, validation, challenge, source audit, simulation launch.
+- `assets/wizard/step4AiPanels.js`: Step 5 read-only AI panel rendering for Parameter Coach and Evidence Map.
 
 ### Results
 - `assets/results/resultsRoute.js`: results route, tab switching, boardroom mode, comparison, challenge/reviewer actions, revision routing, exports.
@@ -278,6 +280,8 @@
 
 ### Tests and evaluation
 - `tests/e2e/smoke.spec.js`: route/auth/discoverability smoke coverage and living workflow spec.
+- `tests/e2e/helpers/`: shared e2e session/API mocks, fixtures, wizard actions, and sparse project assertions. Reuse these before adding spec-local mock setup.
+- `tests/e2e/sparse-project-buyer.spec.js` and `tests/e2e/sparse-project-seller.spec.js`: sparse project economics coverage; unknown project values must stay unknown/null, not `$0`.
 - `tests/unit/`: unit coverage including eval harness tests.
 - `scripts/run-eval-local.js`: deterministic benchmark run over fixture set.
 - `scripts/run-eval-ai.js`: AI semantic judge over eval report.
@@ -662,9 +666,10 @@ Do not reinvent these. They already exist.
 - **Dashboard behavior:** start with `assets/dashboard/userDashboard.js`.
 - **Personal settings:** start with `assets/settings/userPreferences.js`.
 - **Step 1 guide and Step 2 intake:** start with `assets/wizard/step1.js` and `assets/wizard/step1Assist.js`.
+- **Step 1/2 project exposure panel:** start with `assets/wizard/step1ProjectExposurePanel.js`.
 - **Step 3 scenario refinement:** start with `assets/wizard/step2.js`.
 - **Step 4 estimate:** start with `assets/wizard/step3.js`.
-- **Step 5 Review & Run:** start with `assets/wizard/step4.js`.
+- **Step 5 Review & Run:** start with `assets/wizard/step4.js`; for Parameter Coach or Evidence Map panel markup, start with `assets/wizard/step4AiPanels.js`.
 - **Results:** start with `assets/results/resultsRoute.js` and `assets/results/resultsViewModel.js`.
 - **Simulation semantics:** start with `assets/engine/riskEngine.js`.
 - **Exports:** start with `assets/services/exportService.js` and `assets/services/reportPresentation.js`.
