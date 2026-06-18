@@ -23,9 +23,11 @@
     projectParameterSuggestionService: 'assets/services/projectParameterSuggestionService.js',
     draftScenarioState: 'assets/state/draftScenarioState.js',
     step1Assist: 'assets/wizard/step1Assist.js',
+    step1ProjectExposurePanel: 'assets/wizard/step1ProjectExposurePanel.js',
     step1: 'assets/wizard/step1.js',
     step2: 'assets/wizard/step2.js',
     step3: 'assets/wizard/step3.js',
+    step4AiPanels: 'assets/wizard/step4AiPanels.js',
     step4: 'assets/wizard/step4.js',
     userOnboarding: 'assets/settings/userOnboarding.js',
     userPreferences: 'assets/settings/userPreferences.js',
@@ -87,6 +89,7 @@
       LOCAL_ASSETS.taxonomyData,
       LOCAL_ASSETS.taxonomyProjection,
       LOCAL_ASSETS.step1Assist,
+      LOCAL_ASSETS.step1ProjectExposurePanel,
       LOCAL_ASSETS.step1
     ],
     wizardStep2: [
@@ -102,6 +105,7 @@
       LOCAL_ASSETS.projectExposureService,
       LOCAL_ASSETS.projectParameterSuggestionService,
       LOCAL_ASSETS.aiProductState,
+      LOCAL_ASSETS.step4AiPanels,
       LOCAL_ASSETS.step4,
       LOCAL_ASSETS.step3
     ],
@@ -112,6 +116,7 @@
       LOCAL_ASSETS.projectExposureService,
       LOCAL_ASSETS.projectParameterSuggestionService,
       LOCAL_ASSETS.draftScenarioState,
+      LOCAL_ASSETS.step4AiPanels,
       LOCAL_ASSETS.step4
     ],
     settings: [

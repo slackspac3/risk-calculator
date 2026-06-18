@@ -1,4 +1,5 @@
 function formatPlainCurrency(value, currency = 'USD') {
+  if (typeof fmtCurrency === 'function') return fmtCurrency(value, currency);
   const displayValue = Math.round(convertUsdToDisplayCurrency(value, currency));
   return `${getCurrencyPrefix(currency)}${displayValue.toLocaleString(currency === 'AED' ? 'en-AE' : 'en-US')}`;
 }

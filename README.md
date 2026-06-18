@@ -442,6 +442,7 @@ Current global-admin priorities:
 
 Current productization work now includes:
 - premium UI polish across dashboard, wizard, results, settings, admin, and document library
+- a documented design-system reference in [DESIGN.md](./DESIGN.md) for current palette, typography, spacing, and layout conventions
 - Basic/Advanced experience modes that are switchable from the top bar for every authenticated user
 - a more agentic dashboard front door with featured workflow cards, branded teal section markers, and hover/entry motion for the primary start paths
 - the landing dashboard now has Parallax-inspired live runways for both standard and oversight users: standard users see a launch runway above workflow cards, while BU/function oversight users see a command runway inside the hero
@@ -472,6 +473,8 @@ Current productization work now includes:
 - persisted session preferences for results tabs and boardroom mode
 - server-authoritative AI status, orchestration, fallback, and learning-profile application
 - normalized AI request shaping, duplicate suppression, and lightweight route analytics for the hosted AI paths
+- shared AI route shells and workflow normalizers for the JSON AI routes, reducing duplicated auth/body/reuse/fallback handling
+- sparse buyer and seller project e2e coverage that keeps unknown project economics as `unknown`/`null`, not `$0`
 - KV-backed API rate limiting and login throttling for the shared pilot environment
 
 ## Architecture
@@ -485,6 +488,7 @@ Key entry points:
 - [assets/app.js](./assets/app.js)
 - [assets/app.css](./assets/app.css)
 - [assets/tokens.css](./assets/tokens.css)
+- [DESIGN.md](./DESIGN.md)
 
 Main frontend areas:
 - dashboard: [assets/dashboard/](./assets/dashboard)
@@ -500,7 +504,9 @@ Main frontend areas:
 Important runtime seams:
 - results rendering and interactions: [assets/results/resultsRoute.js](./assets/results/resultsRoute.js)
 - dashboard rendering: [assets/dashboard/userDashboard.js](./assets/dashboard/userDashboard.js)
-- wizard steps: [assets/wizard/step1.js](./assets/wizard/step1.js), [assets/wizard/step2.js](./assets/wizard/step2.js), [assets/wizard/step3.js](./assets/wizard/step3.js)
+- wizard orchestration: [assets/wizard/step1.js](./assets/wizard/step1.js), [assets/wizard/step2.js](./assets/wizard/step2.js), [assets/wizard/step3.js](./assets/wizard/step3.js), [assets/wizard/step4.js](./assets/wizard/step4.js)
+- Step 1 project exposure panel rendering: [assets/wizard/step1ProjectExposurePanel.js](./assets/wizard/step1ProjectExposurePanel.js)
+- Step 5 AI panel rendering: [assets/wizard/step4AiPanels.js](./assets/wizard/step4AiPanels.js)
 - LLM integration: [assets/services/llmService.js](./assets/services/llmService.js)
 - workflow transport, payload normalization, and client duplicate suppression: [assets/services/aiWorkflowClient.js](./assets/services/aiWorkflowClient.js)
 - server-status client: [assets/services/aiStatusClient.js](./assets/services/aiStatusClient.js)
@@ -518,6 +524,13 @@ Primary routes:
 - [api/ai/status.js](./api/ai/status.js)
 - [api/ai/scenario-draft.js](./api/ai/scenario-draft.js)
 - [api/ai/register-analysis.js](./api/ai/register-analysis.js)
+- [api/ai/manual-intake-assist.js](./api/ai/manual-intake-assist.js)
+- [api/ai/project-exposure-map.js](./api/ai/project-exposure-map.js)
+- [api/ai/parameter-coach.js](./api/ai/parameter-coach.js)
+- [api/ai/evidence-map.js](./api/ai/evidence-map.js)
+- [api/ai/assumption-register.js](./api/ai/assumption-register.js)
+- [api/ai/decision-brief.js](./api/ai/decision-brief.js)
+- [api/ai/decision-challenge.js](./api/ai/decision-challenge.js)
 - [api/ai/treatment-suggestion.js](./api/ai/treatment-suggestion.js)
 - [api/ai/reviewer-brief.js](./api/ai/reviewer-brief.js)
 - [api/ai/challenge-assessment.js](./api/ai/challenge-assessment.js)
@@ -549,7 +562,18 @@ Shared backend helper:
 Current AI runtime efficiency measures:
 - register-analysis inputs are trimmed server-side before live model use to remove empty rows, repeated headers, and noisy workbook-style columns while preserving meaningful row order
 - the main AI routes keep explicit `live`, `deterministic_fallback`, and `manual` semantics even when reuse or early-return paths are taken
+- JSON AI routes should use the shared `createAiJsonRouteHandler` shell unless they intentionally need different auth/session or status semantics
 - route metrics are in-memory and aggregate-only; no prompt, payload, or user content is logged in the lightweight analytics summaries
+
+### Test Helpers
+
+E2E setup lives under [tests/e2e/helpers/](./tests/e2e/helpers):
+- [apiMocks.js](./tests/e2e/helpers/apiMocks.js): authenticated session and shared API route mocks
+- [projectFixtures.js](./tests/e2e/helpers/projectFixtures.js): reusable project/user/admin fixtures
+- [wizardActions.js](./tests/e2e/helpers/wizardActions.js): assessment wizard navigation and form actions
+- [sparseProjectAssertions.js](./tests/e2e/helpers/sparseProjectAssertions.js): buyer/seller sparse-project assertions
+
+Keep journey specs readable and buyer/seller naming explicit until another test genuinely needs a more generic helper.
 
 ### Persistence Model
 
