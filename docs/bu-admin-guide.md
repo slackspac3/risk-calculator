@@ -37,6 +37,7 @@ Use the role well when you:
 - review the next item that actually needs action
 - keep business-unit context current before new assessments start
 - read the executive result first, then open technical detail only when needed
+- check project buyer/seller assessments for missing economics before treating the result as a precise value story
 - use reassessment and watchlist behavior to keep important scenarios current
 - escalate only when the scenario is coherent and the evidence posture is defendable
 
@@ -57,6 +58,7 @@ Use the role well when you:
 ### Before a management decision
 - Read the executive result first.
 - Check confidence, evidence, and assumptions.
+- For project assessments, check whether delay cost, margin, contract value, or benefit values were known, proxied, or left unquantified.
 - Open technical detail only when you need to challenge a driver, range, or citation.
 
 ### Weekly context hygiene
@@ -104,6 +106,7 @@ Good practice:
 - keep BU context short, specific, and current
 - make sure function summaries below the BU still align with the real operating model
 - use the BU and function-context `AI Assist` tools as drafting aids, then check the grounding banner before saving
+- when using follow-up prompts, check the AI update panel for visible changed fields before saving; if live AI is unavailable and the draft is unchanged, retry later or edit directly
 - if the banner says the draft is generic or only partly grounded, improve the saved context or the underlying document coverage before rolling it out downstream
 
 ## How AI should be treated

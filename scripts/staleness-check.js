@@ -51,6 +51,7 @@ function extractFunctionBody(source, functionName) {
 }
 
 const step1Js = read('assets/wizard/step1.js');
+const step1ProjectExposurePanelJs = read('assets/wizard/step1ProjectExposurePanel.js');
 const step4Js = read('assets/wizard/step4.js');
 const appJs = read('assets/app.js');
 const assetLoaderJs = read('assets/services/assetLoader.js');
@@ -161,10 +162,10 @@ expect(
   'AI product state helper must use artefact-specific useful-output checks instead of metadata-only detection.'
 );
 expect(
-  step1Js.includes('savedAiState?.freshnessStatus === \'stale\'')
+  step1ProjectExposurePanelJs.includes('savedAiState?.freshnessStatus === \'stale\'')
     && step1Js.includes('buildProjectExposureFingerprintSnapshot')
     && step1Js.includes('inputFingerprintBreakdown')
-    && step1Js.includes('Refresh exposure map'),
+    && step1ProjectExposurePanelJs.includes('Refresh exposure map'),
   'Step 1 project exposure UI must show a category-aware refresh prompt when the saved AI map is stale.'
 );
 expect(

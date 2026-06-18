@@ -19,6 +19,7 @@ Good use of this role:
 - verify the live AI path before demos, pilot reviews, and sign-off sessions
 - keep the document library and company context current
 - keep jurisdiction-specific baseline context current where it materially shapes drafting and retrieval
+- check that entity/company context follow-up prompts produce visible changed draft fields before saving them as governed context
 - watch shared AI feedback quality before changing tuning
 - manage access, defaults, and inherited operating context
 - use preview and oversight to understand downstream impact
@@ -85,6 +86,7 @@ Current baseline areas that deserve explicit review:
 - Check company context and document coverage first.
 - Confirm the issue is not caused by stale defaults, weak grounding, or bad user inputs.
 - If BU or function admins are saving context with `Generic draft warning`, fix the inherited context or document coverage before retuning model behavior.
+- If a context follow-up says live AI was unavailable and no visible field changed, do not save it as an AI-refined update; retry when the live path is healthy or edit the fields manually.
 - If the issue looks domain-specific, run the affected eval slice and check retrieval precision / recall / F1 as well as primary-lens accuracy before changing shared tuning.
 - Change one parameter at a time:
   - alignment priority
@@ -181,6 +183,7 @@ If the change affects help, admin settings, or routes, verify:
 - the AI Feedback & Tuning screen loads without client errors
 - empty review surfaces show “no items” rather than a generic load error
 - browser-side calls to shared APIs are still using the hosted API origin
+- GitHub Pages deploy is not blocked by `check:staleness`; when files move, update the guardrail to follow the new owning file instead of weakening the check
 
 If the change affects taxonomy, retrieval, or domain grounding, also verify:
 - the affected eval slice still classifies the right primary lens

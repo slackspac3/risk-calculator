@@ -52,8 +52,14 @@ Do not use the dashboard as a reporting page. It is mainly a front door and work
 ### 2. Step 1: Assessment guide
 
 Purpose:
+- choose the assessment type by economic nature
 - choose how you want to start the assessment
 - understand what the intake will ask for before you begin drafting
+
+Assessment types:
+- `Generic enterprise risk`: the risk is not tied to a specific project spend, revenue opportunity, or contract
+- `Project risk - we are the buyer`: your organisation is buying, procuring, implementing, investing in, or depending on a project or delivery partner
+- `Project risk - we are the seller`: your organisation is delivering a project, service, bid, contract, or revenue commitment to a customer
 
 Start options:
 - answer two questions
@@ -61,6 +67,7 @@ Start options:
 - use an example or register
 
 Use Step 1 well:
+- choose the route that matches how value is exposed, not your department label
 - choose one start option
 - keep the selected option visible
 - continue to Quick Assessment when the route matches your situation
@@ -94,6 +101,7 @@ Use Step 2 well:
 - read the grounding cues before you carry the draft forward:
   - stronger grounding means the scenario is clearly tied to saved context and retrieved references
   - weaker grounding means the draft still needs more challenge or evidence
+- for project assessments, fill only the economics you know; blank fields are treated as unknown, not zero
 
 ### 4. Step 3: Refine the scenario
 
@@ -118,6 +126,8 @@ Purpose:
 What to do:
 - use the plain-language guidance first
 - widen ranges when you are unsure
+- review project exposure suggestions before applying them to the estimate
+- keep unknown project economics as unknown rather than inventing a value
 - complete the core cost rows before opening conditional cost areas
 - open conditional cost areas only when regulatory, third-party, or reputation/contract costs realistically apply
 - only use advanced tuning when it materially improves the assessment
@@ -163,6 +173,7 @@ Then open:
 Use results well:
 - read the management story first
 - check confidence and caveats before escalating
+- for project assessments, check whether delay cost, margin, or benefit values were missing before reading the output as precise
 - do not assume `below tolerance` means `safe`; some scenarios have a critical response gate because the issue itself must be closed first
 - use treatment comparison only when you want to test whether a better outcome materially changes the decision
 

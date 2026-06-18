@@ -67,8 +67,12 @@ Latest active-context update on 2026-06-19 in `/Users/bhavuk.arora/risk-calculat
 - Shared AI workflow normalizer helpers now live in `api/_aiWorkflowSupport.js`; HTML escaping and rounded currency formatting have central UI helpers.
 - Step 1 project exposure rendering moved to `assets/wizard/step1ProjectExposurePanel.js`; Step 5 AI panels moved to `assets/wizard/step4AiPanels.js`; asset loading and freshness tests were updated.
 - Conservative UI cleanup only: duplicate CSS declarations removed, Basic mode no longer renders current-stage decorative ambient shell markup, and draft snapshot clone call sites now use the existing JSON-safe helper instead of inline JSON clones.
+- After the initial maintenance/docs pushes, GitHub Pages validation failed because `scripts/staleness-check.js` still looked for the stale project-exposure refresh prompt in `assets/wizard/step1.js`; the guardrail now follows `assets/wizard/step1ProjectExposurePanel.js`.
+- Role guides under `docs/` now cover assessment-type route selection, project buyer/seller sparse economics, and context follow-up prompts that produce no visible AI changes.
 - Validation passed:
   - `npm run check:syntax`
+  - `npm run check:staleness`
+  - `npm run qa:app` (`56` Playwright tests inside the gate)
   - `npm run test:unit` (`747` tests)
   - `npm run test:e2e -- tests/e2e/smoke.spec.js` (`51` tests)
   - `npm run test:e2e -- tests/e2e/sparse-project-buyer.spec.js tests/e2e/sparse-project-seller.spec.js` (`3` tests)

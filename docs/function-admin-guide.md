@@ -36,6 +36,7 @@ Use the role well when you:
 - review the next function-level item that needs action
 - keep the owned function context current
 - challenge weak assumptions before the result leaves the function
+- check whether project-linked assessments are buyer, seller, or generic enterprise routes before reading the financial story
 - read the executive result first and only then inspect technical detail
 - escalate when the issue is broader than the function you own
 
@@ -86,6 +87,7 @@ Use `Technical Detail` to answer:
 - which assumptions are driving the output
 - whether the ranges are credible
 - whether the evidence is strong enough to support escalation
+- whether project economics were known, benchmark-proxied, or still missing
 
 Use treatment comparison when:
 - the function needs to test whether a specific better outcome materially changes the decision
@@ -100,6 +102,7 @@ Your settings matter because function context shapes:
 Good practice:
 - keep the function context specific and current
 - update it when the control environment, operating model, or priorities change
+- when adding follow-up prompt feedback to context, review the AI update panel for changed draft fields before saving; if live AI is unavailable and no fields changed, retry later or edit the context manually
 - when you use `AI Assist` on function context, read the grounding banner before saving:
   - `Grounded in saved context` means the draft is clearly inheriting saved BU or organisation context
   - `Partly grounded` means some saved context is showing through, but the draft still needs review
