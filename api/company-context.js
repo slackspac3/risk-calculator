@@ -279,6 +279,7 @@ function titleCase(value) {
     .split(/\s+/)
     .filter(Boolean)
     .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .map(part => /^[a-z0-9]{2,4}$/i.test(part) ? part.toUpperCase() : part)
     .join(' ');
 }
 
@@ -534,8 +535,9 @@ function buildFallbackProfile(canonicalUrl, pages, newsItems = []) {
   const hints = inferProfileHints(canonicalUrl, pages, newsItems);
   const sectorText = hints.sectors.length ? hints.sectors.join(', ') : 'technology-enabled products or services';
   const customerText = hints.customerTypes.length ? hints.customerTypes.join(', ') : 'enterprise, institutional, or end-user stakeholders';
+  const sourceText = `public website content${newsItems.length ? ' and public news coverage' : ''}`;
   return {
-    companySummary: `Public context was gathered for ${canonicalUrl}, but the AI response could not be parsed cleanly. This fallback summary is based on public website content${newsItems.length ? ' and public news coverage' : ''} only.`,
+    companySummary: `${hints.alias} appears to provide ${sectorText} to ${customerText}, based on ${sourceText} only. Review and refine this public-context draft before saving it into the admin baseline.`,
     businessProfile: `${hints.alias} appears to provide ${sectorText} to ${customerText}. Review the extracted public context manually and refine the profile before saving it into the admin baseline.`,
     operatingModel: `${hints.alias} likely operates through a mix of internally delivered capabilities, digital platforms, operational teams, and third-party partners or suppliers where relevant. Public materials should be checked for geographic footprint, regulated customers, and service criticality before relying on this summary.`,
     publicCommitments: hints.commitments.length ? hints.commitments : ['Public materials suggest commitments that should be validated manually before being used in the platform context.'],
@@ -552,6 +554,22 @@ function buildFallbackProfile(canonicalUrl, pages, newsItems = []) {
       }))
     ]
   };
+}
+
+function firstString(...values) {
+  return values
+    .map(value => String(value || '').trim())
+    .find(Boolean) || '';
+}
+
+function normaliseStringList(value, fallback = []) {
+  if (Array.isArray(value) && value.length) return value.map(String).filter(Boolean);
+  const text = String(value || '').trim();
+  if (!text) return fallback;
+  return text
+    .split(/\r?\n|;|\u2022/)
+    .map(item => item.replace(/^[-*\d.)\s]+/, '').trim())
+    .filter(Boolean);
 }
 
 function tryParseStructuredJson(raw) {
@@ -638,15 +656,33 @@ Repair the response into the required JSON schema. Preserve company-specific mea
 
 function normaliseContextPayload(parsed, canonicalUrl, pages, newsItems) {
   const fallback = buildFallbackProfile(canonicalUrl, pages, newsItems);
-  if (!parsed || typeof parsed !== 'object') return fallback;
+  const fallbackMessage = 'Company context was built from public-source fallback because the AI response could not be parsed into the expected fields. Review before saving.';
+  if (!parsed || typeof parsed !== 'object') return {
+    ...fallback,
+    usedFallback: true,
+    responseMessage: fallbackMessage
+  };
+  const companySummary = firstString(
+    parsed.companySummary,
+    parsed.summary,
+    parsed.companyOverview,
+    parsed.contextSummary
+  );
+  const businessProfile = firstString(
+    parsed.businessProfile,
+    parsed.businessModel,
+    parsed.businessModelSummary,
+    parsed.profile
+  );
+  const usedFallback = !companySummary;
   return {
-    companySummary: String(parsed.companySummary || fallback.companySummary),
-    businessProfile: String(parsed.businessProfile || fallback.businessProfile),
-    operatingModel: String(parsed.operatingModel || fallback.operatingModel || ''),
-    publicCommitments: Array.isArray(parsed.publicCommitments) && parsed.publicCommitments.length ? parsed.publicCommitments.map(String) : fallback.publicCommitments,
-    riskSignals: Array.isArray(parsed.riskSignals) && parsed.riskSignals.length ? parsed.riskSignals.map(String) : fallback.riskSignals,
-    likelyObligations: Array.isArray(parsed.likelyObligations) && parsed.likelyObligations.length ? parsed.likelyObligations.map(String) : fallback.likelyObligations,
-    regulatorySignals: Array.isArray(parsed.regulatorySignals) ? parsed.regulatorySignals.map(String) : fallback.regulatorySignals,
+    companySummary: companySummary || fallback.companySummary,
+    businessProfile: businessProfile || fallback.businessProfile,
+    operatingModel: firstString(parsed.operatingModel, parsed.operations, parsed.deliveryModel) || fallback.operatingModel || '',
+    publicCommitments: normaliseStringList(parsed.publicCommitments, fallback.publicCommitments),
+    riskSignals: normaliseStringList(parsed.riskSignals || parsed.keyRiskSignals, fallback.riskSignals),
+    likelyObligations: normaliseStringList(parsed.likelyObligations || parsed.obligations, fallback.likelyObligations),
+    regulatorySignals: normaliseStringList(parsed.regulatorySignals || parsed.regulations, fallback.regulatorySignals),
     aiGuidance: String(parsed.aiGuidance || fallback.aiGuidance),
     suggestedGeography: String(parsed.suggestedGeography || fallback.suggestedGeography || ''),
     sources: Array.isArray(parsed.sources) && parsed.sources.length
@@ -654,7 +690,11 @@ function normaliseContextPayload(parsed, canonicalUrl, pages, newsItems) {
           url: String(source.url || ''),
           note: String(source.note || '')
         })).filter(source => source.url)
-      : fallback.sources
+      : fallback.sources,
+    usedFallback,
+    responseMessage: usedFallback
+      ? fallbackMessage
+      : 'Company context built from public website and public news sources.'
   };
 }
 

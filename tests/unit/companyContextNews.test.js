@@ -136,7 +136,7 @@ test('company context route reads structured function-call arguments before fall
             message: {
               function_call: {
                 arguments: JSON.stringify({
-                  companySummary: 'CPX is a cyber and physical security company serving government and enterprise customers.',
+                  summary: 'CPX is a cyber and physical security company serving government and enterprise customers.',
                   businessProfile: 'CPX provides cybersecurity, physical security, and advisory services.',
                   operatingModel: 'CPX operates through specialist security teams and managed delivery capabilities.',
                   publicCommitments: ['Public security and resilience commitments.'],
@@ -189,6 +189,75 @@ test('company context route reads structured function-call arguments before fall
 
   assert.equal(res.statusCode, 200);
   assert.equal(res.payload.companySummary, 'CPX is a cyber and physical security company serving government and enterprise customers.');
+  assert.equal(res.payload.usedFallback, false);
   assert.doesNotMatch(res.payload.companySummary, /could not be parsed cleanly/i);
   assert.equal(aiRequestBody.response_format?.type, 'json_object');
+});
+
+test('company context fallback summary remains company-specific when AI output is unusable', async () => {
+  process.env.ADMIN_API_SECRET = 'test-admin-secret';
+  process.env.ALLOWED_ORIGIN = 'https://slackspac3.github.io';
+  process.env.COMPASS_API_KEY = 'test-ai-key';
+  process.env.COMPASS_API_URL = 'https://example.test/ai';
+  process.env.COMPASS_MODEL = 'gpt-test';
+  process.env.KV_REST_API_URL = 'https://example.test/kv';
+  process.env.KV_REST_API_TOKEN = 'test-kv-token';
+  dns.promises.lookup = async () => [{ address: '93.184.216.34', family: 4 }];
+
+  global.fetch = async (url) => {
+    const target = String(url || '');
+    if (target === 'https://example.test/kv') {
+      return { ok: true, json: async () => ({ result: null }) };
+    }
+    if (target === 'https://example.test/ai') {
+      return {
+        ok: true,
+        json: async () => ({
+          choices: [{
+            finish_reason: 'stop',
+            message: {}
+          }]
+        })
+      };
+    }
+    if (target.startsWith('https://news.google.com/')) {
+      return { ok: true, text: async () => '<rss><channel></channel></rss>' };
+    }
+    if (target.startsWith('https://www.cpx.net/')) {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => `
+          <html><head><title>CPX</title></head><body>
+            <h1>CPX</h1>
+            <a href="/about">About</a><a href="/services">Services</a>
+            <p>CPX provides cyber security, physical security, managed security services,
+            advisory support, resilience capabilities, and trusted operations for government
+            and enterprise customers across the UAE. CPX helps organisations protect critical
+            assets, improve cyber maturity, manage incidents, and operate sensitive security
+            programmes with specialist teams and technology platforms.</p>
+          </body></html>`
+      };
+    }
+    throw new Error(`Unexpected fetch: ${target}`);
+  };
+
+  const res = createRes();
+  await companyContextRoute({
+    method: 'POST',
+    body: JSON.stringify({ websiteUrl: 'https://www.cpx.net/' }),
+    headers: {
+      origin: 'https://slackspac3.github.io',
+      'content-type': 'application/json',
+      'x-admin-secret': 'test-admin-secret'
+    },
+    socket: { remoteAddress: '203.0.113.10' }
+  }, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.match(res.payload.companySummary, /^CPX appears to provide /);
+  assert.match(res.payload.companySummary, /cybersecurity services/);
+  assert.doesNotMatch(res.payload.companySummary, /could not be parsed cleanly/i);
+  assert.equal(res.payload.usedFallback, true);
+  assert.match(res.payload.responseMessage, /public-source fallback/i);
 });

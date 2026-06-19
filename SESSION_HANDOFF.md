@@ -63,7 +63,8 @@ Latest active-context update on 2026-06-19 in `/Users/bhavuk.arora/risk-calculat
 - AI grounding corpus now includes ten additional seed references for ADHICS/UAE healthcare operations, health-data localisation and transfers, diagnostics/genomics secondary use, Diaverum-style clinical continuity, UAE financial-services operational resilience, project buyer/seller economics, geopolitical market access/export controls, and digital-health AI assurance.
 - ADHICS and UAE health-data-law seed excerpts were validated against local official PDFs in `/Users/bhavuk.arora/Downloads/` (`ADHICS-v2-standard.pdf` and `Federal Law No. (2) of 2019, Concerning the Use of the Information and Communications Technology in Health Fields.pdf`). The PDFs were not committed; full-text grounding should use the existing server evidence upload/indexing path. Public official `sourceUrl` values were added only for CBUAE operational risk, BIS EAR, and FDA medical-device AI anchors.
 - `assets/services/ragService.js` has focused keyword routing for those additions. Existing master eval retrieval hit rate over rows with `expected_doc_ids` was spot-checked at `71/75` rows with at least one expected top-4 hit after the update.
-- Admin company-context website builds now use the shared LLM response extractor, so JSON returned through OpenAI-compatible `function_call.arguments` / `tool_calls[].function.arguments` is parsed before falling back to the generic "could not be parsed cleanly" public-context summary.
+- Admin company-context website builds now use the shared LLM response extractor, so JSON returned through OpenAI-compatible `function_call.arguments` / `tool_calls[].function.arguments` is parsed before falling back.
+- Follow-up hardening keeps parser diagnostics out of the user-facing company summary: common AI aliases such as `summary` are accepted, unusable AI output now yields a company-specific public-source fallback summary, and fallback state is carried through `usedFallback` / `responseMessage` for admin review copy.
 - Validation passed:
   - `npm run check:syntax`
   - `npm run check:smoke`
@@ -81,6 +82,11 @@ Latest active-context update on 2026-06-19 in `/Users/bhavuk.arora/risk-calculat
   - `node --test tests/unit/companyContextNews.test.js` (`4` tests)
   - `npm run check:syntax`
   - `npm run test:unit` (`754` tests)
+- After the company-context fallback-summary hardening, validation passed:
+  - `node --test tests/unit/companyContextNews.test.js` (`5` tests)
+  - `npm run check:syntax`
+  - `npm run test:unit` (`755` tests)
+  - `git diff --check`
 
 - Maintenance backlog pass completed on `master` after the Ponytail audit follow-up.
 - Local Stitch artifacts are ignored via `.gitignore` entries for `output/` and `.stitch/`; `DESIGN.md` is now intentionally committed as the current design-system reference.
