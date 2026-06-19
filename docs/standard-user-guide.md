@@ -103,6 +103,12 @@ Use Step 2 well:
   - weaker grounding means the draft still needs more challenge or evidence
 - for project assessments, fill only the economics you know; blank fields are treated as unknown, not zero
 
+Project examples:
+- Buyer: if project budget is known but delay cost per day is unknown, leave delay cost blank. Do not enter `0` unless there is truly no delay cost.
+- Seller: if contract value is known but margin or LD/SLA cap is unknown, leave those fields blank until confirmed. Do not enter zero margin unless the contract really has no margin.
+
+A benchmark proxy is a directional estimate from comparable cases or saved benchmark context. Use it only when it is acceptable for the decision; otherwise carry the value as missing and ask the owner for the real input.
+
 ### 4. Step 3: Refine the scenario
 
 Purpose:
@@ -134,6 +140,7 @@ What to do:
 
 Do not:
 - force precise numbers without a reason
+- enter `0` just because you do not know the value
 - use advanced controls just because they are available
 
 ## Grounding and freshness signals

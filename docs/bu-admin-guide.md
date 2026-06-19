@@ -90,6 +90,7 @@ Use `Technical Detail` to answer:
 - which assumptions are carrying the result
 - what ranges drive the loss
 - where evidence is strong or weak
+- if benchmark proxies are used, decide whether they are acceptable for this decision or ask the project, commercial, or finance owner for the missing input
 
 Use treatment comparison when:
 - you want to test whether a better outcome materially changes the decision

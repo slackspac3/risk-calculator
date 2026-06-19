@@ -88,6 +88,7 @@ Use `Technical Detail` to answer:
 - whether the ranges are credible
 - whether the evidence is strong enough to support escalation
 - whether project economics were known, benchmark-proxied, or still missing
+- if missing project values sit outside your function, route the question to the project, commercial, or finance owner instead of estimating it yourself
 
 Use treatment comparison when:
 - the function needs to test whether a specific better outcome materially changes the decision
