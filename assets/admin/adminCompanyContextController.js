@@ -167,6 +167,8 @@
           role: 'assistant',
           text: degraded && uploaded.text
             ? 'Initial company context draft was built, but the uploaded-source refinement could not run because live AI was unavailable. Retry when live AI is available if you want the uploaded material folded in.'
+            : degraded
+              ? (result.responseMessage || 'Initial company context draft was created using fallback support. Review the fields before saving.')
             : (uploaded.text
               ? 'Initial company context draft created and refined using the uploaded source material. Use follow-up prompts below if you want to reshape it further.'
               : 'Initial company context draft created. Use follow-up prompts below if you want to reshape it further.')
@@ -174,7 +176,9 @@
         renderHistory();
         if (statusEl) {
           statusEl.textContent = degraded
-            ? 'Initial company draft is in place, but the latest refinement could not run because live AI was unavailable.'
+            ? (uploaded.text
+              ? 'Initial company draft is in place, but the uploaded-source refinement could not run because live AI was unavailable.'
+              : 'Initial company draft is in place using fallback support. Review before saving.')
             : 'Initial AI draft applied. Use the follow-up prompt box below to keep refining it.';
         }
         AdminOrgSetupSection.openEntityEditor(null, {
@@ -186,7 +190,9 @@
         });
         UI.toast(
           degraded
-            ? 'Company context built, but the latest refinement could not run because live AI was unavailable.'
+            ? (uploaded.text
+              ? 'Company context built, but the uploaded-source refinement could not run because live AI was unavailable.'
+              : 'Company context built using fallback support. Review before saving.')
             : 'Company context built from public sources. Review the entity and place it into the organisation tree.',
           degraded ? 'warning' : 'success',
           5000
