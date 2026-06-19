@@ -4,6 +4,11 @@ const { DEFAULT_COMPASS_MODEL } = require('./_aiRuntime');
 const { isRequestSecretValid, resolveAdminActor } = require('./_apiAuth');
 const { applyCorsHeaders, isAllowedOrigin, isPlainObject, parseRequestBody } = require('./_request');
 const { checkRateLimit } = require('./_rateLimit');
+const {
+  extractBalancedJsonCandidate,
+  extractJsonFromLlmResponse,
+  extractLlmTextResponse
+} = require('../assets/state/llmResponseExtractor');
 
 function stripHtml(html) {
   return String(html || '')
@@ -550,15 +555,17 @@ function buildFallbackProfile(canonicalUrl, pages, newsItems = []) {
 }
 
 function tryParseStructuredJson(raw) {
+  if (raw && typeof raw === 'object') return raw;
   const text = String(raw || '').trim();
   if (!text) return null;
+  const cleaned = extractJsonFromLlmResponse(text);
   const candidates = [
     text,
-    text.replace(/```json\n?|```/g, '').trim()
+    cleaned,
+    extractBalancedJsonCandidate(cleaned)
   ];
-  const braceMatch = text.match(/\{[\s\S]*\}/);
-  if (braceMatch) candidates.push(braceMatch[0]);
   for (const candidate of candidates) {
+    if (!candidate) continue;
     try {
       return JSON.parse(candidate);
     } catch (error) {
@@ -610,6 +617,7 @@ Repair the response into the required JSON schema. Preserve company-specific mea
         model: compassModel,
         max_completion_tokens: 1400,
         temperature: 0,
+        response_format: { type: 'json_object' },
         messages: [
           { role: 'system', content: repairPrompt },
           { role: 'user', content: repairUser }
@@ -619,7 +627,7 @@ Repair the response into the required JSON schema. Preserve company-specific mea
     });
     if (!upstream.ok) return null;
     const payload = await upstream.json();
-    return tryParseStructuredJson(payload.choices?.[0]?.message?.content || '');
+    return tryParseStructuredJson(extractLlmTextResponse(payload) || '');
   } catch (error) {
     console.error('api/company-context.repairStructuredJson failed:', error);
     return null;
@@ -814,6 +822,7 @@ Instructions:
         model: compassModel,
         max_completion_tokens: 2200,
         temperature: 0.15,
+        response_format: { type: 'json_object' },
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
@@ -832,7 +841,7 @@ Instructions:
     }
 
     const payload = await upstream.json();
-    const raw = payload.choices?.[0]?.message?.content || '';
+    const raw = extractLlmTextResponse(payload) || '';
     let parsed = tryParseStructuredJson(raw);
     if (!parsed) {
       parsed = await repairStructuredJson(raw, canonicalUrl, pages, newsItems, compassApiUrl, compassModel, process.env.COMPASS_API_KEY);
