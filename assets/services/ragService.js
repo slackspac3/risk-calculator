@@ -133,21 +133,27 @@ const RAGService = (() => {
     },
     {
       key: 'financial-control',
-      patterns: ['invoice fraud', 'payment fraud', 'treasury', 'liquidity', 'financial control', 'financial reporting', 'misstatement', 'journal entry', 'revenue recognition', 'duplicate payment', 'payment approval', 'segregation of duties', 'receivable', 'counterparty default', 'customer insolvency', 'write off', 'write-off'],
+      patterns: ['invoice fraud', 'payment fraud', 'treasury', 'liquidity', 'financial control', 'financial reporting', 'misstatement', 'journal entry', 'revenue recognition', 'duplicate payment', 'payment approval', 'segregation of duties', 'receivable', 'counterparty default', 'customer insolvency', 'write off', 'write-off', 'cbuae', 'difc', 'dfsa', 'operational resilience', 'outsourcing', 'incident notification', 'payment operations', 'settlement'],
       docTags: ['financial', 'compliance', 'controls', 'governance', 'data'],
-      docIds: ['doc-coso-ic-33', 'doc-bcbs239-41']
+      docIds: ['doc-coso-ic-33', 'doc-bcbs239-41', 'doc-cbuae-operational-resilience-159']
     },
     {
       key: 'ai-governance',
-      patterns: ['responsible ai', 'model risk', 'ai governance', 'model drift', 'hallucination', 'algorithmic bias', 'ai act', 'training data', 'large language model', 'llm assistant', 'ai assistant', 'policy copilot', 'agentic orchestration', 'unsafe tool chaining', 'authority overreach', 'multilingual validation', 'translation bias', 'abstention', 'calibration', 'benchmark contamination', 'release gating', 'generalization', 'generalisation', 'retraining', 'human in the loop', 'forecasting model', 'capacity planning model', 'recalibration', 'pilot validation', 'deployment readiness', 'machine-translated'],
+      patterns: ['responsible ai', 'model risk', 'ai governance', 'model drift', 'hallucination', 'algorithmic bias', 'ai act', 'training data', 'large language model', 'llm assistant', 'ai assistant', 'policy copilot', 'agentic orchestration', 'unsafe tool chaining', 'authority overreach', 'multilingual validation', 'translation bias', 'abstention', 'calibration', 'benchmark contamination', 'release gating', 'generalization', 'generalisation', 'retraining', 'human in the loop', 'forecasting model', 'capacity planning model', 'recalibration', 'pilot validation', 'deployment readiness', 'machine-translated', 'clinical triage', 'digital health ai', 'patient-risk ranking'],
       docTags: ['ai-model-risk', 'governance', 'compliance', 'data-governance'],
-      docIds: ['doc-iso42001-62', 'doc-iso23894-63', 'doc-nist-airmf-64', 'doc-eu-ai-act-65', 'doc-sr11-7-66', 'doc-ai-multilingual-validation-120', 'doc-model-monitoring-drift-121', 'doc-agentic-ai-control-122', 'doc-ai-calibration-abstention-123', 'doc-ai-benchmark-release-124']
+      docIds: ['doc-iso42001-62', 'doc-iso23894-63', 'doc-nist-airmf-64', 'doc-eu-ai-act-65', 'doc-sr11-7-66', 'doc-ai-multilingual-validation-120', 'doc-model-monitoring-drift-121', 'doc-agentic-ai-control-122', 'doc-ai-calibration-abstention-123', 'doc-ai-benchmark-release-124', 'doc-digital-health-ai-assurance-163']
     },
     {
       key: 'data-governance',
-      patterns: ['data governance', 'data lineage', 'data quality', 'data retention', 'retention schedule', 'purpose limitation', 'consent', 'data residency', 'master data', 'lawful basis', 'records retained too long', 'transfer safeguards', 'troubleshooting logs', 'overseas diagnostics', 'privacy by design', 'dpia', 'data protection impact assessment', 'privacy impact assessment', 'data subject rights', 'subject access request', 'right to erasure', 'rectification request', 'portability request', 'record of processing activities', 'ropa', 'data controller', 'data processor', 'controller-processor', 'data processing agreement', 'supervisory authority', 'breach notification', '72-hour notification', 'dpo', 'patient data', 'medical records', 'health data', 'special category data', 'biometric data', 'uae health data', 'adgm data protection', 'de-identification', 'deidentification', 'data minimization', 'data minimisation', 'secondary use', 'lineage metadata', 'free-text fields', 'live identifiers', 'passport details', 'medical appointment references', 'health references', 'identity graph', 'identity views', 'suppression flags', 'record resurrection', 'deletion propagation', 'derived datasets', 'offshore support queue', 'development environment', 'staging pipeline', 'data marketplace'],
+      patterns: ['data governance', 'data lineage', 'data quality', 'data retention', 'retention schedule', 'purpose limitation', 'consent', 'data residency', 'master data', 'lawful basis', 'records retained too long', 'transfer safeguards', 'troubleshooting logs', 'overseas diagnostics', 'privacy by design', 'dpia', 'data protection impact assessment', 'privacy impact assessment', 'data subject rights', 'subject access request', 'right to erasure', 'rectification request', 'portability request', 'record of processing activities', 'ropa', 'data controller', 'data processor', 'controller-processor', 'data processing agreement', 'supervisory authority', 'breach notification', '72-hour notification', 'dpo', 'patient data', 'medical records', 'health data', 'special category data', 'biometric data', 'uae health data', 'adgm data protection', 'adhics', 'genomics', 'diagnostics data', 'lab results', 'sample metadata', 'de-identification', 'deidentification', 'data minimization', 'data minimisation', 'secondary use', 'lineage metadata', 'free-text fields', 'live identifiers', 'passport details', 'medical appointment references', 'health references', 'identity graph', 'identity views', 'suppression flags', 'record resurrection', 'deletion propagation', 'derived datasets', 'offshore support queue', 'development environment', 'staging pipeline', 'data marketplace'],
       docTags: ['data-governance', 'privacy', 'compliance', 'controls'],
-      docIds: ['doc-iso27701-19', 'doc-gdpr-06', 'doc-data-05', 'doc-cls-07', 'doc-hipaa-39', 'doc-internal-privacy-96', 'doc-internal-privacy-health-97', 'doc-adgm-dp-101', 'doc-data-minimization-125', 'doc-purpose-lineage-126', 'doc-deletion-suppression-127']
+      docIds: ['doc-iso27701-19', 'doc-gdpr-06', 'doc-data-05', 'doc-cls-07', 'doc-hipaa-39', 'doc-internal-privacy-96', 'doc-internal-privacy-health-97', 'doc-adgm-dp-101', 'doc-data-minimization-125', 'doc-purpose-lineage-126', 'doc-deletion-suppression-127', 'doc-adhics-healthcare-cyber-154', 'doc-uae-health-data-law-155', 'doc-genomics-secondary-use-157']
+    },
+    {
+      key: 'healthcare-regulated',
+      patterns: ['adhics', 'department of health', 'doh', 'health data law', 'uae health data', 'patient safety', 'clinical operations', 'hospital', 'frontline clinic', 'diagnostics lab', 'genomics', 'digital health', 'diaverum', 'dialysis', 'medical records', 'patient scheduling', 'clinical triage'],
+      docTags: ['healthcare', 'health-data', 'clinical-operations', 'patient-safety', 'diagnostics', 'genomics', 'digital-health'],
+      docIds: ['doc-adhics-healthcare-cyber-154', 'doc-uae-health-data-law-155', 'doc-m42-diaverum-context-156', 'doc-genomics-secondary-use-157', 'doc-clinical-continuity-158', 'doc-digital-health-ai-assurance-163', 'doc-internal-privacy-health-97']
     },
     {
       key: 'fraud-integrity',
@@ -163,9 +169,9 @@ const RAGService = (() => {
     },
     {
       key: 'geopolitical-market-access',
-      patterns: ['geopolitical', 'market access', 'entity list', 'export control', 'sovereign risk', 'cross-border restriction', 'tariff'],
+      patterns: ['geopolitical', 'market access', 'entity list', 'export control', 'sovereign risk', 'cross-border restriction', 'tariff', 'destination control', 'end-use assurance', 'end use assurance', 'origin mapping', 're-export', 'localisation', 'localization', 'restricted jurisdiction', 'public-sector sovereignty'],
       docTags: ['geopolitical', 'regulatory', 'strategic', 'supply-chain'],
-      docIds: ['doc-bis-export-09', 'doc-ofac-11']
+      docIds: ['doc-market-access-68', 'doc-internal-compliance-tradecontrols-86', 'doc-bis-ear-106', 'doc-ofac-sanctions-105', 'doc-sovereignty-localization-104', 'doc-eu-fsr-107', 'doc-market-access-export-controls-162', 'doc-bis-export-09', 'doc-ofac-11']
     },
     {
       key: 'ot-resilience',
@@ -198,6 +204,12 @@ const RAGService = (() => {
       docIds: ['doc-coso-erm-25', 'doc-iso31010-50', 'doc-transformation-delivery-71']
     },
     {
+      key: 'project-economics',
+      patterns: ['project buyer', 'project seller', 'approved budget', 'remaining spend', 'delay cost', 'delay cost per day', 'expected benefit per day', 'reprocurement premium', 'supplier credits', 'contract value', 'expected revenue', 'gross margin', 'liquidated damages', 'ld cap', 'sla credits', 'cost to cure', 'acceptance risk', 'milestone delay'],
+      docTags: ['project-risk', 'project-buyer', 'project-seller', 'financial', 'legal-contract', 'transformation-delivery'],
+      docIds: ['doc-project-buyer-economics-160', 'doc-project-seller-economics-161', 'doc-internal-erm-project-92', 'doc-transformation-delivery-71', 'doc-contract-governance-67', 'doc-contract-clauses-108']
+    },
+    {
       key: 'enterprise-risk-governance',
       patterns: ['risk appetite', 'risk tolerance', 'outside tolerance', 'above tolerance', 'residual risk', 'inherent risk', 'risk owner', 'risk register', 'project risk register', 'risk treatment plan', 'risk treatment owner', 'key risk indicator', 'kri', 'emerging risk', 'risk committee', 'erm committee', 'risk reporting cadence', 'principal risk', 'three lines', 'three lines model'],
       docTags: ['risk-management', 'enterprise-risk', 'governance', 'risk-appetite', 'risk-register', 'kri'],
@@ -214,21 +226,21 @@ const RAGService = (() => {
   const TOPIC_RULES = [
     {
       key: 'privacy',
-      patterns: ['privacy', 'personal data', 'pii', 'phi', 'data protection', 'gdpr', 'pdpl', 'data subject', 'biometric', 'health data', 'patient data', 'medical records', 'privacy by design', 'dpia', 'data protection impact assessment', 'subject access request', 'record of processing activities', 'data controller', 'data processor', 'controller-processor', 'data processing agreement', 'breach notification', 'supervisory authority', 'adgm', 'uae health data'],
+      patterns: ['privacy', 'personal data', 'pii', 'phi', 'data protection', 'gdpr', 'pdpl', 'data subject', 'biometric', 'health data', 'patient data', 'medical records', 'privacy by design', 'dpia', 'data protection impact assessment', 'subject access request', 'record of processing activities', 'data controller', 'data processor', 'controller-processor', 'data processing agreement', 'breach notification', 'supervisory authority', 'adgm', 'uae health data', 'adhics', 'genomics', 'diagnostics support'],
       docTags: ['privacy', 'data-protection', 'pims'],
-      docIds: ['doc-iso27018-18', 'doc-iso27701-19', 'doc-data-05', 'doc-gdpr-06', 'doc-cls-07', 'doc-hipaa-39', 'doc-internal-privacy-96', 'doc-internal-privacy-health-97']
+      docIds: ['doc-iso27018-18', 'doc-iso27701-19', 'doc-data-05', 'doc-gdpr-06', 'doc-cls-07', 'doc-hipaa-39', 'doc-internal-privacy-96', 'doc-internal-privacy-health-97', 'doc-adhics-healthcare-cyber-154', 'doc-uae-health-data-law-155', 'doc-genomics-secondary-use-157']
     },
     {
       key: 'ai-model-risk',
-      patterns: ['responsible ai', 'model risk', 'ai governance', 'algorithmic bias', 'model drift', 'hallucination', 'training data', 'ai act', 'large language model', 'llm assistant', 'ai assistant', 'copilot', 'agentic', 'tool chaining', 'abstention', 'calibration', 'benchmark contamination', 'release gating', 'generalization', 'generalisation', 'retraining', 'human in the loop', 'multilingual validation', 'translation bias', 'unsafe output', 'forecasting model', 'capacity planning model', 'recalibration', 'pilot validation', 'deployment readiness', 'machine-translated', 'authority overreach', 'red-team'],
+      patterns: ['responsible ai', 'model risk', 'ai governance', 'algorithmic bias', 'model drift', 'hallucination', 'training data', 'ai act', 'large language model', 'llm assistant', 'ai assistant', 'copilot', 'agentic', 'tool chaining', 'abstention', 'calibration', 'benchmark contamination', 'release gating', 'generalization', 'generalisation', 'retraining', 'human in the loop', 'multilingual validation', 'translation bias', 'unsafe output', 'forecasting model', 'capacity planning model', 'recalibration', 'pilot validation', 'deployment readiness', 'machine-translated', 'authority overreach', 'red-team', 'clinical triage', 'patient-risk ranking', 'digital health ai'],
       docTags: ['ai-model-risk', 'governance', 'compliance', 'data-governance'],
-      docIds: ['doc-iso42001-62', 'doc-iso23894-63', 'doc-nist-airmf-64', 'doc-eu-ai-act-65', 'doc-sr11-7-66', 'doc-ai-multilingual-validation-120', 'doc-model-monitoring-drift-121', 'doc-agentic-ai-control-122', 'doc-ai-calibration-abstention-123', 'doc-ai-benchmark-release-124']
+      docIds: ['doc-iso42001-62', 'doc-iso23894-63', 'doc-nist-airmf-64', 'doc-eu-ai-act-65', 'doc-sr11-7-66', 'doc-ai-multilingual-validation-120', 'doc-model-monitoring-drift-121', 'doc-agentic-ai-control-122', 'doc-ai-calibration-abstention-123', 'doc-ai-benchmark-release-124', 'doc-digital-health-ai-assurance-163']
     },
     {
       key: 'data-governance',
-      patterns: ['data governance', 'data lineage', 'data quality', 'data retention', 'retention schedule', 'purpose limitation', 'consent', 'data residency', 'lawful basis', 'records retained too long', 'transfer safeguards', 'overseas diagnostics', 'privacy by design', 'dpia', 'data protection impact assessment', 'data subject rights', 'subject access request', 'record of processing activities', 'data controller', 'data processor', 'controller-processor', 'data processing agreement', 'breach notification', 'supervisory authority', 'patient data', 'medical records', 'health data', 'biometric data', 'de-identification', 'deidentification', 'data minimization', 'data minimisation', 'secondary use', 'lineage metadata', 'free-text fields', 'passport details', 'identity graph', 'identity views', 'suppression flags', 'record resurrection', 'deletion propagation', 'derived datasets', 'offshore support queue', 'development environment', 'staging pipeline', 'data marketplace'],
+      patterns: ['data governance', 'data lineage', 'data quality', 'data retention', 'retention schedule', 'purpose limitation', 'consent', 'data residency', 'lawful basis', 'records retained too long', 'transfer safeguards', 'overseas diagnostics', 'privacy by design', 'dpia', 'data protection impact assessment', 'data subject rights', 'subject access request', 'record of processing activities', 'data controller', 'data processor', 'controller-processor', 'data processing agreement', 'breach notification', 'supervisory authority', 'patient data', 'medical records', 'health data', 'biometric data', 'adhics', 'genomics', 'diagnostics data', 'lab results', 'sample metadata', 'de-identification', 'deidentification', 'data minimization', 'data minimisation', 'secondary use', 'lineage metadata', 'free-text fields', 'passport details', 'identity graph', 'identity views', 'suppression flags', 'record resurrection', 'deletion propagation', 'derived datasets', 'offshore support queue', 'development environment', 'staging pipeline', 'data marketplace'],
       docTags: ['data-governance', 'privacy', 'controls', 'compliance'],
-      docIds: ['doc-iso27701-19', 'doc-gdpr-06', 'doc-data-05', 'doc-cls-07', 'doc-hipaa-39', 'doc-internal-privacy-96', 'doc-internal-privacy-health-97', 'doc-adgm-dp-101', 'doc-data-minimization-125', 'doc-purpose-lineage-126', 'doc-deletion-suppression-127']
+      docIds: ['doc-iso27701-19', 'doc-gdpr-06', 'doc-data-05', 'doc-cls-07', 'doc-hipaa-39', 'doc-internal-privacy-96', 'doc-internal-privacy-health-97', 'doc-adgm-dp-101', 'doc-data-minimization-125', 'doc-purpose-lineage-126', 'doc-deletion-suppression-127', 'doc-adhics-healthcare-cyber-154', 'doc-uae-health-data-law-155', 'doc-genomics-secondary-use-157']
     },
     {
       key: 'fraud-integrity',
@@ -244,21 +256,21 @@ const RAGService = (() => {
     },
     {
       key: 'legal-contract',
-      patterns: ['legal', 'contract', 'indemnity', 'licensing dispute', 'ip ownership', 'intellectual property', 'litigation', 'rights and remedies', 'service credits', 'confidentiality clause', 'license scope', 'licence scope', 'affiliate-use rights', 'affiliate use rights', 'service data', 'derived insights', 'step-in rights', 'liability cap', 'liability caps', 'technical equivalence', 'acceptance certificate', 'statement of work', 'schedule hierarchy', 'annex conflict', 'consortium agreement', 'flow-down terms', 'termination rights'],
+      patterns: ['legal', 'contract', 'indemnity', 'licensing dispute', 'ip ownership', 'intellectual property', 'litigation', 'rights and remedies', 'service credits', 'confidentiality clause', 'license scope', 'licence scope', 'affiliate-use rights', 'affiliate use rights', 'service data', 'derived insights', 'step-in rights', 'liability cap', 'liability caps', 'technical equivalence', 'acceptance certificate', 'statement of work', 'schedule hierarchy', 'annex conflict', 'consortium agreement', 'flow-down terms', 'termination rights', 'liquidated damages', 'sla credits', 'cost to cure'],
       docTags: ['legal-contract', 'contract-governance', 'licensing', 'acceptance', 'claims', 'data-rights', 'consortium'],
-      docIds: ['doc-contract-governance-67', 'doc-contract-clauses-108', 'doc-licensing-rights-109', 'doc-data-rights-contract-110', 'doc-dispute-notice-111', 'doc-consortium-flowdown-112', 'doc-unidroit-contracts-113', 'doc-cisg-114', 'doc-wipo-ict-115']
+      docIds: ['doc-contract-governance-67', 'doc-contract-clauses-108', 'doc-licensing-rights-109', 'doc-data-rights-contract-110', 'doc-dispute-notice-111', 'doc-consortium-flowdown-112', 'doc-unidroit-contracts-113', 'doc-cisg-114', 'doc-wipo-ict-115', 'doc-project-seller-economics-161']
     },
     {
       key: 'geopolitical',
-      patterns: ['geopolitical', 'market access', 'export control', 'sanctions', 'sovereign', 'cross-border restriction', 'entity list', 'restricted jurisdiction', 'denied party'],
+      patterns: ['geopolitical', 'market access', 'export control', 'sanctions', 'sovereign', 'cross-border restriction', 'entity list', 'restricted jurisdiction', 'denied party', 'destination control', 'end-use', 'origin mapping', 're-export', 'localisation', 'localization'],
       docTags: ['geopolitical', 'regulatory', 'strategic', 'supply-chain'],
-      docIds: ['doc-bis-export-09', 'doc-ofac-11', 'doc-internal-compliance-tradecontrols-86']
+      docIds: ['doc-market-access-68', 'doc-internal-compliance-tradecontrols-86', 'doc-bis-ear-106', 'doc-ofac-sanctions-105', 'doc-sovereignty-localization-104', 'doc-eu-fsr-107', 'doc-market-access-export-controls-162', 'doc-bis-export-09', 'doc-ofac-11']
     },
     {
       key: 'business-continuity',
-      patterns: ['business continuity', 'continuity', 'resilience', 'disruption', 'downtime', 'outage', 'disaster recovery', 'recovery', 'crisis management', 'business impact analysis', 'bia', 'rto', 'rpo', 'incident management', 'service restoration', 'resumption', 'tabletop', 'alternate site', 'alternate workspace', 'manual fallback', 'call tree', 'incident escalation matrix', 'crisis communication plan', 'continuity exercise'],
+      patterns: ['business continuity', 'continuity', 'resilience', 'disruption', 'downtime', 'outage', 'disaster recovery', 'recovery', 'crisis management', 'business impact analysis', 'bia', 'rto', 'rpo', 'incident management', 'service restoration', 'resumption', 'tabletop', 'alternate site', 'alternate workspace', 'manual fallback', 'call tree', 'incident escalation matrix', 'crisis communication plan', 'continuity exercise', 'clinical continuity', 'diagnostics turnaround', 'patient scheduling', 'dialysis'],
       docTags: ['business-continuity', 'resilience', 'bcp', 'dr', 'crisis-management'],
-      docIds: ['doc-iso22301-20', 'doc-iso22313-21', 'doc-bcp-10', 'doc-nfpa1600-32', 'doc-iso22361-51', 'doc-nist-80034-75', 'doc-iso22317-76', 'doc-iso22320-77', 'doc-internal-bcm-93']
+      docIds: ['doc-iso22301-20', 'doc-iso22313-21', 'doc-bcp-10', 'doc-nfpa1600-32', 'doc-iso22361-51', 'doc-nist-80034-75', 'doc-iso22317-76', 'doc-iso22320-77', 'doc-internal-bcm-93', 'doc-clinical-continuity-158']
     },
     {
       key: 'supply-chain',
@@ -310,9 +322,9 @@ const RAGService = (() => {
     },
     {
       key: 'transformation-delivery',
-      patterns: ['transformation delivery', 'programme delivery', 'program delivery', 'project delivery', 'go-live', 'milestone slip', 'benefit realization', 'benefit realisation', 'target state', 'local exceptions', 'exception governance', 'site-access constraints', 'localisation constraints'],
+      patterns: ['transformation delivery', 'programme delivery', 'program delivery', 'project delivery', 'go-live', 'milestone slip', 'benefit realization', 'benefit realisation', 'target state', 'local exceptions', 'exception governance', 'site-access constraints', 'localisation constraints', 'delay cost', 'liquidated damages', 'sla credits', 'cost to cure'],
       docTags: ['transformation-delivery', 'strategic', 'operational', 'governance'],
-      docIds: ['doc-coso-erm-25', 'doc-iso31010-50', 'doc-transformation-delivery-71']
+      docIds: ['doc-coso-erm-25', 'doc-iso31010-50', 'doc-transformation-delivery-71', 'doc-project-buyer-economics-160', 'doc-project-seller-economics-161']
     },
     {
       key: 'risk-management',
@@ -455,11 +467,11 @@ const RAGService = (() => {
   function _getMatchingLensTags(query = '') {
     const q = _normaliseText(query);
     const aliases = new Map([
-      ['ai-model-risk', ['ai-model-risk', 'ai risk', 'responsible ai', 'model risk', 'model governance', 'algorithmic bias', 'hallucination', 'model drift', 'large language model', 'llm assistant', 'copilot', 'agentic', 'tool chaining', 'abstention', 'calibration', 'benchmark contamination', 'release gating', 'generalization', 'generalisation', 'retraining', 'human in the loop', 'multilingual validation', 'translation bias', 'forecasting model', 'capacity planning model', 'recalibration', 'pilot validation', 'deployment readiness', 'machine-translated']],
-      ['data-governance', ['data-governance', 'data governance', 'data protection', 'data privacy', 'privacy', 'data quality', 'lineage', 'data retention', 'retention schedule', 'consent', 'purpose limitation', 'secondary use', 'de-identification', 'data minimization', 'free-text fields', 'passport details', 'identity graph', 'identity views', 'suppression flags', 'record resurrection', 'deletion propagation', 'derived datasets', 'offshore support queue', 'development environment', 'data marketplace']],
+      ['ai-model-risk', ['ai-model-risk', 'ai risk', 'responsible ai', 'model risk', 'model governance', 'algorithmic bias', 'hallucination', 'model drift', 'large language model', 'llm assistant', 'copilot', 'agentic', 'tool chaining', 'abstention', 'calibration', 'benchmark contamination', 'release gating', 'generalization', 'generalisation', 'retraining', 'human in the loop', 'multilingual validation', 'translation bias', 'forecasting model', 'capacity planning model', 'recalibration', 'pilot validation', 'deployment readiness', 'machine-translated', 'clinical triage', 'patient-risk ranking', 'digital health ai']],
+      ['data-governance', ['data-governance', 'data governance', 'data protection', 'data privacy', 'privacy', 'data quality', 'lineage', 'data retention', 'retention schedule', 'consent', 'purpose limitation', 'secondary use', 'de-identification', 'data minimization', 'free-text fields', 'passport details', 'identity graph', 'identity views', 'suppression flags', 'record resurrection', 'deletion propagation', 'derived datasets', 'offshore support queue', 'development environment', 'data marketplace', 'health data', 'patient data', 'medical records', 'adhics', 'genomics', 'diagnostics data']],
       ['third-party', ['third-party', 'third party', 'vendor', 'supplier', 'outsourcing']],
       ['supply-chain', ['supply-chain', 'supply chain', 'logistics', 'inventory', 'sub-tier', 'single source', 'single approved supplier', 'upstream', 'production line shift', 'inventory buffer', 'safety stock', 'quality hold', 'material flow', 'shipment windows', 'port congestion', 'customs inspection', 'installation sequence', 'allocation priority', 'oem', 'buffer hub', 'deployable inventory', 'service spares', 'repair lead time']],
-      ['business-continuity', ['business-continuity', 'business continuity', 'continuity', 'recovery', 'disaster recovery', 'crisis management', 'rto', 'rpo', 'business impact analysis', 'bia', 'incident management', 'service restoration', 'resumption']],
+      ['business-continuity', ['business-continuity', 'business continuity', 'continuity', 'recovery', 'disaster recovery', 'crisis management', 'rto', 'rpo', 'business impact analysis', 'bia', 'incident management', 'service restoration', 'resumption', 'clinical continuity', 'diagnostics turnaround', 'patient scheduling']],
       ['fraud-integrity', ['fraud-integrity', 'fraud', 'integrity', 'financial crime', 'kickback', 'bribery', 'corruption', 'side letter', 'return rights', 'rebate support', 'quarter-end pressure', 'ghost workers', 'false certification', 'related party', 'intermediary', 'success fee', 'books and records', 'rebate claims', 'backdated certifications', 'duplicate proof', 'fabricated evidence']],
       ['esg', ['esg', 'sustainability', 'climate', 'emissions', 'greenwashing', 'human rights', 'tcfd', 'ghg protocol', 'cdp', 'double materiality', 'scope 3']],
       ['hse', ['hse', 'health and safety', 'worker safety', 'injury', 'environmental', 'spill', 'hazard', 'process safety', 'loss of containment', 'permit to work', 'management of change', 'psychological safety']],
@@ -467,9 +479,9 @@ const RAGService = (() => {
       ['operational', ['operational', 'process failure', 'breakdown', 'service failure', 'backlog', 'quality failure']],
       ['strategic', ['strategic', 'strategy', 'market', 'transformation', 'portfolio', 'investment']],
       ['legal-contract', ['legal-contract', 'legal', 'contract', 'litigation', 'indemnity', 'licensing dispute', 'ip ownership', 'rights and remedies', 'service credits', 'confidentiality clause', 'license scope', 'licence scope', 'affiliate use rights', 'service data', 'derived insights', 'step-in rights', 'liability cap', 'technical equivalence', 'acceptance certificate', 'schedule hierarchy', 'annex conflict', 'consortium agreement']],
-      ['geopolitical', ['geopolitical', 'sanctions', 'market access', 'export control', 'sovereign', 'entity list']],
+      ['geopolitical', ['geopolitical', 'sanctions', 'market access', 'export control', 'sovereign', 'entity list', 'destination control', 'end-use', 'origin mapping', 're-export', 'localisation', 'localization']],
       ['regulatory', ['regulatory', 'regulator', 'licence', 'license', 'sanction', 'export control', 'filing']],
-      ['financial', ['financial', 'fraud', 'payment', 'treasury', 'capital', 'misstatement']],
+      ['financial', ['financial', 'fraud', 'payment', 'treasury', 'capital', 'misstatement', 'cbuae', 'difc', 'dfsa', 'operational resilience', 'outsourcing', 'incident notification']],
       ['compliance', ['compliance', 'non-compliance', 'policy breach', 'anti bribery', 'corruption', 'ethics', 'conduct']],
       ['procurement', ['procurement', 'sourcing', 'tender', 'bid', 'contract award', 'supplier due diligence', 'maverick spend', 'off-contract', 'enterprise agreement', 'duplicate licenses', 'pricing leakage', 'whole-life cost', 'lotting strategy', 'competition design', 'single aggregator', 'distributor terms', 'bundled scope', 'price validity', 'direct negotiation', 'should-cost', 'service baselines']],
       ['physical-security', ['physical-security', 'physical security', 'facilities', 'executive protection', 'perimeter', 'visitor management', 'unbadged individual', 'restricted office area', 'door on bypass', 'visitor escort', 'temporary badge privileges', 'event footprint', 'legal war room', 'catering access windows', 'unauthorized movement', 'fence-line alarms', 'camera blind spots', 'temporary gate protocol', 'after-hours service access', 'prototype facility', 'restricted zones', 'executive movement', 'contractor badges', 'loading bay', 'secure cage', 'vehicle screening', 'unsupervised access', 'camera sight lines']],
