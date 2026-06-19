@@ -261,3 +261,64 @@ test('company context fallback summary remains company-specific when AI output i
   assert.equal(res.payload.usedFallback, true);
   assert.match(res.payload.responseMessage, /public-source fallback/i);
 });
+
+test('company context route accepts metadata-only JavaScript landing pages', async () => {
+  process.env.ADMIN_API_SECRET = 'test-admin-secret';
+  process.env.ALLOWED_ORIGIN = 'https://slackspac3.github.io';
+  process.env.COMPASS_API_KEY = 'test-ai-key';
+  process.env.COMPASS_API_URL = 'https://example.test/ai';
+  process.env.COMPASS_MODEL = 'gpt-test';
+  process.env.KV_REST_API_URL = 'https://example.test/kv';
+  process.env.KV_REST_API_TOKEN = 'test-kv-token';
+  dns.promises.lookup = async () => [{ address: '93.184.216.34', family: 4 }];
+
+  global.fetch = async (url) => {
+    const target = String(url || '');
+    if (target === 'https://example.test/kv') {
+      return { ok: true, json: async () => ({ result: null }) };
+    }
+    if (target === 'https://example.test/ai') {
+      return {
+        ok: true,
+        json: async () => ({
+          choices: [{ finish_reason: 'stop', message: {} }]
+        })
+      };
+    }
+    if (target.startsWith('https://news.google.com/')) {
+      return { ok: true, text: async () => '<rss><channel></channel></rss>' };
+    }
+    if (target.startsWith('https://spidersilk.com/')) {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => `
+          <html>
+            <head>
+              <title>spiderSilk - AI-Native Exposure Management</title>
+              <meta name="description" content="AI-native exposure management for modern security teams.">
+            </head>
+            <body><noscript>You need to enable JavaScript to run this app.</noscript></body>
+          </html>`
+      };
+    }
+    throw new Error(`Unexpected fetch: ${target}`);
+  };
+
+  const res = createRes();
+  await companyContextRoute({
+    method: 'POST',
+    body: JSON.stringify({ websiteUrl: 'https://spidersilk.com/' }),
+    headers: {
+      origin: 'https://slackspac3.github.io',
+      'content-type': 'application/json',
+      'x-admin-secret': 'test-admin-secret'
+    },
+    socket: { remoteAddress: '203.0.113.10' }
+  }, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.match(res.payload.companySummary, /cybersecurity services/);
+  assert.doesNotMatch(res.payload.companySummary, /could not fetch|could not be parsed/i);
+  assert.equal(res.payload.usedFallback, true);
+});

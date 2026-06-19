@@ -65,6 +65,7 @@ Latest active-context update on 2026-06-19 in `/Users/bhavuk.arora/risk-calculat
 - `assets/services/ragService.js` has focused keyword routing for those additions. Existing master eval retrieval hit rate over rows with `expected_doc_ids` was spot-checked at `71/75` rows with at least one expected top-4 hit after the update.
 - Admin company-context website builds now use the shared LLM response extractor, so JSON returned through OpenAI-compatible `function_call.arguments` / `tool_calls[].function.arguments` is parsed before falling back.
 - Follow-up hardening keeps parser diagnostics out of the user-facing company summary: common AI aliases such as `summary` are accepted, unusable AI output now yields a company-specific public-source fallback summary, and fallback state is carried through `usedFallback` / `responseMessage` for admin review copy.
+- Company/entity context website builds now tolerate JavaScript-rendered landing pages with little server-rendered body text, using title/meta text as the public-source extract instead of failing with the generic 502. This covers sites such as SpiderSilk where the raw HTML mainly says JavaScript must be enabled.
 - Validation passed:
   - `npm run check:syntax`
   - `npm run check:smoke`
@@ -86,6 +87,11 @@ Latest active-context update on 2026-06-19 in `/Users/bhavuk.arora/risk-calculat
   - `node --test tests/unit/companyContextNews.test.js` (`5` tests)
   - `npm run check:syntax`
   - `npm run test:unit` (`755` tests)
+  - `git diff --check`
+- After the metadata-only website fallback for company/entity context builds, validation passed:
+  - `node --test tests/unit/companyContextNews.test.js` (`6` tests)
+  - `npm run check:syntax`
+  - `npm run test:unit` (`756` tests)
   - `git diff --check`
 
 - Maintenance backlog pass completed on `master` after the Ponytail audit follow-up.

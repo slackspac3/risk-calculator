@@ -22,6 +22,24 @@ function stripHtml(html) {
     .trim();
 }
 
+function extractHtmlAttr(html, pattern) {
+  const match = String(html || '').match(pattern);
+  return stripHtml(match?.[1] || '');
+}
+
+function extractReadablePageContent(html) {
+  const visibleText = stripHtml(html);
+  if (visibleText.length > 200) return visibleText;
+  const metadata = [
+    extractHtmlAttr(html, /<title[^>]*>([\s\S]*?)<\/title>/i),
+    extractHtmlAttr(html, /<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["'][^>]*>/i),
+    extractHtmlAttr(html, /<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["'][^>]*>/i),
+    extractHtmlAttr(html, /<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["'][^>]*>/i)
+  ]
+    .filter(value => value && !/enable javascript/i.test(value));
+  return Array.from(new Set(metadata)).join('. ') || visibleText;
+}
+
 function extractLinks(html, baseUrl) {
   const links = [];
   const regex = /href=["']([^"'#]+)["']/gi;
@@ -303,7 +321,7 @@ function inferProfileHints(canonicalUrl, pages, newsItems = []) {
   const sectors = [
     { label: 'cloud and infrastructure services', patterns: [/cloud/, /data cent(?:er|re)/, /infrastructure/, /hosting/, /compute/] },
     { label: 'software and digital platforms', patterns: [/software/, /platform/, /saas/, /application/, /digital platform/] },
-    { label: 'cybersecurity services', patterns: [/cyber/, /security operations/, /managed security/, /threat/] },
+    { label: 'cybersecurity services', patterns: [/cyber/, /security operations/, /managed security/, /threat/, /exposure management/, /attack surface/] },
     { label: 'financial services or fintech offerings', patterns: [/bank/, /payments?/, /fintech/, /lending/, /insurance/] },
     { label: 'healthcare or life sciences services', patterns: [/health/, /clinical/, /patient/, /pharma/, /hospital/] },
     { label: 'industrial, energy, or infrastructure operations', patterns: [/energy/, /industrial/, /plant/, /manufactur/, /logistics/, /utilities?/] },
@@ -796,9 +814,9 @@ module.exports = async function handler(req, res) {
       .map(result => ({
         url: result.value.url,
         note: describeCompanySource(result.value.url, canonicalUrl),
-        content: stripHtml(result.value.html).slice(0, 7000)
+        content: extractReadablePageContent(result.value.html).slice(0, 7000)
       }))
-      .filter(page => page.content.length > 200)
+      .filter(page => page.content.length > 40)
       .slice(0, 9);
 
     if (!pages.length) {
