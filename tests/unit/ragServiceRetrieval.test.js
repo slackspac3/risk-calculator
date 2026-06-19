@@ -246,3 +246,63 @@ test('retrieval surfaces internal HSE references for permit-to-work and emergenc
 
   assert.equal(results.some((doc) => ['doc-internal-hse-94', 'doc-internal-qhse-95', 'doc-iso45001-30'].includes(doc.docId)), true);
 });
+
+test('retrieval surfaces ADHICS and UAE health-data references for regulated clinical wording', async () => {
+  const service = initService();
+  const results = await service.retrieveRelevantDocs('bu-health', {
+    text: 'ADHICS applies to UAE hospitals, diagnostics labs, and digital health workflows where patient records and clinical access logs are weak.',
+    scenarioLens: { key: 'data-governance' }
+  }, 4);
+
+  assert.equal(results.some((doc) => ['doc-adhics-healthcare-cyber-154', 'doc-uae-health-data-law-155'].includes(doc.docId)), true);
+});
+
+test('retrieval surfaces genomics governance references for secondary-use diagnostics wording', async () => {
+  const service = initService();
+  const results = await service.retrieveRelevantDocs('bu-health', {
+    text: 'Genomics samples and diagnostics lab results are reused for AI training before secondary-use consent, lineage, and de-identification controls are complete.',
+    scenarioLens: { key: 'data-governance' }
+  }, 4);
+
+  assert.equal(results.some((doc) => ['doc-genomics-secondary-use-157', 'doc-uae-health-data-law-155'].includes(doc.docId)), true);
+});
+
+test('retrieval surfaces clinical continuity references for Diaverum scheduling disruption wording', async () => {
+  const service = initService();
+  const results = await service.retrieveRelevantDocs('bu-health', {
+    text: 'A Diaverum-style dialysis scheduling outage delays patient appointments and diagnostics turnaround without a cyber breach.',
+    scenarioLens: { key: 'business-continuity' }
+  }, 4);
+
+  assert.equal(results.some((doc) => ['doc-clinical-continuity-158', 'doc-m42-diaverum-context-156'].includes(doc.docId)), true);
+});
+
+test('retrieval surfaces project buyer economics for sparse delay-cost wording', async () => {
+  const service = initService();
+  const results = await service.retrieveRelevantDocs('g42', {
+    text: 'Project buyer assessment has approved budget known but delay cost per day, expected benefit per day, reprocurement premium, and supplier credits are unknown.',
+    scenarioLens: { key: 'transformation-delivery' }
+  }, 4);
+
+  assert.equal(results.some((doc) => doc.docId === 'doc-project-buyer-economics-160'), true);
+});
+
+test('retrieval surfaces project seller economics for margin and LD cap wording', async () => {
+  const service = initService();
+  const results = await service.retrieveRelevantDocs('g42', {
+    text: 'Project seller exposure has contract value but gross margin, liquidated damages cap, SLA credits, and cost to cure are not quantified.',
+    scenarioLens: { key: 'legal-contract' }
+  }, 4);
+
+  assert.equal(results.some((doc) => doc.docId === 'doc-project-seller-economics-161'), true);
+});
+
+test('retrieval surfaces market-access export-control references for end-use restriction wording', async () => {
+  const service = initService();
+  const results = await service.retrieveRelevantDocs('g42', {
+    text: 'Destination controls, origin mapping, end-use assurances, and re-export restrictions may fragment the platform roadmap by geography.',
+    scenarioLens: { key: 'geopolitical' }
+  }, 4);
+
+  assert.equal(results.some((doc) => ['doc-market-access-export-controls-162', 'doc-market-access-68', 'doc-bis-ear-106'].includes(doc.docId)), true);
+});

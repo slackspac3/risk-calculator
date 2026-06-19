@@ -60,6 +60,23 @@ If this file conflicts with the code, git history, or GitHub workflow files, tru
 
 Latest active-context update on 2026-06-19 in `/Users/bhavuk.arora/risk-calculator`:
 
+- AI grounding corpus now includes ten additional seed references for ADHICS/UAE healthcare operations, health-data localisation and transfers, diagnostics/genomics secondary use, Diaverum-style clinical continuity, UAE financial-services operational resilience, project buyer/seller economics, geopolitical market access/export controls, and digital-health AI assurance.
+- ADHICS and UAE health-data-law seed excerpts were validated against local official PDFs in `/Users/bhavuk.arora/Downloads/` (`ADHICS-v2-standard.pdf` and `Federal Law No. (2) of 2019, Concerning the Use of the Information and Communications Technology in Health Fields.pdf`). The PDFs were not committed; full-text grounding should use the existing server evidence upload/indexing path. Public official `sourceUrl` values were added only for CBUAE operational risk, BIS EAR, and FDA medical-device AI anchors.
+- `assets/services/ragService.js` has focused keyword routing for those additions. Existing master eval retrieval hit rate over rows with `expected_doc_ids` was spot-checked at `71/75` rows with at least one expected top-4 hit after the update.
+- Validation passed:
+  - `npm run check:syntax`
+  - `npm run check:smoke`
+  - `npm run test:unit` (`753` tests)
+  - `npm run test:eval:fixture`
+  - `node --test tests/unit/ragServiceRetrieval.test.js` (`27` tests)
+  - `git diff --check`
+- After the ADHICS/health-data-law PDF source-confirmation patch, focused validation passed:
+  - `node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('data/docs.json','utf8')); console.log('docs.json ok')"`
+  - `npm run check:syntax`
+  - `node --test tests/unit/ragServiceRetrieval.test.js` (`27` tests)
+  - `npm run test:eval:fixture`
+  - `git diff --check`
+
 - Maintenance backlog pass completed on `master` after the Ponytail audit follow-up.
 - Local Stitch artifacts are ignored via `.gitignore` entries for `output/` and `.stitch/`; `DESIGN.md` is now intentionally committed as the current design-system reference.
 - Smoke e2e setup now reuses shared helpers; sparse project buyer assertions moved into `tests/e2e/helpers/sparseProjectAssertions.js`; sparse seller and stale project exposure e2e coverage were added.

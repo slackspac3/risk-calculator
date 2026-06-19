@@ -2808,5 +2808,222 @@
     ],
     "contentExcerpt": "This internal strategic-sourcing standard governs urgent negotiation posture, demand normalization, service-baseline cleanup, and should-cost preparation before direct negotiation or incumbent-led exceptions. It is relevant where scope creep, inconsistent service baselines, or time pressure leave the enterprise negotiating from a fragmented and commercially weak position.",
     "lastUpdated": "2026-04-10"
+  },
+  {
+    "id": "doc-adhics-healthcare-cyber-154",
+    "title": "ADHICS V2 Healthcare Cybersecurity and Regulated Health Operations Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "cyber",
+      "regulatory",
+      "uae",
+      "healthcare",
+      "health-data",
+      "patient-safety",
+      "clinical-operations",
+      "adhics",
+      "doh",
+      "hospitals",
+      "diagnostics",
+      "all-bu"
+    ],
+    "contentExcerpt": "Validated against the Department of Health controlled ADHICS V2 standard: Abu Dhabi - Healthcare Information and Cyber Security Standard, document reference DOH/SD/ICSO/ADHICS/V2/2024, publication May 2024 and effective August 2024. The standard applies to Abu Dhabi health-sector entities and staff who generate, access, store, use, process, or transmit health information. It is relevant where identity controls, access logging, endpoint hardening, segmentation, incident management, third-party support, medical systems, clinical availability, or patient-safety confidence are part of the risk story.",
+    "lastUpdated": "2026-06-19"
+  },
+  {
+    "id": "doc-uae-health-data-law-155",
+    "title": "UAE Health Data Law, Localisation, and Cross-Border Transfer Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "regulatory",
+      "privacy",
+      "data-governance",
+      "uae",
+      "health-data",
+      "patient-data",
+      "medical-records",
+      "data-localisation",
+      "cross-border-transfer",
+      "doh",
+      "clinical-operations",
+      "all-bu"
+    ],
+    "contentExcerpt": "Validated against Federal Law No. (2) of 2019 concerning the use of information and communications technology in health fields. The law applies to ICT use in health fields in the UAE, including free zones, and anchors confidentiality, integrity, availability, electronic-system controls, central-system obligations, and health-data risk management. It is relevant where medical records, patient identifiers, diagnostics data, clinical notes, platform telemetry, or support logs may be localised, transferred, reused, or accessed across borders; Article 13-style transfer questions should be treated as health-authority approval issues, not generic privacy wording.",
+    "lastUpdated": "2026-06-19"
+  },
+  {
+    "id": "doc-m42-diaverum-context-156",
+    "title": "Healthcare Portfolio Context: Clinics, Hospitals, Diagnostics, Genomics, Digital Health, and Diaverum",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "strategic",
+      "operational",
+      "healthcare",
+      "clinical-operations",
+      "diagnostics",
+      "genomics",
+      "digital-health",
+      "diaverum",
+      "patient-safety",
+      "uae",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This portfolio context covers mixed healthcare operations including frontline clinics, hospitals, diagnostics labs, genomics services, digital health platforms, and Diaverum-style chronic-care operations. It is relevant where a scenario cuts across patient access, clinical continuity, lab turnaround time, treatment scheduling, regulated health data, third-party clinical partners, and reputational trust in patient-facing services.",
+    "lastUpdated": "2026-06-19"
+  },
+  {
+    "id": "doc-genomics-secondary-use-157",
+    "title": "Genomics, Diagnostics, and Secondary-Use Data Governance Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "data-governance",
+      "privacy",
+      "health-data",
+      "genomics",
+      "diagnostics",
+      "secondary-use",
+      "de-identification",
+      "consent",
+      "lineage",
+      "research-data",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal standard governs diagnostics and genomics datasets used beyond the original care or testing purpose. It is relevant where sample metadata, genomic markers, lab results, de-identified research datasets, AI training extracts, or partner analytics could drift beyond consent, ethics approval, lineage, retention, transfer, or re-identification controls.",
+    "lastUpdated": "2026-06-19"
+  },
+  {
+    "id": "doc-clinical-continuity-158",
+    "title": "Clinical Continuity, Diagnostics Turnaround, and Patient Scheduling Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "business-continuity",
+      "operational",
+      "healthcare",
+      "clinical-operations",
+      "diagnostics",
+      "diaverum",
+      "patient-safety",
+      "care-continuity",
+      "scheduling",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal continuity standard covers patient-facing service disruption in clinics, hospitals, diagnostics labs, dialysis or chronic-care networks, and digital-health scheduling. It is relevant where downtime, staffing gaps, lab turnaround delays, appointment displacement, referral breakdowns, or third-party outages could interrupt care pathways without necessarily creating a cyber breach.",
+    "lastUpdated": "2026-06-19"
+  },
+  {
+    "id": "doc-cbuae-operational-resilience-159",
+    "title": "UAE Financial Services Operational Resilience, Outsourcing, and Incident Notification Reference",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://rulebook.centralbank.ae/en/rulebook/operational-risk-regulation",
+    "tags": [
+      "financial",
+      "regulatory",
+      "uae",
+      "cbuae",
+      "difc",
+      "dfsa",
+      "operational-resilience",
+      "outsourcing",
+      "cyber",
+      "incident-notification",
+      "third-party",
+      "all-bu"
+    ],
+    "contentExcerpt": "The Central Bank of the UAE Operational Risk Regulation is the public official anchor for UAE financial-services operational risk expectations. This reference supports scenarios involving critical services, outsourced providers, technology resilience, payment operations, cyber incidents, incident notification, and recovery expectations. It is relevant where a fintech, payments, or regulated financial workflow depends on third-party processors, cloud services, fraud monitoring, settlement, customer communications, or regulator-notification readiness.",
+    "lastUpdated": "2026-06-19"
+  },
+  {
+    "id": "doc-project-buyer-economics-160",
+    "title": "Project Buyer Economics: Delay Cost, Budget Exposure, Reprocurement, and Credits Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "project-risk",
+      "project-buyer",
+      "transformation-delivery",
+      "procurement",
+      "financial",
+      "delay-cost",
+      "approved-budget",
+      "reprocurement",
+      "supplier-credits",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal project-buyer standard defines how to frame economic exposure when the organisation is buying, implementing, or depending on a project, supplier, contractor, platform, or delivery partner. It is relevant where approved budget, remaining spend, delay cost per day, expected benefit delay, reprocurement premium, supplier credits, and replacement difficulty determine the project story, and where blanks must remain unknown rather than being treated as zero.",
+    "lastUpdated": "2026-06-19"
+  },
+  {
+    "id": "doc-project-seller-economics-161",
+    "title": "Project Seller Economics: Contract Value, Margin, LD Caps, SLA Credits, and Cost to Cure Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": null,
+    "tags": [
+      "project-risk",
+      "project-seller",
+      "legal-contract",
+      "financial",
+      "contract-value",
+      "margin",
+      "liquidated-damages",
+      "sla-credits",
+      "cost-to-cure",
+      "revenue-recognition",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal project-seller standard defines how to frame economic exposure when the organisation is delivering a project, service, implementation, bid, contract, or revenue commitment to a customer. It is relevant where contract value, expected revenue, gross margin, liquidated damages caps, SLA credits, cost to cure, milestone delay, and acceptance risk determine the exposure, and where missing margin or LD values must remain unknown rather than being inferred as zero.",
+    "lastUpdated": "2026-06-19"
+  },
+  {
+    "id": "doc-market-access-export-controls-162",
+    "title": "Geopolitical Market Access, Export Controls, End-Use, and Sovereignty Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.bis.gov/regulations/ear",
+    "tags": [
+      "geopolitical",
+      "market-access",
+      "regulatory",
+      "export-control",
+      "end-use",
+      "destination-control",
+      "sovereignty",
+      "localisation",
+      "public-sector",
+      "restricted-jurisdictions",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal market-access standard is externally anchored to official export-control material such as the BIS Export Administration Regulations. It covers restrictions that can narrow where technology, hardware, support services, data, or personnel may be deployed. It is relevant where destination controls, end-use assurances, public-sector sovereignty conditions, localisation demands, restricted jurisdictions, alliance sensitivities, or customer origin-mapping requirements affect product roadmap, inventory flexibility, support models, or bid viability.",
+    "lastUpdated": "2026-06-19"
+  },
+  {
+    "id": "doc-digital-health-ai-assurance-163",
+    "title": "Digital Health AI Assurance, Clinical Triage, and Human Oversight Standard",
+    "url": "#/admin/docs",
+    "sourceUrl": "https://www.fda.gov/medical-devices/software-medical-device-samd/artificial-intelligence-software-medical-device",
+    "tags": [
+      "ai-model-risk",
+      "healthcare",
+      "digital-health",
+      "clinical-operations",
+      "model-validation",
+      "human-oversight",
+      "bias",
+      "patient-safety",
+      "health-data",
+      "all-bu",
+      "internal-guidance"
+    ],
+    "contentExcerpt": "This internal standard is externally anchored to official health-AI and medical-device AI assurance material, including FDA guidance on artificial intelligence software as a medical device. It governs AI assurance in digital health and clinical decision-support workflows, including triage models, patient-risk ranking, diagnostics support, clinician-in-the-loop controls, subgroup performance, independent validation, model reliance statements, release gates, and monitoring needed to prevent unsafe or inequitable healthcare outcomes.",
+    "lastUpdated": "2026-06-19"
   }
 ]
