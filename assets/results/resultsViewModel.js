@@ -375,7 +375,12 @@
         : 'Generic enterprise risk';
     const quant = decisionBrief?.quantSummary && typeof decisionBrief.quantSummary === 'object' ? decisionBrief.quantSummary : {};
     const projectQuant = decisionBrief?.projectQuantSummary && typeof decisionBrief.projectQuantSummary === 'object' ? decisionBrief.projectQuantSummary : {};
-    const posture = cleanCockpitText(decisionBrief?.decisionPosture || executiveDecision?.decision || statusTitle || 'review');
+    const criticalCondition = executiveDecision?.criticalCondition || r?.criticalCondition || null;
+    const posture = cleanCockpitText(
+      criticalCondition
+        ? (criticalCondition.decision || executiveDecision?.decision || statusTitle)
+        : (decisionBrief?.decisionPosture || executiveDecision?.decision || statusTitle || 'review')
+    );
     const postureLabel = humanizeCockpitToken(posture, 'Review');
     const postureTone = resolveCockpitPostureTone(`${posture} ${statusTitle}`);
     const challenge = buildCockpitChallengeSummary(assessment);
@@ -409,7 +414,14 @@
       ...(Array.isArray(assessmentIntelligence?.drivers?.upward) ? assessmentIntelligence.drivers.upward : [])
     ];
     const mainDriver = uniqueCockpitStrings(mainDriverCandidates, 1)[0] || 'Main driver not identified yet';
-    const nextAction = decisionBrief?.nextAction && typeof decisionBrief.nextAction === 'object'
+    const nextAction = criticalCondition
+      ? {
+          owner: cleanCockpitText(criticalCondition.owner || 'Accountable owner not set'),
+          action: cleanCockpitText(criticalCondition.action || executiveAction || executiveDecision?.priority || 'Close the critical response gate.'),
+          due: '',
+          controlOrTreatment: cleanCockpitText(criticalCondition.requiredControls?.[0] || '')
+        }
+      : decisionBrief?.nextAction && typeof decisionBrief.nextAction === 'object'
       ? {
           owner: cleanCockpitText(decisionBrief.nextAction.owner || 'Owner not set'),
           action: cleanCockpitText(decisionBrief.nextAction.action || executiveAction || executiveDecision?.priority || 'Confirm the next management step.'),
@@ -488,8 +500,16 @@
       isProject,
       role: assessmentType === 'project_seller' ? 'seller' : assessmentType === 'project_buyer' ? 'buyer' : 'generic',
       valuationModeLabel: humanizeCockpitToken(valuationMode, 'Benchmark Led'),
-      recommendation: cleanCockpitText(decisionBrief?.recommendation || executiveDecision?.decision || statusTitle || 'Review result'),
-      why: cleanCockpitText(decisionBrief?.why || executiveDecision?.rationale || confidenceFrame?.summary || 'Use the current result as a decision-support view and confirm the strongest assumptions.'),
+      recommendation: cleanCockpitText(
+        criticalCondition
+          ? (criticalCondition.decision || executiveDecision?.decision || statusTitle)
+          : (decisionBrief?.recommendation || executiveDecision?.decision || statusTitle || 'Review result')
+      ),
+      why: cleanCockpitText(
+        criticalCondition
+          ? (executiveDecision?.rationale || criticalCondition.statusDetail)
+          : (decisionBrief?.why || executiveDecision?.rationale || confidenceFrame?.summary || 'Use the current result as a decision-support view and confirm the strongest assumptions.')
+      ),
       decisionPostureLabel: postureLabel,
       decisionPostureTone: postureTone,
       reviewReadinessLabel: cleanCockpitText(lifecycle?.label || 'Ready for review'),

@@ -390,6 +390,27 @@ test('wizard assessment type router stores selection before intake', async ({ pa
       _meta: { revision: 1, updatedAt: Date.now() }
     }
   });
+  await page.route('**/api/ai/scenario-draft', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        mode: 'live',
+        draftNarrative: 'The delivery partner may miss the implementation date for a customer onboarding platform. This could delay customer launch commitments and create operational backlog.',
+        scenarioLens: {
+          key: 'supplier_delivery_slippage',
+          label: 'Third-party delivery',
+          functionKey: 'operations',
+          estimatePresetKey: 'supplier'
+        },
+        trace: {
+          label: 'Step 2 guided draft',
+          promptSummary: 'Smoke test guided draft',
+          response: 'Mocked live scenario draft'
+        }
+      })
+    });
+  });
 
   await expectNoClientCrashOnRoute(page, '/#/wizard/1', async () => {
     const router = () => page.locator('.app-stage-shell.is-current .step1-assessment-router');
@@ -413,7 +434,12 @@ test('wizard assessment type router stores selection before intake', async ({ pa
     expect(savedDraftValue?.assessmentType).toBe('project_buyer');
     expect(savedDraftValue?.projectContext?.projectRole).toBe('buyer');
     await expect(page.locator('.app-stage-shell.is-current .step1-route-inputs--buyer')).toBeVisible();
+    await page.locator('#wizard-bu').selectOption({ index: 1 });
     await page.locator('#guided-event').fill('The delivery partner may miss the implementation date for a customer onboarding platform.');
+    await page.locator('#guided-impact').fill('Customer launch commitments may be delayed and delivery teams may need recovery work.');
+    await expect(page.locator('#btn-build-guided-narrative')).toBeEnabled();
+    await page.locator('#btn-build-guided-narrative').click();
+    await expect(page.locator('#guided-preview-title')).toHaveText(/First draft ready/i);
     await expect(page.getByRole('button', { name: /continue to scenario review/i })).toBeEnabled();
     await page.getByRole('button', { name: /continue to scenario review/i }).click();
     await expect(page).toHaveURL(/#\/wizard\/3$/);

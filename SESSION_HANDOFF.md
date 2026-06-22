@@ -60,10 +60,22 @@ If this file conflicts with the code, git history, or GitHub workflow files, tru
 
 Latest active-context update on 2026-06-22 in `/Users/bhavuk.arora/risk-calculator`:
 
-- Basic Step 2 now has a pure intake conversation model in `assets/state/intakeConversationModel.js`.
-- The model treats explicit unknown answers as tracked gaps rather than missing fields, summarizes evidence/project-economics gaps, and returns the next best action without calling AI or mutating draft state.
-- `assets/wizard/step1.js` consumes that model for the existing Basic intake card, action copy, and draft-readiness state; the dense live-memory sidecar remains hidden in Basic mode.
-- Asset stamp is now `20260622v1`; build stamp is `2026-06-22-intake-conversation-planner`.
+- Follow-up AI-first hardening was completed locally after `c2550a1`:
+  - Basic Step 2 still uses two plain-language prompts, one build action, and a draft preview; build/continue readiness now requires business context plus event/impact text and a real built/staged draft.
+  - Basic Step 2 continues to treat explicit unknown answers as tracked gaps, keeps local previews marked as local, and does not show the old dense live-memory sidecar.
+  - AI routes now favor structured JSON outputs: `callAi` forwards JSON response format by default, `/api/compass` accepts only allowlisted client controls, fallback outputs are not completed-cached by workflow reuse, and company-context builds return transparent public-source fallback metadata instead of opaque failures.
+  - Security-sensitive seams were tightened: session signing now requires a distinct `SESSION_SIGNING_SECRET`, browser audit events are forced to client provenance, org-intelligence assessment/decision writes require admin access, and evidence RAG re-indexing deletes stale chunks before upsert.
+  - Results/export trust signals now let critical gates override stale green decision-brief posture in the cockpit, PDF, and PPTX exports.
+  - Guardrails now include a blocking PR app-integrity job, validation-only `test-poc` workflow permissions/concurrency, and smoke checks for the release-bootstrap asset stamp triad.
+  - Asset stamp is now `20260622v2`; build stamp is `2026-06-22-ai-first-security-structured-outputs`.
+  - Validation passed:
+    - `node --test tests/unit/apiSecurityHandlers.test.js tests/unit/apiAuth.test.js tests/unit/orgIntelligenceApi.test.js tests/unit/workflowReuse.test.js tests/unit/aiOrchestrator.test.js tests/unit/companyContextNews.test.js tests/unit/llmLiveFallbackMinimisation.test.js tests/unit/exportService.test.js tests/unit/resultsViewModelDecisionBrief.test.js tests/unit/intakeConversationModel.test.js tests/unit/step1AssistGuidedDraftFallback.test.js tests/unit/evidenceRag.test.js` (`61` tests)
+    - `npm run test:unit` (`783` tests)
+    - `npm run check:syntax`
+    - `npm run check:smoke`
+    - `npm run check:staleness`
+    - `npm run test:e2e -- tests/e2e/smoke.spec.js` (`51` tests)
+    - `git diff --check`
 
 Latest active-context update on 2026-06-19 in `/Users/bhavuk.arora/risk-calculator`:
 
@@ -327,7 +339,7 @@ Additional validation after the latest uncommitted UI changes on top of `test-po
 - 2026-04-26 live-AI localhost diagnostic:
   - hosted endpoint check from `Origin: http://localhost:8080` returned CORS allowed plus `401 AUTH_REQUIRED` without a session token, so the fixed localhost origin is not currently blocked by hosted API CORS
   - local `.env.local` has `COMPASS_API_KEY`, `COMPASS_API_URL`, and `COMPASS_MODEL`, but a direct provider health check returned `400 Invalid API Key`
-  - local `.env.local` does not currently contain `SESSION_SIGNING_SECRET` or `ADMIN_API_SECRET`, so a local Vercel serverless run would also be unable to mint/validate authenticated API session tokens until those are added
+  - local `.env.local` did not contain `SESSION_SIGNING_SECRET` during this diagnostic, so a local Vercel serverless run would also be unable to mint/validate authenticated API session tokens until that value is added; `ADMIN_API_SECRET` is not a valid session-signing fallback
   - current conclusion: the Step 2 banner is consistent with live AI falling back because the available local provider credential is rejected; do not treat this as a UI-only issue
   - no secrets were printed during the diagnostic
 - 2026-04-26 production redeploy verification:
@@ -621,7 +633,7 @@ Current branch tip under test:
   - focused Step 3 and Step 5/Results e2e checks passed on asset stamp `20260426v14`
 - Current live-AI blocker found on 2026-04-26:
   - local provider health check against `.env.local` returned `400 Invalid API Key` from the Compass/Core42 endpoint
-  - local serverless API testing also needs `SESSION_SIGNING_SECRET` or `ADMIN_API_SECRET`; neither is present in `.env.local` right now
+  - local serverless API testing also needs `SESSION_SIGNING_SECRET`; `ADMIN_API_SECRET` is not accepted as a session-signing fallback
   - hosted API CORS for `http://localhost:8080` was verified as allowed after the production redeploy
   - browser-side `Test local override` now succeeds through the hosted proxy from a signed-in localhost session; verify Step 2 no longer shows the AI-unavailable fallback banner
 - Latest UI bug fixed locally:

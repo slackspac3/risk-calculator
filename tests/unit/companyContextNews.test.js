@@ -262,6 +262,136 @@ test('company context fallback summary remains company-specific when AI output i
   assert.match(res.payload.responseMessage, /public-source fallback/i);
 });
 
+test('company context route returns public-source fallback when the AI provider fails', async () => {
+  process.env.ADMIN_API_SECRET = 'test-admin-secret';
+  process.env.ALLOWED_ORIGIN = 'https://slackspac3.github.io';
+  process.env.COMPASS_API_KEY = 'test-ai-key';
+  process.env.COMPASS_API_URL = 'https://example.test/ai';
+  process.env.COMPASS_MODEL = 'gpt-test';
+  process.env.KV_REST_API_URL = 'https://example.test/kv';
+  process.env.KV_REST_API_TOKEN = 'test-kv-token';
+  dns.promises.lookup = async () => [{ address: '93.184.216.34', family: 4 }];
+
+  global.fetch = async (url) => {
+    const target = String(url || '');
+    if (target === 'https://example.test/kv') {
+      return { ok: true, json: async () => ({ result: null }) };
+    }
+    if (target === 'https://example.test/ai') {
+      return {
+        ok: false,
+        status: 503,
+        text: async () => 'provider unavailable'
+      };
+    }
+    if (target.startsWith('https://news.google.com/')) {
+      return { ok: true, text: async () => '<rss><channel></channel></rss>' };
+    }
+    if (target.startsWith('https://www.cpx.net/')) {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => `
+          <html><head><title>CPX</title></head><body>
+            <h1>CPX</h1>
+            <p>CPX provides cyber security, physical security, managed security services,
+            advisory support, resilience capabilities, and trusted operations for government
+            and enterprise customers across the UAE.</p>
+          </body></html>`
+      };
+    }
+    throw new Error(`Unexpected fetch: ${target}`);
+  };
+
+  const res = createRes();
+  await companyContextRoute({
+    method: 'POST',
+    body: JSON.stringify({ websiteUrl: 'https://www.cpx.net/' }),
+    headers: {
+      origin: 'https://slackspac3.github.io',
+      'content-type': 'application/json',
+      'x-admin-secret': 'test-admin-secret'
+    },
+    socket: { remoteAddress: '203.0.113.10' }
+  }, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.payload.usedFallback, true);
+  assert.equal(res.payload.aiUnavailable, true);
+  assert.match(res.payload.companySummary, /^CPX appears to provide /);
+});
+
+test('company context route marks partial AI output as fallback-assisted and filters unverified sources', async () => {
+  process.env.ADMIN_API_SECRET = 'test-admin-secret';
+  process.env.ALLOWED_ORIGIN = 'https://slackspac3.github.io';
+  process.env.COMPASS_API_KEY = 'test-ai-key';
+  process.env.COMPASS_API_URL = 'https://example.test/ai';
+  process.env.COMPASS_MODEL = 'gpt-test';
+  process.env.KV_REST_API_URL = 'https://example.test/kv';
+  process.env.KV_REST_API_TOKEN = 'test-kv-token';
+  dns.promises.lookup = async () => [{ address: '93.184.216.34', family: 4 }];
+
+  global.fetch = async (url) => {
+    const target = String(url || '');
+    if (target === 'https://example.test/kv') {
+      return { ok: true, json: async () => ({ result: null }) };
+    }
+    if (target === 'https://example.test/ai') {
+      return {
+        ok: true,
+        json: async () => ({
+          choices: [{
+            message: {
+              content: JSON.stringify({
+                companySummary: 'CPX provides cyber and physical security services.',
+                sources: [
+                  { url: 'https://www.cpx.net/', note: 'Official website.' },
+                  { url: 'https://unverified.example/hallucinated', note: 'Model-only source.' }
+                ]
+              })
+            }
+          }]
+        })
+      };
+    }
+    if (target.startsWith('https://news.google.com/')) {
+      return { ok: true, text: async () => '<rss><channel></channel></rss>' };
+    }
+    if (target.startsWith('https://www.cpx.net/')) {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => `
+          <html><head><title>CPX</title></head><body>
+            <h1>CPX</h1>
+            <p>CPX provides cyber security, physical security, managed security services,
+            advisory support, resilience capabilities, and trusted operations for government
+            and enterprise customers across the UAE.</p>
+          </body></html>`
+      };
+    }
+    throw new Error(`Unexpected fetch: ${target}`);
+  };
+
+  const res = createRes();
+  await companyContextRoute({
+    method: 'POST',
+    body: JSON.stringify({ websiteUrl: 'https://www.cpx.net/' }),
+    headers: {
+      origin: 'https://slackspac3.github.io',
+      'content-type': 'application/json',
+      'x-admin-secret': 'test-admin-secret'
+    },
+    socket: { remoteAddress: '203.0.113.10' }
+  }, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.payload.companySummary, 'CPX provides cyber and physical security services.');
+  assert.equal(res.payload.usedFallback, true);
+  assert.ok(res.payload.sources.some(source => source.url === 'https://www.cpx.net/'));
+  assert.equal(res.payload.sources.some(source => /unverified\.example/.test(source.url)), false);
+});
+
 test('company context route accepts metadata-only JavaScript landing pages', async () => {
   process.env.ADMIN_API_SECRET = 'test-admin-secret';
   process.env.ALLOWED_ORIGIN = 'https://slackspac3.github.io';

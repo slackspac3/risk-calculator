@@ -62,6 +62,29 @@ test('parseSessionToken accepts valid signed tokens and rejects tampering', () =
   }
 });
 
+test('parseSessionToken does not fall back to ADMIN_API_SECRET', () => {
+  const originalSecret = process.env.SESSION_SIGNING_SECRET;
+  const originalAdminSecret = process.env.ADMIN_API_SECRET;
+  delete process.env.SESSION_SIGNING_SECRET;
+  process.env.ADMIN_API_SECRET = 'admin-secret-is-not-a-session-secret';
+  try {
+    const payloadPart = Buffer.from(JSON.stringify({
+      username: 'alex',
+      role: 'admin',
+      exp: Date.now() + 60_000
+    })).toString('base64url');
+    const signature = crypto.createHmac('sha256', process.env.ADMIN_API_SECRET).update(payloadPart).digest('base64url');
+    const parsed = parseSessionToken(`${payloadPart}.${signature}`);
+    assert.equal(parsed.valid, false);
+    assert.equal(parsed.reason, 'unconfigured');
+  } finally {
+    if (typeof originalSecret === 'string') process.env.SESSION_SIGNING_SECRET = originalSecret;
+    else delete process.env.SESSION_SIGNING_SECRET;
+    if (typeof originalAdminSecret === 'string') process.env.ADMIN_API_SECRET = originalAdminSecret;
+    else delete process.env.ADMIN_API_SECRET;
+  }
+});
+
 test('validateSessionFromRequest rehydrates current account scope and revokes mismatched session versions', async () => {
   const originalSecret = process.env.SESSION_SIGNING_SECRET;
   const originalKvUrl = process.env.KV_REST_API_URL;

@@ -165,3 +165,83 @@ test('decision memo export model omits project economics section for generic ass
   assert.equal(memo.decisionSupportSummary.assessmentTypeLabel, 'Generic enterprise risk');
   assert.equal(memo.decisionSupportSummary.projectInputQuality, 'Not applicable');
 });
+
+function buildCriticalAssessment() {
+  return {
+    id: 'a-critical-export',
+    assessmentType: 'enterprise_generic',
+    scenarioTitle: 'Azure admin credentials found for sale on the darkweb',
+    narrative: 'Azure admin credentials for the tenant were found for sale on the darkweb. It is not yet confirmed whether the credentials are still valid.',
+    buName: 'Security',
+    geography: 'United Arab Emirates',
+    selectedRisks: [
+      { title: 'Privileged tenant takeover through leaked administrator credentials', category: 'Cyber' }
+    ],
+    results: buildResults()
+  };
+}
+
+test('PPTX export marks critical gates even when the financial result is within tolerance', () => {
+  const originalBlob = global.Blob;
+  const originalUrl = global.URL;
+  const originalDocument = global.document;
+  global.Blob = class FakeBlob {};
+  global.URL = {
+    createObjectURL: () => 'blob:test',
+    revokeObjectURL() {}
+  };
+  global.document = {
+    createElement: () => ({
+      click() {}
+    })
+  };
+  let spec;
+  try {
+    spec = ExportService.exportPPTXSpec(buildCriticalAssessment(), 'USD', 3.6725);
+  } finally {
+    if (originalBlob) global.Blob = originalBlob;
+    else delete global.Blob;
+    if (originalUrl) global.URL = originalUrl;
+    else delete global.URL;
+    if (originalDocument) global.document = originalDocument;
+    else delete global.document;
+  }
+  const executive = spec.slides.find(slide => slide.type === 'executive_summary');
+
+  assert.equal(executive.tolerance, 'CRITICAL RESPONSE GATE');
+  assert.equal(executive.toleranceColor, '#dc2626');
+  assert.match(executive.decisionRead, /Revoke exposed access/i);
+});
+
+test('PDF export uses critical gate visual status instead of green within-tolerance cues', () => {
+  const originalBlob = global.Blob;
+  const originalUrl = global.URL;
+  const originalWindow = global.window;
+  let html = '';
+  global.Blob = class FakeBlob {
+    constructor(parts) {
+      html = parts.join('');
+    }
+  };
+  global.URL = {
+    createObjectURL: () => 'blob:test',
+    revokeObjectURL() {}
+  };
+  global.window = {
+    open: () => ({})
+  };
+  try {
+    ExportService.exportPDF(buildCriticalAssessment(), 'USD', 3.6725);
+  } finally {
+    if (originalBlob) global.Blob = originalBlob;
+    else delete global.Blob;
+    if (originalUrl) global.URL = originalUrl;
+    else delete global.URL;
+    if (originalWindow) global.window = originalWindow;
+    else delete global.window;
+  }
+
+  assert.match(html, /badge danger">Critical access gate open/);
+  assert.match(html, /signal-inner">!/);
+  assert.doesNotMatch(html, /remains below the warning trigger/);
+});

@@ -7,10 +7,10 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: github-pages-site
+  group: test-poc-validation
   cancel-in-progress: true
 
 env:

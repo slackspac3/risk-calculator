@@ -32,6 +32,29 @@ test('buildCompanyContext throws when the hosted company-context route is unavai
   assert.equal(fetchCalls.length, 0);
 });
 
+test('buildCompanyContext preserves fallback provenance returned by the hosted route', async () => {
+  const service = loadLlmService({
+    fetchImpl: async () => ({
+      ok: true,
+      text: async () => JSON.stringify({
+        companySummary: 'Public-source fallback summary.',
+        businessProfile: 'Fallback business profile.',
+        operatingModel: 'Fallback operating model.',
+        aiGuidance: 'Review manually.',
+        usedFallback: true,
+        aiUnavailable: true,
+        responseMessage: 'Live AI was unavailable.'
+      })
+    })
+  });
+
+  const result = await service.buildCompanyContext('https://example.com');
+
+  assert.equal(result.usedFallback, true);
+  assert.equal(result.aiEnvelope.fallbackUsed, true);
+  assert.equal(result.aiUnavailable, true);
+});
+
 test('buildUserPreferenceAssist keeps the current settings unchanged when live AI is unavailable', async () => {
   const fetchCalls = [];
   const service = loadLlmService({

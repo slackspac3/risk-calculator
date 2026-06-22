@@ -19,7 +19,7 @@ function getStep1DraftSourceKey(draft = AppState.draft || {}) {
   if (rawSource === 'live') return 'ai';
   if (rawSource === 'deterministic_fallback' || rawSource === 'stub') return 'fallback';
   if (rawSource === 'manual_only') return 'manual';
-  if (rawSource === 'local' && String(draft?.guidedDraftPreview || '').trim()) return 'fallback';
+  if (rawSource === 'local') return 'local';
   if (!rawSource && draft?.llmAssisted && String(draft?.enhancedNarrative || draft?.narrative || draft?.guidedDraftPreview || '').trim()) return 'ai';
   if (!rawSource && String(draft?.guidedDraftPreview || '').trim()) return 'fallback';
   return rawSource;
@@ -605,6 +605,7 @@ function updateStep1CommandDeckState() {
   const hasBusinessContext = conversation
     ? conversation.hasBusinessContext
     : !!String(draft.buId || '').trim();
+  const canBuildGuidedDraft = hasBusinessContext && hasEventSignal && hasImpactSignal;
   const heroActionTitle = !hasEventSignal || !hasImpactSignal
     ? 'Complete steps 1 and 2, then build'
     : hasStagedDraft
@@ -632,8 +633,8 @@ function updateStep1CommandDeckState() {
   if (buildButton && !buildButton.classList.contains('btn--step1-ai-busy')) {
     const isBasicIntake = !!document.querySelector('.step1-basic-intake');
     if (isBasicIntake) {
-      buildButton.disabled = !hasBusinessContext;
-      buildButton.setAttribute('aria-disabled', hasBusinessContext ? 'false' : 'true');
+      buildButton.disabled = !canBuildGuidedDraft;
+      buildButton.setAttribute('aria-disabled', canBuildGuidedDraft ? 'false' : 'true');
     }
     buildButton.textContent = hasStagedDraft
       ? (isBasicIntake ? 'Rebuild draft' : 'Rebuild first draft')
@@ -3487,6 +3488,7 @@ function renderStep1BasicGuidedBuilderCard(draft, recommendation, promptIdeaMode
   const hasImpactSignal = conversationModel.hasImpactSignal;
   const hasStagedDraft = conversationModel.hasStagedDraft;
   const hasBusinessContext = conversationModel.hasBusinessContext;
+  const canBuildGuidedDraft = hasBusinessContext && hasEventSignal && hasImpactSignal;
   const actionState = buildStep1BasicActionState(conversationModel);
   const nextLabel = !hasBusinessContext
     ? 'Select context'
@@ -3587,7 +3589,7 @@ function renderStep1BasicGuidedBuilderCard(draft, recommendation, promptIdeaMode
     </div>
 
     <div class="step1-basic-intake__action">
-      <button class="btn btn--primary btn--lg step1-guided-cta" id="btn-build-guided-narrative" type="button" ${hasBusinessContext ? '' : 'disabled aria-disabled="true"'}>${hasStagedDraft ? 'Rebuild draft' : 'Build draft with AI'}</button>
+      <button class="btn btn--primary btn--lg step1-guided-cta" id="btn-build-guided-narrative" type="button" ${canBuildGuidedDraft ? '' : 'disabled aria-disabled="true"'}>${hasStagedDraft ? 'Rebuild draft' : 'Build draft with AI'}</button>
       <div>
         <strong id="step1-basic-action-title">${escapeHtml(actionState.title)}</strong>
         <span id="step1-basic-action-copy">${escapeHtml(actionState.copy)}</span>
@@ -7099,7 +7101,12 @@ function refreshStep1ContinueReadiness() {
   const button = document.getElementById('btn-next-1');
   if (!button) return;
   const selectedRisks = getSelectedRisks();
-  const narrative = String(AppState.draft?.narrative || AppState.draft?.sourceNarrative || AppState.draft?.guidedInput?.event || '').trim();
+  const isBasicIntake = !!document.querySelector('.step1-basic-intake');
+  const hasBuiltBasicDraft = hasStep1StagedGuidedDraft(AppState.draft)
+    || !!String(AppState.draft?.narrative || AppState.draft?.sourceNarrative || '').trim();
+  const narrative = isBasicIntake && AppState.draft?.step1Path === 'guided'
+    ? (hasBuiltBasicDraft ? String(AppState.draft?.narrative || AppState.draft?.sourceNarrative || '').trim() : '')
+    : String(AppState.draft?.narrative || AppState.draft?.sourceNarrative || AppState.draft?.guidedInput?.event || '').trim();
   const canContinue = !!narrative || selectedRisks.length > 0;
   button.disabled = !canContinue;
   button.setAttribute('aria-disabled', canContinue ? 'false' : 'true');
@@ -7341,6 +7348,14 @@ function bindStep1NavigationActions({ buList, settings, wizardGeographyInput }) 
     const buId = document.getElementById('wizard-bu')?.value || AppState.draft.buId || '';
     let narrative = document.getElementById('intake-risk-statement').value.trim();
     let selected = getSelectedRisks();
+    const isBasicGuidedIntake = !!document.querySelector('.step1-basic-intake') && AppState.draft.step1Path === 'guided';
+    if (isBasicGuidedIntake
+      && !hasStep1StagedGuidedDraft(AppState.draft)
+      && !String(AppState.draft.narrative || AppState.draft.sourceNarrative || '').trim()
+      && !selected.length) {
+      UI.toast('Build the draft before continuing to Scenario Review.', 'warning');
+      return;
+    }
     if (!narrative) {
       const composed = composeStep1GuidedNarrative(AppState.draft.guidedInput, settings, AppState.draft);
       if (composed) {
@@ -7536,9 +7551,14 @@ function renderWizard1() {
   const hasScenarioDraft = !!narrative;
   const hasImportedSource = !!String(draft.uploadedRegisterName || draft.loadedDryRunId || '').trim()
     || (riskCandidates || []).some(risk => risk.source === 'register' || risk.source === 'ai+register' || risk.source === 'manual');
-  const canContinue = !!String(narrative || draft.sourceNarrative || draft.guidedInput?.event || '').trim() || selectedRisks.length > 0;
-  const promptIdeaModel = getStep1DisplayedPromptIdeaModel(draft, exampleModel);
   const activePath = draft.step1Path === 'draft' || draft.step1Path === 'import' ? draft.step1Path : 'guided';
+  const isBasicExperience = typeof isAdvancedExperienceMode === 'function' ? !isAdvancedExperienceMode() : false;
+  const hasBuiltBasicGuidedDraft = hasStep1StagedGuidedDraft(draft)
+    || !!String(narrative || draft.sourceNarrative || '').trim();
+  const canContinue = isBasicExperience && activePath === 'guided'
+    ? hasBuiltBasicGuidedDraft || selectedRisks.length > 0
+    : !!String(narrative || draft.sourceNarrative || draft.guidedInput?.event || '').trim() || selectedRisks.length > 0;
+  const promptIdeaModel = getStep1DisplayedPromptIdeaModel(draft, exampleModel);
   const activeAssessmentType = normaliseStep1AssessmentType(draft.assessmentType);
   const projectExposureScope = activeAssessmentType === 'project_seller'
     ? 'seller'
@@ -7550,7 +7570,6 @@ function renderWizard1() {
     ensureStep1ProjectExposurePreview(projectExposureScope, draft, { persist: false });
   }
   const intakeSequence = buildStep1IntakeSequenceModel(draft);
-  const isBasicExperience = typeof isAdvancedExperienceMode === 'function' ? !isAdvancedExperienceMode() : false;
   const needsContextSetup = !String(draft.buId || '').trim();
   const requiredContextSection = isBasicExperience
     ? renderStep1RequiredContextBand(settings, draft, scenarioGeographies, regs, buList)

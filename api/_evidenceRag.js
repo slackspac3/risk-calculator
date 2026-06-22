@@ -527,6 +527,12 @@ async function indexEvidenceServerSide(payload = {}, options = {}) {
         model: embedded.model || config.embeddingsModel
       })
     }));
+  await deleteExistingEvidenceChunks({
+    caseId,
+    scope,
+    evidenceIds: points.map(point => point.payload.evidenceId),
+    config
+  });
   await qdrantFetch(`/collections/${encodeURIComponent(config.collection)}/points?wait=true`, {
     method: 'PUT',
     body: JSON.stringify({ points })
@@ -573,6 +579,27 @@ function qdrantSearchFilter({ caseId, workspaceId, projectId }) {
       { key: 'caseId', match: { value: caseId } }
     ]
   };
+}
+
+async function deleteExistingEvidenceChunks({ caseId, scope, evidenceIds, config }) {
+  const ids = Array.from(new Set((evidenceIds || []).map(cleanText).filter(Boolean)));
+  for (const evidenceId of ids) {
+    await qdrantFetch(`/collections/${encodeURIComponent(config.collection)}/points/delete?wait=true`, {
+      method: 'POST',
+      body: JSON.stringify({
+        filter: {
+          must: [
+            ...qdrantSearchFilter({
+              caseId,
+              workspaceId: scope.workspaceId,
+              projectId: scope.projectId
+            }).must,
+            { key: 'evidenceId', match: { value: evidenceId } }
+          ]
+        }
+      })
+    }, config);
+  }
 }
 
 async function searchEvidenceServerSide(payload = {}, options = {}) {

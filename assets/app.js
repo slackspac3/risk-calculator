@@ -8,11 +8,11 @@
 const TOLERANCE_THRESHOLD = 5_000_000;
 const DEFAULT_FX_RATE = 3.6725;
 const DEFAULT_COMPASS_PROXY_URL = resolveCompassProxyUrl();
-const APP_ASSET_VERSION = '20260622v1';
+const APP_ASSET_VERSION = '20260622v2';
 const APP_RELEASE = Object.freeze((typeof window !== 'undefined' && window.__RISK_CALCULATOR_RELEASE__) || {
   version: '0.10.0-pilot.1',
   channel: 'pilot',
-  build: '2026-06-22-intake-conversation-planner',
+  build: '2026-06-22-ai-first-security-structured-outputs',
   assetVersion: APP_ASSET_VERSION,
   apiOrigin: globalThis?.ApiOriginResolver ? globalThis.ApiOriginResolver.DEFAULT_API_ORIGIN : ''
 });

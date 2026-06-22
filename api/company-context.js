@@ -590,6 +590,30 @@ function normaliseStringList(value, fallback = []) {
     .filter(Boolean);
 }
 
+function normaliseSourceUrl(value = '') {
+  try {
+    const url = new URL(String(value || '').trim());
+    url.hash = '';
+    return url.toString();
+  } catch {
+    return String(value || '').trim();
+  }
+}
+
+function verifiedSources(parsedSources = [], fallbackSources = [], pages = [], newsItems = []) {
+  const known = new Set([
+    ...pages.map(page => normaliseSourceUrl(page.url)),
+    ...newsItems.map(item => normaliseSourceUrl(item.link))
+  ].filter(Boolean));
+  const verified = (Array.isArray(parsedSources) ? parsedSources : [])
+    .map(source => ({
+      url: String(source?.url || '').trim(),
+      note: String(source?.note || '').trim()
+    }))
+    .filter(source => source.url && known.has(normaliseSourceUrl(source.url)));
+  return verified.length ? verified : fallbackSources;
+}
+
 function tryParseStructuredJson(raw) {
   if (raw && typeof raw === 'object') return raw;
   const text = String(raw || '').trim();
@@ -692,27 +716,37 @@ function normaliseContextPayload(parsed, canonicalUrl, pages, newsItems) {
     parsed.businessModelSummary,
     parsed.profile
   );
-  const usedFallback = !companySummary;
+  const operatingModel = firstString(parsed.operatingModel, parsed.operations, parsed.deliveryModel);
+  const aiGuidance = String(parsed.aiGuidance || '').trim();
+  const sources = verifiedSources(parsed.sources, fallback.sources, pages, newsItems);
+  const usedFallback = !companySummary
+    || !businessProfile
+    || !operatingModel
+    || !aiGuidance
+    || sources === fallback.sources;
   return {
     companySummary: companySummary || fallback.companySummary,
     businessProfile: businessProfile || fallback.businessProfile,
-    operatingModel: firstString(parsed.operatingModel, parsed.operations, parsed.deliveryModel) || fallback.operatingModel || '',
+    operatingModel: operatingModel || fallback.operatingModel || '',
     publicCommitments: normaliseStringList(parsed.publicCommitments, fallback.publicCommitments),
     riskSignals: normaliseStringList(parsed.riskSignals || parsed.keyRiskSignals, fallback.riskSignals),
     likelyObligations: normaliseStringList(parsed.likelyObligations || parsed.obligations, fallback.likelyObligations),
     regulatorySignals: normaliseStringList(parsed.regulatorySignals || parsed.regulations, fallback.regulatorySignals),
-    aiGuidance: String(parsed.aiGuidance || fallback.aiGuidance),
+    aiGuidance: aiGuidance || fallback.aiGuidance,
     suggestedGeography: String(parsed.suggestedGeography || fallback.suggestedGeography || ''),
-    sources: Array.isArray(parsed.sources) && parsed.sources.length
-      ? parsed.sources.map(source => ({
-          url: String(source.url || ''),
-          note: String(source.note || '')
-        })).filter(source => source.url)
-      : fallback.sources,
+    sources,
     usedFallback,
     responseMessage: usedFallback
       ? fallbackMessage
       : 'Company context built from public website and public news sources.'
+  };
+}
+
+function buildAiUnavailableFallback(canonicalUrl, pages, newsItems) {
+  return {
+    ...normaliseContextPayload(null, canonicalUrl, pages, newsItems),
+    aiUnavailable: true,
+    responseMessage: 'Live AI was unavailable, so this company context uses a public-source fallback. Review before saving.'
   };
 }
 
@@ -892,9 +926,7 @@ Instructions:
     if (!upstream.ok) {
       const text = await upstream.text();
       console.error('Company context AI request failed.', { status: upstream.status, bodyPreview: String(text || '').slice(0, 400) });
-      res.status(upstream.status).json({
-        error: 'Company context builder could not analyse the website.'
-      });
+      res.status(200).json(buildAiUnavailableFallback(canonicalUrl, pages, newsItems));
       return;
     }
 
@@ -906,8 +938,8 @@ Instructions:
     }
     res.status(200).json(normaliseContextPayload(parsed, canonicalUrl, pages, newsItems));
   } catch (error) {
-    if (error?.name === 'AbortError') {
-      res.status(504).json({ error: 'Company context request timed out.' });
+    if (error?.name === 'AbortError' && canonicalUrl && pages.length) {
+      res.status(200).json(buildAiUnavailableFallback(canonicalUrl, pages, newsItems));
       return;
     }
     console.error('Company context route failed.', error);

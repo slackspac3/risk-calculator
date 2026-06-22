@@ -20,6 +20,56 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 30000) {
   }
 }
 
+const SAFE_COMPASS_FIELDS = new Set(['messages', 'max_completion_tokens', 'temperature', 'response_format', 'stream']);
+const SAFE_MESSAGE_ROLES = new Set(['system', 'user', 'assistant']);
+
+function buildSafeCompassBody(body, compassModel) {
+  const unexpected = Object.keys(body || {}).filter(field => !SAFE_COMPASS_FIELDS.has(field));
+  if (unexpected.length) {
+    return { error: `Unsupported Compass request fields: ${unexpected.join(', ')}` };
+  }
+  const messages = Array.isArray(body.messages) ? body.messages : [];
+  if (!messages.length || messages.length > 16) {
+    return { error: 'messages must include between 1 and 16 chat messages.' };
+  }
+  const safeMessages = [];
+  for (const message of messages) {
+    if (!message || typeof message !== 'object' || Array.isArray(message)) {
+      return { error: 'messages must be objects.' };
+    }
+    const role = String(message.role || '').trim();
+    const content = String(message.content || '');
+    if (!SAFE_MESSAGE_ROLES.has(role) || !content.trim() || content.length > 24000) {
+      return { error: 'messages contain an unsupported role or content length.' };
+    }
+    safeMessages.push({ role, content });
+  }
+  const maxCompletionTokens = Number(body.max_completion_tokens || 1200);
+  if (!Number.isFinite(maxCompletionTokens) || maxCompletionTokens < 1 || maxCompletionTokens > 4000) {
+    return { error: 'max_completion_tokens must be between 1 and 4000.' };
+  }
+  const temperature = Number(body.temperature ?? 0.3);
+  if (!Number.isFinite(temperature) || temperature < 0 || temperature > 1) {
+    return { error: 'temperature must be between 0 and 1.' };
+  }
+  const responseFormat = body.response_format;
+  if (responseFormat !== undefined) {
+    if (!responseFormat || typeof responseFormat !== 'object' || Array.isArray(responseFormat) || responseFormat.type !== 'json_object') {
+      return { error: 'Only response_format.type=json_object is supported.' };
+    }
+  }
+  return {
+    value: {
+      model: compassModel,
+      max_completion_tokens: Math.floor(maxCompletionTokens),
+      temperature,
+      ...(body.stream === true ? { stream: true } : {}),
+      ...(responseFormat ? { response_format: { type: 'json_object' } } : {}),
+      messages: safeMessages
+    }
+  };
+}
+
 module.exports = async function handler(req, res) {
   const compassApiUrl = process.env.COMPASS_API_URL || 'https://api.core42.ai/v1/chat/completions';
   const compassModel = process.env.COMPASS_MODEL || DEFAULT_COMPASS_MODEL;
@@ -72,7 +122,6 @@ module.exports = async function handler(req, res) {
     res.status(400).json({ error: 'Invalid request body' });
     return;
   }
-  const wantsStream = body.stream === true;
 
   const bodyStr = JSON.stringify(body || {});
   if (bodyStr.length > 500000) {
@@ -80,10 +129,13 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  const upstreamBody = {
-    ...body,
-    model: (typeof body.model === 'string' && body.model.trim()) || compassModel
-  };
+  const safeBody = buildSafeCompassBody(body, compassModel);
+  if (safeBody.error) {
+    res.status(400).json({ error: safeBody.error });
+    return;
+  }
+  const upstreamBody = safeBody.value;
+  const wantsStream = upstreamBody.stream === true;
 
   try {
     const upstream = await fetchWithTimeout(compassApiUrl, {

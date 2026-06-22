@@ -367,6 +367,17 @@
     const button = document.getElementById('btn-build-guided-narrative');
     const preview = document.getElementById('guided-preview');
     const bu = getBUList().find(b => b.id === (document.getElementById('wizard-bu')?.value || AppState.draft.buId));
+    const hasBusinessContext = !!String(bu?.id || AppState.draft.buId || '').trim();
+    const hasEvent = !!String(AppState.draft.guidedInput?.event || '').trim();
+    const hasImpact = !!String(AppState.draft.guidedInput?.impact || '').trim();
+    if (!hasBusinessContext) {
+      UI.toast('Choose the business context before building the AI draft.', 'warning');
+      return;
+    }
+    if (!hasEvent || !hasImpact) {
+      UI.toast('Answer the event and impact prompts before building the AI draft.', 'warning');
+      return;
+    }
     const preferredLens = window.getStep1ActiveGuidedPromptIdeaLensHint?.(AppState.draft)
       || getStep1PreferredScenarioLens(settings, AppState.draft, localDraft);
     const aiContext = buildCurrentAIAssistContext({ buId: bu?.id || AppState.draft.buId });

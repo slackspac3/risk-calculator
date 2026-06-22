@@ -169,6 +169,42 @@ test('org intelligence stores per-risk AI feedback events with the explicit risk
   assert.equal(postRes.payload.feedback.events[0].selectedInAssessment, true);
 });
 
+test('org intelligence rejects shared assessment and decision writes from non-admin sessions', async () => {
+  const token = buildSessionToken({
+    username: 'alex',
+    role: 'user',
+    exp: Date.now() + 60_000
+  });
+
+  const assessmentRes = createRes();
+  await handler({
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-session-token': token
+    },
+    body: {
+      type: 'record_assessment',
+      pattern: { assessmentId: 'a-1', title: 'User-written shared pattern' }
+    }
+  }, assessmentRes);
+  assert.equal(assessmentRes.statusCode, 403);
+
+  const decisionRes = createRes();
+  await handler({
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-session-token': token
+    },
+    body: {
+      type: 'record_decision',
+      decision: { assessmentId: 'a-1', decision: 'approve' }
+    }
+  }, decisionRes);
+  assert.equal(decisionRes.statusCode, 403);
+});
+
 test('org intelligence reset_feedback requires admin and can clear shared and user-tier feedback', async () => {
   const userToken = buildSessionToken({
     username: 'alex',

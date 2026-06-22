@@ -96,7 +96,7 @@
     if (rawSource === 'live') return 'ai';
     if (rawSource === 'deterministic_fallback' || rawSource === 'stub') return 'fallback';
     if (rawSource === 'manual_only') return 'manual';
-    if (rawSource === 'local' && cleanText(draft.guidedDraftPreview)) return 'fallback';
+    if (rawSource === 'local') return 'local';
     if (!rawSource && draft?.llmAssisted && cleanText(draft.enhancedNarrative || draft.narrative || draft.guidedDraftPreview)) return 'ai';
     if (!rawSource && cleanText(draft?.guidedDraftPreview)) return 'fallback';
     return rawSource;
@@ -203,6 +203,18 @@
         tone: 'warning',
         label: 'Business context needed',
         detail: 'Select the business unit before building the AI draft.'
+      };
+    }
+    if (statuses.event?.hasAnswer && statuses.impact?.hasAnswer) {
+      return {
+        score: safeScore,
+        tone: hasStagedDraft ? 'live' : 'neutral',
+        label: hasStagedDraft ? 'Draft context ready' : 'Ready for AI build',
+        detail: hasStagedDraft
+          ? 'A first draft is staged for review.'
+          : statuses.event.explicitUnknown || statuses.impact.explicitUnknown
+            ? 'Known gaps are captured and will be carried into the draft.'
+            : 'The required situation and impact are captured.'
       };
     }
     if (safeScore >= 70) {

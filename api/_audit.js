@@ -127,7 +127,7 @@ function summariseAuditLog(entries = []) {
 }
 
 function getSessionSigningSecret() {
-  return process.env.SESSION_SIGNING_SECRET || process.env.ADMIN_API_SECRET || '';
+  return process.env.SESSION_SIGNING_SECRET || '';
 }
 
 function parseSessionToken(token) {

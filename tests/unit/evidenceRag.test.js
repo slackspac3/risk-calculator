@@ -93,6 +93,10 @@ test('server-side evidence index writes vectors to droplet Qdrant without return
         assert.equal(options.headers['api-key'], 'qdrant-secret');
         return jsonResponse({ result: { status: 'green' } });
       }
+      if (String(url) === 'https://droplet.example/qdrant/collections/risk_test/points/delete?wait=true') {
+        assert.equal(body.filter.must.some(item => item.key === 'evidenceId' && item.match.value === 'DOC-1'), true);
+        return jsonResponse({ result: { operation_id: 1, status: 'completed' } });
+      }
       if (String(url) === 'https://droplet.example/qdrant/collections/risk_test/points?wait=true') {
         assert.equal(body.points.length, 1);
         assert.deepEqual(body.points[0].vector, [0.1, 0.2, 0.3]);
@@ -123,6 +127,7 @@ test('server-side evidence index writes vectors to droplet Qdrant without return
     assert.equal(result.chunks.length, 1);
     assert.equal(Object.prototype.hasOwnProperty.call(result.chunks[0], 'embedding'), false);
     assert.equal(Object.prototype.hasOwnProperty.call(result.chunks[0], 'text'), false);
+    assert.equal(calls.filter(call => call.url.includes('/points/delete?wait=true')).length, 1);
     assert.equal(calls.filter(call => call.url.includes('/points?wait=true')).length, 1);
   });
 });

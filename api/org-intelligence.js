@@ -437,6 +437,10 @@ module.exports = async function handler(req, res) {
         sendApiError(res, 400, 'VALIDATION_ERROR', 'type is required.');
         return;
       }
+      if ((type === 'record_assessment' || type === 'record_decision') && session.role !== 'admin') {
+        sendApiError(res, 403, 'FORBIDDEN', 'You are not allowed to update shared org intelligence.');
+        return;
+      }
       if (type === 'record_assessment') {
         const pattern = normalisePattern(body.pattern || {});
         const calibrationPayload = isPlainObject(body.calibration) ? body.calibration : null;

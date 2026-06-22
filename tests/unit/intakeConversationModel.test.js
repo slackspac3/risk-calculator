@@ -43,6 +43,40 @@ test('missing business context blocks the build before asking for more intake de
   assert.match(model.nextBestAction.title, /Choose business context/i);
 });
 
+test('local guided preview is not treated as a staged AI or fallback draft', () => {
+  const model = IntakeConversationModel.buildIntakeConversationModel({
+    draft: {
+      buId: 'bu-cloud',
+      guidedInput: {
+        event: 'Supplier outage during peak trading.',
+        impact: 'Customer disruption.'
+      },
+      guidedDraftSource: 'local',
+      guidedDraftPreview: 'Local preview only.'
+    }
+  });
+
+  assert.equal(model.hasStagedDraft, false);
+  assert.equal(model.readyToBuild, true);
+  assert.equal(model.activeQuestion.field, 'draft');
+  assert.match(model.nextBestAction.title, /Build.*draft/i);
+});
+
+test('explicit unknown answers can build without implying another required input is missing', () => {
+  const model = IntakeConversationModel.buildIntakeConversationModel({
+    draft: {
+      buId: 'bu-cloud',
+      guidedInput: {
+        event: 'Supplier outage during peak trading.',
+        impact: 'Unknown'
+      }
+    }
+  });
+
+  assert.equal(model.readyToBuild, true);
+  assert.doesNotMatch(model.contextStrength.detail, /required input/i);
+});
+
 test('missing event asks for the event while preserving the impact as partial context', () => {
   const model = IntakeConversationModel.buildIntakeConversationModel({
     draft: {

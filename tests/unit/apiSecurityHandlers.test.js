@@ -128,6 +128,106 @@ test('compass handler rejects disallowed origins before upstream work', async ()
   assert.equal(res.payload.error, 'Origin not allowed');
 });
 
+test('compass handler rejects arbitrary provider controls from authenticated clients', async () => {
+  process.env.ALLOWED_ORIGIN = 'https://slackspac3.github.io';
+  process.env.COMPASS_API_KEY = 'test-key';
+  process.env.KV_REST_API_URL = 'https://example.test/kv';
+  process.env.KV_REST_API_TOKEN = 'test-token';
+  process.env.SESSION_SIGNING_SECRET = 'test-signing-secret';
+  global.fetch = async (url, options = {}) => {
+    const target = String(url || '');
+    if (target === 'https://example.test/kv') {
+      const command = JSON.parse(String(options.body || '[]'));
+      if (command[0] === 'GET') return { ok: true, json: async () => ({ result: null }) };
+      if (command[0] === 'SETEX') return { ok: true, json: async () => ({ result: 'OK' }) };
+    }
+    throw new Error(`Unexpected upstream call: ${target}`);
+  };
+
+  const handler = loadFresh('../../api/compass');
+  const token = buildSessionToken({
+    username: 'alex',
+    role: 'user',
+    exp: Date.now() + 60_000
+  });
+  const res = createRes();
+
+  await handler({
+    method: 'POST',
+    headers: {
+      origin: 'https://slackspac3.github.io',
+      'content-type': 'application/json',
+      'x-session-token': token
+    },
+    socket: { remoteAddress: '127.0.0.1' },
+    body: {
+      model: 'attacker-selected-model',
+      messages: [{ role: 'user', content: 'Hello' }],
+      tools: [{ type: 'function', function: { name: 'exfiltrate', parameters: {} } }]
+    }
+  }, res);
+
+  assert.equal(res.statusCode, 400);
+  assert.match(res.payload.error, /unsupported/i);
+});
+
+test('compass handler forwards only the fixed server model and safe JSON-mode options', async () => {
+  process.env.ALLOWED_ORIGIN = 'https://slackspac3.github.io';
+  process.env.COMPASS_API_KEY = 'test-key';
+  process.env.COMPASS_MODEL = 'server-fixed-model';
+  process.env.KV_REST_API_URL = 'https://example.test/kv';
+  process.env.KV_REST_API_TOKEN = 'test-token';
+  process.env.SESSION_SIGNING_SECRET = 'test-signing-secret';
+  let upstreamBody = null;
+  global.fetch = async (url, options = {}) => {
+    const target = String(url || '');
+    if (target === 'https://example.test/kv') {
+      const command = JSON.parse(String(options.body || '[]'));
+      if (command[0] === 'GET') return { ok: true, json: async () => ({ result: null }) };
+      if (command[0] === 'SETEX') return { ok: true, json: async () => ({ result: 'OK' }) };
+    }
+    if (target === 'https://api.core42.ai/v1/chat/completions') {
+      upstreamBody = JSON.parse(String(options.body || '{}'));
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => 'application/json' },
+        text: async () => '{"ok":true}'
+      };
+    }
+    throw new Error(`Unexpected fetch: ${target}`);
+  };
+
+  const handler = loadFresh('../../api/compass');
+  const token = buildSessionToken({
+    username: 'alex',
+    role: 'user',
+    exp: Date.now() + 60_000
+  });
+  const res = createRes();
+
+  await handler({
+    method: 'POST',
+    headers: {
+      origin: 'https://slackspac3.github.io',
+      'content-type': 'application/json',
+      'x-session-token': token
+    },
+    socket: { remoteAddress: '127.0.0.1' },
+    body: {
+      messages: [{ role: 'user', content: 'Return JSON.' }],
+      max_completion_tokens: 64,
+      temperature: 0,
+      response_format: { type: 'json_object' }
+    }
+  }, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(upstreamBody.model, 'server-fixed-model');
+  assert.deepEqual(upstreamBody.response_format, { type: 'json_object' });
+  assert.equal(Object.prototype.hasOwnProperty.call(upstreamBody, 'tools'), false);
+});
+
 test('users login fails closed when the throttle store is unavailable', async () => {
   process.env.ALLOWED_ORIGIN = 'https://slackspac3.github.io';
   process.env.KV_REST_API_URL = 'https://example.test/kv';
@@ -156,6 +256,60 @@ test('users login fails closed when the throttle store is unavailable', async ()
 
   assert.equal(res.statusCode, 503);
   assert.equal(res.payload.error.code, 'RATE_LIMIT_UNAVAILABLE');
+});
+
+test('audit-log POST forces browser events to client source and reserves server auth names', async () => {
+  process.env.ALLOWED_ORIGIN = 'https://slackspac3.github.io';
+  process.env.KV_REST_API_URL = 'https://example.test/kv';
+  process.env.KV_REST_API_TOKEN = 'test-token';
+  process.env.SESSION_SIGNING_SECRET = 'test-signing-secret';
+  const kvStore = new Map();
+  global.fetch = async (_url, options = {}) => {
+    const command = JSON.parse(String(options.body || '[]'));
+    const [action, key, value] = command;
+    if (action === 'GET') {
+      return { ok: true, json: async () => ({ result: kvStore.has(key) ? kvStore.get(key) : null }) };
+    }
+    if (action === 'SET') {
+      kvStore.set(key, value);
+      return { ok: true, json: async () => ({ result: 'OK' }) };
+    }
+    if (action === 'DEL') {
+      kvStore.delete(key);
+      return { ok: true, json: async () => ({ result: 1 }) };
+    }
+    throw new Error(`Unexpected KV command: ${JSON.stringify(command)}`);
+  };
+
+  const handler = loadFresh('../../api/audit-log');
+  const token = buildSessionToken({
+    username: 'alex',
+    role: 'user',
+    exp: Date.now() + 60_000
+  });
+  const res = createRes();
+
+  await handler({
+    method: 'POST',
+    headers: {
+      origin: 'https://slackspac3.github.io',
+      'content-type': 'application/json',
+      'x-session-token': token
+    },
+    body: {
+      category: 'auth',
+      eventType: 'login_success',
+      status: 'success',
+      source: 'server',
+      target: 'admin',
+      details: { spoofed: true }
+    }
+  }, res);
+
+  assert.equal(res.statusCode, 201);
+  assert.equal(res.payload.entry.actorUsername, 'alex');
+  assert.equal(res.payload.entry.source, 'client');
+  assert.equal(res.payload.entry.eventType, 'client_login_success');
 });
 
 test('users login rejects unexpected fields in the request body', async () => {

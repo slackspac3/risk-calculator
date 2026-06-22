@@ -6,7 +6,18 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-function loadStep1AssistHarness() {
+function loadStep1AssistHarness({
+  guidedInput = {
+    event: 'Azure global admin credentials found on darkweb',
+    asset: '',
+    cause: '',
+    impact: '',
+    urgency: 'high'
+  },
+  buId = '',
+  buList = [],
+  businessUnit = null
+} = {}) {
   const filePath = path.resolve(__dirname, '../../assets/wizard/step1Assist.js');
   const source = fs.readFileSync(filePath, 'utf8');
 
@@ -71,13 +82,8 @@ function loadStep1AssistHarness() {
     clearTimeout,
     AppState: {
       draft: {
-        guidedInput: {
-          event: 'Azure global admin credentials found on darkweb',
-          asset: '',
-          cause: '',
-          impact: '',
-          urgency: 'high'
-        },
+        guidedInput,
+        buId,
         step1Path: 'guided',
         guidedDraftPreview: '',
         guidedDraftSource: '',
@@ -120,9 +126,9 @@ function loadStep1AssistHarness() {
     composeStep1GuidedNarrative: () => 'Local guided draft preview',
     _setStep1ButtonBusy: () => () => {},
     getEffectiveSettings: () => ({}),
-    getBUList: () => [],
+    getBUList: () => buList,
     getStep1PreferredScenarioLens: () => ({ key: 'cyber', label: 'Cyber', functionKey: 'technology' }),
-    buildCurrentAIAssistContext: () => ({ businessUnit: null, adminSettings: {} }),
+    buildCurrentAIAssistContext: () => ({ businessUnit, adminSettings: {} }),
     buildAssessmentRetrievalQuery: () => 'query',
     deriveApplicableRegulations: () => [],
     getSelectedRisks: () => [],
@@ -162,7 +168,18 @@ function loadStep1AssistHarness() {
 }
 
 test('guided draft server failure stages a fallback draft instead of blocking the user', async () => {
-  const harness = loadStep1AssistHarness();
+  const harness = loadStep1AssistHarness({
+    guidedInput: {
+      event: 'Azure global admin credentials found on darkweb',
+      asset: '',
+      cause: '',
+      impact: 'Potential privileged tenant takeover and regulated data exposure.',
+      urgency: 'high'
+    },
+    buId: 'bu-cloud',
+    buList: [{ id: 'bu-cloud', name: 'Cloud' }],
+    businessUnit: { id: 'bu-cloud', name: 'Cloud' }
+  });
 
   await harness.buildGuidedScenarioDraft();
 
@@ -188,4 +205,20 @@ test('guided draft server failure stages a fallback draft instead of blocking th
       duration: 6500
     }
   ]);
+});
+
+test('guided draft build refuses incomplete Basic prompt state before fallback staging', async () => {
+  const harness = loadStep1AssistHarness({
+    buId: 'bu-cloud',
+    buList: [{ id: 'bu-cloud', name: 'Cloud' }],
+    businessUnit: { id: 'bu-cloud', name: 'Cloud' }
+  });
+
+  await harness.buildGuidedScenarioDraft();
+
+  assert.equal(harness.toasts.length, 1);
+  assert.match(harness.toasts[0].message, /event and impact/i);
+  assert.equal(harness.seedCalls.length, 0);
+  assert.equal(harness.saveCalls.length, 0);
+  assert.equal(harness.appState.draft.guidedDraftPreview, '');
 });

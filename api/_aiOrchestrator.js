@@ -120,6 +120,11 @@ async function callAi(systemPrompt, userPrompt, options = {}) {
   const promptPayload = buildPromptPayload(systemPrompt, userPrompt, options);
   const maxCompletionTokens = Number(options.maxCompletionTokens || 1600);
   const timeoutMs = Number(options.timeoutMs || AI_TIMEOUT_MS);
+  const responseFormat = options.responseFormat === false
+    ? null
+    : (options.responseFormat && typeof options.responseFormat === 'object'
+      ? options.responseFormat
+      : { type: 'json_object' });
   let lastError = null;
 
   for (let attempt = 1; attempt <= AI_MAX_RETRIES; attempt += 1) {
@@ -134,6 +139,7 @@ async function callAi(systemPrompt, userPrompt, options = {}) {
           model: config.model,
           max_completion_tokens: maxCompletionTokens,
           temperature: Number(options.temperature ?? 0.2),
+          ...(responseFormat ? { response_format: responseFormat } : {}),
           messages: [
             { role: 'system', content: promptPayload.systemPrompt },
             ...(Array.isArray(promptPayload.priorMessages) ? promptPayload.priorMessages : []),

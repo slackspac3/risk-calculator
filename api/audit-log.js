@@ -3,9 +3,33 @@ const { isRequestSecretValid, sendApiError, requireSession } = require('./_apiAu
 const { applyCorsHeaders, getUnexpectedFields, isAllowedOrigin, isPlainObject, parseRequestBody } = require('./_request');
 
 const ADMIN_API_SECRET = process.env.ADMIN_API_SECRET || '';
+const RESERVED_CLIENT_EVENT_TYPES = new Set([
+  'login_success',
+  'login_failure',
+  'login_rate_limited',
+  'login_rate_limit_unavailable',
+  'managed_user_updated',
+  'password_reset',
+  'review_approved',
+  'review_changes_requested',
+  'review_escalated',
+  'review_submitted',
+  'settings_updated',
+  'user_created',
+  'user_deleted',
+  'user_state_updated',
+  'user_updated'
+]);
 
 function isAdminSecretValid(req) {
   return isRequestSecretValid(req, 'x-admin-secret', ADMIN_API_SECRET);
+}
+
+function normaliseClientEventType(value = '') {
+  const eventType = String(value || 'event').trim().slice(0, 120) || 'event';
+  return RESERVED_CLIENT_EVENT_TYPES.has(eventType.toLowerCase())
+    ? `client_${eventType}`.slice(0, 120)
+    : eventType;
 }
 
 module.exports = async function handler(req, res) {
@@ -50,15 +74,18 @@ module.exports = async function handler(req, res) {
       }
       const session = isAdminSecretValid(req) ? { username: 'admin', role: 'admin' } : await requireSession(req, res);
       if (!session) return;
+      const adminSecretRequest = isAdminSecretValid(req);
       const entry = await appendAuditEvent({
         category: String(body.category || 'general').trim().slice(0, 80),
-        eventType: String(body.eventType || 'event').trim().slice(0, 120),
+        eventType: adminSecretRequest
+          ? String(body.eventType || 'event').trim().slice(0, 120)
+          : normaliseClientEventType(body.eventType),
         // Actor identity must come from the authenticated session, not the client payload.
         actorUsername: session?.username || 'system',
         actorRole: session?.role || 'system',
         target: String(body.target || '').trim().slice(0, 160),
         status: String(body.status || 'success').trim().slice(0, 40),
-        source: String(body.source || 'client').trim().slice(0, 40),
+        source: adminSecretRequest ? String(body.source || 'server').trim().slice(0, 40) : 'client',
         details: isPlainObject(body.details || {}) ? body.details : {}
       });
       res.status(201).json({ entry });

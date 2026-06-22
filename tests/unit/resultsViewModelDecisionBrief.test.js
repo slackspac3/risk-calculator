@@ -100,6 +100,32 @@ test('results view model includes normalized decision brief', () => {
   assert.deepEqual(model.decisionBrief.projectQuantSummary.unknownHighImpactInputs, ['Delay cost per day']);
 });
 
+test('results cockpit uses critical gate posture over stale proceed decision briefs', () => {
+  const ResultsViewModel = buildViewModel();
+  const model = ResultsViewModel.buildResultsRenderModel({
+    id: 'a-critical-brief',
+    assessmentType: 'enterprise_generic',
+    scenarioTitle: 'Azure admin credentials found for sale on the darkweb',
+    narrative: 'Azure admin credentials for the tenant were found for sale on the darkweb. It is not yet confirmed whether the credentials are still valid.',
+    buName: 'Security',
+    geography: 'United Arab Emirates',
+    createdAt: Date.now(),
+    selectedRisks: [
+      { title: 'Privileged tenant takeover through leaked administrator credentials', category: 'Cyber' }
+    ],
+    decisionBrief: {
+      recommendation: 'Proceed with controls.',
+      decisionPosture: 'proceed_with_controls',
+      why: 'Old brief generated before critical gates existed.'
+    },
+    results: buildResults()
+  });
+
+  assert.equal(model.decisionCockpitModel.recommendation, 'Critical response required');
+  assert.equal(model.decisionCockpitModel.decisionPostureLabel, 'Critical Response Required');
+  assert.equal(model.decisionCockpitModel.decisionPostureTone, 'danger');
+});
+
 test('results cockpit keeps generic enterprise assessment project-free', () => {
   const ResultsViewModel = buildViewModel();
   const model = ResultsViewModel.buildResultsRenderModel({

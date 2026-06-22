@@ -46,12 +46,19 @@ function buildWorkflowReuseKey({ workflow = '', scopeKey = '', fingerprintInput 
   ].join('::');
 }
 
+function isFallbackResult(result) {
+  return isPlainObject(result)
+    && (result.usedFallback === true
+      || result.aiUnavailable === true
+      || String(result.mode || '').trim().toLowerCase() === 'deterministic_fallback');
+}
+
 async function withWorkflowReuse({
   workflow = '',
   scopeKey = '',
   fingerprintInput = {},
   ttlMs = COMPLETED_RESULT_TTL_MS,
-  cacheable = (result) => result !== undefined,
+  cacheable = (result) => result !== undefined && !isFallbackResult(result),
   observeReuseEvent = null,
   compute
 } = {}) {
