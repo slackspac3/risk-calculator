@@ -13510,6 +13510,83 @@ html[data-experience-mode="basic"] .wizard-layout--step1 .wizard-summary-stack {
   line-height: 1.5;
 }
 
+#step1-basic-intake-intelligence-host:empty {
+  display: none;
+}
+
+.step1-basic-intake__intelligence {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: var(--sp-4);
+}
+
+.step1-basic-intake__intelligence-item {
+  min-width: 0;
+  min-height: 104px;
+  padding: 13px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.step1-basic-intake__intelligence-item--live {
+  border-color: rgba(115, 255, 224, 0.2);
+  background: rgba(115, 255, 224, 0.055);
+}
+
+.step1-basic-intake__intelligence-item--warning {
+  border-color: rgba(242, 251, 90, 0.24);
+  background: rgba(242, 251, 90, 0.07);
+}
+
+.step1-basic-intake__intelligence-item > span {
+  display: block;
+  color: rgba(198, 206, 201, 0.58);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+
+.step1-basic-intake__intelligence-item strong,
+.step1-basic-intake__intelligence-item em {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.step1-basic-intake__intelligence-item strong {
+  margin-top: 9px;
+  color: rgba(248, 250, 249, 0.94);
+  font-size: 0.92rem;
+  line-height: 1.35;
+}
+
+.step1-basic-intake__intelligence-item em {
+  margin-top: 8px;
+  color: rgba(205, 214, 209, 0.62);
+  font-size: 0.78rem;
+  font-style: normal;
+  font-weight: 700;
+  line-height: 1.42;
+}
+
+.step1-basic-intake__next-question {
+  grid-column: 1 / -1;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(115, 255, 224, 0.12);
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.15);
+  color: rgba(224, 235, 230, 0.78);
+  font-size: 0.84rem;
+  font-weight: 700;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
 .step1-basic-intake--conversation .step1-basic-intake__action,
 .step1-basic-intake--conversation .step1-basic-intake__draft {
   max-width: 100%;
@@ -13552,6 +13629,12 @@ html[data-experience-mode="basic"] .wizard-layout--step1 .wizard-summary-stack {
 
   .step1-live-canvas__grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .step1-basic-intake__intelligence {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

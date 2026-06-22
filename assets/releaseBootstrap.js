@@ -4,8 +4,8 @@
   const release = Object.freeze({
     version: '0.10.0-pilot.1',
     channel: 'pilot',
-    build: '2026-06-17-admin-conflict-autosave-guard',
-    assetVersion: '20260617v8',
+    build: '2026-06-22-intake-conversation-planner',
+    assetVersion: '20260622v1',
     apiOrigin: 'https://risk-calculator-eight.vercel.app'
   });
 

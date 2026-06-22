@@ -36,6 +36,23 @@ function hasStep1StagedGuidedDraft(draft = AppState.draft || {}) {
   return false;
 }
 
+function getStep1IntakeConversationModel(draft = AppState.draft || {}) {
+  const api = typeof IntakeConversationModel !== 'undefined'
+    ? IntakeConversationModel
+    : (typeof window !== 'undefined' ? window.IntakeConversationModel : null);
+  if (!api || typeof api.buildIntakeConversationModel !== 'function') return null;
+  try {
+    return api.buildIntakeConversationModel({
+      draft,
+      riskCandidates: typeof getRiskCandidates === 'function' ? getRiskCandidates() : [],
+      settings: typeof getEffectiveSettings === 'function' ? getEffectiveSettings() : {}
+    });
+  } catch (error) {
+    console.warn('Step 1 intake conversation model unavailable:', error);
+    return null;
+  }
+}
+
 function getStep1RecommendedAction(draft, selectedRisks) {
   const selectedCount = Array.isArray(selectedRisks) ? selectedRisks.length : 0;
   if (!String(draft.narrative || '').trim() && !selectedCount) {
@@ -57,9 +74,16 @@ function getStep1RecommendedAction(draft, selectedRisks) {
 }
 
 function buildStep1IntakeSequenceModel(draft = AppState.draft || {}) {
-  const hasEventSignal = !!String(draft.guidedInput?.event || '').trim();
-  const hasImpactSignal = !!String(draft.guidedInput?.impact || '').trim();
-  const hasDraftStage = hasStep1StagedGuidedDraft(draft);
+  const conversation = getStep1IntakeConversationModel(draft);
+  const hasEventSignal = conversation
+    ? conversation.hasEventSignal
+    : !!String(draft.guidedInput?.event || '').trim();
+  const hasImpactSignal = conversation
+    ? conversation.hasImpactSignal
+    : !!String(draft.guidedInput?.impact || '').trim();
+  const hasDraftStage = conversation
+    ? conversation.hasStagedDraft
+    : hasStep1StagedGuidedDraft(draft);
 
   const steps = [
     {
@@ -88,24 +112,24 @@ function buildStep1IntakeSequenceModel(draft = AppState.draft || {}) {
     }
   ];
 
-  let nextAction = {
+  let nextAction = conversation?.nextBestAction || {
     title: '1. Describe the event',
     copy: 'Start with one concrete signal so the scout has something real to classify.',
     kicker: 'Event first'
   };
-  if (hasEventSignal && !hasImpactSignal) {
+  if (!conversation && hasEventSignal && !hasImpactSignal) {
     nextAction = {
       title: '2. Name the main impact',
       copy: 'Add the impact you care about so the first draft stays tightly scoped.',
       kicker: 'Impact needed'
     };
-  } else if (hasEventSignal && hasImpactSignal && !hasDraftStage) {
+  } else if (!conversation && hasEventSignal && hasImpactSignal && !hasDraftStage) {
     nextAction = {
       title: '3. Build the first draft',
       copy: 'Your signal is ready. Build now, then review the draft and lens fit below.',
       kicker: 'Ready to build'
     };
-  } else if (hasEventSignal && hasImpactSignal && hasDraftStage) {
+  } else if (!conversation && hasEventSignal && hasImpactSignal && hasDraftStage) {
     nextAction = {
       title: '4. Review the draft and continue',
       copy: 'Tighten the wording if needed, then continue into scenario review with a defensible draft.',
@@ -134,10 +158,17 @@ function renderStep1CommandProgressMarkup(steps = []) {
 }
 
 function buildStep1BasicWorkflowRibbonModel(draft = AppState.draft || {}) {
+  const conversation = getStep1IntakeConversationModel(draft);
   const hasBusinessContext = !!String(draft?.buId || '').trim();
-  const hasEventSignal = !!String(draft?.guidedInput?.event || '').trim();
-  const hasImpactSignal = !!String(draft?.guidedInput?.impact || '').trim();
-  const hasStagedDraft = hasStep1StagedGuidedDraft(draft);
+  const hasEventSignal = conversation
+    ? conversation.hasEventSignal
+    : !!String(draft?.guidedInput?.event || '').trim();
+  const hasImpactSignal = conversation
+    ? conversation.hasImpactSignal
+    : !!String(draft?.guidedInput?.impact || '').trim();
+  const hasStagedDraft = conversation
+    ? conversation.hasStagedDraft
+    : hasStep1StagedGuidedDraft(draft);
   const sourceKey = getStep1DraftSourceKey(draft);
   const intakeSequence = buildStep1IntakeSequenceModel(draft);
   const sourceLabel = hasStagedDraft
@@ -225,8 +256,8 @@ function buildStep1BasicWorkflowRibbonModel(draft = AppState.draft || {}) {
       {
         key: 'action',
         label: 'Next action',
-        value: intakeSequence.nextAction.kicker || intakeSequence.nextAction.title,
-        copy: intakeSequence.nextAction.copy,
+        value: (conversation?.nextBestAction?.kicker || intakeSequence.nextAction.kicker || intakeSequence.nextAction.title),
+        copy: conversation?.nextBestAction?.copy || intakeSequence.nextAction.copy,
         tone: state === 'blocked' ? 'warning' : 'action'
       }
     ]
@@ -264,19 +295,28 @@ function buildStep1BasicConversationModel(draft = AppState.draft || {}) {
   const assetText = String(input.asset || '').trim();
   const causeText = String(input.cause || '').trim();
   const urgencyText = String(input.urgency || 'medium').trim() || 'medium';
-  const hasBusinessContext = !!String(draft.buId || '').trim();
-  const hasEventSignal = !!eventText;
-  const hasImpactSignal = !!impactText;
-  const hasStagedDraft = hasStep1StagedGuidedDraft(draft);
+  const conversation = getStep1IntakeConversationModel(draft);
+  const hasBusinessContext = conversation
+    ? conversation.hasBusinessContext
+    : !!String(draft.buId || '').trim();
+  const hasEventSignal = conversation
+    ? conversation.hasEventSignal
+    : !!eventText;
+  const hasImpactSignal = conversation
+    ? conversation.hasImpactSignal
+    : !!impactText;
+  const hasStagedDraft = conversation
+    ? conversation.hasStagedDraft
+    : hasStep1StagedGuidedDraft(draft);
   const sourceKey = getStep1DraftSourceKey(draft);
   const sequence = buildStep1IntakeSequenceModel(draft);
-  const nextAction = hasBusinessContext
+  const nextAction = conversation?.nextBestAction || (hasBusinessContext
     ? sequence.nextAction
     : {
         title: 'Choose business context',
         copy: 'Select the business unit above so the AI can apply the right appetite, geography, and regulations.',
         kicker: 'Context required'
-      };
+      });
   const lensLabel = String(draft.scenarioLens?.label || draft.scenarioLens?.key || '').trim();
   const riskCandidates = typeof getRiskCandidates === 'function' ? getRiskCandidates() : [];
   const riskCount = Array.isArray(riskCandidates) ? riskCandidates.length : 0;
@@ -341,6 +381,12 @@ function buildStep1BasicConversationModel(draft = AppState.draft || {}) {
     sourceLabel,
     sequence,
     nextAction,
+    activeQuestion: conversation?.activeQuestion || null,
+    contextStrength: conversation?.contextStrength || null,
+    evidenceStatus: conversation?.evidenceStatus || null,
+    knownUnknowns: Array.isArray(conversation?.knownUnknowns) ? conversation.knownUnknowns : [],
+    explicitUnknownFields: Array.isArray(conversation?.explicitUnknownFields) ? conversation.explicitUnknownFields : [],
+    readyToBuild: conversation ? conversation.readyToBuild : hasBusinessContext && hasEventSignal && hasImpactSignal && !hasStagedDraft,
     runway
   };
 }
@@ -364,6 +410,83 @@ function renderStep1ConversationMemoryTile({ label, value, state = 'waiting', me
     <strong>${escapeHtml(value)}</strong>
     ${meta ? `<em>${escapeHtml(meta)}</em>` : ''}
   </div>`;
+}
+
+function buildStep1BasicActionState(model = buildStep1BasicConversationModel()) {
+  const unknownCount = Array.isArray(model.knownUnknowns) ? model.knownUnknowns.length : 0;
+  if (!model.hasBusinessContext) {
+    return {
+      title: 'Select business context first.',
+      copy: 'Choose the business unit above so the AI uses the right context and regulations.'
+    };
+  }
+  if (model.hasStagedDraft) {
+    return {
+      title: 'Draft is ready.',
+      copy: 'Review the preview below, rebuild only if you changed the intake, or continue to Step 3.'
+    };
+  }
+  if (model.hasEventSignal && model.hasImpactSignal) {
+    return {
+      title: unknownCount ? 'Ready to build with known gaps.' : 'Ready to build.',
+      copy: unknownCount
+        ? 'Any marked unknowns will be carried forward as gaps rather than being treated as zero or complete.'
+        : 'Live AI runs first. If it fails, the fallback draft appears automatically with a clear label.'
+    };
+  }
+  if (model.hasEventSignal && !model.hasImpactSignal) {
+    return {
+      title: 'Add the main impact next.',
+      copy: 'Name the business, customer, regulatory, operational, or financial effect that matters most.'
+    };
+  }
+  return {
+    title: 'Complete the two fields first.',
+    copy: 'No modelling knowledge needed. One event and one impact is enough to start.'
+  };
+}
+
+function renderStep1BasicIntakeIntelligence(model = buildStep1BasicConversationModel()) {
+  const gaps = Array.isArray(model.knownUnknowns) ? model.knownUnknowns.slice(0, 3) : [];
+  const evidence = model.evidenceStatus || {
+    tone: 'neutral',
+    label: 'No evidence attached yet',
+    detail: 'Evidence can be added later.'
+  };
+  const context = model.contextStrength || {
+    tone: 'neutral',
+    label: model.hasEventSignal || model.hasImpactSignal ? 'Partial context captured' : 'Waiting for situation',
+    detail: model.hasEventSignal || model.hasImpactSignal ? 'The intake model is tracking what is known and missing.' : ''
+  };
+  const shouldShow = model.hasEventSignal
+    || model.hasImpactSignal
+    || model.hasStagedDraft
+    || gaps.length > 0
+    || String(evidence.state || '').trim() !== 'none';
+  if (!shouldShow) return '';
+  const nextQuestion = String(model.activeQuestion?.question || model.nextAction?.copy || '').trim();
+  return `<div class="step1-basic-intake__intelligence" id="step1-basic-intake-intelligence" aria-label="Intake understanding">
+    <div class="step1-basic-intake__intelligence-item step1-basic-intake__intelligence-item--${escapeHtml(context.tone || 'neutral')}">
+      <span>Context</span>
+      <strong>${escapeHtml(context.label || 'Partial context captured')}</strong>
+      ${context.detail ? `<em>${escapeHtml(context.detail)}</em>` : ''}
+    </div>
+    <div class="step1-basic-intake__intelligence-item step1-basic-intake__intelligence-item--${escapeHtml(gaps.length ? 'warning' : 'neutral')}">
+      <span>Known gaps</span>
+      <strong>${escapeHtml(gaps.length ? gaps[0] : 'No explicit gaps yet')}</strong>
+      ${gaps.length > 1 ? `<em>${escapeHtml(`+${gaps.length - 1} more tracked`)}</em>` : '<em>Unknowns stay visible later.</em>'}
+    </div>
+    <div class="step1-basic-intake__intelligence-item step1-basic-intake__intelligence-item--${escapeHtml(evidence.tone || 'neutral')}">
+      <span>Evidence</span>
+      <strong>${escapeHtml(evidence.label || 'No evidence attached yet')}</strong>
+      ${evidence.detail ? `<em>${escapeHtml(evidence.detail)}</em>` : ''}
+    </div>
+    ${nextQuestion ? `<div class="step1-basic-intake__next-question">${escapeHtml(nextQuestion)}</div>` : ''}
+  </div>`;
+}
+
+function renderStep1BasicIntakeIntelligenceHost(model = buildStep1BasicConversationModel()) {
+  return `<div id="step1-basic-intake-intelligence-host">${renderStep1BasicIntakeIntelligence(model)}</div>`;
 }
 
 function renderStep1BasicLiveCanvas(model) {
@@ -427,6 +550,11 @@ function refreshStep1BasicConversationWorkbench(draft = AppState.draft || {}) {
   if (agent) agent.outerHTML = renderStep1BasicConversationAgent(model);
   const canvas = document.getElementById('step1-live-canvas');
   if (canvas) canvas.outerHTML = renderStep1BasicLiveCanvas(model);
+  const insightHost = document.getElementById('step1-basic-intake-intelligence-host');
+  if (insightHost) insightHost.innerHTML = renderStep1BasicIntakeIntelligence(model);
+  const actionState = buildStep1BasicActionState(model);
+  setStep1NodeText('#step1-basic-action-title', actionState.title);
+  setStep1NodeText('#step1-basic-action-copy', actionState.copy);
 }
 
 function refreshStep1BasicWorkflowRibbon(draft = AppState.draft || {}) {
@@ -464,10 +592,19 @@ function updateStep1CommandDeckState() {
   ].forEach(selector => setStep1NodeText(selector, intakeSequence.nextAction.kicker));
 
   const previewModel = getStep1DisplayedGuidedPreviewModel(draft);
-  const hasEventSignal = !!String(draft.guidedInput?.event || '').trim();
-  const hasImpactSignal = !!String(draft.guidedInput?.impact || '').trim();
-  const hasStagedDraft = hasStep1StagedGuidedDraft(draft);
-  const hasBusinessContext = !!String(draft.buId || '').trim();
+  const conversation = getStep1IntakeConversationModel(draft);
+  const hasEventSignal = conversation
+    ? conversation.hasEventSignal
+    : !!String(draft.guidedInput?.event || '').trim();
+  const hasImpactSignal = conversation
+    ? conversation.hasImpactSignal
+    : !!String(draft.guidedInput?.impact || '').trim();
+  const hasStagedDraft = conversation
+    ? conversation.hasStagedDraft
+    : hasStep1StagedGuidedDraft(draft);
+  const hasBusinessContext = conversation
+    ? conversation.hasBusinessContext
+    : !!String(draft.buId || '').trim();
   const heroActionTitle = !hasEventSignal || !hasImpactSignal
     ? 'Complete steps 1 and 2, then build'
     : hasStagedDraft
@@ -3346,10 +3483,11 @@ function renderStep1BasicGuidedBuilderCard(draft, recommendation, promptIdeaMode
       ? (promptCards[0]?.prompt || 'Describe what happened or what could happen.')
       : 'Describe what happened or what could happen.'
   ).trim();
-  const hasEventSignal = !!String(draft.guidedInput?.event || '').trim();
-  const hasImpactSignal = !!String(draft.guidedInput?.impact || '').trim();
-  const hasStagedDraft = hasStep1StagedGuidedDraft(draft);
-  const hasBusinessContext = !!String(draft.buId || '').trim();
+  const hasEventSignal = conversationModel.hasEventSignal;
+  const hasImpactSignal = conversationModel.hasImpactSignal;
+  const hasStagedDraft = conversationModel.hasStagedDraft;
+  const hasBusinessContext = conversationModel.hasBusinessContext;
+  const actionState = buildStep1BasicActionState(conversationModel);
   const nextLabel = !hasBusinessContext
     ? 'Select context'
     : !hasEventSignal
@@ -3443,14 +3581,16 @@ function renderStep1BasicGuidedBuilderCard(draft, recommendation, promptIdeaMode
           </div>
         </details>
 
+        ${renderStep1BasicIntakeIntelligenceHost(conversationModel)}
+
       </section>
     </div>
 
     <div class="step1-basic-intake__action">
       <button class="btn btn--primary btn--lg step1-guided-cta" id="btn-build-guided-narrative" type="button" ${hasBusinessContext ? '' : 'disabled aria-disabled="true"'}>${hasStagedDraft ? 'Rebuild draft' : 'Build draft with AI'}</button>
       <div>
-        <strong>${!hasBusinessContext ? 'Select business context first.' : hasStagedDraft ? 'Draft is ready.' : hasEventSignal && hasImpactSignal ? 'Ready to build.' : 'Complete the two fields first.'}</strong>
-        <span>${!hasBusinessContext ? 'Choose the business unit above so the AI uses the right context and regulations.' : hasStagedDraft ? 'Review the preview below, rebuild only if you changed the intake, or continue to Step 3.' : hasEventSignal && hasImpactSignal ? 'Live AI runs first. If it fails, the fallback draft appears automatically with a clear label.' : 'No modelling knowledge needed. One event and one impact is enough to start.'}</span>
+        <strong id="step1-basic-action-title">${escapeHtml(actionState.title)}</strong>
+        <span id="step1-basic-action-copy">${escapeHtml(actionState.copy)}</span>
       </div>
     </div>
 
