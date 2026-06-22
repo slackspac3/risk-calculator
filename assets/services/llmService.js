@@ -667,6 +667,7 @@ Return corrected JSON only.`;
 
   function _decorateAiResult(result = {}, evidenceMeta = null, { contentFields = [], fallbackUsed = false, uploadedDocumentName = '' } = {}) {
     const next = { ...(result || {}) };
+    const resolvedFallbackUsed = fallbackUsed === true || next.usedFallback === true || next.aiUnavailable === true;
     const content = {};
     contentFields.forEach(field => {
       const value = next[field];
@@ -685,7 +686,7 @@ Return corrected JSON only.`;
       evidenceMeta,
       citations: next.citations || [],
       uploadedDocumentName,
-      fallbackUsed
+      fallbackUsed: resolvedFallbackUsed
     });
     const guardrails = _guardrails();
     const envelope = guardrails?.buildEnvelope
@@ -699,7 +700,7 @@ Return corrected JSON only.`;
           assumptions,
           missingInformation: next.missingInformation || evidenceMeta?.missingInformation || [],
           sourceBasis,
-          fallbackUsed
+          fallbackUsed: resolvedFallbackUsed
         })
       : {
           label: 'Suggested draft',
@@ -708,12 +709,12 @@ Return corrected JSON only.`;
           assumptions,
           missingInformation: next.missingInformation || [],
           sourceBasis,
-          fallbackUsed
+          fallbackUsed: resolvedFallbackUsed
         };
     next.draftStatusLabel = 'Suggested draft';
     next.sourceBasis = sourceBasis;
     next.aiEnvelope = envelope;
-    next.usedFallback = !!fallbackUsed;
+    next.usedFallback = resolvedFallbackUsed;
     return next;
   }
 

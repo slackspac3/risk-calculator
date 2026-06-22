@@ -655,7 +655,7 @@ AI environment notes:
 - run `npm run qdrant:smoke` after configuring RAG to verify Qdrant reachability and collection shape; set `RISK_RAG_SMOKE_STATUS_DIR` only if you want the sanitized last-smoke JSON written somewhere other than the default temp/log directory
 - the frontend defaults to the hosted proxy path and should normally run keyless in the browser
 - local browser testing that needs real hosted AI should use the fixed localhost origin above so the hosted API CORS allowlist can stay narrow and explicit
-- local serverless API testing also needs `SESSION_SIGNING_SECRET` or `ADMIN_API_SECRET`; otherwise login can render locally but authenticated API workflows cannot mint or validate server session tokens
+- local serverless API testing needs a distinct `SESSION_SIGNING_SECRET`; `ADMIN_API_SECRET` is only for admin bypass routes and no longer signs or validates user sessions
 - if live AI returns fallback while CORS and auth are healthy, test the provider credential directly from `.env.local`; a provider `Invalid API Key` response means the key, not the UI, is blocking live generation
 - pilot and production should rely on the hosted proxy plus the server-reported mode in `Admin > System Access`
 - localhost-only overrides exist for debugging, but they do not replace the server-reported mode used for operational trust

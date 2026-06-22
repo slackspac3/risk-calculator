@@ -805,8 +805,10 @@ const ExportService = (() => {
       : r.annualReviewTriggered
       ? `Annual exposure is material at ${fmt(r.ale.p90)} on a severe-but-plausible basis, so it also merits annual leadership review.`
       : `Annual exposure is ${fmt(r.ale.p90)} on a severe-but-plausible basis, which stays below the annual review trigger.`;
+    const statusTone = criticalCondition || r.toleranceBreached ? 'danger' : r.nearTolerance ? 'warning' : 'success';
     const exceedancePct = ((r.toleranceDetail?.lmExceedProb || 0) * 100).toFixed(1);
     const completed = new Date(assessment.completedAt || Date.now()).toLocaleDateString('en-AE', { year: 'numeric', month: 'long', day: 'numeric' });
+    const displayTitle = _resolveAssessmentDisplayTitle(assessment);
     const narrative = _buildExecutiveScenarioSummary(assessment) || 'No scenario narrative available.';
     const risks = Array.isArray(assessment.selectedRisks) ? assessment.selectedRisks : [];
     const regulations = Array.isArray(assessment.applicableRegulations) ? assessment.applicableRegulations : [];
@@ -988,20 +990,22 @@ const ExportService = (() => {
         <div>
           <div class="eyebrow">Assessment outcome</div>
           <h2 style="font-size:32px;line-height:1.08;max-width:14ch">${executiveHeadline}</h2>
-          <div class="hero-copy">${r.toleranceBreached
-            ? `Per-event P90 ${fmt(r.lm.p90)} is above the tolerance threshold of ${fmt(r.threshold)}.`
-            : r.nearTolerance
-              ? `Per-event P90 ${fmt(r.lm.p90)} is above the warning trigger of ${fmt(r.warningThreshold)} but still below tolerance.`
-              : `Per-event P90 ${fmt(r.lm.p90)} remains below the warning trigger of ${fmt(r.warningThreshold)}.`} ${annualView}</div>
+          <div class="hero-copy">${criticalCondition
+            ? `${criticalCondition.statusDetail} Conditional event-loss P90 is ${fmt(r.lm.p90)} against a tolerance threshold of ${fmt(r.threshold)}.`
+            : r.toleranceBreached
+              ? `Per-event P90 ${fmt(r.lm.p90)} is above the tolerance threshold of ${fmt(r.threshold)}.`
+              : r.nearTolerance
+                ? `Per-event P90 ${fmt(r.lm.p90)} is above the warning trigger of ${fmt(r.warningThreshold)} but still below tolerance.`
+                : `Per-event P90 ${fmt(r.lm.p90)} remains below the warning trigger of ${fmt(r.warningThreshold)}.`} ${annualView}</div>
           <div class="badge-row">
-            <span class="badge ${r.toleranceBreached ? 'danger' : r.nearTolerance ? 'warning' : 'success'}">${statusTitle}</span>
+            <span class="badge ${statusTone}">${statusTitle}</span>
             <span class="badge neutral">${assessment.buName || 'No business unit'}</span>
             <span class="badge neutral">${assessment.geography || 'No geography'}</span>
             <span class="badge neutral">${d}</span>
           </div>
         </div>
         <div class="signal">
-          <div class="signal-ring ${statusClass}"><div class="signal-inner">${r.toleranceBreached ? '!' : r.nearTolerance ? '!' : '✓'}</div></div>
+          <div class="signal-ring ${statusClass}"><div class="signal-inner">${criticalCondition || r.toleranceBreached || r.nearTolerance ? '!' : '✓'}</div></div>
           <div class="signal-copy">${exceedancePct}% chance of exceeding tolerance in the modelled distribution; this is not incident likelihood</div>
         </div>
       </div>
@@ -1009,7 +1013,7 @@ const ExportService = (() => {
       <div class="metric-grid">
         <div class="card">
           <div class="metric-label">Potential impact from one serious event</div>
-          <div class="metric-value ${r.toleranceBreached ? 'danger' : ''}">${fmt(r.lm.p90)}</div>
+            <div class="metric-value ${criticalCondition || r.toleranceBreached ? 'danger' : ''}">${fmt(r.lm.p90)}</div>
           <div class="metric-copy">Use this as the serious single-event view when discussing tolerance and escalation.</div>
         </div>
         <div class="card">
@@ -1691,6 +1695,9 @@ const ExportService = (() => {
     const fmt = v => _formatCurrency(v, currency, fxRate);
     const intelligence = assessment.assessmentIntelligence || {};
     const confidenceFrame = _buildExecutiveConfidenceFrame(intelligence.confidence, assessment.evidenceQuality, assessment.missingInformation, assessment.citations || []);
+    const criticalCondition = typeof ReportPresentation.detectCriticalCondition === 'function'
+      ? ReportPresentation.detectCriticalCondition(assessment)
+      : null;
     const projectResultsModel = typeof ReportPresentation.buildProjectResultsModel === 'function'
       ? ReportPresentation.buildProjectResultsModel(assessment, r, fmt)
       : null;
@@ -1711,13 +1718,15 @@ const ExportService = (() => {
           slideIndex: 2,
           type: 'executive_summary',
           title: 'Executive Summary',
-          tolerance: r.toleranceBreached ? 'ABOVE TOLERANCE' : 'WITHIN TOLERANCE',
-          toleranceColor: r.toleranceBreached ? '#dc2626' : '#059669',
-          decisionRead: r.toleranceBreached
-            ? 'Escalate and reduce now'
-            : r.nearTolerance
-              ? 'Actively reduce and review'
-              : 'Monitor and improve selectively',
+          tolerance: criticalCondition ? 'CRITICAL RESPONSE GATE' : r.toleranceBreached ? 'ABOVE TOLERANCE' : 'WITHIN TOLERANCE',
+          toleranceColor: criticalCondition || r.toleranceBreached ? '#dc2626' : '#059669',
+          decisionRead: criticalCondition
+            ? (criticalCondition.action || criticalCondition.priority || 'Close the critical response gate')
+            : r.toleranceBreached
+              ? 'Escalate and reduce now'
+              : r.nearTolerance
+                ? 'Actively reduce and review'
+                : 'Monitor and improve selectively',
           keyStats: [
             { label: 'Per-Event P90', value: fmt(r.lm.p90) },
             { label: 'Annual P90', value: fmt(r.ale.p90) },
