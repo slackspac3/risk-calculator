@@ -6,7 +6,7 @@ If this file conflicts with the code, git history, or GitHub workflow files, tru
 
 ## Last Updated
 
-- Date: 2026-06-19
+- Date: 2026-06-22
 - Updated by: Codex session in local repo `/Users/bhavuk.arora/risk-calculator`
 
 ## Read First
@@ -57,6 +57,13 @@ If this file conflicts with the code, git history, or GitHub workflow files, tru
 - Do not force-push or rewrite shared branch history unless explicitly approved.
 
 ## Verified Baseline Through 2026-04-25
+
+Latest active-context update on 2026-06-22 in `/Users/bhavuk.arora/risk-calculator`:
+
+- Basic Step 2 now has a pure intake conversation model in `assets/state/intakeConversationModel.js`.
+- The model treats explicit unknown answers as tracked gaps rather than missing fields, summarizes evidence/project-economics gaps, and returns the next best action without calling AI or mutating draft state.
+- `assets/wizard/step1.js` consumes that model for the existing Basic intake card, action copy, and draft-readiness state; the dense live-memory sidecar remains hidden in Basic mode.
+- Asset stamp is now `20260622v1`; build stamp is `2026-06-22-intake-conversation-planner`.
 
 Latest active-context update on 2026-06-19 in `/Users/bhavuk.arora/risk-calculator`:
 

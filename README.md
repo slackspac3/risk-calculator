@@ -83,6 +83,7 @@ Current desktop-first UX behavior:
 - switching between guided, draft, and import/example keeps the user on Step 1 and keeps all options visible
 - Step 2 in Basic mode now opens as a simplified Quick Assessment: required business context when missing, two plain-language prompts, one build action, and draft preview, with setup/risk-review controls behind support disclosures
 - Step 2 Basic intentionally hides the dense workflow ribbon, Assessment Manager timeline, and live memory sidecar on first load so a non-expert user is not asked to interpret agent telemetry before typing the event and impact
+- once the user starts typing in Step 2 Basic, the existing intake card can show a compact intelligence strip for captured context, known gaps, and evidence posture; it must stay inside the intake flow rather than becoming a separate chat console
 - after Step 2 builds a draft, the preview is shown immediately on the same screen and restored from saved assisted-draft state before the user continues to Step 3
 - Assessment Manager surfaces remain visible where they help review and decision readiness: Step 5 Review & Run and Results replay, not the Basic Step 2 opening screen
 - the Assessment Manager surfaces use a Parallax-inspired signal runway, animated agent packets, resilient mission cards, and a conic readiness gauge so the AI workflow feels active without adding more controls
@@ -195,6 +196,7 @@ Current AI behavior:
 - bounded AI rewriting is used where draft quality matters
 - explicit fallback and unavailable states are surfaced instead of silently masquerading as live AI
 - Basic Step 2 does not show a full local draft before the user asks to build; the first build click tries live AI, then automatically stages an explicit fallback draft from the typed answers if live AI is unavailable
+- Basic Step 2 uses a small intake conversation model to treat explicit unknowns as tracked gaps, keep evidence/project-economics gaps visible, and avoid repeatedly asking for a field the user has already marked unknown
 - once an assisted or fallback Step 2 draft exists, saved draft state preserves the preview provenance so Basic mode cannot show an empty draft placeholder while Step 3 is available
 - the browser builds a deterministic Assessment Manager view around trusted review workflows: context loaded, scenario framed, evidence mission, Challenge Agent, and output review
 - decision readiness is separate from AI prose and Monte Carlo output; it records blockers, open gaps, required controls, and human-review owners so final results are easier to challenge
