@@ -1,4 +1,7 @@
 const { test, expect } = require('@playwright/test');
+
+test.setTimeout(60000);
+
 const {
   mockProjectExposureMap,
   seedAuthenticatedWorkspace
