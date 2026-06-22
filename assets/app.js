@@ -1292,9 +1292,6 @@ async function requestSharedSettings(method = 'GET', payload, { includeAdminSecr
     'Content-Type': 'application/json'
   };
   const sessionToken = AuthService.getApiSessionToken();
-  if (includeAdminSecret && !sessionToken && AuthService.getAdminApiSecret()) {
-    headers['x-admin-secret'] = AuthService.getAdminApiSecret();
-  }
   if (sessionToken) {
     headers['x-session-token'] = sessionToken;
   }
@@ -3056,7 +3053,6 @@ function normaliseAuditLogSummary(summary = {}, entryCount = 0) {
 async function requestAuditLog(method = 'GET', payload, { includeAdminSecret = false } = {}) {
   const headers = { 'Content-Type': 'application/json' };
   const sessionToken = AuthService.getApiSessionToken();
-  if (includeAdminSecret && !sessionToken && AuthService.getAdminApiSecret()) headers['x-admin-secret'] = AuthService.getAdminApiSecret();
   if (sessionToken) headers['x-session-token'] = sessionToken;
   const res = await fetch(getAuditApiUrl(), { method, headers, body: payload ? JSON.stringify(payload) : undefined });
   const text = await res.text();
@@ -4354,7 +4350,7 @@ async function saveAdminSettings(settings, options = {}) {
     if (adminSettingsWriteConflictPending && !options.allowDuringConflict) return false;
     const currentSettings = getAdminSettings();
     if (buildComparableAdminSettingsSnapshot(currentSettings) === requestedSnapshot) return true;
-    if (AuthService.getAdminApiSecret() || AuthService.getApiSessionToken()) {
+    if (AuthService.getApiSessionToken()) {
       try {
         const result = await syncSharedAdminSettings({
           ...merged,
@@ -5920,7 +5916,7 @@ function openOrgEntityEditor({ structure = [], existingNode = null, seed = {}, o
       </div>
       <div class="form-group">
         <label class="form-label" for="org-entity-name">Entity or Department Name</label>
-        <input class="form-input" id="org-entity-name" value="${defaultName}" placeholder="e.g. Group Holding, Abu Dhabi Operations, Information Security">
+        <input class="form-input" id="org-entity-name" value="${escapeHtml(defaultName)}" placeholder="e.g. Group Holding, Abu Dhabi Operations, Information Security">
       </div>
       <div class="form-group" id="org-parent-wrap">
         <label class="form-label" for="org-parent-id">Parent Business</label>
@@ -5929,13 +5925,13 @@ function openOrgEntityEditor({ structure = [], existingNode = null, seed = {}, o
       </div>
       <div class="form-group" id="org-website-wrap">
         <label class="form-label" for="org-website-url">Website</label>
-        <input class="form-input" id="org-website-url" value="${defaultWebsite}" placeholder="https://example.com">
+        <input class="form-input" id="org-website-url" value="${escapeHtml(defaultWebsite)}" placeholder="https://example.com">
       </div>
       <div class="form-group" id="org-department-wrap" style="display:none">
         <label class="form-label" for="org-department-template">Typical Department</label>
         <select class="form-select" id="org-department-template">
           <option value="">Choose a typical department or keep a custom name</option>
-          ${getTypicalDepartments().map(name => `<option value="${name}" ${name === defaultDepartmentHint ? 'selected' : ''}>${name}</option>`).join('')}
+          ${getTypicalDepartments().map(name => `<option value="${escapeHtml(String(name || ''))}" ${name === defaultDepartmentHint ? 'selected' : ''}>${escapeHtml(String(name || ''))}</option>`).join('')}
         </select>
         <span class="form-help">This helps standardise department naming, but you can still use your own wording.</span>
       </div>
@@ -5943,14 +5939,14 @@ function openOrgEntityEditor({ structure = [], existingNode = null, seed = {}, o
         <label class="form-label" for="org-owner-username" id="org-owner-label">Business Unit Admin</label>
         <select class="form-select" id="org-owner-username">
           <option value="">Choose a user account</option>
-          ${managedAccounts.map(account => `<option value="${account.username}" ${account.username === defaultOwner ? 'selected' : ''}>${account.displayName} (${account.username})</option>`).join('')}
+          ${managedAccounts.map(account => `<option value="${escapeHtml(String(account.username || ''))}" ${account.username === defaultOwner ? 'selected' : ''}>${escapeHtml(String(account.displayName || 'User'))} (${escapeHtml(String(account.username || ''))})</option>`).join('')}
         </select>
         <span class="form-help" id="org-owner-help">The assigned user can manage the departments and retained context for this business unit from their Settings page.</span>
       </div>
     </div>
     <div class="form-group mt-4">
       <label class="form-label" for="org-profile">Context Summary</label>
-      <textarea class="form-textarea" id="org-profile" rows="7" placeholder="Business profile, strategic role, technology dependence, ownership context, or department remit.">${defaultProfile}</textarea>
+      <textarea class="form-textarea" id="org-profile" rows="7" placeholder="Business profile, strategic role, technology dependence, ownership context, or department remit.">${escapeHtml(defaultProfile)}</textarea>
       <span class="form-help" id="org-profile-help">For company entities, this can be built from the public website and then refined by the admin user.</span>
     </div>
     <div class="card mt-4" style="padding:var(--sp-4);background:var(--bg-elevated)" id="org-context-sections-wrap">
@@ -5958,31 +5954,31 @@ function openOrgEntityEditor({ structure = [], existingNode = null, seed = {}, o
       <p class="form-help">These named sections can be edited any time and will be retained for this entity.</p>
       <div class="form-group mt-3">
         <label class="form-label" for="org-section-summary">Company Summary</label>
-        <textarea class="form-textarea" id="org-section-summary" rows="3">${defaultSections?.companySummary || ''}</textarea>
+        <textarea class="form-textarea" id="org-section-summary" rows="3">${escapeHtml(defaultSections?.companySummary || '')}</textarea>
       </div>
       <div class="form-group mt-3">
         <label class="form-label" for="org-section-business-model">Business Model</label>
-        <textarea class="form-textarea" id="org-section-business-model" rows="3">${defaultSections?.businessModel || ''}</textarea>
+        <textarea class="form-textarea" id="org-section-business-model" rows="3">${escapeHtml(defaultSections?.businessModel || '')}</textarea>
       </div>
       <div class="form-group mt-3">
         <label class="form-label" for="org-section-operating-model">Operating Model</label>
-        <textarea class="form-textarea" id="org-section-operating-model" rows="3">${defaultSections?.operatingModel || ''}</textarea>
+        <textarea class="form-textarea" id="org-section-operating-model" rows="3">${escapeHtml(defaultSections?.operatingModel || '')}</textarea>
       </div>
       <div class="form-group mt-3">
         <label class="form-label" for="org-section-commitments">Public Commitments</label>
-        <textarea class="form-textarea" id="org-section-commitments" rows="4" placeholder="One commitment per line">${defaultSections?.publicCommitments || ''}</textarea>
+        <textarea class="form-textarea" id="org-section-commitments" rows="4" placeholder="One commitment per line">${escapeHtml(defaultSections?.publicCommitments || '')}</textarea>
       </div>
       <div class="form-group mt-3">
         <label class="form-label" for="org-section-risks">Key Risk Signals</label>
-        <textarea class="form-textarea" id="org-section-risks" rows="4" placeholder="One risk signal per line">${defaultSections?.keyRiskSignals || ''}</textarea>
+        <textarea class="form-textarea" id="org-section-risks" rows="4" placeholder="One risk signal per line">${escapeHtml(defaultSections?.keyRiskSignals || '')}</textarea>
       </div>
       <div class="form-group mt-3">
         <label class="form-label" for="org-section-obligations">Obligations and Exposures</label>
-        <textarea class="form-textarea" id="org-section-obligations" rows="4" placeholder="One obligation or exposure per line">${defaultSections?.obligations || ''}</textarea>
+        <textarea class="form-textarea" id="org-section-obligations" rows="4" placeholder="One obligation or exposure per line">${escapeHtml(defaultSections?.obligations || '')}</textarea>
       </div>
       <div class="form-group mt-3">
         <label class="form-label" for="org-section-sources">Sources Reviewed</label>
-        <textarea class="form-textarea" id="org-section-sources" rows="4" placeholder="One source note per line">${defaultSections?.sources || ''}</textarea>
+        <textarea class="form-textarea" id="org-section-sources" rows="4" placeholder="One source note per line">${escapeHtml(defaultSections?.sources || '')}</textarea>
       </div>
     </div>
     <div class="flex items-center gap-3 mt-4" style="flex-wrap:wrap" id="org-context-actions">
@@ -6121,7 +6117,7 @@ function openOrgEntityEditor({ structure = [], existingNode = null, seed = {}, o
     const selectedNodeType = getSelectedNodeType();
     const parentOptions = buildOrgParentOptions(structure, selectedNodeType, node.id);
     const currentParentId = node.parentId || seed.parentId || '';
-    parentEl.innerHTML = parentOptions.map(option => `<option value="${option.id}" ${option.id === currentParentId ? 'selected' : ''}>${option.name}</option>`).join('');
+    parentEl.innerHTML = parentOptions.map(option => `<option value="${escapeHtml(String(option.id || ''))}" ${option.id === currentParentId ? 'selected' : ''}>${escapeHtml(String(option.name || ''))}</option>`).join('');
     parentEl.disabled = !parentOptions.length;
     parentHelpEl.textContent = departmentEditorMode
       ? 'Departments and functions must be attached to a business entity.'
@@ -6630,21 +6626,21 @@ function openEntityContextLayerEditor({ entity, settings = getAdminSettings(), o
   const modal = UI.modal({
     title: `Manage Context: ${entity.name}`,
     body: `
-      <div class="context-panel-copy" style="margin-bottom:12px">This context sits under <strong>${entity.name}</strong> and helps the platform retain what is unique about this ${isDepartment ? 'department' : 'business unit'}.</div>
-      ${parentName ? `<div class="form-help" style="margin-bottom:12px">AI assist will inherit context from <strong>${parentName}</strong> and specialise it for this ${isDepartment ? 'function' : 'entity'}.</div>` : ''}
+      <div class="context-panel-copy" style="margin-bottom:12px">This context sits under <strong>${escapeHtml(String(entity.name || 'Unnamed entity'))}</strong> and helps the platform retain what is unique about this ${isDepartment ? 'department' : 'business unit'}.</div>
+      ${parentName ? `<div class="form-help" style="margin-bottom:12px">AI assist will inherit context from <strong>${escapeHtml(String(parentName || ''))}</strong> and specialise it for this ${isDepartment ? 'function' : 'entity'}.</div>` : ''}
       <div class="grid-2" style="gap:12px">
         <div class="form-group">
           <label class="form-label" for="entity-layer-name">Entity</label>
-          <input class="form-input" id="entity-layer-name" value="${entity.name}" ${readOnlyIdentity ? 'readonly' : ''}>
+          <input class="form-input" id="entity-layer-name" value="${escapeHtml(String(entity.name || ''))}" ${readOnlyIdentity ? 'readonly' : ''}>
         </div>
         <div class="form-group">
           <label class="form-label" for="entity-layer-geo">Geography</label>
-          <input class="form-input" id="entity-layer-geo" value="${existingLayer.geography || ''}" placeholder="e.g. UAE, GCC, Global">
+          <input class="form-input" id="entity-layer-geo" value="${escapeHtml(existingLayer.geography || '')}" placeholder="e.g. UAE, GCC, Global">
         </div>
       </div>
       <div class="form-group mt-4">
         <label class="form-label" for="entity-layer-summary">Context Summary</label>
-        <textarea class="form-textarea" id="entity-layer-summary" rows="4" placeholder="Describe the remit, critical processes, dependencies, and regulatory exposure.">${existingLayer.contextSummary || entity.profile || ''}</textarea>
+        <textarea class="form-textarea" id="entity-layer-summary" rows="4" placeholder="Describe the remit, critical processes, dependencies, and regulatory exposure.">${escapeHtml(existingLayer.contextSummary || entity.profile || '')}</textarea>
         <label class="form-checkbox" style="margin-top:10px">
           <input type="checkbox" id="entity-layer-visible-users" ${existingLayer.visibleToChildUsers !== false ? 'checked' : ''}>
           <span>Show this retained context summary to lower-layer users</span>
@@ -6653,7 +6649,7 @@ function openEntityContextLayerEditor({ entity, settings = getAdminSettings(), o
       </div>
       <div class="form-group mt-4">
         <label class="form-label" for="entity-layer-appetite">Risk Appetite</label>
-        <textarea class="form-textarea" id="entity-layer-appetite" rows="3">${existingLayer.riskAppetiteStatement || ''}</textarea>
+        <textarea class="form-textarea" id="entity-layer-appetite" rows="3">${escapeHtml(existingLayer.riskAppetiteStatement || '')}</textarea>
       </div>
       <div class="form-group mt-4">
         <label class="form-label">Applicable Regulations</label>
@@ -6661,11 +6657,11 @@ function openEntityContextLayerEditor({ entity, settings = getAdminSettings(), o
       </div>
       <div class="form-group mt-4">
         <label class="form-label" for="entity-layer-ai">AI Guidance</label>
-        <textarea class="form-textarea" id="entity-layer-ai" rows="3">${existingLayer.aiInstructions || ''}</textarea>
+        <textarea class="form-textarea" id="entity-layer-ai" rows="3">${escapeHtml(existingLayer.aiInstructions || '')}</textarea>
       </div>
       <div class="form-group mt-4">
         <label class="form-label" for="entity-layer-benchmark">Benchmark Strategy</label>
-        <textarea class="form-textarea" id="entity-layer-benchmark" rows="3">${existingLayer.benchmarkStrategy || ''}</textarea>
+        <textarea class="form-textarea" id="entity-layer-benchmark" rows="3">${escapeHtml(existingLayer.benchmarkStrategy || '')}</textarea>
       </div>
       <div class="flex items-center gap-3 mt-4" style="flex-wrap:wrap">
         <button class="btn btn--secondary" id="btn-entity-layer-ai" type="button">Build with AI</button>
@@ -7827,7 +7823,7 @@ function buildAgenticShellTimeline(surface = 'dashboard', routeHash = '') {
     return [
       { label: 'Govern', copy: 'Shared context, defaults, and access controls.', state: route.includes('/admin/home') ? 'active' : 'complete' },
       { label: 'Tune', copy: 'Adjust the current control surface before teams rely on it.', state: route.includes('/admin/settings/') ? 'active' : route.includes('/admin/') ? 'pending' : 'pending' },
-      { label: 'Release', copy: 'Keep `/test/` and live promotion aligned.', state: route.includes('/admin/docs') || route.includes('/admin/bu') ? 'active' : 'pending' }
+      { label: 'Release', copy: 'Keep protected validation and live promotion aligned.', state: route.includes('/admin/docs') || route.includes('/admin/bu') ? 'active' : 'pending' }
     ];
   }
   return [
@@ -8160,7 +8156,7 @@ function buildAgenticShellModel(routeHash = getRouteMeta().currentHash) {
       : 'No admin escalations are waiting right now.';
     model.actionCopy = staleAdmin
       ? 'Pull the latest shared settings before promoting more changes.'
-      : 'Keep `/test/` as the proving ground before moving anything to live.';
+      : 'Use local QA or a protected preview before moving anything to live.';
     model.metrics = [
       { label: 'Section', value: getAgenticAdminSectionLabel(route) },
       { label: 'Review queue', value: adminReviewCount ? String(adminReviewCount) : 'Clear' },
@@ -8168,7 +8164,7 @@ function buildAgenticShellModel(routeHash = getRouteMeta().currentHash) {
     ];
     model.notes = [
       passiveNotice?.title || '',
-      'Promotion path: `/test/` first, then live after sign-off.'
+      'Promotion path: validate first, then live after sign-off.'
     ].filter(Boolean).slice(0, 2);
   } else if (route === '/settings') {
     model.eyebrow = 'Operator Setup';
@@ -12662,14 +12658,14 @@ function renderLoginOrganisationSelection(currentUser, existingSettings = getUse
             <div class="form-group mt-6">
               <label class="form-label" for="login-business-unit">Business unit / company</label>
               <select class="form-select" id="login-business-unit" disabled>
-                ${companies.map(entity => `<option value="${entity.id}" ${entity.id === selectedBusinessId ? 'selected' : ''}>${entity.name}</option>`).join('')}
+                ${companies.map(entity => `<option value="${escapeHtml(String(entity.id || ''))}" ${entity.id === selectedBusinessId ? 'selected' : ''}>${escapeHtml(String(entity.name || 'Unnamed entity'))}</option>`).join('')}
               </select>
             </div>
             <div class="form-group mt-4">
               <label class="form-label" for="login-department">Function / department</label>
               <select class="form-select" id="login-department" ${departmentOptions.length && canChooseDepartment ? '' : 'disabled'}>
                 ${departmentOptions.length
-                  ? departmentOptions.map(entity => `<option value="${entity.id}" ${entity.id === selectedDepartmentId ? 'selected' : ''}>${entity.name}${entity.ownerUsername === currentUser.username ? ' · your department' : ''}</option>`).join('')
+                  ? departmentOptions.map(entity => `<option value="${escapeHtml(String(entity.id || ''))}" ${entity.id === selectedDepartmentId ? 'selected' : ''}>${escapeHtml(String(entity.name || 'Unnamed entity'))}${entity.ownerUsername === currentUser.username ? ' · your department' : ''}</option>`).join('')
                   : '<option value="">No functions configured yet</option>'}
               </select>
               <span class="form-help">${departmentOptions.length ? (canChooseDepartment ? 'Choose the function context you want to work within for this session.' : 'Your function context is fixed by your current assignment.') : 'No function has been configured beneath this business yet. Ask an admin or BU admin to add one before continuing.'}</span>
@@ -14794,9 +14790,9 @@ function renderAdminBU() {
       <details class="org-accordion ${getOrgEntityThemeClass(entity.type)} org-company-row" data-search="${escapeHtml(collectCompanySearchText(entity))}" ${depth < 1 ? 'open' : ''} style="margin-left:${depth * 16}px">
         <summary class="org-accordion__summary">
           <div class="org-accordion__identity">
-            <span class="badge badge--gold">${entity.type}</span>
-            <strong>${entity.name}</strong>
-            <span class="form-help">${departments.length} functions · ${childCompanies.length} child entities · ${ownerLabel}</span>
+            <span class="badge badge--gold">${escapeHtml(String(entity.type || 'Entity'))}</span>
+            <strong>${escapeHtml(String(entity.name || 'Unnamed entity'))}</strong>
+            <span class="form-help">${departments.length} functions · ${childCompanies.length} child entities · ${escapeHtml(String(ownerLabel || 'No owner'))}</span>
           </div>
           <div class="org-accordion__meta">
             <span class="form-help">${entityLayer?.contextSummary ? 'Saved context' : 'No saved context'}</span>
@@ -14982,21 +14978,21 @@ function openBUEditor(bu, options = {}) {
   const m = UI.modal({
     title: isNew ? 'Add Business Unit Context' : `Manage BU Context: ${bu.name}`,
     body: `<form id="bu-form"><div class="grid-2" style="gap:12px">
-      <div class="form-group"><label class="form-label">ID</label><input class="form-input" id="bu-id" value="${bu?.id||''}" placeholder="bu-example" ${!isNew?'readonly':''}></div>
-      <div class="form-group"><label class="form-label">Business Unit Name</label><input class="form-input" id="bu-name" value="${bu?.name||''}"></div>
+      <div class="form-group"><label class="form-label">ID</label><input class="form-input" id="bu-id" value="${escapeHtml(bu?.id || '')}" placeholder="bu-example" ${!isNew?'readonly':''}></div>
+      <div class="form-group"><label class="form-label">Business Unit Name</label><input class="form-input" id="bu-name" value="${escapeHtml(bu?.name || '')}"></div>
     </div>
     <div class="grid-2 mt-4" style="gap:12px">
       <div class="form-group">
         <label class="form-label">Mapped Company Entity</label>
         <select class="form-select" id="bu-org-entity">
           <option value="">Not linked yet</option>
-          ${getCompanyEntities(companyStructure).map(node => `<option value="${node.id}" ${bu?.orgEntityId === node.id ? 'selected' : ''}>${node.name} (${node.type})</option>`).join('')}
+          ${getCompanyEntities(companyStructure).map(node => `<option value="${escapeHtml(String(node.id || ''))}" ${bu?.orgEntityId === node.id ? 'selected' : ''}>${escapeHtml(String(node.name || 'Unnamed entity'))} (${escapeHtml(String(node.type || 'Entity'))})</option>`).join('')}
         </select>
         <span class="form-help">Link this business unit to the company entity it represents in Organisation Setup.</span>
       </div>
       <div class="form-group">
         <label class="form-label">BU Geography Override</label>
-        <input class="form-input" id="bu-geo" value="${bu?.geography || ''}" placeholder="Optional geography override">
+        <input class="form-input" id="bu-geo" value="${escapeHtml(bu?.geography || '')}" placeholder="Optional geography override">
       </div>
     </div>
     <div class="card mt-4" style="padding:var(--sp-4);background:var(--bg-canvas)">
@@ -15011,7 +15007,7 @@ function openBUEditor(bu, options = {}) {
     <div class="form-group mt-4"><label class="form-label">Key Systems</label><div class="tag-input-wrap" id="ti-systems"></div></div>
     <div class="form-group mt-4"><label class="form-label">Data Types</label><div class="tag-input-wrap" id="ti-datatypes"></div></div>
     <div class="form-group mt-4"><label class="form-label">Regulatory Tags</label><div class="tag-input-wrap" id="ti-regtags"></div></div>
-    <div class="form-group mt-4"><label class="form-label">Business Unit Context Summary</label><textarea class="form-textarea" id="bu-context" rows="3">${bu?.contextSummary||''}</textarea></div>
+    <div class="form-group mt-4"><label class="form-label">Business Unit Context Summary</label><textarea class="form-textarea" id="bu-context" rows="3">${escapeHtml(bu?.contextSummary || '')}</textarea></div>
     <label class="form-checkbox mt-3">
       <input type="checkbox" id="bu-context-visible-users" ${bu?.contextVisibleToUsers !== false ? 'checked' : ''}>
       <span>Show this BU context summary to end users</span>
@@ -15028,18 +15024,18 @@ function openBUEditor(bu, options = {}) {
       </div>
       <div class="form-group">
         <label class="form-label">BU Benchmark Strategy</label>
-        <textarea class="form-textarea" id="bu-benchmark-strategy" rows="2">${bu?.benchmarkStrategy||''}</textarea>
+        <textarea class="form-textarea" id="bu-benchmark-strategy" rows="2">${escapeHtml(bu?.benchmarkStrategy || '')}</textarea>
       </div>
     </div>
-    <div class="form-group mt-4"><label class="form-label">Business Unit AI Guidance</label><textarea class="form-textarea" id="bu-ai-guidance" rows="3">${bu?.aiGuidance||''}</textarea></div>
-    <div class="form-group mt-4"><label class="form-label">BU Risk Appetite Statement</label><textarea class="form-textarea" id="bu-risk-appetite" rows="3">${bu?.riskAppetiteStatement||''}</textarea></div>
-    <div class="form-group mt-4"><label class="form-label">BU Escalation Guidance</label><textarea class="form-textarea" id="bu-escalation-guidance" rows="3">${bu?.escalationGuidance||''}</textarea></div>
+    <div class="form-group mt-4"><label class="form-label">Business Unit AI Guidance</label><textarea class="form-textarea" id="bu-ai-guidance" rows="3">${escapeHtml(bu?.aiGuidance || '')}</textarea></div>
+    <div class="form-group mt-4"><label class="form-label">BU Risk Appetite Statement</label><textarea class="form-textarea" id="bu-risk-appetite" rows="3">${escapeHtml(bu?.riskAppetiteStatement || '')}</textarea></div>
+    <div class="form-group mt-4"><label class="form-label">BU Escalation Guidance</label><textarea class="form-textarea" id="bu-escalation-guidance" rows="3">${escapeHtml(bu?.escalationGuidance || '')}</textarea></div>
     <div class="grid-3 mt-4" style="gap:12px">
       <div class="form-group"><label class="form-label">BU Warning Trigger (USD)</label><input class="form-input money-input" id="bu-warning-threshold" type="text" inputmode="numeric" value="${bu?.warningThresholdUsd ? formatCurrencyInputValue(bu.warningThresholdUsd, 'USD') : ''}" placeholder="Inherit platform default"></div>
       <div class="form-group"><label class="form-label">BU Tolerance Threshold (USD)</label><input class="form-input money-input" id="bu-tolerance-threshold" type="text" inputmode="numeric" value="${bu?.toleranceThresholdUsd ? formatCurrencyInputValue(bu.toleranceThresholdUsd, 'USD') : ''}" placeholder="Inherit platform default"></div>
       <div class="form-group"><label class="form-label">BU Annual Review Trigger (USD)</label><input class="form-input money-input" id="bu-annual-threshold" type="text" inputmode="numeric" value="${bu?.annualReviewThresholdUsd ? formatCurrencyInputValue(bu.annualReviewThresholdUsd, 'USD') : ''}" placeholder="Inherit platform default"></div>
     </div>
-    <div class="form-group mt-4"><label class="form-label">Notes</label><textarea class="form-textarea" id="bu-notes" rows="2">${bu?.notes||''}</textarea></div>
+    <div class="form-group mt-4"><label class="form-label">Notes</label><textarea class="form-textarea" id="bu-notes" rows="2">${escapeHtml(bu?.notes || '')}</textarea></div>
     </form>`,
     footer: `<button class="btn btn--ghost" id="bu-cancel">Cancel</button><button class="btn btn--primary" id="bu-save">Save</button>`
   });
@@ -15061,12 +15057,12 @@ function openBUEditor(bu, options = {}) {
       return;
     }
     const parts = [
-      `<strong>${entity.name}</strong>`,
-      entity.type,
-      getEntityLineageLabel(companyStructure, entityId),
-      layer?.geography ? `Layer geography: ${layer.geography}` : '',
-      layer?.applicableRegulations?.length ? `Layer regulations: ${layer.applicableRegulations.join(', ')}` : '',
-      layer?.contextSummary ? `Layer summary: ${layer.contextSummary}` : '',
+      `<strong>${escapeHtml(String(entity.name || 'Unnamed entity'))}</strong>`,
+      escapeHtml(String(entity.type || 'Entity')),
+      escapeHtml(getEntityLineageLabel(companyStructure, entityId)),
+      layer?.geography ? `Layer geography: ${escapeHtml(String(layer.geography || ''))}` : '',
+      layer?.applicableRegulations?.length ? `Layer regulations: ${escapeHtml(layer.applicableRegulations.join(', '))}` : '',
+      layer?.contextSummary ? `Layer summary: ${escapeHtml(String(layer.contextSummary || ''))}` : '',
       entity.profile ? `Entity profile captured` : ''
     ].filter(Boolean);
     summaryEl.innerHTML = parts.join('<br>');

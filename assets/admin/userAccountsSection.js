@@ -119,27 +119,14 @@ const AdminUserAccountsSection = (() => {
           </div>
         </div>
       </details>
-      <details class="dashboard-disclosure card mt-4">
-        <summary>Admin account tools <span class="badge badge--neutral">Advanced</span></summary>
-        <div class="dashboard-disclosure-copy">Normal signed-in admin actions use your current session. The secret below is a current-tab fallback for protected account actions only.</div>
-        <div class="dashboard-disclosure-body">
-          <div class="card" style="padding:var(--sp-4);background:var(--bg-canvas)">
-            <div class="grid-2 mt-1">
-              <div class="form-group">
-                <label class="form-label" for="admin-api-secret">Admin action secret</label>
-                <input class="form-input" id="admin-api-secret" type="password" placeholder="Paste the admin action secret for this tab if needed" value="${escapeHtml(String(AuthService.getAdminApiSecret() || ''))}">
-                <span class="form-help">Saved only for this tab. Signed-in admin requests use the session token first and fall back to the secret only when needed.</span>
-              </div>
-            </div>
-            <div class="flex items-center gap-3 mt-3" style="flex-wrap:wrap">
-              <button class="btn btn--secondary" id="btn-save-admin-secret" type="button">Save Admin Secret</button>
-              <button class="btn btn--ghost" id="btn-clear-admin-secret" type="button">Clear Admin Secret</button>
-              <button class="btn btn--secondary" id="btn-test-users-store" type="button">Check Account Sync</button>
-              <span class="form-help" id="admin-users-store-status">Checks whether account changes are available for this admin session.</span>
-            </div>
-          </div>
+      <div class="card mt-4" style="padding:var(--sp-4);background:var(--bg-canvas)">
+        <div class="context-panel-title">Account sync</div>
+        <div class="dashboard-disclosure-copy">Protected account actions use the signed-in admin session only. Browser-stored admin secrets are no longer accepted by the frontend.</div>
+        <div class="flex items-center gap-3 mt-3" style="flex-wrap:wrap">
+          <button class="btn btn--secondary" id="btn-test-users-store" type="button">Check Account Sync</button>
+          <span class="form-help" id="admin-users-store-status">Checks whether account changes are available for this admin session.</span>
         </div>
-      </details>
+      </div>
       <div class="form-help mt-3">Reset clears this user's saved working state and returns them to a first-time setup experience.</div>`
     });
   }
@@ -427,28 +414,6 @@ ${changeSummary.changed.join(' ')}`);
           UI.toast('User could not be deleted right now.', 'danger');
         }
       });
-    });
-
-    document.getElementById('btn-save-admin-secret')?.addEventListener('click', async () => {
-      const secret = document.getElementById('admin-api-secret')?.value || '';
-      AuthService.setAdminApiSecret(secret);
-      if (!secret) {
-        UI.toast('Admin action secret cleared for this tab.', 'success');
-        return;
-      }
-      try {
-        await syncSharedAdminSettings(getAdminSettings());
-        UI.toast('Admin action secret saved for this tab and current admin settings synced.', 'success');
-      } catch (error) {
-        UI.toast('Admin action secret was saved for this tab, but the latest platform settings could not be refreshed right now.', 'warning');
-      }
-    });
-
-    document.getElementById('btn-clear-admin-secret')?.addEventListener('click', () => {
-      AuthService.setAdminApiSecret('');
-      const input = document.getElementById('admin-api-secret');
-      if (input) input.value = '';
-      UI.toast('Admin action secret cleared for this tab.', 'success');
     });
 
     document.getElementById('btn-test-users-store')?.addEventListener('click', async () => {

@@ -663,8 +663,8 @@ AI environment notes:
 ### Frontend
 - GitHub Pages
 - workflow: [.github/workflows/pages.yml](./.github/workflows/pages.yml)
-- fixed test PoC workflow: [.github/workflows/test-poc.yml](./.github/workflows/test-poc.yml)
-- test and promotion guide: [PREVIEW_PROMOTION_FLOW.md](./PREVIEW_PROMOTION_FLOW.md)
+- the public `/test/` preview path is retired by the live Pages publish and replaced with a noindex placeholder so old test assets do not stay exposed
+- promotion/validation guide: [PREVIEW_PROMOTION_FLOW.md](./PREVIEW_PROMOTION_FLOW.md)
 
 ### Backend
 - deploy `api/` routes to Vercel
@@ -829,6 +829,7 @@ Current hardening includes:
 - hashed password storage and legacy upgrade path
 - server-issued random password generation for managed account create and reset flows
 - session-token-based API authorization
+- browser frontend requests no longer attach admin action secrets; admin operations use the signed-in session path
 - timing-safe session-signature and admin-secret validation
 - role-based API protection
 - strict request parsing with unexpected-field rejection on shared API routes

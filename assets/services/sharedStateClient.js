@@ -12,8 +12,7 @@
   const client = {
     async loadSharedAdminSettings() {
       const hasApiSession = typeof AuthService?.getApiSessionToken === 'function' && !!AuthService.getApiSessionToken();
-      const hasAdminSecret = typeof AuthService?.getAdminApiSecret === 'function' && !!AuthService.getAdminApiSecret();
-      if (!hasApiSession && !hasAdminSecret) {
+      if (!hasApiSession) {
         return null;
       }
       try {
@@ -50,8 +49,7 @@
           settings: normalised,
           expectedMeta: buildExpectedMeta(getAdminSettings()._meta),
           audit
-        },
-        { includeAdminSecret: true }
+        }
       );
     },
 
