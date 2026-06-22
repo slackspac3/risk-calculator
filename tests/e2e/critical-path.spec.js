@@ -1,4 +1,5 @@
 const { test, expect } = require('@playwright/test');
+const { appRoute } = require('./helpers/appUrl.js');
 const {
   applyUserWorkspacePatch,
   normaliseUserWorkspaceState
@@ -228,7 +229,7 @@ test('critical path: step 5 review → run simulation → results with all tabs'
   page.on('pageerror', error => pageErrors.push(error.message));
 
   // Navigate to Step 5 (Review & Run)
-  await page.goto('/#/wizard/5');
+  await page.goto(appRoute('/#/wizard/5'));
   await page.waitForLoadState('networkidle');
 
   // Step 5 should render with the review surface
@@ -300,7 +301,7 @@ test('critical path: results page renders JSON export action', async ({ page }) 
   page.on('pageerror', error => pageErrors.push(error.message));
 
   // Navigate to Step 5 and run simulation
-  await page.goto('/#/wizard/5');
+  await page.goto(appRoute('/#/wizard/5'));
   await page.waitForLoadState('networkidle');
   await expect(page.getByText(/Run Monte Carlo simulation/i)).toBeVisible({ timeout: 10000 });
   await page.click('#btn-run-sim');

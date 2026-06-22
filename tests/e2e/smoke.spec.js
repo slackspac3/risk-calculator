@@ -3,6 +3,7 @@ const {
   mockSharedApis,
   seedAuthenticatedUser
 } = require('./helpers/apiMocks.js');
+const { appRoute } = require('./helpers/appUrl.js');
 
 const HOSTED_API_ORIGIN = 'https://risk-calculator-eight.vercel.app';
 
@@ -27,7 +28,7 @@ function buildSeededUserSettings(overrides = {}) {
 async function expectNoClientCrashOnRoute(page, route, assertion) {
   const pageErrors = [];
   page.on('pageerror', error => pageErrors.push(error.message));
-  await page.goto(route);
+  await page.goto(appRoute(route));
   await assertion();
   expect(pageErrors, `Unexpected page errors on ${route}: ${pageErrors.join(' | ')}`).toEqual([]);
 }

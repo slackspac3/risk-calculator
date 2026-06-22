@@ -15,6 +15,7 @@ const {
   generateProjectExposureMap,
   startBuyerProjectAssessment
 } = require('./helpers/wizardActions.js');
+const { appRoute } = require('./helpers/appUrl.js');
 const {
   expectReviewAndRunProjectGap,
   expectSparseBuyerDraftState,
@@ -169,7 +170,7 @@ test('buyer project exposure map flags a stale live map after project economics 
   const pageErrors = [];
   page.on('pageerror', error => pageErrors.push(error.message));
 
-  await page.goto('/#/wizard/2');
+  await page.goto(appRoute('/#/wizard/2'));
   const active = page.locator('.app-stage-shell.is-current');
   await expect(active.locator('.step1-route-inputs--buyer')).toBeVisible({ timeout: 10000 });
   const exposurePanel = active.locator('[data-project-exposure-panel="buyer"]');

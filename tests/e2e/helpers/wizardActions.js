@@ -1,7 +1,9 @@
 'use strict';
 
+const { appRoute } = require('./appUrl.js');
+
 async function startBuyerProjectAssessment(page, expect) {
-  await page.goto('/#/wizard/1');
+  await page.goto(appRoute('/#/wizard/1'));
   await expect(page.getByRole('heading', { name: /what are you assessing/i })).toBeVisible({ timeout: 10000 });
   const current = page.locator('.app-stage-shell.is-current');
   await current.locator('[data-assessment-type="project_buyer"]').click();
@@ -12,7 +14,7 @@ async function startBuyerProjectAssessment(page, expect) {
 }
 
 async function startSellerProjectAssessment(page, expect) {
-  await page.goto('/#/wizard/1');
+  await page.goto(appRoute('/#/wizard/1'));
   await expect(page.getByRole('heading', { name: /what are you assessing/i })).toBeVisible({ timeout: 10000 });
   const current = page.locator('.app-stage-shell.is-current');
   await current.locator('[data-assessment-type="project_seller"]').click();

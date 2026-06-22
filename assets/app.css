@@ -141,7 +141,7 @@ code { font-family: var(--font-mono); font-size: 0.875em; background: var(--bg-e
 }
 #main-content,
 #main-content :is(h1, h2, h3, [data-page-focus]) {
-  scroll-margin-top: calc(72px + var(--sp-6));
+  scroll-margin-top: calc(var(--app-bar-height) + var(--sp-6));
 }
 .app-stage-stack {
   flex: 1 0 auto;
@@ -17496,6 +17496,116 @@ body::before {
   border-color: rgba(34, 211, 238, 0.22);
   background: rgba(2, 6, 23, 0.62);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+@media (max-width: 720px) {
+  :root {
+    --app-bar-height: 168px;
+  }
+
+  #app-bar {
+    height: auto;
+    min-height: var(--app-bar-height);
+    align-items: stretch;
+  }
+
+  #app-bar .bar-inner {
+    flex-wrap: wrap;
+    align-content: center;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    max-width: none;
+    min-width: 0;
+    padding: 8px 12px 10px;
+  }
+
+  .bar-logo {
+    flex: 1 1 100%;
+    min-width: 0;
+    gap: 10px;
+  }
+
+  .bar-logo-text {
+    min-width: 0;
+    font-size: 1rem;
+    line-height: 1.12;
+    overflow-wrap: anywhere;
+  }
+
+  .bar-logo-mark {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+  }
+
+  .bar-spacer {
+    display: none;
+  }
+
+  .bar-nav {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-width: 0;
+    padding: 3px;
+    border-radius: 18px;
+  }
+
+  .bar-nav-link,
+  .bar-top-action,
+  #btn-sign-out {
+    min-width: 0;
+    padding: 6px 9px;
+    font-size: 0.82rem;
+    line-height: 1.25;
+    white-space: normal;
+  }
+
+  .notif-bell {
+    width: 34px;
+    height: 34px;
+    flex: 0 0 auto;
+  }
+
+  .experience-toggle,
+  .currency-toggle {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+
+  .experience-toggle button,
+  .currency-toggle button {
+    padding: 4px 9px;
+    font-size: 0.72rem;
+  }
+
+  .bar-poc-tag {
+    flex: 0 0 auto;
+    padding: 2px 7px;
+    font-size: 0.7rem;
+  }
+}
+
+@media (max-width: 420px) {
+  :root {
+    --app-bar-height: 184px;
+  }
+
+  #app-bar .bar-inner {
+    gap: 7px;
+    padding-inline: 10px;
+  }
+
+  .bar-nav {
+    gap: 4px;
+  }
+
+  .bar-nav-link,
+  .bar-top-action,
+  #btn-sign-out {
+    padding-inline: 8px;
+  }
 }
 
 main.page,
