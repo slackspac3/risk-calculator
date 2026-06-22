@@ -249,10 +249,12 @@ expect(pagesWorkflow.includes('npm run qa:app'), 'Pages workflow must use the ap
 expect(pagesWorkflow.includes('node-version-file: .nvmrc'), 'Pages workflow must use the repo Node pin.');
 expect(pagesWorkflow.includes('actions/checkout@v6'), 'Pages workflow must use actions/checkout@v6.');
 expect(pagesWorkflow.includes('actions/setup-node@v6'), 'Pages workflow must use actions/setup-node@v6.');
+expect(pagesWorkflow.includes('Preview retired'), 'Pages workflow must publish a retired /test placeholder.');
+expect(!pagesWorkflow.includes('clean-exclude'), 'Pages workflow must not preserve stale public /test assets.');
 expect(testPocWorkflow.includes('validate_app:'), 'Test PoC workflow is missing the app-integrity validation job');
-expect(testPocWorkflow.includes('needs: validate_app'), 'Test PoC deployment is not blocked on app-integrity validation');
 expect(testPocWorkflow.includes('npm run qa:app'), 'Test PoC workflow must use the app-integrity gate');
-expect(testPocWorkflow.includes('target-folder: test'), 'Test PoC workflow must publish into the fixed /test path');
+expect(!testPocWorkflow.includes('target-folder: test'), 'Test PoC workflow must not publish a public /test app.');
+expect(!testPocWorkflow.includes('github-pages-deploy-action'), 'Test PoC workflow must be validation-only.');
 expect(testPocWorkflow.includes('node-version-file: .nvmrc'), 'Test PoC workflow must use the repo Node pin.');
 expect(testPocWorkflow.includes('actions/checkout@v6'), 'Test PoC workflow must use actions/checkout@v6.');
 expect(testPocWorkflow.includes('actions/setup-node@v6'), 'Test PoC workflow must use actions/setup-node@v6.');

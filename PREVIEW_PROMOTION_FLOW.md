@@ -1,51 +1,35 @@
-# Test PoC Before Live
+# Preview And Promotion Flow
 
-This repository now uses a simple two-link GitHub-only flow.
+The public GitHub Pages `/test/` preview has been retired. It is replaced by a noindex placeholder during the live Pages publish so stale test assets do not remain publicly reachable.
 
-## One-time GitHub setup
+## Current Rule
 
-Do these steps once in the repository settings:
+- `master` publishes the live pilot at `https://slackspac3.github.io/risk-calculator/`.
+- `https://slackspac3.github.io/risk-calculator/test/` is not an app preview target.
+- Validate candidate changes with local managed QA and, when needed, a fresh protected preview environment.
+- Do not rely on old `/test/` assets when making release decisions.
 
-1. Open `Settings`.
-2. Open `Actions` > `General`.
-3. Under `Workflow permissions`, choose `Read and write permissions`.
-4. Save.
-5. Open `Settings` > `Pages`.
-6. Under `Build and deployment`, set `Source` to `Deploy from a branch`.
-7. Set the branch to `gh-pages` and the folder to `/(root)`.
-8. Save.
+## Normal Flow
 
-After that:
-- `master` publishes the live PoC at `https://slackspac3.github.io/risk-calculator/`
-- `test-poc` publishes the fixed test PoC at `https://slackspac3.github.io/risk-calculator/test/`
+Use this before changing the live pilot:
 
-## Normal flow
+1. Prepare the change on the working branch.
+2. Run the relevant local checks, normally `npm run qa:release` for release candidates.
+3. If browser review is needed, use a fresh protected preview build rather than the public `/test/` path.
+4. Promote the validated change to `master`.
+5. Wait for `Deploy GitHub Pages`.
+6. Recheck the live root URL after publish.
 
-Use this every time you want to change the live PoC:
+## GitHub Pages Setup
 
-1. A change is prepared on the `test-poc` branch.
-2. GitHub runs `Deploy Test PoC`.
-3. Test the fixed test URL: `https://slackspac3.github.io/risk-calculator/test/`
-4. If it is correct, promote that same change to `master`.
-5. GitHub runs `Deploy GitHub Pages`.
-6. The live PoC updates automatically.
+Repository Pages should remain configured as:
 
-## What to click in GitHub
+1. `Settings` > `Actions` > `General` > `Workflow permissions`: `Read and write permissions`.
+2. `Settings` > `Pages` > `Build and deployment`: `Deploy from a branch`.
+3. Branch: `gh-pages`; folder: `/(root)`.
 
-When you want to test:
+## Important Rule
 
-1. Open the fixed test URL.
-2. Confirm the expected change is there.
-3. Do not use the live link for testing.
-
-When you want to promote:
-
-1. Promote the tested change from `test-poc` to `master`.
-2. Wait for `Deploy GitHub Pages`.
-3. Recheck the live URL.
-
-## Important rule
-
-- `/test/` = safe test PoC
-- root URL = live PoC
+- root URL = live pilot
+- `/test/` = retired placeholder, not validation evidence
 - only `master` is for end users

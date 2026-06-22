@@ -1,4 +1,4 @@
-name: Deploy Test PoC
+name: Validate Test PoC
 
 on:
   push:
@@ -44,34 +44,3 @@ jobs:
 
       - name: App integrity gate
         run: npm run qa:app
-
-  publish:
-    runs-on: ubuntu-latest
-    needs: validate_app
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        env:
-          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-
-      - name: Prepare static test site
-        run: |
-          mkdir -p _site
-          cp index.html _site/index.html
-          cp README.md _site/README.md
-          find . -maxdepth 1 -type f -name 'google*.html' -exec cp {} _site/ \;
-          cp -R assets _site/assets
-          cp -R data _site/data
-          touch _site/.nojekyll
-
-      - name: Publish test site to gh-pages/test
-        uses: JamesIves/github-pages-deploy-action@v4
-        with:
-          branch: gh-pages
-          folder: _site
-          target-folder: test
-          clean: true
-          force: false
-          commit-message: Publish test PoC from test-poc

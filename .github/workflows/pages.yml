@@ -64,6 +64,24 @@ jobs:
           find . -maxdepth 1 -type f -name 'google*.html' -exec cp {} _site/ \;
           cp -R assets _site/assets
           cp -R data _site/data
+          mkdir -p _site/test
+          cat > _site/test/index.html <<'HTML'
+          <!doctype html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <meta name="robots" content="noindex,nofollow">
+            <title>Risk Calculator Preview Retired</title>
+          </head>
+          <body>
+            <main style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:720px;margin:12vh auto;padding:24px;line-height:1.55">
+              <h1>Preview retired</h1>
+              <p>The public test preview has been retired. Use the live pilot root or a fresh protected preview build for validation.</p>
+            </main>
+          </body>
+          </html>
+          HTML
           touch _site/.nojekyll
 
       - name: Publish production site to gh-pages
@@ -72,7 +90,5 @@ jobs:
           branch: gh-pages
           folder: _site
           clean: true
-          clean-exclude: |
-            test/
           force: false
           commit-message: Publish GitHub Pages from master

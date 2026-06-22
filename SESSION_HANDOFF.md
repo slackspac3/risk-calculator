@@ -18,11 +18,11 @@ If this file conflicts with the code, git history, or GitHub workflow files, tru
 
 ## Branch And Deploy Invariants
 
-- `test-poc` is the fixed test branch.
+- `test-poc` is retained as a validation branch name, but it is no longer a public preview deployment target.
 - `master` is the live branch.
-- `.github/workflows/test-poc.yml` publishes `test-poc` to `https://slackspac3.github.io/risk-calculator/test/`.
-- `.github/workflows/pages.yml` publishes `master` to `https://slackspac3.github.io/risk-calculator/` and preserves the `test/` subtree on `gh-pages`.
-- Normal rule: changes are validated on `/test/` first, then the tested change is promoted to `master`.
+- `.github/workflows/test-poc.yml` validates `test-poc` with the app-integrity gate only.
+- `.github/workflows/pages.yml` publishes `master` to `https://slackspac3.github.io/risk-calculator/` and replaces `/test/` with a noindex retired-preview placeholder so old public test assets are removed.
+- Normal rule: changes are validated with local managed QA and any required protected preview before promotion to `master`; do not use `/test/` as release evidence.
 - Do not test unfinished work on the live root URL.
 - Do not use `gh-pages` as a working branch. It is publish output only.
 
@@ -59,6 +59,23 @@ If this file conflicts with the code, git history, or GitHub workflow files, tru
 ## Verified Baseline Through 2026-04-25
 
 Latest active-context update on 2026-06-19 in `/Users/bhavuk.arora/risk-calculator`:
+
+- Security hardening pass:
+  - escaped retained organisation, entity, BU, and onboarding values before rendering them into known HTML attributes/options/summary markup
+  - added frontend security guardrail tests for stored-content rendering and browser admin-secret regressions
+  - removed frontend browser admin-secret fallback usage; admin account/settings actions now use the signed-in session path from the browser
+  - changed the master Pages publish to retire the stale public `/test/` app surface with a noindex placeholder, and changed the default `test-poc` workflow source to validation-only
+  - updated release/promotion docs so `/test/` is not treated as validation evidence
+  - validation passed:
+    - `npm run check:syntax`
+    - `npm run check:smoke`
+    - `npm run check:staleness`
+    - `node --test tests/unit/frontendSecurityGuardrails.test.js`
+    - `node --test tests/unit/authService.test.js`
+    - `npm run test:unit` (`759` tests)
+    - `npm run test:e2e -- tests/e2e/smoke.spec.js` (`51` tests)
+    - `npm run qa:app` (`56` Playwright tests inside the gate)
+    - `git diff --check`
 
 - AI grounding corpus now includes ten additional seed references for ADHICS/UAE healthcare operations, health-data localisation and transfers, diagnostics/genomics secondary use, Diaverum-style clinical continuity, UAE financial-services operational resilience, project buyer/seller economics, geopolitical market access/export controls, and digital-health AI assurance.
 - ADHICS and UAE health-data-law seed excerpts were validated against local official PDFs in `/Users/bhavuk.arora/Downloads/` (`ADHICS-v2-standard.pdf` and `Federal Law No. (2) of 2019, Concerning the Use of the Information and Communications Technology in Health Fields.pdf`). The PDFs were not committed; full-text grounding should use the existing server evidence upload/indexing path. Public official `sourceUrl` values were added only for CBUAE operational risk, BIS EAR, and FDA medical-device AI anchors.
@@ -666,13 +683,13 @@ Current branch tip under test:
 
 1. Update this file if branch status, workflow expectations, checks run, or current focus changed.
 2. Record the exact branch and commit you validated.
-3. Note any unpromoted `test-poc` work that still needs live promotion.
-4. If something was promoted, record the source commit and confirm `/test/` was checked before `master`.
+3. Note any unpromoted branch work that still needs live promotion.
+4. If something was promoted, record the source commit and confirm the local/protected-preview validation used before `master`.
 
 ## If Promotion Is The Goal
 
-1. Validate the candidate change on `test-poc`.
-2. Open `https://slackspac3.github.io/risk-calculator/test/` and verify the intended behavior there.
+1. Validate the candidate change with the relevant local managed QA and any required protected preview.
+2. Do not use `https://slackspac3.github.io/risk-calculator/test/` as validation evidence; it is a retired placeholder.
 3. Run the release checks from `RELEASE_CHECKLIST.md`.
 4. Promote the tested change to `master` without skipping branch comparison.
 5. Re-check the live root URL after GitHub Pages publishes.

@@ -117,6 +117,25 @@ test('logout clears session-scoped trust and preview state without removing unre
   assert.equal(localStorage.getItem('persistent_user_data'), 'keep-me');
 });
 
+test('admin secret compatibility methods clear legacy browser storage without returning secrets', () => {
+  const { AuthService, sessionStorage, localStorage } = loadAuthService({
+    sessionSeed: {
+      rq_admin_api_secret: 'session-secret'
+    },
+    localSeed: {
+      rq_admin_api_secret: 'legacy-secret'
+    }
+  });
+
+  assert.equal(AuthService.getAdminApiSecret(), '');
+  assert.equal(sessionStorage.getItem('rq_admin_api_secret'), null);
+  assert.equal(localStorage.getItem('rq_admin_api_secret'), null);
+
+  assert.equal(AuthService.setAdminApiSecret('new-secret'), '');
+  assert.equal(sessionStorage.getItem('rq_admin_api_secret'), null);
+  assert.equal(localStorage.getItem('rq_admin_api_secret'), null);
+});
+
 test('init refreshes the current user scope from the server session view', async () => {
   const sessionUser = {
     username: 'tarun.gupta',

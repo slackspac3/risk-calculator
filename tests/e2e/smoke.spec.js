@@ -2358,9 +2358,6 @@ test('admin can update user access and the request carries the expected role ass
     adminSettings: settings,
     preferredAdminSection: 'users'
   });
-  await page.addInitScript(() => {
-    localStorage.setItem('rq_admin_api_secret', 'test-admin-secret');
-  });
   await page.route('**/api/users**', async route => {
     const request = route.request();
     if (request.method() === 'GET') {
@@ -2444,9 +2441,6 @@ test('admin user actions menu keeps only one current-user dropdown open at a tim
     adminSettings: settings,
     preferredAdminSection: 'users'
   });
-  await page.addInitScript(() => {
-    localStorage.setItem('rq_admin_api_secret', 'test-admin-secret');
-  });
   await page.route('**/api/users**', async route => {
     await route.fulfill({
       status: 200,
@@ -2502,9 +2496,6 @@ test('admin user actions menu can reset a password from the floating menu', asyn
     role: 'admin',
     adminSettings: settings,
     preferredAdminSection: 'users'
-  });
-  await page.addInitScript(() => {
-    localStorage.setItem('rq_admin_api_secret', 'test-admin-secret');
   });
   await page.route('**/api/users**', async route => {
     const request = route.request();
@@ -2594,9 +2585,6 @@ test('admin user actions menu blocks click-through and stays usable on the last 
     role: 'admin',
     adminSettings: settings,
     preferredAdminSection: 'users'
-  });
-  await page.addInitScript(() => {
-    localStorage.setItem('rq_admin_api_secret', 'test-admin-secret');
   });
   await page.route('**/api/users**', async route => {
     await route.fulfill({

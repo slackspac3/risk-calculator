@@ -66,7 +66,7 @@ function renderUserOnboarding(existingSettings = getUserSettings(), startStep = 
             <label class="form-label" for="onboard-bu">Business unit or entity</label>
             <select class="form-select" id="onboard-bu" disabled>
               <option value="">Choose your business unit</option>
-              ${companies.map(entity => `<option value="${entity.id}" ${entity.id === draftSettings.userProfile.businessUnitEntityId ? 'selected' : ''}>${entity.name}</option>`).join('')}
+              ${companies.map(entity => `<option value="${escapeHtml(String(entity.id || ''))}" ${entity.id === draftSettings.userProfile.businessUnitEntityId ? 'selected' : ''}>${escapeHtml(String(entity.name || 'Unnamed entity'))}</option>`).join('')}
             </select>
           </div>
           <div class="form-group mt-4">
@@ -203,7 +203,7 @@ function renderUserOnboarding(existingSettings = getUserSettings(), startStep = 
         const departments = getDepartmentEntities(companyStructure, buEl.value);
         const selectedDepartmentId = draftSettings.userProfile.departmentEntityId;
         deptEl.innerHTML = departments.length
-          ? departments.map(entity => `<option value="${entity.id}" ${entity.id === selectedDepartmentId ? 'selected' : ''}>${entity.name}</option>`).join('')
+          ? departments.map(entity => `<option value="${escapeHtml(String(entity.id || ''))}" ${entity.id === selectedDepartmentId ? 'selected' : ''}>${escapeHtml(String(entity.name || 'Unnamed entity'))}</option>`).join('')
           : '<option value="">No functions configured yet</option>';
         deptEl.disabled = !departments.length || !(capability.canManageBusinessUnit && !capability.canManageDepartment);
       };

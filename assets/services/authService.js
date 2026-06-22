@@ -10,12 +10,11 @@ const AuthService = (() => {
   const SESSION_KEY = 'rq_auth_session';
   const ACCOUNTS_CACHE_KEY = 'rq_auth_accounts_cache';
   const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
-  const ADMIN_SECRET_KEY = 'rq_admin_api_secret';
+  const LEGACY_ADMIN_SECRET_KEY = 'rq_admin_api_secret';
   const SESSION_NOTICE_KEY = 'rq_auth_notice';
   const DEFAULT_USERS_API_URL = resolveApiUrl('/api/users');
   const DEFAULT_ACCOUNTS = [];
   let accountsCache = DEFAULT_ACCOUNTS.slice();
-  let adminSecretMemory = '';
   const warnedAuthIssues = new Set();
 
 function resolveApiUrl(path) {
@@ -59,53 +58,27 @@ function resolveApiUrl(path) {
     return DEFAULT_USERS_API_URL;
   }
 
+  function clearLegacyAdminSecretStorage() {
+    try {
+      sessionStorage.removeItem(LEGACY_ADMIN_SECRET_KEY);
+    } catch (error) {
+      warnAuthIssueOnce('admin-secret-clear-session', 'AuthService legacy admin-secret session cleanup failed:', error);
+    }
+    try {
+      localStorage.removeItem(LEGACY_ADMIN_SECRET_KEY);
+    } catch (error) {
+      warnAuthIssueOnce('admin-secret-clear-local', 'AuthService legacy admin-secret local cleanup failed:', error);
+    }
+  }
+
   function getAdminApiSecret() {
-    try {
-      const sessionSecret = sessionStorage.getItem(ADMIN_SECRET_KEY) || '';
-      if (sessionSecret) {
-        adminSecretMemory = sessionSecret;
-        return sessionSecret;
-      }
-    } catch (error) {
-      warnAuthIssueOnce('admin-secret-read-session', 'AuthService admin-secret session read failed:', error);
-    }
-    try {
-      const legacySecret = localStorage.getItem(ADMIN_SECRET_KEY) || '';
-      if (legacySecret) {
-        adminSecretMemory = legacySecret;
-        try {
-          sessionStorage.setItem(ADMIN_SECRET_KEY, legacySecret);
-        } catch (sessionError) {
-          warnAuthIssueOnce('admin-secret-migrate-session', 'AuthService admin-secret migration to session storage failed:', sessionError);
-        }
-        try {
-          localStorage.removeItem(ADMIN_SECRET_KEY);
-        } catch (cleanupError) {
-          warnAuthIssueOnce('admin-secret-cleanup-local', 'AuthService admin-secret local cleanup failed:', cleanupError);
-        }
-        return legacySecret;
-      }
-    } catch (error) {
-      warnAuthIssueOnce('admin-secret-read-local', 'AuthService admin-secret local read failed:', error);
-    }
-    return adminSecretMemory;
+    clearLegacyAdminSecretStorage();
+    return '';
   }
 
   function setAdminApiSecret(secret) {
-    const value = String(secret || '').trim();
-    adminSecretMemory = value;
-    try {
-      if (value) sessionStorage.setItem(ADMIN_SECRET_KEY, value);
-      else sessionStorage.removeItem(ADMIN_SECRET_KEY);
-    } catch (error) {
-      warnAuthIssueOnce('admin-secret-write-session', 'AuthService admin-secret session write failed:', error);
-    }
-    try {
-      localStorage.removeItem(ADMIN_SECRET_KEY);
-    } catch (error) {
-      warnAuthIssueOnce('admin-secret-remove-local', 'AuthService admin-secret local removal failed:', error);
-    }
-    return value;
+    clearLegacyAdminSecretStorage();
+    return '';
   }
 
 
@@ -157,9 +130,6 @@ function resolveApiUrl(path) {
       'Content-Type': 'application/json'
     };
     const sessionToken = getApiSessionToken();
-    if (includeAdminSecret && !sessionToken && getAdminApiSecret()) {
-      headers['x-admin-secret'] = getAdminApiSecret();
-    }
     if (sessionToken) {
       headers['x-session-token'] = sessionToken;
     }
@@ -378,7 +348,7 @@ function resolveApiUrl(path) {
       clearSessionStorageEntries({
         exactKeys: [
           SESSION_KEY,
-          ADMIN_SECRET_KEY,
+          LEGACY_ADMIN_SECRET_KEY,
           SESSION_NOTICE_KEY,
           'rq_admin_workspace_preview',
           'rip_ai_trace',
@@ -392,7 +362,7 @@ function resolveApiUrl(path) {
         ]
       });
       localStorage.removeItem(ACCOUNTS_CACHE_KEY);
-      localStorage.removeItem(ADMIN_SECRET_KEY);
+      localStorage.removeItem(LEGACY_ADMIN_SECRET_KEY);
     } catch (error) {
       warnAuthIssueOnce('session-clear', 'AuthService session cleanup failed:', error);
     }
@@ -406,7 +376,6 @@ function resolveApiUrl(path) {
       warnAuthIssueOnce('org-intelligence-cache-clear', 'AuthService org intelligence cache cleanup failed:', error);
     }
     accountsCache = [];
-    adminSecretMemory = '';
 
   }
 
