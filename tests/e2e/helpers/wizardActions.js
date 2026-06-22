@@ -10,6 +10,8 @@ async function startBuyerProjectAssessment(page, expect) {
   await expect(page).toHaveURL(/#\/wizard\/2$/);
   const active = page.locator('.app-stage-shell.is-current');
   await expect(active.locator('.step1-route-inputs--buyer')).toBeVisible({ timeout: 10000 });
+  const businessContext = active.locator('#wizard-bu');
+  if (await businessContext.count()) await businessContext.selectOption({ index: 1 });
   return active;
 }
 
@@ -21,6 +23,8 @@ async function startSellerProjectAssessment(page, expect) {
   await expect(page).toHaveURL(/#\/wizard\/2$/);
   const active = page.locator('.app-stage-shell.is-current');
   await expect(active.locator('.step1-route-inputs--seller')).toBeVisible({ timeout: 10000 });
+  const businessContext = active.locator('#wizard-bu');
+  if (await businessContext.count()) await businessContext.selectOption({ index: 1 });
   return active;
 }
 
@@ -68,6 +72,28 @@ async function generateProjectExposureMap(active, expect, { requestCount, scope 
 
 async function continueToReviewAndRun(page, expect, exposurePanel) {
   await exposurePanel.locator('[data-project-exposure-action="continue"]').click();
+  const buildButton = page.locator('#btn-build-guided-narrative');
+  if (await buildButton.count()) {
+    await page.route('**/api/ai/scenario-draft', async route => {
+      let payload = {};
+      try {
+        payload = route.request().postDataJSON() || {};
+      } catch {}
+      const event = String(payload.guidedInput?.event || payload.riskStatement || 'Project delivery risk').trim();
+      const impact = String(payload.guidedInput?.impact || 'Project economics and delivery commitments may be affected.').trim();
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          mode: 'live',
+          draftNarrative: `${event} ${impact}`,
+          scenarioLens: { key: 'project_delivery', label: 'Project delivery' }
+        })
+      });
+    });
+    await buildButton.click();
+    await expect(page.locator('#guided-preview-title')).toHaveText(/First draft ready/i);
+  }
   await page.getByRole('button', { name: /continue to scenario review/i }).click();
   await expect(page).toHaveURL(/#\/wizard\/3$/);
   await expect(page.getByRole('heading', { name: /refine the scenario/i })).toBeVisible({ timeout: 10000 });

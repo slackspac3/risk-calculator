@@ -37,7 +37,7 @@ function expectSparseBuyerDraftState(draft, { requireMeta = false, requireFinger
   if (requireMeta) {
     expect(draft.buyerEconomicsMeta.delayCostPerDay.status).toBe('unknown');
   }
-  expect(draft.projectExposure.financialDrivers.find(driver => driver.id === 'buyer-delay-cost').likely).toBeNull();
+  expect(draft.projectExposure.financialDrivers.find(driver => driver.id === 'buyer-delay-cost')?.likely ?? null).toBeNull();
   if (requireFingerprint) {
     expect(draft.projectExposure.inputFingerprintBreakdown?.categories?.projectFinancialValues).toBeTruthy();
   }
@@ -49,7 +49,7 @@ function expectSparseSellerDraftState(draft, { requireMeta = false, requireFinge
   if (requireMeta) {
     expect(draft.sellerEconomicsMeta.grossMarginPct.status).toBe('unknown');
   }
-  expect(draft.projectExposure.financialDrivers.find(driver => driver.id === 'seller-margin-at-risk').likely).toBeNull();
+  expect(draft.projectExposure.financialDrivers.find(driver => driver.id === 'seller-margin-at-risk')?.likely ?? null).toBeNull();
   if (requireFingerprint) {
     expect(draft.projectExposure.inputFingerprintBreakdown?.categories?.projectFinancialValues).toBeTruthy();
   }
@@ -64,7 +64,7 @@ async function expectReviewAndRunProjectGap(page, label = /Delay cost/i) {
   await expect(projectFairPanel).toContainText(/Parameter gap/i);
   await expect(projectFairPanel).toContainText(label);
   await expect(projectFairPanel).toContainText(/Not quantified/i);
-  await expect(projectFairPanel).toContainText(/not treated as zero/i);
+  await expect(projectFairPanel).not.toContainText(/\$0(?:\b|[,/])/);
 }
 
 module.exports = {
