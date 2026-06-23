@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 
 const { validatePasswordPolicy, generateStrongPassword } = require('../../api/_passwordPolicy');
-const { buildErrorPayload, validateSessionFromRequest } = require('../../api/_apiAuth');
+const { buildErrorPayload, readAccountsDirectory, validateSessionFromRequest } = require('../../api/_apiAuth');
 const { parseSessionToken } = require('../../api/_audit');
 
 test('validatePasswordPolicy rejects weak passwords and accepts generated passwords', () => {
@@ -152,6 +152,53 @@ test('validateSessionFromRequest rehydrates current account scope and revokes mi
     global.fetch = originalFetch;
     if (typeof originalSecret === 'string') process.env.SESSION_SIGNING_SECRET = originalSecret;
     else delete process.env.SESSION_SIGNING_SECRET;
+    if (typeof originalKvUrl === 'string') process.env.KV_REST_API_URL = originalKvUrl;
+    else delete process.env.KV_REST_API_URL;
+    if (typeof originalKvToken === 'string') process.env.KV_REST_API_TOKEN = originalKvToken;
+    else delete process.env.KV_REST_API_TOKEN;
+  }
+});
+
+test('readAccountsDirectory lets bootstrap accounts override stored managed accounts', async () => {
+  const originalBootstrap = process.env.BOOTSTRAP_ACCOUNTS_JSON;
+  const originalKvUrl = process.env.KV_REST_API_URL;
+  const originalKvToken = process.env.KV_REST_API_TOKEN;
+  const originalFetch = global.fetch;
+  process.env.BOOTSTRAP_ACCOUNTS_JSON = JSON.stringify([{
+    username: 'global.admin',
+    displayName: 'Global Admin',
+    role: 'admin',
+    sessionVersion: 7
+  }]);
+  process.env.KV_REST_API_URL = 'https://example.test/kv';
+  process.env.KV_REST_API_TOKEN = 'test-token';
+  global.fetch = async (_url, options = {}) => {
+    const [command, key] = JSON.parse(String(options.body || '[]'));
+    assert.equal(command, 'GET');
+    assert.equal(key, 'risk_calculator_users');
+    return {
+      ok: true,
+      json: async () => ({
+        result: JSON.stringify([{
+          username: 'global.admin',
+          displayName: 'Stale Admin',
+          role: 'user',
+          sessionVersion: 1
+        }])
+      })
+    };
+  };
+  try {
+    const { accounts, enforce } = await readAccountsDirectory();
+    const admin = accounts.find(account => account.username === 'global.admin');
+    assert.equal(enforce, true);
+    assert.equal(admin.role, 'admin');
+    assert.equal(admin.displayName, 'Global Admin');
+    assert.equal(admin.sessionVersion, 7);
+  } finally {
+    global.fetch = originalFetch;
+    if (typeof originalBootstrap === 'string') process.env.BOOTSTRAP_ACCOUNTS_JSON = originalBootstrap;
+    else delete process.env.BOOTSTRAP_ACCOUNTS_JSON;
     if (typeof originalKvUrl === 'string') process.env.KV_REST_API_URL = originalKvUrl;
     else delete process.env.KV_REST_API_URL;
     if (typeof originalKvToken === 'string') process.env.KV_REST_API_TOKEN = originalKvToken;

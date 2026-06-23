@@ -27,6 +27,16 @@ function getBootstrapAccounts() {
   }
 }
 
+function mergeBootstrapAccounts(accounts = []) {
+  const merged = new Map();
+  (Array.isArray(accounts) ? accounts : [])
+    .map(normaliseAccount)
+    .filter(account => account.username)
+    .forEach(account => merged.set(account.username, account));
+  getBootstrapAccounts().forEach(account => merged.set(account.username, account));
+  return [...merged.values()];
+}
+
 async function readCurrentAccount(username = '') {
   const safeUsername = String(username || '').trim().toLowerCase();
   if (!safeUsername) return { account: null, enforce: false };
@@ -50,7 +60,7 @@ async function readAccountsDirectory() {
     let enforce = accounts.length > 0;
     if (raw) {
       const parsed = JSON.parse(raw);
-      accounts = Array.isArray(parsed) ? parsed.map(normaliseAccount).filter(account => account.username) : [];
+      accounts = Array.isArray(parsed) ? mergeBootstrapAccounts(parsed) : [];
       enforce = true;
     }
     return { accounts, enforce };

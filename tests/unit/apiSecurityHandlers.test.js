@@ -258,6 +258,70 @@ test('users login fails closed when the throttle store is unavailable', async ()
   assert.equal(res.payload.error.code, 'RATE_LIMIT_UNAVAILABLE');
 });
 
+test('users login lets bootstrap credentials override stale stored account credentials', async () => {
+  process.env.ALLOWED_ORIGIN = 'https://slackspac3.github.io';
+  process.env.KV_REST_API_URL = 'https://example.test/kv';
+  process.env.KV_REST_API_TOKEN = 'test-token';
+  process.env.SESSION_SIGNING_SECRET = 'test-signing-secret';
+  process.env.BOOTSTRAP_ACCOUNTS_JSON = JSON.stringify([{
+    username: 'global.admin',
+    password: 'PilotAdmin!2026',
+    displayName: 'Global Admin',
+    role: 'admin',
+    sessionVersion: 3
+  }]);
+  const kvStore = new Map();
+  kvStore.set('risk_calculator_users', JSON.stringify([{
+    username: 'global.admin',
+    password: 'Wrong!234',
+    displayName: 'Stale Admin',
+    role: 'user',
+    sessionVersion: 1
+  }]));
+  global.fetch = async (_url, options = {}) => {
+    const command = JSON.parse(String(options.body || '[]'));
+    const [action, key, value, nxFlag] = command;
+    if (action === 'GET') {
+      return { ok: true, json: async () => ({ result: kvStore.has(key) ? kvStore.get(key) : null }) };
+    }
+    if (action === 'SET') {
+      if (String(nxFlag || '').toUpperCase() === 'NX' && kvStore.has(key)) {
+        return { ok: true, json: async () => ({ result: null }) };
+      }
+      kvStore.set(key, value);
+      return { ok: true, json: async () => ({ result: 'OK' }) };
+    }
+    if (action === 'DEL') {
+      kvStore.delete(key);
+      return { ok: true, json: async () => ({ result: 1 }) };
+    }
+    throw new Error(`Unexpected KV command: ${JSON.stringify(command)}`);
+  };
+
+  const handler = loadFresh('../../api/users');
+  const res = createRes();
+
+  await handler({
+    method: 'POST',
+    headers: {
+      origin: 'https://slackspac3.github.io',
+      'content-type': 'application/json'
+    },
+    socket: { remoteAddress: '127.0.0.1' },
+    body: {
+      action: 'login',
+      username: 'global.admin',
+      password: 'PilotAdmin!2026'
+    }
+  }, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.payload.user.username, 'global.admin');
+  assert.equal(res.payload.user.displayName, 'Global Admin');
+  assert.equal(res.payload.user.role, 'admin');
+  assert.ok(String(res.payload.sessionToken || '').includes('.'));
+});
+
 test('audit-log POST forces browser events to client source and reserves server auth names', async () => {
   process.env.ALLOWED_ORIGIN = 'https://slackspac3.github.io';
   process.env.KV_REST_API_URL = 'https://example.test/kv';

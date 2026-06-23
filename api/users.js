@@ -20,6 +20,16 @@ function getBootstrapAccounts() {
   }
 }
 
+function mergeBootstrapAccounts(accounts = []) {
+  const merged = new Map();
+  (Array.isArray(accounts) ? accounts : [])
+    .map(normaliseAccount)
+    .filter(account => account.username)
+    .forEach(account => merged.set(account.username, account));
+  getBootstrapAccounts().forEach(account => merged.set(account.username, account));
+  return [...merged.values()];
+}
+
 const USERS_KEY = process.env.USER_STORE_KEY || 'risk_calculator_users';
 const USER_STATE_PREFIX = process.env.USER_STATE_PREFIX || 'risk_calculator_user_state';
 const ADMIN_API_SECRET = process.env.ADMIN_API_SECRET || '';
@@ -251,7 +261,7 @@ async function readAccounts() {
   if (!raw) return getBootstrapAccounts();
   try {
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.length ? parsed.map(normaliseAccount) : getBootstrapAccounts();
+    return Array.isArray(parsed) && parsed.length ? mergeBootstrapAccounts(parsed) : getBootstrapAccounts();
   } catch (error) {
     console.error('api/users.readAccounts failed to parse stored accounts:', error);
     return getBootstrapAccounts();

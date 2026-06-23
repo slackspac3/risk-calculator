@@ -6,7 +6,7 @@ If this file conflicts with the code, git history, or GitHub workflow files, tru
 
 ## Last Updated
 
-- Date: 2026-06-22
+- Date: 2026-06-23
 - Updated by: Codex session in local repo `/Users/bhavuk.arora/risk-calculator`
 
 ## Read First
@@ -57,6 +57,21 @@ If this file conflicts with the code, git history, or GitHub workflow files, tru
 - Do not force-push or rewrite shared branch history unless explicitly approved.
 
 ## Verified Baseline Through 2026-04-25
+
+Latest active-context update on 2026-06-23 in `/Users/bhavuk.arora/risk-calculator`:
+
+- Live auth recovery found two production causes for handed-out pilot credentials failing:
+  - Vercel Production did not have `SESSION_SIGNING_SECRET` after session signing was hardened to reject `ADMIN_API_SECRET` as a fallback.
+  - The KV-backed `risk_calculator_users` directory took precedence over `BOOTSTRAP_ACCOUNTS_JSON`, so stale same-username stored records could shadow the handed-out pilot credentials, including `global.admin`.
+- `SESSION_SIGNING_SECRET` has been set in Vercel Production and Development. Any local/serverless auth testing still needs this distinct env var; `ADMIN_API_SECRET` is only for admin-bypass routes.
+- `api/users.js` and `api/_apiAuth.js` now merge stored accounts with `BOOTSTRAP_ACCOUNTS_JSON`; bootstrap accounts override stored records only for the same username, preserving other managed KV accounts while restoring the handed-out pilot logins.
+- To keep the handed-out pilot credentials active in production, set `BOOTSTRAP_ACCOUNTS_JSON` from `data/pilot-seed/bootstrap-accounts.sample.json` in Vercel Production before redeploying.
+- Asset stamp remains `20260622v2`; build stamp remains `2026-06-22-ai-first-security-structured-outputs` because this pass is server-side auth behavior only.
+- Validation passed:
+  - `node --test tests/unit/apiAuth.test.js tests/unit/apiSecurityHandlers.test.js` (`18` tests)
+  - `npm run check:syntax`
+  - `npm run test:unit` (`785` tests)
+  - `git diff --check`
 
 Latest active-context update on 2026-06-22 in `/Users/bhavuk.arora/risk-calculator`:
 
