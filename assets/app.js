@@ -8,11 +8,11 @@
 const TOLERANCE_THRESHOLD = 5_000_000;
 const DEFAULT_FX_RATE = 3.6725;
 const DEFAULT_COMPASS_PROXY_URL = resolveCompassProxyUrl();
-const APP_ASSET_VERSION = '20260622v2';
+const APP_ASSET_VERSION = '20260624v2';
 const APP_RELEASE = Object.freeze((typeof window !== 'undefined' && window.__RISK_CALCULATOR_RELEASE__) || {
   version: '0.10.0-pilot.1',
   channel: 'pilot',
-  build: '2026-06-22-ai-first-security-structured-outputs',
+  build: '2026-06-24-audit-log-route-fix',
   assetVersion: APP_ASSET_VERSION,
   apiOrigin: globalThis?.ApiOriginResolver ? globalThis.ApiOriginResolver.DEFAULT_API_ORIGIN : ''
 });
@@ -127,6 +127,7 @@ const DEFAULT_ADMIN_SETTINGS = {
 };
 
 const CONTEXT_REVIEW_WINDOW_MS = 90 * 24 * 60 * 60 * 1000;
+const CONTEXT_NO_VISIBLE_CHANGES_MESSAGE = 'No visible changes were produced. Retry live AI or edit manually.';
 
 function stripSuggestedDraftLabel(value = '') {
   return String(value || '').replace(/^Suggested draft:\s*/i, '').trim();
@@ -162,7 +163,7 @@ function isContextReviewDue(meta = null, now = Date.now()) {
 }
 
 function buildAiContextReviewMeta(result = {}, { existingMeta = null, sourceUrl = '' } = {}) {
-  if (result?.preserveExistingReviewMeta === true) {
+  if (result?.preserveExistingReviewMeta === true || result?.noVisibleChanges === true) {
     return normaliseContextReviewMeta(existingMeta);
   }
   const generatedAt = Date.now();
@@ -3103,13 +3104,20 @@ async function logAuditEvent(event = {}) {
 
 function formatAuditDetailSummaryValue(key = '', value = '', details = {}) {
   const safeKey = String(key || '').trim().toLowerCase();
+  const formatAuditLabel = (labelValue = '', fallback = 'Unknown') => {
+    const text = String(labelValue || '').trim();
+    if (!text) return fallback;
+    return text
+      .replace(/[_-]+/g, ' ')
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+  };
   if (safeKey === 'prompttruncated') {
     const limit = Number(details?.promptLimit || 0) || 0;
     return value
       ? `prompt truncated${limit ? ` at ${limit} chars` : ''}`
       : 'prompt sent untruncated';
   }
-  if (safeKey === 'failurestage') return `failure stage: ${formatFilterLabel(value, 'Unknown')}`;
+  if (safeKey === 'failurestage') return `failure stage: ${formatAuditLabel(value, 'Unknown')}`;
   if (safeKey === 'statuscode') return `status code: ${value}`;
   return `${key}: ${Array.isArray(value) ? value.join(', ') : String(value)}`;
 }
@@ -6052,6 +6060,7 @@ function openOrgEntityEditor({ structure = [], existingNode = null, seed = {}, o
   const contextReviewToggleWrapEl = document.getElementById('org-context-review-toggle-wrap');
   const contextReviewApprovedEl = document.getElementById('org-context-review-approved');
   const contextReviewLabelEl = document.getElementById('org-context-review-label');
+  const orgSaveBtn = document.getElementById('org-save');
   const contextRefinementHistory = [];
   let latestDerivedDepartmentContext = null;
   let currentContextMeta = normaliseContextReviewMeta(node.contextMeta);
@@ -6235,6 +6244,7 @@ function openOrgEntityEditor({ structure = [], existingNode = null, seed = {}, o
       try {
         const uploaded = await loadContextSupportSource('org-context-source-file', 'org-context-source-help');
         const result = await buildDepartmentContextFromParent(uploaded);
+        setContextNoopSaveGuard(orgSaveBtn, false);
         const degraded = result?.aiUnavailable === true || result?.usedFallback === true;
         contextRefinementHistory.length = 0;
         contextRefinementHistory.push({
@@ -6284,6 +6294,7 @@ function openOrgEntityEditor({ structure = [], existingNode = null, seed = {}, o
         LLMService.setCompassConfig(llmConfig);
         const uploaded = await loadContextSupportSource('org-context-source-file', 'org-context-source-help');
         let result = await LLMService.buildCompanyContext(targetUrl);
+        setContextNoopSaveGuard(orgSaveBtn, false);
         currentContextMeta = buildAiContextReviewMeta(result, { existingMeta: currentContextMeta, sourceUrl: targetUrl });
         applyOrgCompanyContextResult(result);
         if (uploaded.text) {
@@ -6348,6 +6359,7 @@ function openOrgEntityEditor({ structure = [], existingNode = null, seed = {}, o
     const btn = document.getElementById('btn-org-refine-context');
     btn.disabled = true;
     btn.textContent = 'Applying…';
+    let noVisibleChangesProduced = false;
     try {
       if (contextRefineStatusEl) contextRefineStatusEl.textContent = 'Applying your latest instruction to the context…';
       contextRefinementHistory.push({ role: 'user', text: prompt });
@@ -6404,31 +6416,38 @@ function openOrgEntityEditor({ structure = [], existingNode = null, seed = {}, o
         } catch {
           result = buildLocalEntityContextFallback(refineInput);
         }
-        currentContextMeta = buildAiContextReviewMeta(result, { existingMeta: currentContextMeta });
-        result.contextMeta = currentContextMeta;
-        result.groundingAssessment = buildEntityContextGroundingAssessment({
-          result,
-          input: refineInput
-        });
         const continuityOnly = result?.continuityOnly === true;
         const degraded = result?.aiUnavailable === true || result?.usedFallback === true;
-        if (result.contextSummary) profileEl.value = result.contextSummary;
-        applyEntityContextGroundingCard(contextGroundingEl, result.groundingAssessment);
-        latestDerivedDepartmentContext = result;
-        contextRefinementHistory.push({ role: 'assistant', text: result.responseMessage || 'I refined the function context based on your latest prompt.' });
-        const continuityDisplay = continuityOnly || isContextRefinementUnchangedBecauseAiUnavailable(result);
+        const continuityDisplay = continuityOnly || isContextAiNoVisibleChanges(result);
+        noVisibleChangesProduced = continuityDisplay;
+        setContextNoopSaveGuard(orgSaveBtn, continuityDisplay);
+        if (!continuityDisplay) {
+          currentContextMeta = buildAiContextReviewMeta(result, { existingMeta: currentContextMeta });
+          result.contextMeta = currentContextMeta;
+          result.groundingAssessment = buildEntityContextGroundingAssessment({
+            result,
+            input: refineInput
+          });
+          if (result.contextSummary) profileEl.value = result.contextSummary;
+          applyEntityContextGroundingCard(contextGroundingEl, result.groundingAssessment);
+          latestDerivedDepartmentContext = result;
+        }
+        contextRefinementHistory.push({
+          role: 'assistant',
+          text: continuityDisplay ? CONTEXT_NO_VISIBLE_CHANGES_MESSAGE : (result.responseMessage || 'I refined the function context based on your latest prompt.')
+        });
         if (contextRefineStatusEl) {
           contextRefineStatusEl.textContent = continuityDisplay
-            ? 'Live AI was unavailable, so the current draft was kept unchanged.'
+            ? CONTEXT_NO_VISIBLE_CHANGES_MESSAGE
             : 'Latest follow-up applied. Keep iterating until the context feels right.';
         }
         UI.toast(
           continuityDisplay
-            ? 'Live AI was unavailable. The current function context stayed unchanged.'
+            ? CONTEXT_NO_VISIBLE_CHANGES_MESSAGE
             : degraded
               ? 'Function context updated with fallback support. Review it carefully.'
               : 'Function context refined.',
-          degraded ? 'warning' : 'success',
+          continuityDisplay || degraded ? 'warning' : 'success',
           5000
         );
       } else {
@@ -6450,30 +6469,37 @@ function openOrgEntityEditor({ structure = [], existingNode = null, seed = {}, o
         } catch {
           result = buildLocalCompanyContextFallback(refineInput);
         }
-        currentContextMeta = buildAiContextReviewMeta(result, { existingMeta: currentContextMeta, sourceUrl: websiteEl?.value.trim() || '' });
-        applyOrgCompanyContextResult(result);
-        renderContextReviewState();
-        contextRefinementHistory.push({ role: 'assistant', text: result.responseMessage || 'I refined the company context based on your latest prompt.' });
         const continuityOnly = result?.continuityOnly === true;
         const degraded = result?.aiUnavailable === true || result?.usedFallback === true;
-        const continuityDisplay = continuityOnly || isContextRefinementUnchangedBecauseAiUnavailable(result);
+        const continuityDisplay = continuityOnly || isContextAiNoVisibleChanges(result);
+        noVisibleChangesProduced = continuityDisplay;
+        setContextNoopSaveGuard(orgSaveBtn, continuityDisplay);
+        if (!continuityDisplay) {
+          currentContextMeta = buildAiContextReviewMeta(result, { existingMeta: currentContextMeta, sourceUrl: websiteEl?.value.trim() || '' });
+          applyOrgCompanyContextResult(result);
+          renderContextReviewState();
+        }
+        contextRefinementHistory.push({
+          role: 'assistant',
+          text: continuityDisplay ? CONTEXT_NO_VISIBLE_CHANGES_MESSAGE : (result.responseMessage || 'I refined the company context based on your latest prompt.')
+        });
         if (contextRefineStatusEl) {
           contextRefineStatusEl.textContent = continuityDisplay
-            ? 'Live AI was unavailable, so the current company context was kept unchanged.'
+            ? CONTEXT_NO_VISIBLE_CHANGES_MESSAGE
             : 'Latest follow-up applied. Keep iterating until the context feels right.';
         }
         UI.toast(
           continuityDisplay
-            ? 'Live AI was unavailable. The current company context stayed unchanged.'
+            ? CONTEXT_NO_VISIBLE_CHANGES_MESSAGE
             : degraded
               ? 'Company context updated with fallback support. Review it carefully.'
               : 'Entity context refined.',
-          degraded ? 'warning' : 'success',
+          continuityDisplay || degraded ? 'warning' : 'success',
           5000
         );
       }
       renderOrgContextRefinementHistory();
-      if (contextFollowupEl) contextFollowupEl.value = '';
+      if (contextFollowupEl && !noVisibleChangesProduced) contextFollowupEl.value = '';
     } catch (error) {
       const message = error?.message || 'Context refinement failed. Try again or shorten the prompt.';
       UI.toast(message, 'danger', 6000);
@@ -6715,6 +6741,7 @@ function openEntityContextLayerEditor({ entity, settings = getAdminSettings(), o
   const reviewToggleWrapEl = document.getElementById('entity-layer-review-toggle-wrap');
   const reviewApprovedEl = document.getElementById('entity-layer-review-approved');
   const reviewLabelEl = document.getElementById('entity-layer-review-label');
+  const saveContextBtn = document.getElementById('entity-layer-save');
   let currentContextMeta = normaliseContextReviewMeta(existingLayer.contextMeta);
 
   function getCurrentContextDraft() {
@@ -6767,11 +6794,8 @@ function openEntityContextLayerEditor({ entity, settings = getAdminSettings(), o
   function buildContextRefinementMessage(result, beforeDraft, afterDraft, { continuityOnly = false, degraded = false } = {}) {
     const changedFields = getChangedContextFields(beforeDraft, afterDraft);
     const response = result?.responseMessage || 'The context draft was refined from your latest prompt.';
-    if (continuityOnly || isContextRefinementUnchangedBecauseAiUnavailable(result, changedFields)) {
-      const changedCopy = changedFields.length
-        ? `Updated fields: ${changedFields.join(', ')}.`
-        : 'No visible field changed; review the current draft before saving.';
-      return `${response}\n${changedCopy}\nSave Context is still required to keep this draft.`;
+    if (continuityOnly || isContextAiNoVisibleChanges(result, changedFields)) {
+      return `${CONTEXT_NO_VISIBLE_CHANGES_MESSAGE}\n${response}`;
     }
     const lead = degraded
       ? 'Fallback support analysed your follow-up and updated the draft fields above.'
@@ -6833,6 +6857,7 @@ function openEntityContextLayerEditor({ entity, settings = getAdminSettings(), o
         uploadedText: uploaded.text,
         uploadedDocumentName: uploaded.name
       });
+      setContextNoopSaveGuard(saveContextBtn, false);
       currentContextMeta = buildAiContextReviewMeta(result, { existingMeta: currentContextMeta });
       result.contextMeta = currentContextMeta;
       result.groundingAssessment = buildEntityContextGroundingAssessment({
@@ -6913,41 +6938,47 @@ function openEntityContextLayerEditor({ entity, settings = getAdminSettings(), o
       } catch {
         result = buildLocalEntityContextFallback(refineInput);
       }
-      currentContextMeta = buildAiContextReviewMeta(result, { existingMeta: currentContextMeta });
-      result.contextMeta = currentContextMeta;
-      result.groundingAssessment = buildEntityContextGroundingAssessment({
-        result,
-        input: refineInput
-      });
       const continuityOnly = result?.continuityOnly === true;
       const degraded = result?.aiUnavailable === true || result?.usedFallback === true;
       const beforeDraft = getCurrentContextDraft();
-      applyContextResult(result);
+      const preApplyNoVisibleChanges = result?.noVisibleChanges === true || continuityOnly || isContextRefinementUnchangedBecauseAiUnavailable(result);
+      if (!preApplyNoVisibleChanges) {
+        currentContextMeta = buildAiContextReviewMeta(result, { existingMeta: currentContextMeta });
+        result.contextMeta = currentContextMeta;
+        result.groundingAssessment = buildEntityContextGroundingAssessment({
+          result,
+          input: refineInput
+        });
+        applyContextResult(result);
+      }
       const afterDraft = getCurrentContextDraft();
-      applyEntityContextGroundingCard(groundingEl, result.groundingAssessment);
-      renderLayerContextReviewState();
       const changedFields = getChangedContextFields(beforeDraft, afterDraft);
-      const continuityDisplay = continuityOnly || isContextRefinementUnchangedBecauseAiUnavailable(result, changedFields);
+      const continuityDisplay = continuityOnly || isContextAiNoVisibleChanges(result, changedFields);
+      setContextNoopSaveGuard(saveContextBtn, continuityDisplay);
+      if (!continuityDisplay) {
+        applyEntityContextGroundingCard(groundingEl, result.groundingAssessment);
+        renderLayerContextReviewState();
+      }
       refinementHistory.push({
         role: 'assistant',
         text: buildContextRefinementMessage(result, beforeDraft, afterDraft, { continuityOnly: continuityDisplay, degraded })
       });
       renderRefinementHistory();
-      followupEl.value = '';
+      if (!continuityDisplay) followupEl.value = '';
       if (refineStatusEl) {
         refineStatusEl.textContent = continuityDisplay
-          ? 'Live AI was unavailable, so the current draft was kept unchanged.'
+          ? CONTEXT_NO_VISIBLE_CHANGES_MESSAGE
           : changedFields.length
             ? `AI analysed and updated: ${changedFields.join(', ')}. Review the fields above, then Save Context.`
             : 'AI analysed the follow-up, but no visible field changed. Review the draft above before saving.';
       }
       UI.toast(
         continuityDisplay
-          ? `Live AI was unavailable. The current context for ${entity.name} stayed unchanged.`
+          ? CONTEXT_NO_VISIBLE_CHANGES_MESSAGE
           : degraded
             ? `Context updated with fallback support for ${entity.name}. Review it carefully.`
             : `Context refined for ${entity.name}.`,
-        degraded ? 'warning' : 'success',
+        continuityDisplay || degraded ? 'warning' : 'success',
         5000
       );
     } catch (error) {
@@ -7422,6 +7453,18 @@ function isContextRefinementUnchangedBecauseAiUnavailable(result = {}, changedFi
   return result?.continuityOnly === true
     || (result?.aiUnavailable === true && result?.preserveExistingReviewMeta === true)
     || (/live ai was unavailable/i.test(response) && /(kept|stayed) unchanged/i.test(response));
+}
+
+function isContextAiNoVisibleChanges(result = {}, changedFields = []) {
+  if (Array.isArray(changedFields) && changedFields.length) return false;
+  return result?.noVisibleChanges === true || isContextRefinementUnchangedBecauseAiUnavailable(result, changedFields);
+}
+
+function setContextNoopSaveGuard(button, active) {
+  if (!button) return;
+  button.classList.toggle('btn--primary', !active);
+  button.classList.toggle('btn--secondary', !!active);
+  button.title = active ? CONTEXT_NO_VISIBLE_CHANGES_MESSAGE : '';
 }
 
 function buildLocalEntityContextFallback(refineInput = {}) {

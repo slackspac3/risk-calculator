@@ -107,6 +107,7 @@ Good practice:
 - keep BU context short, specific, and current
 - make sure function summaries below the BU still align with the real operating model
 - use the BU and function-context `AI Assist` tools as drafting aids, then check the grounding banner before saving
+- if key project economics are missing, ask the project, commercial, finance, or procurement owner rather than inventing a number
 - when using follow-up prompts, check the AI update panel for visible changed fields before saving; if live AI is unavailable and the draft is unchanged, retry later or edit directly
 - if the banner says the draft is generic or only partly grounded, improve the saved context or the underlying document coverage before rolling it out downstream
 

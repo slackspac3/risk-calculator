@@ -6,7 +6,7 @@ If this file conflicts with the code, git history, or GitHub workflow files, tru
 
 ## Last Updated
 
-- Date: 2026-06-23
+- Date: 2026-06-24
 - Updated by: Codex session in local repo `/Users/bhavuk.arora/risk-calculator`
 
 ## Read First
@@ -57,6 +57,23 @@ If this file conflicts with the code, git history, or GitHub workflow files, tru
 - Do not force-push or rewrite shared branch history unless explicitly approved.
 
 ## Verified Baseline Through 2026-04-25
+
+Latest active-context update on 2026-06-24 in `/Users/bhavuk.arora/risk-calculator`:
+
+- Sparse project economics docs now give concrete buyer/seller examples for known budget or contract value with missing delay cost, margin, or LD/SLA cap. The role guides now explicitly treat blank as unknown, reserve `0` for true no exposure/recovery/cost, and route missing economics to project/commercial/finance/procurement owners.
+- Global-admin guardrail guidance now names `check:staleness`: after refactors, point the guardrail at the new owning file or replace it with a behaviour test; do not delete it to unblock deploy.
+- Context AI follow-up flows now mark live no-op outputs as `No visible changes were produced`, keep existing draft fields and review metadata unchanged, keep the follow-up prompt available for retry, and avoid presenting unchanged output as AI-refined context. This covers BU/function/entity context layers plus user/admin company context follow-ups.
+- The hosted Audit Log crash was reproduced with a real admin session on `https://slackspac3.github.io/risk-calculator/`: deployed `assets/app.js?v=20260622v2` threw `ReferenceError: formatFilterLabel is not defined` while summarising AI audit rows, causing `safeRenderAdminSettings()` to reopen Organisation Setup. Local `formatAuditDetails()` is now self-contained and the unit test no longer injects the missing helper.
+- Asset stamp is now `20260624v2`; build stamp is `2026-06-24-audit-log-route-fix`.
+- Validation passed:
+  - `node --test tests/unit/auditDetailSummary.test.js tests/unit/auditLogSection.test.js tests/unit/auditSummary.test.js` (`4` tests)
+  - `npm run test:e2e -- tests/e2e/smoke.spec.js --grep "admin activity summary cards filter the recent audit table"` (`1` test)
+  - local-assets browser check against proxied live backend audit data opened `#/admin/settings/audit` without the Organisation Setup fallback toast
+  - `npm run check:syntax`
+  - `npm run check:staleness`
+  - `npm run check:smoke`
+  - `npm run test:unit` (`788` tests)
+  - `git diff --check`
 
 Latest active-context update on 2026-06-23 in `/Users/bhavuk.arora/risk-calculator`:
 

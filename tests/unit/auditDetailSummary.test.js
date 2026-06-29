@@ -15,15 +15,7 @@ function loadAuditDetailHelpers() {
     throw new Error('Could not locate audit detail helpers in app.js');
   }
   const snippet = source.slice(start, end);
-  const context = {
-    formatFilterLabel(value = '', fallback = 'Unknown') {
-      const text = String(value || '').trim();
-      if (!text) return fallback;
-      return text
-        .replace(/[_-]+/g, ' ')
-        .replace(/\b\w/g, (char) => char.toUpperCase());
-    }
-  };
+  const context = {};
   vm.createContext(context);
   vm.runInContext(snippet, context, { filename: 'app.js' });
   return {

@@ -104,10 +104,12 @@ Use Step 2 well:
 - for project assessments, fill only the economics you know; blank fields are treated as unknown, not zero
 
 Project examples:
-- Buyer: if project budget is known but delay cost per day is unknown, leave delay cost blank. Do not enter `0` unless there is truly no delay cost.
-- Seller: if contract value is known but margin or LD/SLA cap is unknown, leave those fields blank until confirmed. Do not enter zero margin unless the contract really has no margin.
+- Buyer: approved budget is `AED 12m`, but delay cost per day is unknown. Enter the budget and leave delay cost blank.
+- Seller: contract value is `AED 8m`, but margin and LD/SLA cap are unknown. Enter the contract value and leave margin and cap blank.
 
-A benchmark proxy is a directional estimate from comparable cases or saved benchmark context. Use it only when it is acceptable for the decision; otherwise carry the value as missing and ask the owner for the real input.
+A blank field means unknown, not zero. Use `0` only when you truly mean no exposure, recovery, or cost.
+
+A benchmark proxy is a directional estimate from comparable cases or saved benchmark context. It is a placeholder for decision support, not a confirmed project value.
 
 ### 4. Step 3: Refine the scenario
 

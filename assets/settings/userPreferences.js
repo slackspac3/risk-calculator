@@ -1,5 +1,6 @@
 
 let activeUserSettingsRenderToken = 0;
+const USER_CONTEXT_NO_VISIBLE_CHANGES_MESSAGE = 'No visible changes were produced. Retry live AI or edit manually.';
 
 function buildLocalUserCompanyContextFallback(refineInput = {}) {
   const current = refineInput.currentSections || {};
@@ -19,6 +20,11 @@ function buildLocalUserCompanyContextFallback(refineInput = {}) {
     continuityOnly: true,
     responseMessage: 'Live AI was unavailable, so the current company context was kept unchanged. Retry when live AI is available if you want a refined update.'
   };
+}
+
+function setUserContextNoopSaveGuard(active) {
+  const btn = document.getElementById('btn-save-user-settings');
+  if (btn) btn.title = active ? USER_CONTEXT_NO_VISIBLE_CHANGES_MESSAGE : '';
 }
 
 function renderSettingsSummaryChips(items = [], emptyLabel = 'Not set', maxVisible = 3) {
@@ -861,6 +867,7 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
       LLMService.setCompassConfig(llmConfig);
       const uploaded = await loadContextSupportSource('user-company-source-file', 'user-company-source-help');
       let result = await LLMService.buildCompanyContext(websiteUrl);
+      setUserContextNoopSaveGuard(false);
       applyUserCompanyContextResult(result);
       if (uploaded.text) {
         result = await LLMService.refineCompanyContext({
@@ -946,22 +953,27 @@ function renderUserPreferences(existingSettings = getUserSettings()) {
       }
       const continuityOnly = result?.continuityOnly === true;
       const degraded = result?.aiUnavailable === true || result?.usedFallback === true;
-      applyUserCompanyContextResult(result);
-      companyRefinementHistory.push({ role: 'assistant', text: result.responseMessage || 'I refined the company context based on your latest prompt.' });
+      const noVisibleChanges = result?.noVisibleChanges === true || continuityOnly;
+      setUserContextNoopSaveGuard(noVisibleChanges);
+      if (!noVisibleChanges) applyUserCompanyContextResult(result);
+      companyRefinementHistory.push({
+        role: 'assistant',
+        text: noVisibleChanges ? USER_CONTEXT_NO_VISIBLE_CHANGES_MESSAGE : (result.responseMessage || 'I refined the company context based on your latest prompt.')
+      });
       renderUserCompanyRefinementHistory();
-      companyFollowupEl.value = '';
+      if (!noVisibleChanges) companyFollowupEl.value = '';
       if (companyRefineStatusEl) {
-        companyRefineStatusEl.textContent = continuityOnly
-          ? 'Live AI was unavailable, so the current company context was kept unchanged.'
+        companyRefineStatusEl.textContent = noVisibleChanges
+          ? USER_CONTEXT_NO_VISIBLE_CHANGES_MESSAGE
           : 'Latest follow-up applied. Keep iterating until the context feels right.';
       }
       UI.toast(
-        continuityOnly
-          ? 'Live AI was unavailable. The current personal company context stayed unchanged.'
+        noVisibleChanges
+          ? USER_CONTEXT_NO_VISIBLE_CHANGES_MESSAGE
           : degraded
             ? 'Personal company context updated with fallback support. Review it carefully.'
             : 'Personal company context refined.',
-        degraded ? 'warning' : 'success',
+        noVisibleChanges || degraded ? 'warning' : 'success',
         5000
       );
     } catch (error) {

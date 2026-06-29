@@ -1,6 +1,13 @@
 (function(global) {
   'use strict';
 
+  const ADMIN_COMPANY_CONTEXT_NO_VISIBLE_CHANGES_MESSAGE = 'No visible changes were produced. Retry live AI or edit manually.';
+
+  function setAdminCompanyContextNoopSaveGuard(active) {
+    const btn = document.getElementById('btn-save-settings');
+    if (btn) btn.title = active ? ADMIN_COMPANY_CONTEXT_NO_VISIBLE_CHANGES_MESSAGE : '';
+  }
+
   function getCompassConfigFromAdminInputs() {
     return {
       apiUrl: document.getElementById('admin-compass-url')?.value.trim() || DEFAULT_COMPASS_PROXY_URL,
@@ -146,6 +153,7 @@
         LLMService.setCompassConfig(getCompassConfigFromAdminInputs());
         const uploaded = await loadContextSupportSource('admin-company-source-file', 'admin-company-source-help');
         let result = await LLMService.buildCompanyContext(websiteUrl);
+        setAdminCompanyContextNoopSaveGuard(false);
         let { sections, profileText } = applyResult(result);
         if (uploaded.text) {
           result = await LLMService.refineCompanyContext({
@@ -247,22 +255,27 @@
         }
         const continuityOnly = result?.continuityOnly === true;
         const degraded = result?.aiUnavailable === true || result?.usedFallback === true;
-        applyResult(result);
-        history.push({ role: 'assistant', text: result.responseMessage || 'I refined the company context based on your latest prompt.' });
+        const noVisibleChanges = result?.noVisibleChanges === true || continuityOnly;
+        setAdminCompanyContextNoopSaveGuard(noVisibleChanges);
+        if (!noVisibleChanges) applyResult(result);
+        history.push({
+          role: 'assistant',
+          text: noVisibleChanges ? ADMIN_COMPANY_CONTEXT_NO_VISIBLE_CHANGES_MESSAGE : (result.responseMessage || 'I refined the company context based on your latest prompt.')
+        });
         renderHistory();
-        if (followupEl) followupEl.value = '';
+        if (followupEl && !noVisibleChanges) followupEl.value = '';
         if (statusEl) {
-          statusEl.textContent = continuityOnly
-            ? 'Live AI was unavailable, so the current company context was kept unchanged.'
+          statusEl.textContent = noVisibleChanges
+            ? ADMIN_COMPANY_CONTEXT_NO_VISIBLE_CHANGES_MESSAGE
             : 'Latest follow-up applied. Keep iterating until the context feels right.';
         }
         UI.toast(
-          continuityOnly
-            ? 'Live AI was unavailable. The current admin company context stayed unchanged.'
+          noVisibleChanges
+            ? ADMIN_COMPANY_CONTEXT_NO_VISIBLE_CHANGES_MESSAGE
             : degraded
               ? 'Admin company context updated with fallback support. Review it carefully.'
               : 'Admin company context refined.',
-          degraded ? 'warning' : 'success',
+          noVisibleChanges || degraded ? 'warning' : 'success',
           5000
         );
       } catch (error) {

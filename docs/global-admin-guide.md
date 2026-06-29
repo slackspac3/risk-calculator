@@ -88,7 +88,7 @@ Current baseline areas that deserve explicit review:
 - If BU or function admins are saving context with `Generic draft warning`, fix the inherited context or document coverage before retuning model behavior.
 - If a context follow-up says live AI was unavailable and no visible field changed, do not save it as an AI-refined update; retry when the live path is healthy or edit the fields manually.
 - If the issue looks domain-specific, run the affected eval slice and check retrieval precision / recall / F1 as well as primary-lens accuracy before changing shared tuning.
-- If a guardrail fails after a refactor, point it at the new owning file or replace it with a behaviour test. Do not delete it just to unblock deploy.
+- If `check:staleness` fails after a refactor, point it at the new owning file or replace it with a behaviour test. Do not delete the guardrail just to unblock deploy.
 - Change one parameter at a time:
   - alignment priority
   - draft style

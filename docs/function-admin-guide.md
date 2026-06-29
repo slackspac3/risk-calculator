@@ -103,6 +103,7 @@ Your settings matter because function context shapes:
 Good practice:
 - keep the function context specific and current
 - update it when the control environment, operating model, or priorities change
+- if key project economics are missing, ask the project, commercial, finance, or procurement owner rather than inventing a number
 - when adding follow-up prompt feedback to context, review the AI update panel for changed draft fields before saving; if live AI is unavailable and no fields changed, retry later or edit the context manually
 - when you use `AI Assist` on function context, read the grounding banner before saving:
   - `Grounded in saved context` means the draft is clearly inheriting saved BU or organisation context

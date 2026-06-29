@@ -207,6 +207,106 @@ test('entity context refinement requests JSON mode with enough completion budget
   assert.equal(requests[0].max_completion_tokens >= 1400, true);
 });
 
+test('entity context refinement marks live responses with no visible field changes', async () => {
+  const service = loadLlmService({
+    origin: 'http://127.0.0.1:8080',
+    fetchImpl: async () => ({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                geography: 'UAE',
+                contextSummary: 'Healthcare business.',
+                riskAppetiteStatement: 'Low appetite for patient safety failures.',
+                applicableRegulations: ['ADHICS'],
+                aiInstructions: 'Use healthcare context.',
+                benchmarkStrategy: 'Use healthcare benchmarks.',
+                responseMessage: 'No substantive change was needed.'
+              })
+            }
+          }
+        ]
+      })
+    })
+  });
+
+  configureLocalDirectCompass(service);
+
+  const result = await service.refineEntityContext({
+    entity: { name: 'M42 UAE', type: 'Business Unit' },
+    currentContext: {
+      geography: 'UAE',
+      contextSummary: 'Healthcare business.',
+      riskAppetiteStatement: 'Low appetite for patient safety failures.',
+      applicableRegulations: ['ADHICS'],
+      aiInstructions: 'Use healthcare context.',
+      benchmarkStrategy: 'Use healthcare benchmarks.'
+    },
+    userPrompt: 'Make this stronger.'
+  });
+
+  assert.equal(result.noVisibleChanges, true);
+  assert.equal(result.preserveExistingReviewMeta, true);
+  assert.match(result.responseMessage, /No visible changes were produced/i);
+});
+
+test('company context refinement marks live responses with no visible field changes', async () => {
+  const service = loadLlmService({
+    origin: 'http://127.0.0.1:8080',
+    fetchImpl: async () => ({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                companySummary: 'Holding company context.',
+                businessModel: 'Portfolio ownership and shared services.',
+                operatingModel: 'Central governance with delegated operations.',
+                publicCommitments: 'Responsible growth.',
+                keyRiskSignals: 'Operational resilience.',
+                obligations: 'Applicable UAE obligations.',
+                sources: 'Public website.',
+                aiGuidance: 'Keep outputs concise.',
+                suggestedGeography: 'UAE',
+                regulatorySignals: ['UAE PDPL'],
+                responseMessage: 'No substantive change was needed.'
+              })
+            }
+          }
+        ]
+      })
+    })
+  });
+
+  configureLocalDirectCompass(service);
+
+  const result = await service.refineCompanyContext({
+    websiteUrl: 'https://example.test',
+    currentSections: {
+      companySummary: 'Holding company context.',
+      businessModel: 'Portfolio ownership and shared services.',
+      operatingModel: 'Central governance with delegated operations.',
+      publicCommitments: 'Responsible growth.',
+      keyRiskSignals: 'Operational resilience.',
+      obligations: 'Applicable UAE obligations.',
+      sources: 'Public website.'
+    },
+    currentAiGuidance: 'Keep outputs concise.',
+    currentGeography: 'UAE',
+    currentRegulations: ['UAE PDPL'],
+    userPrompt: 'Make this stronger.'
+  });
+
+  assert.equal(result.noVisibleChanges, true);
+  assert.equal(result.preserveExistingReviewMeta, true);
+  assert.match(result.responseMessage, /No visible changes were produced/i);
+});
+
 test('failed AI audit rows capture truncation status and raised prompt limit', async () => {
   const auditEvents = [];
   const service = loadLlmService({
