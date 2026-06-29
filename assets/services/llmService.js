@@ -6177,6 +6177,32 @@ ${evidenceMeta.promptBlock}`;
     };
   }
 
+  const CONTEXT_NO_VISIBLE_CHANGES_MESSAGE = 'No visible changes were produced. Retry live AI or edit manually.';
+
+  function _normaliseVisibleContextValue(value) {
+    return String(value || '').trim().replace(/\s+/g, ' ');
+  }
+
+  function _normaliseVisibleContextArray(value = []) {
+    return (Array.isArray(value) ? value : [])
+      .map(item => _normaliseVisibleContextValue(item))
+      .filter(Boolean)
+      .sort()
+      .join('|');
+  }
+
+  function _hasVisibleContextChanges(before = {}, after = {}, fields = []) {
+    return fields.some((field) => {
+      const beforeValue = Array.isArray(before[field])
+        ? _normaliseVisibleContextArray(before[field])
+        : _normaliseVisibleContextValue(before[field]);
+      const afterValue = Array.isArray(after[field])
+        ? _normaliseVisibleContextArray(after[field])
+        : _normaliseVisibleContextValue(after[field]);
+      return beforeValue !== afterValue;
+    });
+  }
+
   async function refineEntityContext(input = {}) {
     const currentContext = {
       geography: String(input.currentContext?.geography || '').trim(),
@@ -6289,7 +6315,7 @@ ${evidenceMeta.promptBlock}`;
         failureLogContext: parseFailureContext
       }) || {};
       const isDepartment = String(input.entity?.type || '').toLowerCase() === 'department / function';
-      return _decorateAiResult(_withEvidenceMeta({
+      const nextContext = {
         geography: String(parsed.geography || currentContext.geography || '').trim(),
         contextSummary: _cleanUserFacingText(parsed.contextSummary || currentContext.contextSummary || '', { maxSentences: isDepartment ? 4 : 5 }),
         riskAppetiteStatement: _cleanUserFacingText(parsed.riskAppetiteStatement || currentContext.riskAppetiteStatement || '', { maxSentences: 2 }),
@@ -6297,7 +6323,22 @@ ${evidenceMeta.promptBlock}`;
         aiInstructions: _cleanUserFacingText(parsed.aiInstructions || currentContext.aiInstructions || '', { maxSentences: 3 }),
         benchmarkStrategy: _cleanUserFacingText(parsed.benchmarkStrategy || currentContext.benchmarkStrategy || '', { maxSentences: 2 }),
         responseMessage: _cleanUserFacingText(parsed.responseMessage || continuityMessage, { maxSentences: 3 })
-      }, evidenceMeta), evidenceMeta, { contentFields: ['contextSummary', 'riskAppetiteStatement', 'aiInstructions', 'benchmarkStrategy', 'responseMessage'], fallbackUsed: false, uploadedDocumentName: input.uploadedDocumentName });
+      };
+      const hasChanges = _hasVisibleContextChanges(currentContext, nextContext, [
+        'geography',
+        'contextSummary',
+        'riskAppetiteStatement',
+        'applicableRegulations',
+        'aiInstructions',
+        'benchmarkStrategy'
+      ]);
+      const result = hasChanges ? nextContext : {
+        ...nextContext,
+        noVisibleChanges: true,
+        preserveExistingReviewMeta: true,
+        responseMessage: CONTEXT_NO_VISIBLE_CHANGES_MESSAGE
+      };
+      return _decorateAiResult(_withEvidenceMeta(result, evidenceMeta), evidenceMeta, { contentFields: ['contextSummary', 'riskAppetiteStatement', 'aiInstructions', 'benchmarkStrategy', 'responseMessage'], fallbackUsed: false, uploadedDocumentName: input.uploadedDocumentName });
     } catch (error) {
       await _auditAiFallback('refineEntityContext', error, { entityName: String(input.entity?.name || '').trim() });
       console.warn('refineEntityContext fallback:', error.message);
@@ -6421,7 +6462,7 @@ ${evidenceMeta.promptBlock}`;
         taskName: 'repairRefineCompanyContext',
         failureLogContext: parseFailureContext
       }) || {};
-      return _decorateAiResult(_withEvidenceMeta({
+      const nextContext = {
         companySummary: _cleanUserFacingText(parsed.companySummary || currentSections.companySummary || '', { maxSentences: 4 }),
         businessModel: _cleanUserFacingText(parsed.businessModel || currentSections.businessModel || '', { maxSentences: 4 }),
         operatingModel: _cleanUserFacingText(parsed.operatingModel || currentSections.operatingModel || '', { maxSentences: 4 }),
@@ -6433,7 +6474,32 @@ ${evidenceMeta.promptBlock}`;
         suggestedGeography: String(parsed.suggestedGeography || input.currentGeography || '').trim(),
         regulatorySignals: Array.isArray(parsed.regulatorySignals) ? parsed.regulatorySignals.map(String).filter(Boolean) : (Array.isArray(input.currentRegulations) ? input.currentRegulations : []),
         responseMessage: _cleanUserFacingText(parsed.responseMessage || continuityMessage, { maxSentences: 3 })
-      }, evidenceMeta), evidenceMeta, { contentFields: ['companySummary', 'businessModel', 'operatingModel', 'publicCommitments', 'keyRiskSignals', 'obligations', 'sources', 'aiGuidance', 'responseMessage'], fallbackUsed: false, uploadedDocumentName: input.uploadedDocumentName });
+      };
+      const currentContext = {
+        ...currentSections,
+        aiGuidance: String(input.currentAiGuidance || '').trim(),
+        suggestedGeography: String(input.currentGeography || '').trim(),
+        regulatorySignals: Array.isArray(input.currentRegulations) ? input.currentRegulations : []
+      };
+      const hasChanges = _hasVisibleContextChanges(currentContext, nextContext, [
+        'companySummary',
+        'businessModel',
+        'operatingModel',
+        'publicCommitments',
+        'keyRiskSignals',
+        'obligations',
+        'sources',
+        'aiGuidance',
+        'suggestedGeography',
+        'regulatorySignals'
+      ]);
+      const result = hasChanges ? nextContext : {
+        ...nextContext,
+        noVisibleChanges: true,
+        preserveExistingReviewMeta: true,
+        responseMessage: CONTEXT_NO_VISIBLE_CHANGES_MESSAGE
+      };
+      return _decorateAiResult(_withEvidenceMeta(result, evidenceMeta), evidenceMeta, { contentFields: ['companySummary', 'businessModel', 'operatingModel', 'publicCommitments', 'keyRiskSignals', 'obligations', 'sources', 'aiGuidance', 'responseMessage'], fallbackUsed: false, uploadedDocumentName: input.uploadedDocumentName });
     } catch (error) {
       await _auditAiFallback('refineCompanyContext', error, { websiteUrl: _sanitizeAiText(input.websiteUrl || '', { maxChars: 120 }) });
       console.warn('refineCompanyContext fallback:', error.message);
