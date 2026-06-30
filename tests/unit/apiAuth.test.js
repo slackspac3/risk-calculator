@@ -205,3 +205,46 @@ test('readAccountsDirectory lets bootstrap accounts override stored managed acco
     else delete process.env.KV_REST_API_TOKEN;
   }
 });
+
+test('readAccountsDirectory lets stored tombstones suppress bootstrap accounts', async () => {
+  const originalBootstrap = process.env.BOOTSTRAP_ACCOUNTS_JSON;
+  const originalKvUrl = process.env.KV_REST_API_URL;
+  const originalKvToken = process.env.KV_REST_API_TOKEN;
+  const originalFetch = global.fetch;
+  process.env.BOOTSTRAP_ACCOUNTS_JSON = JSON.stringify([{
+    username: 'amina.bu',
+    displayName: 'Amina Rahman',
+    role: 'bu_admin',
+    sessionVersion: 1
+  }]);
+  process.env.KV_REST_API_URL = 'https://example.test/kv';
+  process.env.KV_REST_API_TOKEN = 'test-token';
+  global.fetch = async (_url, options = {}) => {
+    const [command, key] = JSON.parse(String(options.body || '[]'));
+    assert.equal(command, 'GET');
+    assert.equal(key, 'risk_calculator_users');
+    return {
+      ok: true,
+      json: async () => ({
+        result: JSON.stringify([{
+          username: 'amina.bu',
+          deleted: true,
+          deletedAt: '2026-06-30T08:00:00.000Z'
+        }])
+      })
+    };
+  };
+  try {
+    const { accounts, enforce } = await readAccountsDirectory();
+    assert.equal(enforce, true);
+    assert.equal(accounts.some(account => account.username === 'amina.bu'), false);
+  } finally {
+    global.fetch = originalFetch;
+    if (typeof originalBootstrap === 'string') process.env.BOOTSTRAP_ACCOUNTS_JSON = originalBootstrap;
+    else delete process.env.BOOTSTRAP_ACCOUNTS_JSON;
+    if (typeof originalKvUrl === 'string') process.env.KV_REST_API_URL = originalKvUrl;
+    else delete process.env.KV_REST_API_URL;
+    if (typeof originalKvToken === 'string') process.env.KV_REST_API_TOKEN = originalKvToken;
+    else delete process.env.KV_REST_API_TOKEN;
+  }
+});

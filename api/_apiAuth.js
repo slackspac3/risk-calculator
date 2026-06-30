@@ -15,6 +15,10 @@ function normaliseAccount(account = {}) {
   };
 }
 
+function isDeletedAccountRecord(account = {}) {
+  return account?.deleted === true;
+}
+
 function getBootstrapAccounts() {
   try {
     const raw = String(process.env.BOOTSTRAP_ACCOUNTS_JSON || '').trim();
@@ -29,11 +33,21 @@ function getBootstrapAccounts() {
 
 function mergeBootstrapAccounts(accounts = []) {
   const merged = new Map();
-  (Array.isArray(accounts) ? accounts : [])
-    .map(normaliseAccount)
-    .filter(account => account.username)
-    .forEach(account => merged.set(account.username, account));
-  getBootstrapAccounts().forEach(account => merged.set(account.username, account));
+  const deletedUsernames = new Set();
+  (Array.isArray(accounts) ? accounts : []).forEach((record) => {
+    const username = String(record?.username || '').trim().toLowerCase();
+    if (!username) return;
+    if (isDeletedAccountRecord(record)) {
+      deletedUsernames.add(username);
+      merged.delete(username);
+      return;
+    }
+    const account = normaliseAccount(record);
+    if (account.username) merged.set(account.username, account);
+  });
+  getBootstrapAccounts().forEach((account) => {
+    if (!deletedUsernames.has(account.username)) merged.set(account.username, account);
+  });
   return [...merged.values()];
 }
 

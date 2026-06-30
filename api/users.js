@@ -22,11 +22,21 @@ function getBootstrapAccounts() {
 
 function mergeBootstrapAccounts(accounts = []) {
   const merged = new Map();
-  (Array.isArray(accounts) ? accounts : [])
-    .map(normaliseAccount)
-    .filter(account => account.username)
-    .forEach(account => merged.set(account.username, account));
-  getBootstrapAccounts().forEach(account => merged.set(account.username, account));
+  const deletedUsernames = new Set();
+  (Array.isArray(accounts) ? accounts : []).forEach((record) => {
+    const username = String(record?.username || '').trim().toLowerCase();
+    if (!username) return;
+    if (isDeletedAccountRecord(record)) {
+      deletedUsernames.add(username);
+      merged.delete(username);
+      return;
+    }
+    const account = normaliseAccount(record);
+    if (account.username) merged.set(account.username, account);
+  });
+  getBootstrapAccounts().forEach((account) => {
+    if (!deletedUsernames.has(account.username)) merged.set(account.username, account);
+  });
   return [...merged.values()];
 }
 
@@ -61,6 +71,18 @@ function normaliseAccount(account = {}) {
     role: account.role === 'admin' ? 'admin' : (account.role === 'bu_admin' ? 'bu_admin' : (account.role === 'function_admin' ? 'function_admin' : 'user')),
     businessUnitEntityId: String(account.businessUnitEntityId || '').trim(),
     departmentEntityId: String(account.departmentEntityId || '').trim()
+  };
+}
+
+function isDeletedAccountRecord(account = {}) {
+  return account?.deleted === true;
+}
+
+function normaliseDeletedAccountRecord(account = {}) {
+  return {
+    username: String(account.username || '').trim().toLowerCase(),
+    deleted: true,
+    deletedAt: String(account.deletedAt || new Date().toISOString()).trim()
   };
 }
 
@@ -261,7 +283,7 @@ async function readAccounts() {
   if (!raw) return getBootstrapAccounts();
   try {
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.length ? mergeBootstrapAccounts(parsed) : getBootstrapAccounts();
+    return Array.isArray(parsed) ? mergeBootstrapAccounts(parsed) : getBootstrapAccounts();
   } catch (error) {
     console.error('api/users.readAccounts failed to parse stored accounts:', error);
     return getBootstrapAccounts();
@@ -272,9 +294,13 @@ async function persistAccounts(accounts) {
   if (!hasWritableKv()) {
     throw new Error('Shared user store is not writable. Configure the shared store environment variables in Vercel.');
   }
-  const storedAccounts = accounts.map(prepareAccountForStorage);
+  const storedAccounts = (Array.isArray(accounts) ? accounts : [])
+    .map(account => isDeletedAccountRecord(account) ? normaliseDeletedAccountRecord(account) : prepareAccountForStorage(account))
+    .filter(account => account.username);
   await kvSet(USERS_KEY, JSON.stringify(storedAccounts));
-  return storedAccounts.map(normaliseAccount);
+  return storedAccounts
+    .filter(account => !isDeletedAccountRecord(account))
+    .map(normaliseAccount);
 }
 
 async function writeAccounts(accounts) {
@@ -637,13 +663,16 @@ module.exports = async function handler(req, res) {
       }
       if (body.action === 'delete-user') {
         let removed = null;
+        const bootstrapUsernames = new Set(getBootstrapAccounts().map(account => account.username));
         const storedAccounts = await withKvLock(USERS_KEY, async () => {
           const accounts = await readAccounts();
           const index = accounts.findIndex(account => account.username === username);
           if (index < 0) return null;
           removed = accounts.splice(index, 1)[0];
-          await persistAccounts(accounts);
-          return accounts;
+          if (bootstrapUsernames.has(username)) {
+            accounts.push(normaliseDeletedAccountRecord({ username, deletedAt: new Date().toISOString() }));
+          }
+          return persistAccounts(accounts);
         }, {
           prefix: 'lock::users::',
           waitTimeoutMs: 2500
