@@ -279,14 +279,19 @@ function hasWritableKv() {
 }
 
 async function readAccounts() {
+  const records = await readStoredAccountRecords();
+  return Array.isArray(records) ? mergeBootstrapAccounts(records) : getBootstrapAccounts();
+}
+
+async function readStoredAccountRecords() {
   const raw = await kvGet(USERS_KEY);
-  if (!raw) return getBootstrapAccounts();
+  if (!raw) return null;
   try {
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? mergeBootstrapAccounts(parsed) : getBootstrapAccounts();
+    return Array.isArray(parsed) ? parsed : null;
   } catch (error) {
-    console.error('api/users.readAccounts failed to parse stored accounts:', error);
-    return getBootstrapAccounts();
+    console.error('api/users.readStoredAccountRecords failed to parse stored accounts:', error);
+    return null;
   }
 }
 
@@ -294,11 +299,32 @@ async function persistAccounts(accounts) {
   if (!hasWritableKv()) {
     throw new Error('Shared user store is not writable. Configure the shared store environment variables in Vercel.');
   }
-  const storedAccounts = (Array.isArray(accounts) ? accounts : [])
-    .map(account => isDeletedAccountRecord(account) ? normaliseDeletedAccountRecord(account) : prepareAccountForStorage(account))
-    .filter(account => account.username);
-  await kvSet(USERS_KEY, JSON.stringify(storedAccounts));
-  return storedAccounts
+  const deletedRecords = new Map();
+  const currentRecords = await readStoredAccountRecords();
+  (Array.isArray(currentRecords) ? currentRecords : []).forEach((record) => {
+    if (!isDeletedAccountRecord(record)) return;
+    const tombstone = normaliseDeletedAccountRecord(record);
+    if (tombstone.username) deletedRecords.set(tombstone.username, tombstone);
+  });
+  const activeUsernames = new Set();
+  const storedAccounts = [];
+  (Array.isArray(accounts) ? accounts : []).forEach((account) => {
+    if (isDeletedAccountRecord(account)) {
+      const tombstone = normaliseDeletedAccountRecord(account);
+      if (tombstone.username) deletedRecords.set(tombstone.username, tombstone);
+      return;
+    }
+    const prepared = prepareAccountForStorage(account);
+    if (!prepared.username) return;
+    activeUsernames.add(prepared.username);
+    deletedRecords.delete(prepared.username);
+    storedAccounts.push(prepared);
+  });
+  const storedRecords = storedAccounts.concat(
+    [...deletedRecords.values()].filter(record => !activeUsernames.has(record.username))
+  );
+  await kvSet(USERS_KEY, JSON.stringify(storedRecords));
+  return storedRecords
     .filter(account => !isDeletedAccountRecord(account))
     .map(normaliseAccount);
 }

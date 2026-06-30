@@ -60,11 +60,11 @@ If this file conflicts with the code, git history, or GitHub workflow files, tru
 
 Latest active-context update on 2026-06-30 in `/Users/bhavuk.arora/risk-calculator`:
 
-- Managed user deletion now persists a tombstone for bootstrap/seed accounts. This fixes the Admin User Accounts delete flow for seeded users such as `amina.bu`, `tariq.function`, and `maya.user`, which previously reappeared because `BOOTSTRAP_ACCOUNTS_JSON` was merged back into the live KV directory after deletion.
+- Managed user deletion now persists a tombstone for bootstrap/seed accounts, and user-store writes preserve existing tombstones unless an account is deliberately recreated. This fixes the Admin User Accounts delete flow for seeded users such as `amina.bu`, `tariq.function`, and `maya.user`, which previously reappeared because `BOOTSTRAP_ACCOUNTS_JSON` was merged back into the live KV directory after deletion.
 - `_apiAuth` also honours the same tombstones, so deleted bootstrap accounts cannot continue through session rehydration from the bootstrap environment.
 - This is server/API-only behavior; asset stamp remains `20260624v2` and build stamp remains `2026-06-24-audit-log-route-fix`.
 - Validation passed:
-  - `node --test tests/unit/apiAuth.test.js tests/unit/apiSecurityHandlers.test.js` (`20` tests)
+  - `node --test tests/unit/apiAuth.test.js tests/unit/apiSecurityHandlers.test.js` (`20` tests, including sequential bootstrap-user deletion)
   - `npm run check:syntax`
   - `npm run check:staleness`
   - `npm run check:smoke`

@@ -322,20 +322,39 @@ test('users login lets bootstrap credentials override stale stored account crede
   assert.ok(String(res.payload.sessionToken || '').includes('.'));
 });
 
-test('users delete persists a tombstone for bootstrap accounts', async () => {
+test('users delete preserves tombstones across sequential bootstrap deletions', async () => {
   process.env.ALLOWED_ORIGIN = 'https://slackspac3.github.io';
   process.env.ADMIN_API_SECRET = 'test-admin-secret';
   process.env.KV_REST_API_URL = 'https://example.test/kv';
   process.env.KV_REST_API_TOKEN = 'test-token';
   process.env.SESSION_SIGNING_SECRET = 'test-signing-secret';
-  process.env.BOOTSTRAP_ACCOUNTS_JSON = JSON.stringify([{
-    username: 'amina.bu',
-    password: 'PilotBU!2026',
-    displayName: 'Amina Rahman',
-    role: 'bu_admin',
-    businessUnitEntityId: 'bu-digital-platforms',
-    departmentEntityId: ''
-  }]);
+  process.env.BOOTSTRAP_ACCOUNTS_JSON = JSON.stringify([
+    {
+      username: 'amina.bu',
+      password: 'PilotBU!2026',
+      displayName: 'Amina Rahman',
+      role: 'bu_admin',
+      businessUnitEntityId: 'bu-digital-platforms',
+      departmentEntityId: ''
+    },
+    {
+      username: 'tariq.function',
+      password: 'PilotFunction!2026',
+      displayName: 'Tariq Mansoor',
+      role: 'function_admin',
+      businessUnitEntityId: 'bu-digital-platforms',
+      departmentEntityId: 'dept-security-operations'
+    },
+    {
+      username: 'maya.user',
+      password: 'PilotUser!2026',
+      displayName: 'Maya Kapoor',
+      role: 'user',
+      businessUnitEntityId: 'bu-digital-platforms',
+      departmentEntityId: 'dept-security-operations'
+    }
+  ]);
+  const targetUsers = ['amina.bu', 'tariq.function', 'maya.user'];
   const kvStore = new Map();
   global.fetch = async (_url, options = {}) => {
     const command = JSON.parse(String(options.body || '[]'));
@@ -358,26 +377,31 @@ test('users delete persists a tombstone for bootstrap accounts', async () => {
   };
 
   const handler = loadFresh('../../api/users');
-  const deleteRes = createRes();
 
-  await handler({
-    method: 'PATCH',
-    headers: {
-      origin: 'https://slackspac3.github.io',
-      'content-type': 'application/json',
-      'x-admin-secret': 'test-admin-secret'
-    },
-    body: {
-      action: 'delete-user',
-      username: 'amina.bu',
-      updates: {}
-    }
-  }, deleteRes);
+  for (const username of targetUsers) {
+    const deleteRes = createRes();
+    await handler({
+      method: 'PATCH',
+      headers: {
+        origin: 'https://slackspac3.github.io',
+        'content-type': 'application/json',
+        'x-admin-secret': 'test-admin-secret'
+      },
+      body: {
+        action: 'delete-user',
+        username,
+        updates: {}
+      }
+    }, deleteRes);
 
-  assert.equal(deleteRes.statusCode, 200);
-  assert.equal(deleteRes.payload.accounts.some(account => account.username === 'amina.bu'), false);
+    assert.equal(deleteRes.statusCode, 200);
+    assert.equal(deleteRes.payload.accounts.some(account => account.username === username), false);
+  }
+
   const storedUsers = JSON.parse(kvStore.get('risk_calculator_users') || '[]');
-  assert.equal(storedUsers.some(account => account.username === 'amina.bu' && account.deleted === true), true);
+  targetUsers.forEach((username) => {
+    assert.equal(storedUsers.some(account => account.username === username && account.deleted === true), true);
+  });
 
   const getRes = createRes();
   await handler({
@@ -390,25 +414,33 @@ test('users delete persists a tombstone for bootstrap accounts', async () => {
   }, getRes);
 
   assert.equal(getRes.statusCode, 200);
-  assert.equal(getRes.payload.accounts.some(account => account.username === 'amina.bu'), false);
+  targetUsers.forEach((username) => {
+    assert.equal(getRes.payload.accounts.some(account => account.username === username), false);
+  });
 
-  const loginRes = createRes();
-  await handler({
-    method: 'POST',
-    headers: {
-      origin: 'https://slackspac3.github.io',
-      'content-type': 'application/json'
-    },
-    socket: { remoteAddress: '127.0.0.1' },
-    body: {
-      action: 'login',
-      username: 'amina.bu',
-      password: 'PilotBU!2026'
-    }
-  }, loginRes);
+  for (const [username, password] of [
+    ['amina.bu', 'PilotBU!2026'],
+    ['tariq.function', 'PilotFunction!2026'],
+    ['maya.user', 'PilotUser!2026']
+  ]) {
+    const loginRes = createRes();
+    await handler({
+      method: 'POST',
+      headers: {
+        origin: 'https://slackspac3.github.io',
+        'content-type': 'application/json'
+      },
+      socket: { remoteAddress: '127.0.0.1' },
+      body: {
+        action: 'login',
+        username,
+        password
+      }
+    }, loginRes);
 
-  assert.equal(loginRes.statusCode, 401);
-  assert.equal(loginRes.payload.error.code, 'INVALID_CREDENTIALS');
+    assert.equal(loginRes.statusCode, 401);
+    assert.equal(loginRes.payload.error.code, 'INVALID_CREDENTIALS');
+  }
 });
 
 test('audit-log POST forces browser events to client source and reserves server auth names', async () => {
